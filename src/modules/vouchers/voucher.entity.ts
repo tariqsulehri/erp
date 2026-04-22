@@ -4,17 +4,19 @@ import {
   OneToMany, ManyToOne, JoinColumn, Index,
 } from 'typeorm';
 
-export type VoucherType   = 'PV' | 'RV' | 'JV' | 'CV' | 'DN' | 'CN';
+export type VoucherType   = 'BRV' | 'BPV' | 'CRV' | 'CPV' | 'JV' | 'CV' | 'DN' | 'CN';
 export type VoucherStatus = 'Draft' | 'Posted' | 'Voided';
 
 /**
  * Voucher types:
- *   PV — Payment Voucher     (cash/bank payment out)
- *   RV — Receipt Voucher     (cash/bank receipt in)
- *   JV — Journal Voucher     (general adjusting entry)
- *   CV — Contra Voucher      (cash ↔ bank transfer)
- *   DN — Debit Note          (debit memo to party)
- *   CN — Credit Note         (credit memo to party)
+ *   BRV — Bank Receipt Voucher   (money received into bank account)
+ *   BPV — Bank Payment Voucher   (money paid out of bank account)
+ *   CRV — Cash Receipt Voucher   (cash received in hand)
+ *   CPV — Cash Payment Voucher   (cash paid out of hand)
+ *   JV  — Journal Voucher        (general / adjusting entries)
+ *   CV  — Contra Voucher         (cash ↔ bank transfer)
+ *   DN  — Debit Note             (debit memo to party)
+ *   CN  — Credit Note            (credit memo to party)
  */
 @Entity('vouchers')
 @Index(['company_id', 'voucher_number'], { unique: true })

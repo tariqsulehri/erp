@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-export const VoucherTypeEnum   = z.enum(['PV', 'RV', 'JV', 'CV', 'DN', 'CN']);
+export const VoucherTypeEnum   = z.enum(['BRV', 'BPV', 'CRV', 'CPV', 'JV', 'CV', 'DN', 'CN']);
 export const VoucherStatusEnum = z.enum(['Draft', 'Posted', 'Voided']);
 
 export const VoucherLineInput = z.object({

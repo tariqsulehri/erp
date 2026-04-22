@@ -4,7 +4,8 @@ import { CreateVoucherInput, ListVouchersQuery } from './voucher.schema';
 import { FiscalYearService } from '@/modules/fiscal-year/fiscal-year.service';
 
 const VOUCHER_PREFIXES: Record<VoucherType, string> = {
-  PV: 'PV', RV: 'RV', JV: 'JV', CV: 'CV', DN: 'DN', CN: 'CN',
+  BRV: 'BRV', BPV: 'BPV', CRV: 'CRV', CPV: 'CPV',
+  JV: 'JV', CV: 'CV', DN: 'DN', CN: 'CN',
 };
 
 export class VoucherService {
