@@ -33,6 +33,10 @@ const ICONS: Record<string, string> = {
   category:     'M2 7h20M2 12h20M2 17h20M4 4h16a2 2 0 012 2v12a2 2 0 01-2 2H4a2 2 0 01-2-2V6a2 2 0 012-2z',
   uom:          'M6 3v18M18 3v18M3 9h18M3 15h18',
   product:      'M20.59 13.41l-7.17 7.17a2 2 0 01-2.83 0L2 12V2h10l8.59 8.59a2 2 0 010 2.82zM7 7h.01',
+  customers:    'M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2M9 7a4 4 0 100 8 4 4 0 000-8zM23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75',
+  suppliers:    'M20 7H4a2 2 0 00-2 2v6a2 2 0 002 2h16a2 2 0 002-2V9a2 2 0 00-2-2zM16 21V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v16',
+  ar:           'M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 14H7v-2h6v2zm3-4H7v-2h9v2zm0-4H7V6h9v2z',
+  ap:           'M3 3h18v4H3zM3 9h18v4H3zM3 15h12v4H3z',
 };
 
 /* ── Voucher sub-menu items ──────────────────────────────────────────────── */
@@ -46,26 +50,40 @@ const VOUCHER_ITEMS = [
 
 /* ── Inventory sub-menu items ────────────────────────────────────────────── */
 const INVENTORY_ITEMS = [
-  { label: 'Products',          href: '/inventory/products',   icon: 'product',  color: '#1d4ed8', code: 'PRD' },
-  { label: 'Categories',        href: '/inventory/categories', icon: 'category', color: '#0891b2', code: 'CAT' },
-  { label: 'Units of Measure',  href: '/inventory/uom',        icon: 'uom',      color: '#15803d', code: 'UOM' },
+  { label: 'Products',          href: '/inventory/products',   icon: 'product',   color: '#1d4ed8', code: 'PRD' },
+  { label: 'Categories',        href: '/inventory/categories', icon: 'category',  color: '#0891b2', code: 'CAT' },
+  { label: 'Units of Measure',  href: '/inventory/uom',        icon: 'uom',       color: '#15803d', code: 'UOM' },
+] as const;
+
+/* ── AR sub-menu items ───────────────────────────────────────────────────── */
+const AR_ITEMS = [
+  { label: 'Customers', href: '/ar/customers', icon: 'customers', color: '#1d4ed8', code: 'CUS' },
+] as const;
+
+/* ── AP sub-menu items ───────────────────────────────────────────────────── */
+const AP_ITEMS = [
+  { label: 'Suppliers', href: '/ap/suppliers', icon: 'suppliers', color: '#0891b2', code: 'SUP' },
 ] as const;
 
 /* ── NAV definition ──────────────────────────────────────────────────────── */
 const NAV = [
-  { label: 'Overview',    section: true },
-  { label: 'Dashboard',   href: '/dashboard',   icon: 'dashboard' },
-  { label: 'Finance',     section: true },
-  { label: 'Accounts',    href: '/accounts',    icon: 'accounts' },
-  { label: 'Fiscal Year', href: '/fiscal-year', icon: 'fiscal' },
-  { label: 'Vouchers',    href: '/vouchers',    icon: 'vouchers', hasChildren: true, childKey: 'vouchers' },
-  { label: 'Bank',        href: '/bank',        icon: 'bank' },
-  { label: 'Inventory',   section: true },
-  { label: 'Inventory',   href: '/inventory',   icon: 'inventory', hasChildren: true, childKey: 'inventory' },
-  { label: 'Reports',     section: true },
-  { label: 'Reports',     href: '/reports',     icon: 'reports' },
-  { label: 'System',      section: true },
-  { label: 'Settings',    href: '/settings',    icon: 'settings' },
+  { label: 'Overview',           section: true },
+  { label: 'Dashboard',          href: '/dashboard',   icon: 'dashboard' },
+  { label: 'Finance',            section: true },
+  { label: 'Accounts',           href: '/accounts',    icon: 'accounts' },
+  { label: 'Fiscal Year',        href: '/fiscal-year', icon: 'fiscal' },
+  { label: 'Vouchers',           href: '/vouchers',    icon: 'vouchers',  hasChildren: true, childKey: 'vouchers' },
+  { label: 'Bank',               href: '/bank',        icon: 'bank' },
+  { label: 'Inventory',          section: true },
+  { label: 'Inventory',          href: '/inventory',   icon: 'inventory', hasChildren: true, childKey: 'inventory' },
+  { label: 'Receivables (AR)',   section: true },
+  { label: 'Receivables',        href: '/ar',          icon: 'customers', hasChildren: true, childKey: 'ar' },
+  { label: 'Payables (AP)',      section: true },
+  { label: 'Payables',           href: '/ap',          icon: 'suppliers', hasChildren: true, childKey: 'ap' },
+  { label: 'Reports',            section: true },
+  { label: 'Reports',            href: '/reports',     icon: 'reports' },
+  { label: 'System',             section: true },
+  { label: 'Settings',           href: '/settings',    icon: 'settings' },
 ];
 
 export default function DashboardLayout({ children }: { children: ReactNode }) {
@@ -76,11 +94,17 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
   /* Keep sub-menus open when on their routes */
   const isVoucherRoute   = pathname.startsWith('/vouchers');
   const isInventoryRoute = pathname.startsWith('/inventory');
+  const isARRoute        = pathname.startsWith('/ar');
+  const isAPRoute        = pathname.startsWith('/ap');
   const [vouchersOpen,  setVouchersOpen]  = useState(isVoucherRoute);
   const [inventoryOpen, setInventoryOpen] = useState(isInventoryRoute);
+  const [arOpen,        setArOpen]        = useState(isARRoute);
+  const [apOpen,        setApOpen]        = useState(isAPRoute);
 
   useEffect(() => { if (isVoucherRoute)   setVouchersOpen(true);  }, [isVoucherRoute]);
   useEffect(() => { if (isInventoryRoute) setInventoryOpen(true); }, [isInventoryRoute]);
+  useEffect(() => { if (isARRoute)        setArOpen(true);        }, [isARRoute]);
+  useEffect(() => { if (isAPRoute)        setApOpen(true);        }, [isAPRoute]);
 
   useEffect(() => {
     if (status === 'unauthenticated') router.push('/login');
@@ -108,6 +132,10 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
     if (vItem) return vItem.label;
     const iItem = INVENTORY_ITEMS.find(i => pathname.startsWith(i.href));
     if (iItem) return iItem.label;
+    const arItem = AR_ITEMS.find(a => pathname.startsWith(a.href));
+    if (arItem) return arItem.label;
+    const apItem = AP_ITEMS.find(a => pathname.startsWith(a.href));
+    if (apItem) return apItem.label;
     const nav = NAV.find(n => !n.section && n.href && pathname.startsWith(n.href));
     return nav?.label ?? 'Dashboard';
   }
@@ -136,19 +164,29 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
               return <div key={i} className="sidebar-section-label">{item.label}</div>;
             }
 
-            /* Collapsible sub-menu parents (Vouchers, Inventory) */
+            /* Collapsible sub-menu parents (Vouchers, Inventory, AR, AP) */
             if (item.hasChildren) {
-              const childKey     = item.childKey!;
-              const isVouchers   = childKey === 'vouchers';
-              const isInventory  = childKey === 'inventory';
-              const subItems     = isVouchers ? VOUCHER_ITEMS : INVENTORY_ITEMS;
-              const isOpen       = isVouchers ? vouchersOpen : inventoryOpen;
-              const toggleOpen   = isVouchers
-                ? () => setVouchersOpen(o => !o)
-                : () => setInventoryOpen(o => !o);
-              const isParentActive = isVouchers
-                ? pathname.startsWith('/vouchers')
-                : pathname.startsWith('/inventory');
+              const childKey    = item.childKey!;
+              const isVouchers  = childKey === 'vouchers';
+              const isInventory = childKey === 'inventory';
+              const isAR        = childKey === 'ar';
+              const isAP        = childKey === 'ap';
+              const subItems    = isVouchers  ? VOUCHER_ITEMS
+                                : isInventory ? INVENTORY_ITEMS
+                                : isAR        ? AR_ITEMS
+                                :               AP_ITEMS;
+              const isOpen      = isVouchers  ? vouchersOpen
+                                : isInventory ? inventoryOpen
+                                : isAR        ? arOpen
+                                :               apOpen;
+              const toggleOpen  = isVouchers  ? () => setVouchersOpen(o => !o)
+                                : isInventory ? () => setInventoryOpen(o => !o)
+                                : isAR        ? () => setArOpen(o => !o)
+                                :               () => setApOpen(o => !o);
+              const isParentActive = isVouchers  ? pathname.startsWith('/vouchers')
+                                   : isInventory ? pathname.startsWith('/inventory')
+                                   : isAR        ? pathname.startsWith('/ar')
+                                   :               pathname.startsWith('/ap');
 
               return (
                 <div key={childKey}>
@@ -257,6 +295,18 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
               {isInventoryRoute && (
                 <>
                   <span style={{ color: 'var(--color-text-secondary)' }}>Inventory</span>
+                  <span className="breadcrumb-sep">/</span>
+                </>
+              )}
+              {isARRoute && (
+                <>
+                  <span style={{ color: 'var(--color-text-secondary)' }}>Receivables</span>
+                  <span className="breadcrumb-sep">/</span>
+                </>
+              )}
+              {isAPRoute && (
+                <>
+                  <span style={{ color: 'var(--color-text-secondary)' }}>Payables</span>
                   <span className="breadcrumb-sep">/</span>
                 </>
               )}

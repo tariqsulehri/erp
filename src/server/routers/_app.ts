@@ -5,6 +5,8 @@ import { settingsRouter }   from './settings.router';
 import { vouchersRouter }   from './vouchers.router';
 import { dashboardRouter }  from './dashboard.router';
 import { productsRouter }   from './products.router';
+import { customersRouter }  from './customers.router';
+import { suppliersRouter }  from './suppliers.router';
 
 /**
  * ============================================================================
@@ -92,6 +94,10 @@ export const appRouter = router({
 
   // Phase 2: Inventory
   products: productsRouter,
+
+  // Phase 3: AR / AP Sub-ledger Masters
+  customers: customersRouter,
+  suppliers: suppliersRouter,
 });
 
 // Export type definition of API

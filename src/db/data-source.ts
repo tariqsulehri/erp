@@ -14,7 +14,12 @@ import { AccountAuditLog } from '@/modules/accounts/account-audit.entity';
 import { COATemplate } from '@/modules/accounts/coa-template.entity';
 import { FiscalYear, FiscalPeriod } from '@/modules/fiscal-year/fiscal-year.entity';
 import { Company, CompanyGroup } from '@/modules/companies/company.entity';
-import { Voucher, VoucherLine } from '@/modules/vouchers/voucher.entity';
+import { Voucher, VoucherLine }   from '@/modules/vouchers/voucher.entity';
+import { Product }               from '@/modules/inventory/product.entity';
+import { ProductCategory }       from '@/modules/inventory/product-category.entity';
+import { UnitOfMeasure }         from '@/modules/inventory/uom.entity';
+import { Customer }              from '@/modules/customers/customer.entity';
+import { Supplier }              from '@/modules/suppliers/supplier.entity';
 
 const isProduction = process.env.NODE_ENV === 'production';
 
@@ -28,7 +33,15 @@ export const AppDataSource = new DataSource({
   ssl: process.env.DATABASE_SSL === 'true' ? { rejectUnauthorized: false } : false,
 
   // Explicit entity list — glob patterns are not supported in the Next.js runtime
-  entities: [Account, AccountCategory, AccountAuditLog, COATemplate, FiscalYear, FiscalPeriod, Company, CompanyGroup, Voucher, VoucherLine],
+  entities: [
+    Account, AccountCategory, AccountAuditLog, COATemplate,
+    FiscalYear, FiscalPeriod,
+    Company, CompanyGroup,
+    Voucher, VoucherLine,
+    Product, ProductCategory, UnitOfMeasure,
+    Customer,
+    Supplier,
+  ],
 
   // Migrations - load all migration files (glob works fine for CLI/tsx)
   migrations: [
