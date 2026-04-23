@@ -94,6 +94,12 @@
   --color-table-row-selected:#dbeafe;
   --color-table-foot-bg:     #eef2f7;
 
+  /* ── Surface variants ───────────────────────────────────── */
+  --color-surface-alt:       #f4f7fb;   /* slightly tinted white — toolbar, footers */
+
+  /* ── Table aliases ───────────────────────────────────────── */
+  --color-table-head-fg:     #e8f0fe;   /* alias → table-head-text */
+
   /* ── Form inputs ─────────────────────────────────────────── */
   --color-input-bg:          #ffffff;
   --color-input-border:      #94a3b8;   /* slate-400 — clearly visible */
@@ -207,6 +213,9 @@
   --color-table-row-selected:#1a3b8a;
   --color-table-foot-bg:     #0e1828;
 
+  --color-surface-alt:       #0c1628;
+  --color-table-head-fg:     #c8ddf5;
+
   --color-input-bg:          #0e1a2e;
   --color-input-border:      #2d4468;   /* visible on dark bg */
   --color-input-border-hover:#3d5888;
@@ -301,6 +310,9 @@
   --color-table-row-selected:#ede9fe;
   --color-table-foot-bg:     #f5f3ff;
 
+  --color-surface-alt:       #f2f1ff;
+  --color-table-head-fg:     #e0dcff;
+
   --color-input-bg:          #ffffff;
   --color-input-border:      #8b83ce;
   --color-input-border-hover:#6c64bc;
@@ -393,6 +405,9 @@
   --color-table-row-hover:   #fdf0e4;
   --color-table-row-selected:#ffedd5;
   --color-table-foot-bg:     #fdf3e8;
+
+  --color-surface-alt:       #f5ede3;
+  --color-table-head-fg:     #f0d8c0;
 
   --color-input-bg:          #fffdf9;
   --color-input-border:      #c09060;
@@ -1108,13 +1123,20 @@ img    { display: block; max-width: 100%; }
 
 /* ================================================================
    BUTTONS
+   All variants are self-contained — works with or without base .btn.
    ================================================================ */
-.btn {
+
+/* Shared base — applied to .btn and every variant directly */
+.btn,
+.btn-primary,
+.btn-secondary,
+.btn-ghost,
+.btn-danger {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 6px;
-  padding: 7px 16px;
+  padding: 8px 16px;
   border-radius: var(--radius);
   font-size: 0.8125rem;
   font-weight: 700;
@@ -1125,10 +1147,20 @@ img    { display: block; max-width: 100%; }
   text-decoration: none;
   line-height: 1.4;
   letter-spacing: 0.01em;
+  font-family: inherit;
 }
 
-.btn:disabled { opacity: 0.45; cursor: not-allowed; pointer-events: none; }
+.btn:disabled,
+.btn-primary:disabled,
+.btn-secondary:disabled,
+.btn-ghost:disabled,
+.btn-danger:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  pointer-events: none;
+}
 
+/* Primary — solid brand blue */
 .btn-primary {
   background: var(--color-primary);
   color: #fff;
@@ -1139,8 +1171,11 @@ img    { display: block; max-width: 100%; }
   background: var(--color-primary-hover);
   border-color: var(--color-primary-hover);
   box-shadow: 0 3px 10px var(--color-sidebar-glow);
+  transform: translateY(-1px);
 }
+.btn-primary:active:not(:disabled) { transform: translateY(0); }
 
+/* Secondary — outlined */
 .btn-secondary {
   background: var(--color-surface);
   color: var(--color-text-secondary);
@@ -1152,6 +1187,7 @@ img    { display: block; max-width: 100%; }
   background: var(--color-primary-light);
 }
 
+/* Danger */
 .btn-danger {
   background: var(--color-danger);
   color: #fff;
@@ -1159,21 +1195,25 @@ img    { display: block; max-width: 100%; }
 }
 .btn-danger:hover:not(:disabled) {
   filter: brightness(0.88);
+  transform: translateY(-1px);
 }
 
+/* Ghost — subtle text button */
 .btn-ghost {
   background: transparent;
   color: var(--color-text-muted);
-  border-color: transparent;
+  border-color: var(--color-border);
 }
 .btn-ghost:hover:not(:disabled) {
   background: var(--color-border-subtle);
   color: var(--color-text);
+  border-color: var(--color-border);
 }
 
-/* Ghost on coloured header */
+/* Ghost on coloured panel headers */
 .pane-header .btn-ghost {
   color: rgba(255,255,255,0.80);
+  border-color: rgba(255,255,255,0.2);
 }
 .pane-header .btn-ghost:hover:not(:disabled) {
   background: rgba(255,255,255,0.16);
@@ -1181,7 +1221,7 @@ img    { display: block; max-width: 100%; }
 }
 
 .btn-sm { padding: 4px 11px; font-size: 0.75rem; }
-.btn-lg { padding: 10px 22px; font-size: 0.875rem; }
+.btn-lg { padding: 10px 22px; font-size: 0.9rem; }
 
 
 /* ================================================================
@@ -1192,43 +1232,74 @@ img    { display: block; max-width: 100%; }
 .form-label {
   font-size: 0.6875rem;
   font-weight: 700;
-  color: var(--color-text-secondary);   /* DARKER than before */
+  color: var(--color-text-secondary);
   text-transform: uppercase;
   letter-spacing: 0.06em;
 }
 
 .form-required { color: var(--color-danger); margin-left: 2px; }
 
+/* Core input styles — shared by .form-input, .form-select, .form-textarea, and the
+   shorthand .input class used throughout page components.                          */
 .form-input,
 .form-select,
-.form-textarea {
+.form-textarea,
+.input {
   width: 100%;
-  padding: 7px 11px;
+  padding: 8px 12px;
   border: 1.5px solid var(--color-input-border);
   border-radius: var(--radius);
   font-size: 0.8125rem;
+  font-weight: 500;
   color: var(--color-text);
   background: var(--color-input-bg);
-  transition: border-color var(--transition), box-shadow var(--transition);
+  transition: border-color var(--transition), box-shadow var(--transition), background var(--transition);
   outline: none;
   line-height: 1.5;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+/* Keep native arrow on <select> */
+select.form-select,
+select.input {
+  -webkit-appearance: auto;
+  appearance: auto;
+  padding-right: 28px;
+  cursor: pointer;
 }
 
 .form-input:hover,
-.form-select:hover {
+.form-select:hover,
+.input:hover {
   border-color: var(--color-input-border-hover);
+  background: var(--color-surface);
 }
 
 .form-input:focus,
 .form-select:focus,
-.form-textarea:focus {
+.form-textarea:focus,
+.input:focus {
   border-color: var(--color-border-focus);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-primary) 18%, transparent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-primary) 15%, transparent);
+  background: var(--color-surface);
 }
 
 .form-input::placeholder,
-.form-textarea::placeholder {
+.form-textarea::placeholder,
+.input::placeholder {
   color: var(--color-input-placeholder);
+  font-weight: 400;
+}
+
+/* Disabled state */
+.form-input:disabled,
+.form-select:disabled,
+.form-textarea:disabled,
+.input:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  background: var(--color-surface-alt, var(--color-table-foot-bg));
 }
 
 .form-hint  { font-size: 0.6875rem; color: var(--color-text-muted); }
