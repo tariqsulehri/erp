@@ -4,6 +4,7 @@ import { fiscalYearRouter } from './fiscal-year.router';
 import { settingsRouter }   from './settings.router';
 import { vouchersRouter }   from './vouchers.router';
 import { dashboardRouter }  from './dashboard.router';
+import { productsRouter }   from './products.router';
 
 /**
  * ============================================================================
@@ -88,13 +89,9 @@ export const appRouter = router({
 
   vouchers:  vouchersRouter,
   dashboard: dashboardRouter,
-  // Phase 1 routers (to be implemented)
-  // bank: bankRouter,
-  // reports: reportsRouter,
-  // companies: companiesRouter,
 
   // Phase 2: Inventory
-  // inventory: inventoryRouter,
+  products: productsRouter,
 });
 
 // Export type definition of API

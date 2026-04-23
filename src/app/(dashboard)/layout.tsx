@@ -29,6 +29,10 @@ const ICONS: Record<string, string> = {
   arrowOut:     'M12 8l4 4-4 4M5 12h13M3 7l5-5 5 5',
   cash:         'M12 1v22M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6',
   journal:      'M4 6h16M4 12h16M4 18h7',
+  inventory:    'M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16zM3.27 6.96L12 12.01l8.73-5.05M12 22.08V12',
+  category:     'M2 7h20M2 12h20M2 17h20M4 4h16a2 2 0 012 2v12a2 2 0 01-2 2H4a2 2 0 01-2-2V6a2 2 0 012-2z',
+  uom:          'M6 3v18M18 3v18M3 9h18M3 15h18',
+  product:      'M20.59 13.41l-7.17 7.17a2 2 0 01-2.83 0L2 12V2h10l8.59 8.59a2 2 0 010 2.82zM7 7h.01',
 };
 
 /* ── Voucher sub-menu items ──────────────────────────────────────────────── */
@@ -40,6 +44,13 @@ const VOUCHER_ITEMS = [
   { label: 'Journal Entry', href: '/vouchers/journal',       icon: 'journal',  color: '#1d4ed8', code: 'JV'  },
 ] as const;
 
+/* ── Inventory sub-menu items ────────────────────────────────────────────── */
+const INVENTORY_ITEMS = [
+  { label: 'Products',          href: '/inventory/products',   icon: 'product',  color: '#1d4ed8', code: 'PRD' },
+  { label: 'Categories',        href: '/inventory/categories', icon: 'category', color: '#0891b2', code: 'CAT' },
+  { label: 'Units of Measure',  href: '/inventory/uom',        icon: 'uom',      color: '#15803d', code: 'UOM' },
+] as const;
+
 /* ── NAV definition ──────────────────────────────────────────────────────── */
 const NAV = [
   { label: 'Overview',    section: true },
@@ -47,8 +58,10 @@ const NAV = [
   { label: 'Finance',     section: true },
   { label: 'Accounts',    href: '/accounts',    icon: 'accounts' },
   { label: 'Fiscal Year', href: '/fiscal-year', icon: 'fiscal' },
-  { label: 'Vouchers',    href: '/vouchers',    icon: 'vouchers', hasChildren: true },
+  { label: 'Vouchers',    href: '/vouchers',    icon: 'vouchers', hasChildren: true, childKey: 'vouchers' },
   { label: 'Bank',        href: '/bank',        icon: 'bank' },
+  { label: 'Inventory',   section: true },
+  { label: 'Inventory',   href: '/inventory',   icon: 'inventory', hasChildren: true, childKey: 'inventory' },
   { label: 'Reports',     section: true },
   { label: 'Reports',     href: '/reports',     icon: 'reports' },
   { label: 'System',      section: true },
@@ -60,13 +73,14 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
   const router   = useRouter();
   const pathname = usePathname();
 
-  /* Keep voucher sub-menu open if any voucher route is active */
-  const isVoucherRoute = pathname.startsWith('/vouchers');
-  const [vouchersOpen, setVouchersOpen] = useState(isVoucherRoute);
+  /* Keep sub-menus open when on their routes */
+  const isVoucherRoute   = pathname.startsWith('/vouchers');
+  const isInventoryRoute = pathname.startsWith('/inventory');
+  const [vouchersOpen,  setVouchersOpen]  = useState(isVoucherRoute);
+  const [inventoryOpen, setInventoryOpen] = useState(isInventoryRoute);
 
-  useEffect(() => {
-    if (isVoucherRoute) setVouchersOpen(true);
-  }, [isVoucherRoute]);
+  useEffect(() => { if (isVoucherRoute)   setVouchersOpen(true);  }, [isVoucherRoute]);
+  useEffect(() => { if (isInventoryRoute) setInventoryOpen(true); }, [isInventoryRoute]);
 
   useEffect(() => {
     if (status === 'unauthenticated') router.push('/login');
@@ -92,6 +106,8 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
   function currentPageLabel() {
     const vItem = VOUCHER_ITEMS.find(v => pathname.startsWith(v.href));
     if (vItem) return vItem.label;
+    const iItem = INVENTORY_ITEMS.find(i => pathname.startsWith(i.href));
+    if (iItem) return iItem.label;
     const nav = NAV.find(n => !n.section && n.href && pathname.startsWith(n.href));
     return nav?.label ?? 'Dashboard';
   }
@@ -120,16 +136,27 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
               return <div key={i} className="sidebar-section-label">{item.label}</div>;
             }
 
-            /* Vouchers — parent with collapsible sub-menu */
+            /* Collapsible sub-menu parents (Vouchers, Inventory) */
             if (item.hasChildren) {
-              const isParentActive = pathname.startsWith('/vouchers');
+              const childKey     = item.childKey!;
+              const isVouchers   = childKey === 'vouchers';
+              const isInventory  = childKey === 'inventory';
+              const subItems     = isVouchers ? VOUCHER_ITEMS : INVENTORY_ITEMS;
+              const isOpen       = isVouchers ? vouchersOpen : inventoryOpen;
+              const toggleOpen   = isVouchers
+                ? () => setVouchersOpen(o => !o)
+                : () => setInventoryOpen(o => !o);
+              const isParentActive = isVouchers
+                ? pathname.startsWith('/vouchers')
+                : pathname.startsWith('/inventory');
+
               return (
-                <div key="vouchers">
+                <div key={childKey}>
                   {/* Parent row */}
                   <button
                     className={`nav-item${isParentActive ? ' active' : ''}`}
                     style={{ width: '100%', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left' }}
-                    onClick={() => setVouchersOpen(o => !o)}
+                    onClick={toggleOpen}
                   >
                     <span className="nav-item-icon">
                       <Icon d={ICONS[item.icon!]} />
@@ -137,7 +164,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
                     <span style={{ flex: 1 }}>{item.label}</span>
                     <span style={{
                       transition: 'transform 0.2s',
-                      transform: vouchersOpen ? 'rotate(0deg)' : 'rotate(-90deg)',
+                      transform: isOpen ? 'rotate(0deg)' : 'rotate(-90deg)',
                       opacity: 0.6, display: 'flex',
                     }}>
                       <Icon d={ICONS.chevronDown} size={12} />
@@ -145,13 +172,13 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
                   </button>
 
                   {/* Sub-menu */}
-                  {vouchersOpen && (
+                  {isOpen && (
                     <div style={{
                       marginLeft: 14,
                       borderLeft: '2px solid var(--color-border)',
                       paddingLeft: 2,
                     }}>
-                      {VOUCHER_ITEMS.map(sub => {
+                      {(subItems as readonly { label: string; href: string; icon: string; color: string; code: string }[]).map(sub => {
                         const subActive = pathname.startsWith(sub.href);
                         return (
                           <Link
@@ -164,10 +191,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
                               ...(subActive ? { color: sub.color } : {}),
                             }}
                           >
-                            <span
-                              className="nav-item-icon"
-                              style={{ color: subActive ? sub.color : undefined }}
-                            >
+                            <span className="nav-item-icon" style={{ color: subActive ? sub.color : undefined }}>
                               <Icon d={ICONS[sub.icon]} size={14} />
                             </span>
                             <span style={{ flex: 1 }}>{sub.label}</span>
@@ -227,6 +251,12 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
               {isVoucherRoute && (
                 <>
                   <span style={{ color: 'var(--color-text-secondary)' }}>Vouchers</span>
+                  <span className="breadcrumb-sep">/</span>
+                </>
+              )}
+              {isInventoryRoute && (
+                <>
+                  <span style={{ color: 'var(--color-text-secondary)' }}>Inventory</span>
                   <span className="breadcrumb-sep">/</span>
                 </>
               )}
