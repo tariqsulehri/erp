@@ -123,6 +123,13 @@ function ProductForm({ editId, onSaved, onCancel }: {
   const [model,        setModel]        = useState('');
   const [categoryId,   setCategoryId]   = useState('');
   const [uomId,        setUomId]        = useState('');
+
+  /* ── Quick-create category panel ── */
+  const [showCatCreate,   setShowCatCreate]   = useState(false);
+  const [newCatCode,      setNewCatCode]      = useState('');
+  const [newCatName,      setNewCatName]      = useState('');
+  const [newCatParentId,  setNewCatParentId]  = useState('');
+  const [catCreateError,  setCatCreateError]  = useState('');
   const [productType,  setProductType]  = useState('Finished');
   const [status,       setStatus]       = useState('Active');
   const [isSellable,   setIsSellable]   = useState(true);
@@ -241,6 +248,30 @@ function ProductForm({ editId, onSaved, onCancel }: {
     onSuccess: p => { utils.products.list.invalidate(); onSaved(p.id); },
     onError:   e => { setError(e.message); },
   });
+
+  /* Quick-create category mutation */
+  const createCatMut = trpc.products.createCategory.useMutation({
+    onSuccess: cat => {
+      utils.products.listCategories.invalidate();
+      setCategoryId(cat.id);
+      setShowCatCreate(false);
+      setNewCatCode(''); setNewCatName(''); setNewCatParentId(''); setCatCreateError('');
+    },
+    onError: e => { setCatCreateError(e.message); },
+  });
+
+  function saveNewCategory() {
+    setCatCreateError('');
+    if (!newCatCode.trim()) { setCatCreateError('Code is required.'); return; }
+    if (!newCatName.trim()) { setCatCreateError('Name is required.'); return; }
+    createCatMut.mutate({
+      code:      newCatCode.trim().toUpperCase(),
+      name:      newCatName.trim(),
+      parent_id: newCatParentId || undefined,
+      sort_order: 0,
+      is_active:  true,
+    });
+  }
 
   function save() {
     setError('');
@@ -393,15 +424,92 @@ function ProductForm({ editId, onSaved, onCancel }: {
                 <input className="form-input" value={model} onChange={e => setModel(e.target.value)} placeholder="e.g. SM-G998B" />
               </LabelInput>
               <LabelInput label="Category">
-                <select className="form-select" value={categoryId} onChange={e => setCategoryId(e.target.value)}>
-                  <option value="">— Select Category —</option>
-                  {categoryOptions.map(opt => (
-                    <option key={opt.id} value={opt.id}
-                      style={{ fontFamily: "'JetBrains Mono',monospace" }}>
-                      {opt.label}
-                    </option>
-                  ))}
-                </select>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <select className="form-select" value={categoryId} onChange={e => setCategoryId(e.target.value)} style={{ flex: 1 }}>
+                    <option value="">— Select Category —</option>
+                    {categoryOptions.map(opt => (
+                      <option key={opt.id} value={opt.id} style={{ fontFamily: "'JetBrains Mono',monospace" }}>
+                        {opt.label}
+                      </option>
+                    ))}
+                  </select>
+                  <button type="button" title="Create new category"
+                    onClick={() => { setShowCatCreate(v => !v); setCatCreateError(''); }}
+                    style={{
+                      flexShrink: 0, width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      borderRadius: 'var(--radius)', border: `1.5px solid ${showCatCreate ? '#1d4ed8' : 'var(--color-border)'}`,
+                      background: showCatCreate ? 'rgba(29,78,216,0.08)' : 'var(--color-surface)',
+                      color: showCatCreate ? '#1d4ed8' : 'var(--color-text-muted)', cursor: 'pointer', transition: 'all 0.15s',
+                    }}>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                      {showCatCreate
+                        ? <><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></>
+                        : <><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></>}
+                    </svg>
+                  </button>
+                </div>
+
+                {/* ── Quick-create category panel ── */}
+                {showCatCreate && (
+                  <div style={{ marginTop: 8, padding: '14px 16px', borderRadius: 10, border: '1.5px solid rgba(29,78,216,0.3)', background: 'rgba(29,78,216,0.03)', display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 2 }}>
+                      <div style={{ width: 22, height: 22, borderRadius: 5, background: 'rgba(29,78,216,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#1d4ed8" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                      </div>
+                      <span style={{ fontSize: '0.72rem', fontWeight: 700, color: '#1d4ed8', textTransform: 'uppercase', letterSpacing: '0.06em' }}>New Category</span>
+                    </div>
+
+                    {catCreateError && (
+                      <div style={{ fontSize: '0.75rem', color: '#dc2626', padding: '6px 10px', background: 'rgba(220,38,38,0.08)', borderRadius: 6, border: '1px solid rgba(220,38,38,0.2)' }}>
+                        {catCreateError}
+                      </div>
+                    )}
+
+                    <div style={{ display: 'grid', gridTemplateColumns: '100px 1fr', gap: 8 }}>
+                      <div>
+                        <label style={{ display: 'block', fontSize: '0.65rem', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 3 }}>Code *</label>
+                        <input className="form-input" value={newCatCode} onChange={e => setNewCatCode(e.target.value.toUpperCase())}
+                          placeholder="ELEC" maxLength={20}
+                          style={{ fontFamily: "'JetBrains Mono',monospace", fontWeight: 700, letterSpacing: '0.06em', fontSize: '0.8rem' }} />
+                      </div>
+                      <div>
+                        <label style={{ display: 'block', fontSize: '0.65rem', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 3 }}>Name *</label>
+                        <input className="form-input" value={newCatName} onChange={e => setNewCatName(e.target.value)}
+                          placeholder="Electronics" maxLength={150} style={{ fontSize: '0.8rem' }} />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.65rem', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 3 }}>Parent Category (optional)</label>
+                      <select className="form-select" value={newCatParentId} onChange={e => setNewCatParentId(e.target.value)} style={{ fontSize: '0.8rem' }}>
+                        <option value="">— None (root / top-level category) —</option>
+                        {categoryOptions.map(opt => (
+                          <option key={opt.id} value={opt.id} style={{ fontFamily: "'JetBrains Mono',monospace" }}>{opt.label}</option>
+                        ))}
+                      </select>
+                      <p style={{ margin: '4px 0 0', fontSize: '0.68rem', color: 'var(--color-text-muted)' }}>
+                        Leave blank to create a top-level parent category.
+                      </p>
+                    </div>
+
+                    <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
+                      <button type="button" onClick={() => { setShowCatCreate(false); setCatCreateError(''); setNewCatCode(''); setNewCatName(''); setNewCatParentId(''); }}
+                        style={{ padding: '5px 14px', borderRadius: 'var(--radius)', border: '1px solid var(--color-border)', background: 'var(--color-surface)', cursor: 'pointer', fontSize: '0.78rem', fontWeight: 600, color: 'var(--color-text-muted)' }}>
+                        Cancel
+                      </button>
+                      <button type="button" onClick={saveNewCategory} disabled={createCatMut.isPending}
+                        style={{ padding: '5px 16px', borderRadius: 'var(--radius)', border: 'none', background: '#1d4ed8', color: '#fff', cursor: 'pointer', fontSize: '0.78rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 5, opacity: createCatMut.isPending ? 0.7 : 1 }}>
+                        {createCatMut.isPending
+                          ? <><div style={{ width: 10, height: 10, borderRadius: '50%', border: '2px solid rgba(255,255,255,0.3)', borderTopColor: '#fff', animation: 'spin 0.7s linear infinite' }} />Saving…</>
+                          : <>
+                              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                              Create Category
+                            </>
+                        }
+                      </button>
+                    </div>
+                  </div>
+                )}
               </LabelInput>
             </div>
 

@@ -539,19 +539,45 @@ export default function SuppliersPage() {
                     </div>
                   </div>
 
-                  <Section title="Chart of Accounts Linkage" icon={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>} />
-                  <div style={{ padding: '10px 12px', background: 'rgba(8,145,178,0.05)', borderRadius: 8, border: '1px solid rgba(8,145,178,0.15)', fontSize: '0.78rem', color: '#0891b2', lineHeight: 1.6, marginBottom: 4 }}>
-                    Link this supplier to the AP control account. When bills are posted, the credit entry will go to the selected account.
-                  </div>
-                  <div className="form-group" style={{ marginBottom: 0 }}>
-                    <label className="form-label">AP Account (Accounts Payable Control)</label>
-                    <select className="input" value={form.ap_account_id ?? ''} onChange={e => setF('ap_account_id', e.target.value || undefined)}>
-                      <option value="">(Use company default AP account)</option>
-                      {(accounts as AccountOption[]).map(a => (
-                        <option key={a.id} value={a.id}>{a.code} — {a.name}</option>
-                      ))}
-                    </select>
-                  </div>
+                  <Section title="GL Sub-ledger Account" icon={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>} />
+
+                  {/* Auto-assigned GL account display */}
+                  {editId ? (
+                    (() => {
+                      const assigned = (accounts as AccountOption[]).find(a => a.id === form.ap_account_id);
+                      return assigned ? (
+                        <div style={{ padding: '12px 14px', borderRadius: 9, background: 'rgba(8,145,178,0.07)', border: '1px solid rgba(8,145,178,0.22)', display: 'flex', gap: 12, alignItems: 'center' }}>
+                          <div style={{ width: 34, height: 34, borderRadius: 8, background: 'rgba(8,145,178,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#0891b2" strokeWidth="2.5" strokeLinecap="round"><polyline points="20 6 9 17 4 12"/></svg>
+                          </div>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontSize: '0.68rem', fontWeight: 700, color: '#0891b2', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 3 }}>AP Sub-ledger Account (Auto-assigned)</div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                              <span style={{ fontFamily: "'JetBrains Mono',monospace", fontWeight: 800, fontSize: '0.9rem', color: '#0891b2', background: 'rgba(8,145,178,0.12)', padding: '2px 8px', borderRadius: 5 }}>{assigned.code}</span>
+                              <span style={{ fontSize: '0.84rem', fontWeight: 600, color: 'var(--color-text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{assigned.name}</span>
+                            </div>
+                          </div>
+                        </div>
+                      ) : (
+                        <div style={{ padding: '10px 14px', borderRadius: 8, background: 'rgba(8,145,178,0.05)', border: '1px solid rgba(8,145,178,0.15)', fontSize: '0.78rem', color: '#0891b2' }}>
+                          GL account not yet assigned — will be auto-created on next save.
+                        </div>
+                      );
+                    })()
+                  ) : (
+                    <div style={{ padding: '12px 14px', borderRadius: 9, background: 'rgba(8,145,178,0.05)', border: '1px solid rgba(8,145,178,0.18)', display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+                      <div style={{ width: 32, height: 32, borderRadius: 8, background: 'rgba(8,145,178,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 1 }}>
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#0891b2" strokeWidth="2.5" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                      </div>
+                      <div>
+                        <div style={{ fontSize: '0.78rem', fontWeight: 700, color: '#0891b2', marginBottom: 3 }}>GL Account will be auto-created</div>
+                        <div style={{ fontSize: '0.74rem', color: '#0891b2', opacity: 0.8, lineHeight: 1.6 }}>
+                          A dedicated AP sub-ledger posting account (code range <strong>2101–2199</strong>) will be automatically created in the Chart of Accounts and linked to this supplier when you save.
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
                   <div className="form-group" style={{ marginBottom: 0 }}>
                     <label className="form-label">Advance / Prepayment Account</label>
                     <select className="input" value={form.advance_account_id ?? ''} onChange={e => setF('advance_account_id', e.target.value || undefined)}>

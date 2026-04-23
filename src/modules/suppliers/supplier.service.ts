@@ -1,5 +1,6 @@
 import { AppDataSource }    from '@/db/data-source';
 import { Supplier }          from './supplier.entity';
+import { Account }           from '@/modules/accounts/account.entity';
 import {
   CreateSupplierInput,
   UpdateSupplierInput,
@@ -14,13 +15,67 @@ import {
  * Code sequencing: SUP-0001, SUP-0002 …
  *   Auto-generated unless caller provides an explicit code.
  *   Sequence is company-scoped (each company restarts at 0001).
+ *
+ * GL Account auto-assignment:
+ *   When a supplier is created, a GL posting account is automatically created
+ *   in the AP sub-ledger range (2101–2199) and linked via ap_account_id.
+ *   Range: 4-digit codes between 2101 and 2199, skipping multiples of 10.
+ *   Total capacity: 90 supplier sub-ledger accounts per company.
  */
 export class SupplierService {
-  private repo = AppDataSource.getRepository(Supplier);
+  private repo     = AppDataSource.getRepository(Supplier);
+  private acctRepo = AppDataSource.getRepository(Account);
 
   constructor(private companyId: string) {}
 
-  /* ── Code generator ─────────────────────────────────────────── */
+  /* ── GL account helpers ──────────────────────────────────────── */
+
+  /**
+   * Return the next unused 4-digit GL code in the AP sub-ledger range 2101–2199.
+   * Multiples of 10 are skipped (COA hierarchy rule: sub-group pivots).
+   */
+  async nextApAccountCode(): Promise<string> {
+    const rows = await this.acctRepo
+      .createQueryBuilder('a')
+      .select('a.code')
+      .where('a.company_id = :cid', { cid: this.companyId })
+      .andWhere("a.code ~ '^[0-9]{4}$'")
+      .andWhere('CAST(a.code AS INTEGER) BETWEEN 2101 AND 2199')
+      .getMany();
+
+    const used = new Set(rows.map(r => parseInt(r.code, 10)));
+    for (let n = 2101; n <= 2199; n++) {
+      if (n % 10 === 0) continue; // sub-group pivot — skip
+      if (!used.has(n)) return String(n);
+    }
+    throw new Error(
+      'AP sub-ledger code range (2101–2199) is exhausted. ' +
+      'Contact your accountant to extend the chart of accounts.',
+    );
+  }
+
+  /**
+   * Create a GL posting account for the AP sub-ledger and return its id + code.
+   * Account type: Liability / Credit-normal / is_posting = true.
+   */
+  async createApSubledgerAccount(supplierName: string): Promise<{ id: string; code: string }> {
+    const code = await this.nextApAccountCode();
+    const acct = this.acctRepo.create({
+      company_id:     this.companyId,
+      code,
+      name:           `${supplierName}`.slice(0, 100),
+      account_type:   'Liability',
+      normal_balance: 'Credit',
+      is_posting:     true,
+      is_system:      false,
+      is_active:      true,
+      description:    `AP sub-ledger — ${supplierName}`,
+    });
+    const saved = await this.acctRepo.save(acct);
+    return { id: saved.id, code: saved.code };
+  }
+
+  /* ── Supplier code generator ─────────────────────────────────── */
   async nextCode(): Promise<string> {
     const last = await this.repo
       .createQueryBuilder('s')
@@ -86,17 +141,25 @@ export class SupplierService {
     });
     if (exists) throw new Error(`Supplier code "${code}" already exists.`);
 
+    /* Auto-create GL sub-ledger account if caller did not supply one */
+    let apAccountId = input.ap_account_id;
+    if (!apAccountId) {
+      const gl = await this.createApSubledgerAccount(input.name);
+      apAccountId = gl.id;
+    }
+
     const supplier = this.repo.create({
       ...input,
       code,
-      company_id:   this.companyId,
-      email:        input.email      || undefined,
-      trade_name:   input.trade_name || undefined,
+      company_id:          this.companyId,
+      ap_account_id:       apAccountId,
+      email:               input.email               || undefined,
+      trade_name:          input.trade_name           || undefined,
       tax_registration_no: input.tax_registration_no || undefined,
-      bank_name:       input.bank_name       || undefined,
-      bank_account_no: input.bank_account_no || undefined,
-      bank_swift_code: input.bank_swift_code || undefined,
-      bank_iban:       input.bank_iban       || undefined,
+      bank_name:           input.bank_name            || undefined,
+      bank_account_no:     input.bank_account_no      || undefined,
+      bank_swift_code:     input.bank_swift_code      || undefined,
+      bank_iban:           input.bank_iban            || undefined,
     });
     return this.repo.save(supplier);
   }
@@ -113,6 +176,14 @@ export class SupplierService {
       });
       if (conflict) throw new Error(`Supplier code "${rest.code}" already exists.`);
       rest.code = rest.code.toUpperCase();
+    }
+
+    /* If name changed and a GL account is linked, keep its name in sync */
+    if (rest.name && rest.name !== supplier.name && supplier.ap_account_id) {
+      await this.acctRepo.update(
+        { id: supplier.ap_account_id, company_id: this.companyId },
+        { name: rest.name.slice(0, 100), description: `AP sub-ledger — ${rest.name}` },
+      );
     }
 
     Object.assign(supplier, rest);

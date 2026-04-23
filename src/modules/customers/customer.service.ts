@@ -1,5 +1,6 @@
 import { AppDataSource }    from '@/db/data-source';
 import { Customer }          from './customer.entity';
+import { Account }           from '@/modules/accounts/account.entity';
 import {
   CreateCustomerInput,
   UpdateCustomerInput,
@@ -14,13 +15,21 @@ import {
  * Code sequencing: CUS-0001, CUS-0002 …
  *   Auto-generated unless caller provides an explicit code.
  *   Sequence is company-scoped (each company restarts at 0001).
+ *
+ * GL Account auto-assignment:
+ *   When a customer is created, a GL posting account is automatically created
+ *   in the AR sub-ledger range (1301–1399) and linked via ar_account_id.
+ *   Range: 4-digit codes between 1301 and 1399, skipping multiples of 10
+ *   (which are reserved as sub-group pivot codes in the COA hierarchy).
+ *   Total capacity: 90 customer sub-ledger accounts per company.
  */
 export class CustomerService {
-  private repo = AppDataSource.getRepository(Customer);
+  private repo     = AppDataSource.getRepository(Customer);
+  private acctRepo = AppDataSource.getRepository(Account);
 
   constructor(private companyId: string) {}
 
-  /* ── Code generator ─────────────────────────────────────────── */
+  /* ── Customer code generator ─────────────────────────────────── */
   async nextCode(): Promise<string> {
     const last = await this.repo
       .createQueryBuilder('c')
@@ -36,6 +45,53 @@ export class CustomerService {
       if (!isNaN(n)) seq = n + 1;
     }
     return `CUS-${String(seq).padStart(4, '0')}`;
+  }
+
+  /* ── GL account helpers ──────────────────────────────────────── */
+
+  /**
+   * Return the next unused 4-digit GL code in the AR sub-ledger range 1301–1399.
+   * Multiples of 10 are skipped (COA hierarchy rule: those are sub-group pivots).
+   */
+  async nextArAccountCode(): Promise<string> {
+    const rows = await this.acctRepo
+      .createQueryBuilder('a')
+      .select('a.code')
+      .where('a.company_id = :cid', { cid: this.companyId })
+      .andWhere("a.code ~ '^[0-9]{4}$'")
+      .andWhere('CAST(a.code AS INTEGER) BETWEEN 1301 AND 1399')
+      .getMany();
+
+    const used = new Set(rows.map(r => parseInt(r.code, 10)));
+    for (let n = 1301; n <= 1399; n++) {
+      if (n % 10 === 0) continue; // sub-group pivot — skip
+      if (!used.has(n)) return String(n);
+    }
+    throw new Error(
+      'AR sub-ledger code range (1301–1399) is exhausted. ' +
+      'Contact your accountant to extend the chart of accounts.',
+    );
+  }
+
+  /**
+   * Create a GL posting account for the AR sub-ledger and return its id + code.
+   * Account type: Asset / Debit-normal / is_posting = true.
+   */
+  async createArSubledgerAccount(customerName: string): Promise<{ id: string; code: string }> {
+    const code = await this.nextArAccountCode();
+    const acct = this.acctRepo.create({
+      company_id:     this.companyId,
+      code,
+      name:           `${customerName}`.slice(0, 100),
+      account_type:   'Asset',
+      normal_balance: 'Debit',
+      is_posting:     true,
+      is_system:      false,
+      is_active:      true,
+      description:    `AR sub-ledger — ${customerName}`,
+    });
+    const saved = await this.acctRepo.save(acct);
+    return { id: saved.id, code: saved.code };
   }
 
   /* ── List ────────────────────────────────────────────────────── */
@@ -87,12 +143,20 @@ export class CustomerService {
     });
     if (exists) throw new Error(`Customer code "${code}" already exists.`);
 
+    /* Auto-create GL sub-ledger account if caller did not supply one */
+    let arAccountId = input.ar_account_id;
+    if (!arAccountId) {
+      const gl = await this.createArSubledgerAccount(input.name);
+      arAccountId = gl.id;
+    }
+
     const customer = this.repo.create({
       ...input,
       code,
-      company_id:   this.companyId,
-      email:        input.email     || undefined,
-      trade_name:   input.trade_name|| undefined,
+      company_id:          this.companyId,
+      ar_account_id:       arAccountId,
+      email:               input.email               || undefined,
+      trade_name:          input.trade_name           || undefined,
       tax_registration_no: input.tax_registration_no || undefined,
     });
     return this.repo.save(customer);
@@ -113,6 +177,14 @@ export class CustomerService {
       rest.code = rest.code.toUpperCase();
     }
 
+    /* If name changed and a GL account is linked, keep its name in sync */
+    if (rest.name && rest.name !== customer.name && customer.ar_account_id) {
+      await this.acctRepo.update(
+        { id: customer.ar_account_id, company_id: this.companyId },
+        { name: rest.name.slice(0, 100), description: `AR sub-ledger — ${rest.name}` },
+      );
+    }
+
     Object.assign(customer, rest);
     return this.repo.save(customer);
   }
@@ -120,10 +192,8 @@ export class CustomerService {
   /* ── Delete ──────────────────────────────────────────────────── */
   async delete(id: string): Promise<void> {
     const customer = await this.get(id);
-
     /* Guard: no transactions referencing this customer yet.
        When Sales Invoice / Receipt modules are built, add checks here. */
-
     await this.repo.remove(customer);
   }
 
