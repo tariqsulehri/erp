@@ -557,7 +557,7 @@ export default function CustomersPage() {
                       <div>
                         <div style={{ fontSize: '0.78rem', fontWeight: 700, color: '#1d4ed8', marginBottom: 3 }}>GL Account will be auto-created</div>
                         <div style={{ fontSize: '0.74rem', color: '#1d4ed8', opacity: 0.8, lineHeight: 1.6 }}>
-                          A dedicated AR sub-ledger posting account (code range <strong>1301–1399</strong>) will be automatically created in the Chart of Accounts and linked to this customer when you save.
+                          A dedicated AR sub-ledger posting account (code range <strong>1300001–1399999</strong>, up to 99,999 customers) will be automatically created in the Chart of Accounts and linked to this customer when you save.
                         </div>
                       </div>
                     </div>

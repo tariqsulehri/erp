@@ -572,7 +572,7 @@ export default function SuppliersPage() {
                       <div>
                         <div style={{ fontSize: '0.78rem', fontWeight: 700, color: '#0891b2', marginBottom: 3 }}>GL Account will be auto-created</div>
                         <div style={{ fontSize: '0.74rem', color: '#0891b2', opacity: 0.8, lineHeight: 1.6 }}>
-                          A dedicated AP sub-ledger posting account (code range <strong>2101–2199</strong>) will be automatically created in the Chart of Accounts and linked to this supplier when you save.
+                          A dedicated AP sub-ledger posting account (code range <strong>2100001–2199999</strong>, up to 99,999 suppliers) will be automatically created in the Chart of Accounts and linked to this supplier when you save.
                         </div>
                       </div>
                     </div>

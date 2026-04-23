@@ -2,27 +2,35 @@ import { Entity, Column, Index, Check } from 'typeorm';
 import { BaseEntity } from '@/db/base.entity';
 
 /**
- * Account Entity — Core to Chart of Accounts
+ * Account Entity — 6-digit Chart of Accounts
  *
- * All codes are exactly 4 digits. Hierarchy is determined by numeric value:
- *   X000  →  Level 1  Category    (divisible by 1000)  e.g. 1000 Assets
- *   XX00  →  Level 2  Group       (divisible by 100)   e.g. 1100 Current Assets
- *   XXX0  →  Level 3  Sub-Group   (divisible by 10)    e.g. 1110 Cash & Equivalents
- *   XXXX  →  Level 4  Posting Acct (not div. by 10)   e.g. 1111 Cash in Hand
+ * Main COA codes are exactly 6 digits.  Hierarchy is determined by numeric value:
+ *   X00000  Level 1  Category    divisible by 100000   e.g. 100000  Assets
+ *   XX0000  Level 2  Group       divisible by  10000   e.g. 110000  Current Assets
+ *   XXX000  Level 3  Sub-Group   divisible by   1000   e.g. 113000  Trade Receivables
+ *   XXXX00  Level 4  Sub-Detail  divisible by    100   e.g. 113100  AR Control
+ *   XXXXX0  Level 5  Segment     divisible by     10   e.g. 113110  AR – Domestic
+ *   XXXXXX  Level 6  Posting     NOT divisible by 10   e.g. 113111  AR – Misc Posting
  *
- * Parent resolution:
- *   1111 → parent 1110 (floor to nearest 10)
- *   1110 → parent 1100 (floor to nearest 100)
- *   1100 → parent 1000 (floor to nearest 1000)
- *   1000 → no parent
+ * Sub-ledger accounts use 7-digit codes (never COA hierarchy pivots):
+ *   1300001–1399999  →  AR debtors  (customers) — 99,999 per company
+ *   2100001–2199999  →  AP creditors (suppliers) — 99,999 per company
+ *
+ * Parent resolution (6-digit main COA):
+ *   113111 → parent 113110 (floor to nearest 10)
+ *   113110 → parent 113100 (floor to nearest 100)
+ *   113100 → parent 113000 (floor to nearest 1000)
+ *   113000 → parent 110000 (floor to nearest 10000)
+ *   110000 → parent 100000 (floor to nearest 100000)
+ *   100000 → no parent (root)
  */
 @Entity('accounts')
 @Index(['company_id', 'code'], { unique: true })
 @Index(['company_id', 'is_posting', 'is_deleted'])
 @Index(['company_id', 'is_active', 'is_deleted'])
-@Check('"code" ~ \'^[0-9]{4}$\'') // Exactly 4 digits
+@Check('"code" ~ \'^[0-9]{6,10}$\'') // 6-digit main COA or 7-10 digit sub-ledger
 export class Account extends BaseEntity {
-  @Column('varchar', { length: 4 })
+  @Column('varchar', { length: 10 })
   code!: string;
 
   @Column('varchar', { length: 100 })

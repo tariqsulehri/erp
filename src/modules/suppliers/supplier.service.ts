@@ -19,8 +19,9 @@ import {
  * GL Account auto-assignment:
  *   When a supplier is created, a GL posting account is automatically created
  *   in the AP sub-ledger range (2101–2199) and linked via ap_account_id.
- *   Range: 4-digit codes between 2101 and 2199, skipping multiples of 10.
- *   Total capacity: 90 supplier sub-ledger accounts per company.
+ *   Range: 7-digit codes 2100001–2199999 (column widened to VARCHAR(10) by
+ *   migration 9 alongside the switch to 6-digit main COA codes).
+ *   Total capacity: 99,999 supplier sub-ledger accounts per company.
  */
 export class SupplierService {
   private repo     = AppDataSource.getRepository(Supplier);
@@ -31,25 +32,24 @@ export class SupplierService {
   /* ── GL account helpers ──────────────────────────────────────── */
 
   /**
-   * Return the next unused 4-digit GL code in the AP sub-ledger range 2101–2199.
-   * Multiples of 10 are skipped (COA hierarchy rule: sub-group pivots).
+   * Return the next unused 7-digit GL code in the AP sub-ledger range
+   * 2100001–2199999.  7-digit codes are never COA hierarchy pivots, so no
+   * skipping is needed.  Capacity: 99,999 supplier accounts per company.
    */
   async nextApAccountCode(): Promise<string> {
     const rows = await this.acctRepo
       .createQueryBuilder('a')
       .select('a.code')
       .where('a.company_id = :cid', { cid: this.companyId })
-      .andWhere("a.code ~ '^[0-9]{4}$'")
-      .andWhere('CAST(a.code AS INTEGER) BETWEEN 2101 AND 2199')
+      .andWhere('CAST(a.code AS BIGINT) BETWEEN 2100001 AND 2199999')
       .getMany();
 
     const used = new Set(rows.map(r => parseInt(r.code, 10)));
-    for (let n = 2101; n <= 2199; n++) {
-      if (n % 10 === 0) continue; // sub-group pivot — skip
+    for (let n = 2100001; n <= 2199999; n++) {
       if (!used.has(n)) return String(n);
     }
     throw new Error(
-      'AP sub-ledger code range (2101–2199) is exhausted. ' +
+      'AP sub-ledger code range (2100001–2199999) is exhausted. ' +
       'Contact your accountant to extend the chart of accounts.',
     );
   }

@@ -19,9 +19,9 @@ import {
  * GL Account auto-assignment:
  *   When a customer is created, a GL posting account is automatically created
  *   in the AR sub-ledger range (1301–1399) and linked via ar_account_id.
- *   Range: 4-digit codes between 1301 and 1399, skipping multiples of 10
- *   (which are reserved as sub-group pivot codes in the COA hierarchy).
- *   Total capacity: 90 customer sub-ledger accounts per company.
+ *   Range: 7-digit codes 1300001–1399999 (column widened to VARCHAR(10) by
+ *   migration 9 alongside the switch to 6-digit main COA codes).
+ *   Total capacity: 99,999 customer sub-ledger accounts per company.
  */
 export class CustomerService {
   private repo     = AppDataSource.getRepository(Customer);
@@ -50,25 +50,24 @@ export class CustomerService {
   /* ── GL account helpers ──────────────────────────────────────── */
 
   /**
-   * Return the next unused 4-digit GL code in the AR sub-ledger range 1301–1399.
-   * Multiples of 10 are skipped (COA hierarchy rule: those are sub-group pivots).
+   * Return the next unused 7-digit GL code in the AR sub-ledger range
+   * 1300001–1399999.  7-digit codes are never COA hierarchy pivots, so no
+   * skipping is needed.  Capacity: 99,999 customer accounts per company.
    */
   async nextArAccountCode(): Promise<string> {
     const rows = await this.acctRepo
       .createQueryBuilder('a')
       .select('a.code')
       .where('a.company_id = :cid', { cid: this.companyId })
-      .andWhere("a.code ~ '^[0-9]{4}$'")
-      .andWhere('CAST(a.code AS INTEGER) BETWEEN 1301 AND 1399')
+      .andWhere('CAST(a.code AS BIGINT) BETWEEN 1300001 AND 1399999')
       .getMany();
 
     const used = new Set(rows.map(r => parseInt(r.code, 10)));
-    for (let n = 1301; n <= 1399; n++) {
-      if (n % 10 === 0) continue; // sub-group pivot — skip
+    for (let n = 1300001; n <= 1399999; n++) {
       if (!used.has(n)) return String(n);
     }
     throw new Error(
-      'AR sub-ledger code range (1301–1399) is exhausted. ' +
+      'AR sub-ledger code range (1300001–1399999) is exhausted. ' +
       'Contact your accountant to extend the chart of accounts.',
     );
   }
