@@ -9,7 +9,7 @@
  *   DETAIL → 58/42 split: table left, product card right
  */
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { trpc } from '@/lib/trpc/client';
 
 /* ── constants ──────────────────────────────────────────────────── */
@@ -147,8 +147,37 @@ function ProductForm({ editId, onSaved, onCancel }: {
   const [tags,         setTags]         = useState('');
 
   /* ── Reference data ── */
-  const { data: categories } = trpc.products.listCategories.useQuery();
-  const { data: uoms }       = trpc.products.listUom.useQuery();
+  const { data: rawCategories } = trpc.products.listCategories.useQuery();
+  const { data: uoms }          = trpc.products.listUom.useQuery();
+
+  /* Build indented category options for selectors */
+  const categoryOptions = useMemo(() => {
+    if (!rawCategories) return [];
+    interface CatNode { id: string; code: string; name: string; parent_id: string | null; children: CatNode[] }
+    const all = rawCategories as Array<{ id: string; code: string; name: string; parent_id?: string | null }>;
+    const map = new Map<string, CatNode>();
+    all.forEach(c => map.set(c.id, { ...c, parent_id: c.parent_id ?? null, children: [] }));
+    const roots: CatNode[] = [];
+    map.forEach(node => {
+      if (node.parent_id && map.has(node.parent_id)) map.get(node.parent_id)!.children.push(node);
+      else roots.push(node);
+    });
+    roots.sort((a, b) => a.name.localeCompare(b.name));
+    function flatten(nodes: CatNode[], depth: number): Array<{ id: string; label: string }> {
+      return nodes.flatMap(n => [
+        { id: n.id, label: '\u00a0\u00a0'.repeat(depth * 2) + (depth > 0 ? '└─\u00a0' : '') + n.code + ' — ' + n.name },
+        ...flatten(n.children, depth + 1),
+      ]);
+    }
+    return flatten(roots, 0);
+  }, [rawCategories]);
+
+  /* Weight UOMs for the weight-unit selector */
+  const weightUoms = useMemo(
+    () => (uoms as Array<{ id: string; abbreviation: string; name: string; uom_type: string }> ?? [])
+      .filter(u => u.uom_type === 'Weight'),
+    [uoms],
+  );
 
   /* ── Load for edit ── */
   const { data: existing } = trpc.products.getById.useQuery(
@@ -199,7 +228,7 @@ function ProductForm({ editId, onSaved, onCancel }: {
   const margin = () => {
     const c = parseFloat(costPrice) || 0;
     const s = parseFloat(salePrice) || 0;
-    if (!c || !s) return null;
+    if (s <= 0) return null;   // avoid division by zero; cost can be 0
     return (((s - c) / s) * 100).toFixed(1);
   };
 
@@ -366,8 +395,11 @@ function ProductForm({ editId, onSaved, onCancel }: {
               <LabelInput label="Category">
                 <select className="form-select" value={categoryId} onChange={e => setCategoryId(e.target.value)}>
                   <option value="">— Select Category —</option>
-                  {(categories ?? []).map((c: any) => (
-                    <option key={c.id} value={c.id}>{c.code} — {c.name}</option>
+                  {categoryOptions.map(opt => (
+                    <option key={opt.id} value={opt.id}
+                      style={{ fontFamily: "'JetBrains Mono',monospace" }}>
+                      {opt.label}
+                    </option>
                   ))}
                 </select>
               </LabelInput>
@@ -561,7 +593,10 @@ function ProductForm({ editId, onSaved, onCancel }: {
                 </LabelInput>
                 <LabelInput label="Unit">
                   <select className="form-select" value={weightUnit} onChange={e => setWeightUnit(e.target.value)}>
-                    {['kg','g','lb','oz'].map(u => <option key={u}>{u}</option>)}
+                    {weightUoms.length > 0
+                      ? weightUoms.map(u => <option key={u.id} value={u.abbreviation}>{u.abbreviation} — {u.name}</option>)
+                      : ['kg','g','lb','oz','t'].map(u => <option key={u} value={u}>{u}</option>)
+                    }
                   </select>
                 </LabelInput>
                 {[
@@ -635,6 +670,7 @@ function DetailPanel({ id, onClose, onEdit }: {
   id: string; onClose: () => void; onEdit: (id: string) => void;
 }) {
   const utils = trpc.useUtils();
+  const [showArchiveConfirm, setShowArchiveConfirm] = useState(false);
   const { data: p, isLoading } = trpc.products.getById.useQuery({ id });
   const archiveMut = trpc.products.archive.useMutation({
     onSuccess: () => { utils.products.list.invalidate(); onClose(); },
@@ -774,10 +810,37 @@ function DetailPanel({ id, onClose, onEdit }: {
         {p.status !== 'Discontinued' && (
           <button className="btn btn-sm"
             style={{ marginLeft: 'auto', background: 'var(--color-danger-bg)', border: '1.5px solid var(--color-danger-border)', color: 'var(--color-danger-text)' }}
-            onClick={() => { if (confirm(`Archive "${p.name}"? It will be marked Discontinued.`)) archiveMut.mutate({ id: p.id }); }}
+            onClick={() => setShowArchiveConfirm(true)}
           >Archive</button>
         )}
       </div>
+
+      {/* Archive confirm modal */}
+      {showArchiveConfirm && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 9999, background: 'rgba(0,0,0,0.45)', backdropFilter: 'blur(2px)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ background: 'var(--color-surface)', borderRadius: 12, padding: '28px 32px', width: 420, maxWidth: '92vw', boxShadow: '0 20px 60px rgba(0,0,0,0.25)', border: '1px solid var(--color-border)' }}>
+            <div style={{ display: 'flex', gap: 12, marginBottom: 14, alignItems: 'center' }}>
+              <div style={{ width: 38, height: 38, borderRadius: '50%', background: 'rgba(217,119,6,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#d97706" strokeWidth="2.5" strokeLinecap="round"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+              </div>
+              <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 700, color: 'var(--color-text)' }}>Archive Product?</h3>
+            </div>
+            <p style={{ margin: '0 0 6px', fontSize: '0.875rem', color: 'var(--color-text)', fontWeight: 600 }}>{p.name}</p>
+            <p style={{ margin: '0 0 24px', fontSize: '0.84rem', color: 'var(--color-text-muted)', lineHeight: 1.6 }}>
+              This product will be marked <strong>Discontinued</strong> and hidden from active use. It will remain in historical records. You can reactivate it later by editing the status.
+            </p>
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+              <button className="btn-ghost" onClick={() => setShowArchiveConfirm(false)} style={{ minWidth: 80 }}>Cancel</button>
+              <button
+                disabled={archiveMut.isPending}
+                onClick={() => { archiveMut.mutate({ id: p.id }); setShowArchiveConfirm(false); }}
+                style={{ padding: '8px 20px', borderRadius: 'var(--radius)', fontWeight: 700, fontSize: '0.875rem', cursor: 'pointer', border: 'none', background: '#d97706', color: '#fff', minWidth: 100 }}>
+                {archiveMut.isPending ? 'Archiving…' : 'Archive'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

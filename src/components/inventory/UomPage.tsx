@@ -423,9 +423,14 @@ export default function UomPage() {
                     onChange={e => set('is_default', e.target.checked)}
                     style={{ width: 15, height: 15 }}
                   />
-                  <span className="form-label" style={{ margin: 0 }}>Default UOM</span>
+                  <span className="form-label" style={{ margin: 0 }}>Default for type</span>
                 </label>
               </div>
+              {form.is_default && (
+                <div style={{ padding: '7px 10px', borderRadius: 6, fontSize: '0.78rem', background: 'rgba(8,145,178,0.07)', border: '1px solid rgba(8,145,178,0.25)', color: '#0891b2' }}>
+                  Marking this as default will automatically unset any existing default for <strong>{form.uom_type}</strong> units in this company.
+                </div>
+              )}
 
               {/* Actions */}
               <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', paddingTop: 4 }}>
