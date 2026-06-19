@@ -44,19 +44,15 @@ Examples:
 
 Frontend forms must validate user input before calling the backend, but backend validation is still required.
 
-Frontend validation rules belong in:
+Frontend UI, validation, theme, layout, voucher screen, and user-message rules belong in:
 
 - `documents/FRONTEND_BEST_PRACTICES.md`
-
-User-facing labels, headings, table columns, and field titles must use Title Case. Do not force normal labels to all uppercase. Common business abbreviations such as SKU, UOM, PO, SO, VAT, and EAN may stay uppercase.
-
-Date format, currency, locale, decimal places, control sizes, spacing, and radius should come from shared configuration or theme tokens instead of being hard-coded in screens.
 
 ## Backend Rule
 
 Backend route handlers should stay thin. Put business rules in service/domain layers.
 
-Backend rules belong in:
+Backend API, service, validation, transaction, security, and error-handling rules belong in:
 
 - `documents/BACKEND_BEST_PRACTICES.md`
 
@@ -64,7 +60,7 @@ Backend rules belong in:
 
 Database design must be clear, auditable, multi-company safe, and transaction-safe.
 
-Database design rules belong in:
+Database schema, Prisma, table, field, index, master-data, and transaction design rules belong in:
 
 - `documents/DATABASE_DESIGN_RULES.md`
 

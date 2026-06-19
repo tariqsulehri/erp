@@ -2,6 +2,7 @@ import { z } from 'zod';
 
 export const VoucherTypeEnum   = z.enum(['BRV', 'BPV', 'CRV', 'CPV', 'JV', 'CV', 'DN', 'CN']);
 export const VoucherStatusEnum = z.enum(['Draft', 'Posted', 'Voided']);
+export const ApprovalStatusEnum = z.enum(['Not Required', 'Pending', 'Approved', 'Rejected']);
 
 export const VoucherLineInput = z.object({
   account_id:   z.string().uuid(),
@@ -11,6 +12,9 @@ export const VoucherLineInput = z.object({
   cr_amount:    z.number().min(0).default(0),
   narration:    z.string().max(500).optional(),
   line_no:      z.number().int().min(1).default(1),
+  cost_center_id: z.string().uuid().optional(),
+  project_id: z.string().uuid().optional(),
+  department_id: z.string().uuid().optional(),
 });
 export type VoucherLineInput = z.infer<typeof VoucherLineInput>;
 
@@ -19,6 +23,8 @@ export const CreateVoucherInput = z.object({
   voucher_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Use YYYY-MM-DD format'),
   reference:    z.string().max(100).optional(),
   narration:    z.string().max(1000).optional(),
+  approval_status: ApprovalStatusEnum.default('Not Required').optional(),
+  auto_reverse_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Use YYYY-MM-DD format').optional(),
   lines:        z.array(VoucherLineInput).min(2, 'Minimum 2 lines required'),
 });
 export type CreateVoucherInput = z.infer<typeof CreateVoucherInput>;

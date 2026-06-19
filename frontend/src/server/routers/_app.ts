@@ -7,6 +7,7 @@ import { dashboardRouter }  from './dashboard.router';
 import { productsRouter }   from './products.router';
 import { customersRouter }  from './customers.router';
 import { suppliersRouter }  from './suppliers.router';
+import { transactionSupportRouter } from './transaction-support.router';
 
 /**
  * ============================================================================
@@ -98,6 +99,9 @@ export const appRouter = router({
   // Phase 3: AR / AP Sub-ledger Masters
   customers: customersRouter,
   suppliers: suppliersRouter,
+
+  // Shared transaction support
+  transactionSupport: transactionSupportRouter,
 });
 
 // Export type definition of API

@@ -25,6 +25,15 @@ Examples:
 - Prefer dropdowns for configurable master data such as category, brand, size, UOM, warehouse, and location.
 - All dropdowns for ERP master data and filters should be searchable.
 
+## Configurable Item Fields
+
+- Item setup fields that users can manage must use configurable master data from the backend.
+- Category, Item Group, Product Type, Brand, Item Size, Origin, UOM, Warehouse, and Location should use searchable dropdowns.
+- Brand should be selected from the Brand table, not typed as free text in normal item entry.
+- If quick-create is allowed for master data, use an approved setup flow and refresh the dropdown after saving.
+- Product Catalogue filters should use the same configurable master data as item entry forms.
+- Business-specific extra item details should be shown through configurable item attributes, not hard-coded one-off controls.
+
 ## UI Library and Theme
 
 - Use Mantine as the main frontend UI and theming library.
@@ -37,6 +46,8 @@ Examples:
 - Keep custom CSS aligned with the shared theme variables.
 - Use simple, clear ERP layouts instead of decorative marketing-style screens.
 - Do not hand-draw common icons with inline SVG when a matching Tabler icon exists.
+- Theme names and palettes should feel professional and work-focused. Avoid playful theme names, neon accents, and loud multi-color combinations for ERP workspaces.
+- Theme selector controls should be compact, clear, and consistent with common settings/account controls used in professional web applications.
 
 ## Configuration And Hardcoding Rules
 
@@ -54,6 +65,7 @@ Examples:
 - Validate numeric ranges before submit.
 - Validate related fields together.
 - Show validation messages next to the field.
+- Field validation messages should appear close to the field or section they belong to.
 - Use clear messages that explain how to fix the problem.
 - Do not rely only on frontend validation; backend must validate again.
 
@@ -98,7 +110,9 @@ Avoid messages:
 - Keep API calls in clear service/hooks layers.
 - Show loading states while saving or loading.
 - Show friendly error messages from backend errors.
+- No API, lookup, refresh, print, save, process, or delete error should fail silently. Every failed user action must show a clear message.
 - Do not hide save failures.
+- If a two-step action partly succeeds, explain the exact result. Example: `Voucher saved as Draft, but could not be posted.`
 - Prevent double submit while a save request is running.
 - Do not let the frontend decide final permissions or company access.
 - Do not assume frontend validation is enough.
@@ -110,10 +124,33 @@ Avoid messages:
 - Voucher and transaction screens should keep main action buttons such as New, Save, Process, Print, Refresh, and Cancel in the top action bar.
 - Voucher screens should use consistent compact font sizes for labels, inputs, buttons, table headers, table rows, validation messages, and summary values.
 - Voucher status should be shown as a clear status badge or status area, not as a normal disabled input mixed with editable fields.
+- Voucher line tables should avoid wasted space. Keep short columns narrow, such as No., date, type, and delete columns.
+- Voucher line tables should give more width to Account and Description columns.
+- Voucher screens should avoid unnecessary vertical scrolling and show the maximum practical number of line items on one screen.
+- Voucher page, header, and summary areas should not scroll vertically. Only the line-items area should scroll vertically when rows exceed the defined available height.
+- Voucher line-items areas should not scroll horizontally. Adjust column widths, labels, and visible columns so the table fits the voucher workspace.
+- Voucher summary totals should stay visible on the screen where practical and should use bordered, right-aligned values.
+- Voucher summary areas should use a consistent footer layout across voucher types.
+- Voucher messages should be visible but not oversized. Use normal-weight text unless the message is critical.
 - Use dropdowns for master data.
 - Use searchable dropdowns for master data and filters by default.
 - Use status labels users understand, such as `Active`, `Inactive`, `Blocked`, `Draft`, and `Posted`.
 - Disable editing for posted documents unless the workflow explicitly allows correction documents.
+
+## Transaction Module Layout
+
+These rules apply to vouchers, sales, purchases, payments, receipts, stock documents, and future transaction screens.
+
+- Keep a consistent space in transaction screens for workflow controls such as Approval Status, Attachments, Print, and document status.
+- Keep a consistent space for document support fields such as Reference Number, Project, Cost Center, Department, and Auto Reverse Date when the module uses them.
+- Do not show editable fields for Project, Cost Center, Attachment, Auto Reverse Date, or Approval unless the backend saves and validates them.
+- Posted documents must open in read-only mode by default.
+- If a posted document needs correction, show correction actions such as Reverse, Void, Return, Debit Note, Credit Note, or Adjustment instead of normal edit.
+- Print buttons should produce a professional print format with document number, date, party/account details, line details, totals, prepared by, checked by, approved by, and signature spaces.
+- Attachment controls should show uploaded file count or status clearly.
+- Approval Status should be shown as a badge or workflow area, not mixed into normal editable fields.
+- Auto Reverse Date should only be editable for voucher types that support reversing entries.
+- Duplicate reference warnings should be visible before saving when the same party/account, date, reference, and amount already exist.
 
 ## Accessibility
 

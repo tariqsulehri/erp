@@ -2,6 +2,8 @@ import { AppDataSource } from '@/db/data-source';
 import { Voucher, VoucherLine, VoucherType } from './voucher.entity';
 import { CreateVoucherInput, ListVouchersQuery } from './voucher.schema';
 import { FiscalYearService } from '@/modules/fiscal-year/fiscal-year.service';
+import { EntityManager } from 'typeorm';
+import { TransactionSupportService } from '@/modules/transactions/transaction-support.service';
 
 const VOUCHER_PREFIXES: Record<VoucherType, string> = {
   BRV: 'BRV', BPV: 'BPV', CRV: 'CRV', CPV: 'CPV',
@@ -9,8 +11,7 @@ const VOUCHER_PREFIXES: Record<VoucherType, string> = {
 };
 
 export class VoucherService {
-  private repo   = AppDataSource.getRepository(Voucher);
-  private lineRepo = AppDataSource.getRepository(VoucherLine);
+  private repo = AppDataSource.getRepository(Voucher);
 
   constructor(private companyId: string) {}
 
@@ -23,9 +24,10 @@ export class VoucherService {
   }
 
   /** Generate next voucher number: PV-2026-0001 */
-  private async nextNumber(type: VoucherType, year: number): Promise<string> {
+  private async nextNumber(type: VoucherType, year: number, manager: EntityManager = AppDataSource.manager): Promise<string> {
     const prefix = `${VOUCHER_PREFIXES[type]}-${year}-`;
-    const last = await this.repo
+    const last = await manager
+      .getRepository(Voucher)
       .createQueryBuilder('v')
       .where('v.company_id = :cid', { cid: this.companyId })
       .andWhere('v.voucher_type = :t', { t: type })
@@ -50,49 +52,123 @@ export class VoucherService {
     }
   }
 
+  private validateVoucherLines(input: CreateVoucherInput): { totalDr: number; totalCr: number } {
+    let totalDr = 0;
+    let totalCr = 0;
+
+    input.lines.forEach((line, index) => {
+      const lineNumber = index + 1;
+      if (!line.account_code.trim()) throw new Error(`Account Code is required on line ${lineNumber}.`);
+      if (!line.account_name.trim()) throw new Error(`Account Name is required on line ${lineNumber}.`);
+      if (!Number.isFinite(line.dr_amount) || !Number.isFinite(line.cr_amount)) {
+        throw new Error(`Debit and Credit must be valid numbers on line ${lineNumber}.`);
+      }
+      if (line.dr_amount < 0 || line.cr_amount < 0) {
+        throw new Error(`Debit and Credit cannot be negative on line ${lineNumber}.`);
+      }
+      if (line.dr_amount === 0 && line.cr_amount === 0) {
+        throw new Error(`Debit or Credit amount is required on line ${lineNumber}.`);
+      }
+      if (line.dr_amount > 0 && line.cr_amount > 0) {
+        throw new Error(`Line ${lineNumber} cannot have both Debit and Credit amounts.`);
+      }
+
+      totalDr += line.dr_amount;
+      totalCr += line.cr_amount;
+    });
+
+    if (totalDr <= 0 || totalCr <= 0) {
+      throw new Error('Voucher must have both Debit and Credit amounts.');
+    }
+    if (Math.abs(totalDr - totalCr) > 0.001) {
+      throw new Error(`Voucher is not balanced. Debit ${totalDr.toFixed(2)} does not match Credit ${totalCr.toFixed(2)}.`);
+    }
+
+    return { totalDr, totalCr };
+  }
+
+  private async validateSupportFields(input: CreateVoucherInput, voucherDate: Date) {
+    const support = new TransactionSupportService(this.companyId);
+    await support.validateActiveIds(
+      'costCenter',
+      input.lines.map(line => line.cost_center_id).filter(Boolean) as string[],
+      'Cost Center',
+    );
+    await support.validateActiveIds(
+      'project',
+      input.lines.map(line => line.project_id).filter(Boolean) as string[],
+      'Project',
+    );
+    await support.validateActiveIds(
+      'department',
+      input.lines.map(line => line.department_id).filter(Boolean) as string[],
+      'Department',
+    );
+
+    if (input.auto_reverse_date) {
+      const autoReverseDate = new Date(`${input.auto_reverse_date}T12:00:00`);
+      if (Number.isNaN(autoReverseDate.getTime())) {
+        throw new Error('Auto Reverse Date is not valid.');
+      }
+      if (autoReverseDate <= voucherDate) {
+        throw new Error('Auto Reverse Date must be after Voucher Date.');
+      }
+    }
+  }
+
   async createVoucher(input: CreateVoucherInput, userId: string): Promise<Voucher> {
-    const date    = new Date(input.voucher_date);
+    const date = new Date(`${input.voucher_date}T12:00:00`);
+    if (Number.isNaN(date.getTime())) {
+      throw new Error('Voucher Date is not valid.');
+    }
+    const { totalDr, totalCr } = this.validateVoucherLines(input);
+    await this.validateSupportFields(input, date);
 
     // Reject date outside any open fiscal year period
     await this.assertDateInOpenPeriod(date);
 
-    const year    = date.getFullYear();
-    const number  = await this.nextNumber(input.voucher_type, year);
+    return AppDataSource.transaction(async manager => {
+      const repo = manager.getRepository(Voucher);
+      const lineRepo = manager.getRepository(VoucherLine);
+      const number = await this.nextNumber(input.voucher_type, date.getFullYear(), manager);
 
-    const totalDr = input.lines.reduce((s, l) => s + l.dr_amount, 0);
-    const totalCr = input.lines.reduce((s, l) => s + l.cr_amount, 0);
+      const voucher = repo.create({
+        company_id: this.companyId,
+        voucher_number: number,
+        voucher_type: input.voucher_type,
+        voucher_date: date,
+        reference: input.reference,
+        narration: input.narration,
+        status: 'Draft',
+        approval_status: input.approval_status ?? 'Not Required',
+        auto_reverse_date: input.auto_reverse_date ? new Date(`${input.auto_reverse_date}T12:00:00`) : undefined,
+        reversal_status: input.auto_reverse_date ? 'Scheduled' : 'None',
+        total_debit: String(totalDr),
+        total_credit: String(totalCr),
+        created_by: this.safeUuid(userId),
+      });
 
-    const voucher = this.repo.create({
-      company_id:     this.companyId,
-      voucher_number: number,
-      voucher_type:   input.voucher_type,
-      voucher_date:   date,
-      reference:      input.reference,
-      narration:      input.narration,
-      status:         'Draft',
-      total_debit:    String(totalDr),
-      total_credit:   String(totalCr),
-      created_by:     this.safeUuid(userId),
+      const saved = await repo.save(voucher);
+      const lines = input.lines.map((line, index) =>
+        lineRepo.create({
+          voucher_id: saved.id,
+          company_id: this.companyId,
+          account_id: line.account_id,
+          account_code: line.account_code,
+          account_name: line.account_name,
+          dr_amount: String(line.dr_amount),
+          cr_amount: String(line.cr_amount),
+          narration: line.narration,
+          line_no: index + 1,
+          cost_center_id: line.cost_center_id,
+          project_id: line.project_id,
+          department_id: line.department_id,
+        }),
+      );
+
+      saved.lines = await lineRepo.save(lines);
+      return saved;
     });
-
-    const saved = await this.repo.save(voucher);
-
-    const lines = input.lines.map((l, i) =>
-      this.lineRepo.create({
-        voucher_id:   saved.id,
-        company_id:   this.companyId,
-        account_id:   l.account_id,
-        account_code: l.account_code,
-        account_name: l.account_name,
-        dr_amount:    String(l.dr_amount),
-        cr_amount:    String(l.cr_amount),
-        narration:    l.narration,
-        line_no:      i + 1,
-      }),
-    );
-
-    saved.lines = await this.lineRepo.save(lines);
-    return saved;
   }
 
   async postVoucher(id: string, userId: string): Promise<Voucher> {
@@ -102,6 +178,8 @@ export class VoucherService {
     });
     if (!voucher) throw new Error('Voucher not found');
     if (voucher.status !== 'Draft') throw new Error('Only Draft vouchers can be posted');
+    if (voucher.approval_status === 'Pending') throw new Error('Voucher is waiting for approval and cannot be posted.');
+    if (voucher.approval_status === 'Rejected') throw new Error('Rejected voucher cannot be posted.');
 
     // Re-validate date at post time (period may have been closed after draft was saved)
     await this.assertDateInOpenPeriod(new Date(voucher.voucher_date as any));

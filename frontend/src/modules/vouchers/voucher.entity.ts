@@ -6,6 +6,8 @@ import {
 
 export type VoucherType   = 'BRV' | 'BPV' | 'CRV' | 'CPV' | 'JV' | 'CV' | 'DN' | 'CN';
 export type VoucherStatus = 'Draft' | 'Posted' | 'Voided';
+export type ApprovalStatus = 'Not Required' | 'Pending' | 'Approved' | 'Rejected';
+export type ReversalStatus = 'None' | 'Scheduled' | 'Reversed';
 
 /**
  * Voucher types:
@@ -29,7 +31,7 @@ export class Voucher {
   @Column('uuid')
   company_id!: string;
 
-  /** Auto-generated: PV-2026-0001 */
+  /** Auto-generated: voucher type + year + sequence, such as JV-2026-0001 */
   @Column('varchar', { length: 30 })
   voucher_number!: string;
 
@@ -49,6 +51,27 @@ export class Voucher {
 
   @Column('varchar', { length: 20, default: 'Draft' })
   status!: VoucherStatus;
+
+  @Column('varchar', { length: 30, default: 'Not Required' })
+  approval_status!: ApprovalStatus;
+
+  @Column('uuid', { nullable: true })
+  approved_by?: string;
+
+  @Column('timestamp with time zone', { nullable: true })
+  approved_at?: Date;
+
+  @Column('date', { nullable: true })
+  auto_reverse_date?: Date;
+
+  @Column('varchar', { length: 30, default: 'None' })
+  reversal_status!: ReversalStatus;
+
+  @Column('uuid', { nullable: true })
+  reversal_voucher_id?: string;
+
+  @Column('uuid', { nullable: true })
+  reversal_of_id?: string;
 
   /** Sum of debit lines — must equal total_credit when Posted */
   @Column('decimal', { precision: 18, scale: 2, default: 0 })
@@ -121,6 +144,15 @@ export class VoucherLine {
   /** Line-level narration */
   @Column('text', { nullable: true })
   narration?: string;
+
+  @Column('uuid', { nullable: true })
+  cost_center_id?: string;
+
+  @Column('uuid', { nullable: true })
+  project_id?: string;
+
+  @Column('uuid', { nullable: true })
+  department_id?: string;
 
   /** Sequence for display order */
   @Column('int', { default: 1 })

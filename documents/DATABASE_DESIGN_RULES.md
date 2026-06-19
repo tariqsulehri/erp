@@ -29,6 +29,9 @@ Important transaction tables should also include:
 - `postedById`
 - `postedAt`
 - `status`
+- a user-facing document number or voucher number that stays unique for the company
+- approval fields when approval is required, such as `approvalStatus`, `approvedById`, and `approvedAt`
+- reversal fields when reversal is supported, such as `reversalOfId`, `reversedById`, and `reversedAt`
 
 ## Multi-Company Safety
 
@@ -71,13 +74,47 @@ Use configurable lookup tables for values users may manage:
 
 Do not hardcode these values in application code unless they are stable system behavior.
 
+Item-specific master data rules:
+
+- Category, Item Group, Product Type, Brand, Item Size, Origin, UOM, Warehouse, and Location should have their own descriptive tables.
+- These tables should include `companyId`, `isActive`, `createdAt`, and `updatedAt`.
+- Use company-scoped unique keys for codes and names where needed.
+- Use configurable item attribute tables for business-specific extra item details.
+- Do not add one-off item master columns for fields that only one business or one product group needs.
+
 ## Transactions
 
+- Creating a transaction document header and its lines should happen inside one database transaction.
+- Voucher numbers should be permanent and unique for the whole life of the company data.
+- Voucher number format should include voucher type, year, and sequence, such as `JV-2026-0001`.
 - Draft documents should not affect stock, supplier balances, customer balances, cash, bank, or ledger.
 - Posting must happen inside a database transaction.
 - Posting must be idempotent or protected from double posting.
 - Posted documents should be locked.
 - Corrections should use returns, reversals, debit notes, credit notes, or adjustment documents.
+- Multi-user posting must protect the same document and affected balance rows from being updated twice at the same time.
+
+## Transaction Support Tables
+
+Use shared support tables when the ERP module needs them:
+
+- `cost_centers` for cost center reporting.
+- `projects` for project/job reporting.
+- `departments` for department reporting.
+- `document_attachments` for files linked to vouchers, sales, purchases, payments, receipts, and stock documents.
+- `document_approvals` for approval workflow history.
+- `document_print_logs` if printed copy tracking is required.
+
+Line-level accounting documents should be able to store `costCenterId`, `projectId`, and `departmentId` when these dimensions are enabled.
+
+Auto-reversing entries should store:
+
+- `autoReverseDate`
+- `reversalStatus`
+- `reversalVoucherId`
+- `reversalOfId`
+
+Duplicate reference prevention should use company-scoped indexes or backend checks based on the business rule for each document type.
 
 ## Inventory
 

@@ -20,6 +20,13 @@ import { ProductCategory }       from '@/modules/inventory/product-category.enti
 import { UnitOfMeasure }         from '@/modules/inventory/uom.entity';
 import { Customer }              from '@/modules/customers/customer.entity';
 import { Supplier }              from '@/modules/suppliers/supplier.entity';
+import {
+  CostCenter,
+  Department,
+  DocumentApproval,
+  DocumentAttachment,
+  Project,
+} from '@/modules/transactions/transaction-support.entity';
 
 const isProduction = process.env.NODE_ENV === 'production';
 
@@ -41,6 +48,7 @@ export const AppDataSource = new DataSource({
     Product, ProductCategory, UnitOfMeasure,
     Customer,
     Supplier,
+    CostCenter, Project, Department, DocumentAttachment, DocumentApproval,
   ],
 
   // Migrations - load all migration files (glob works fine for CLI/tsx)
