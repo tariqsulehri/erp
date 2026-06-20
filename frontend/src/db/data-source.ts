@@ -1,6 +1,7 @@
 import 'reflect-metadata';
 import { DataSource } from 'typeorm';
 import * as path from 'path';
+import { buildDatabaseConnectionOptions } from './database-env';
 
 /**
  * Explicit entity imports required for Next.js webpack runtime.
@@ -20,6 +21,7 @@ import { ProductCategory }       from '@/modules/inventory/product-category.enti
 import { UnitOfMeasure }         from '@/modules/inventory/uom.entity';
 import { Customer }              from '@/modules/customers/customer.entity';
 import { Supplier }              from '@/modules/suppliers/supplier.entity';
+import { GeneralSetting }        from '@/modules/settings/general-setting.entity';
 import {
   CostCenter,
   Department,
@@ -32,12 +34,7 @@ const isProduction = process.env.NODE_ENV === 'production';
 
 export const AppDataSource = new DataSource({
   type: 'postgres',
-  host: process.env.DATABASE_HOST || 'localhost',
-  port: parseInt(process.env.DATABASE_PORT || '5432', 10),
-  username: process.env.DATABASE_USER || 'erp_user',
-  password: process.env.DATABASE_PASSWORD || 'erp_password',
-  database: process.env.DATABASE_NAME || 'erp_financial_db',
-  ssl: process.env.DATABASE_SSL === 'true' ? { rejectUnauthorized: false } : false,
+  ...buildDatabaseConnectionOptions(),
 
   // Explicit entity list — glob patterns are not supported in the Next.js runtime
   entities: [
@@ -48,6 +45,7 @@ export const AppDataSource = new DataSource({
     Product, ProductCategory, UnitOfMeasure,
     Customer,
     Supplier,
+    GeneralSetting,
     CostCenter, Project, Department, DocumentAttachment, DocumentApproval,
   ],
 

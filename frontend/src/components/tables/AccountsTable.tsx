@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { Account } from '@/modules/accounts/account.entity';
+import { getAccountLevel } from '@/modules/accounts/account-code';
 
 /* ── Type badge ──────────────────────────────────────────────────────── */
 const TYPE_COLOR: Record<string, { text: string; bg: string }> = {
@@ -27,18 +28,14 @@ function TypeBadge({ type }: { type: string }) {
 
 /* ── Hierarchy level badge (by code) ─────────────────────────────────── */
 const LEVEL_META: Record<number, { label: string; bg: string }> = {
-  1: { label: 'Category', bg: '#dbeafe' },
+  1: { label: 'Main Category', bg: '#dbeafe' },
   2: { label: 'Group',    bg: '#ede9fe' },
   3: { label: 'Sub-Grp',  bg: '#f3e8ff' },
   4: { label: 'Posting',  bg: '#dcfce7' },
 };
 
 function levelOf(code: string): number {
-  const n = parseInt(code, 10);
-  if (n % 1000 === 0) return 1;
-  if (n % 100  === 0) return 2;
-  if (n % 10   === 0) return 3;
-  return 4;
+  return getAccountLevel(code);
 }
 
 /* ── Props ───────────────────────────────────────────────────────────── */
@@ -125,7 +122,7 @@ export function AccountsTable({
                   style={{ cursor: 'pointer' }}
                 />
               </th>
-              <th style={{ width: 80 }}>Code</th>
+              <th style={{ width: 120 }}>Code</th>
               <th>Account Name</th>
               <th>Type</th>
               <th>Level</th>

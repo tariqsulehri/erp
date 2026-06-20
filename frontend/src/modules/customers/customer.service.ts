@@ -1,11 +1,22 @@
 import { AppDataSource }    from '@/db/data-source';
 import { Customer }          from './customer.entity';
 import { Account }           from '@/modules/accounts/account.entity';
+import { EntityManager }     from 'typeorm';
 import {
   CreateCustomerInput,
   UpdateCustomerInput,
   ListCustomersQuery,
 } from './customer.schema';
+import {
+  CUSTOMER_ACCOUNT_CODE_END,
+  CUSTOMER_ACCOUNT_CODE_PREFIX,
+  CUSTOMER_ACCOUNT_CODE_START,
+  PARTY_ACCOUNT_SUBGROUP_MAX,
+  PARTY_ACCOUNT_SUBGROUP_MIN,
+  POSTING_ACCOUNT_MAX,
+  POSTING_ACCOUNT_MIN,
+  buildPostingAccountCode,
+} from '@/modules/accounts/account-code';
 
 /**
  * CustomerService — AR sub-ledger master CRUD.
@@ -18,10 +29,9 @@ import {
  *
  * GL Account auto-assignment:
  *   When a customer is created, a GL posting account is automatically created
- *   in the AR sub-ledger range (1301–1399) and linked via ar_account_id.
- *   Range: 7-digit codes 1300001–1399999 (column widened to VARCHAR(10) by
- *   migration 9 alongside the switch to 6-digit main COA codes).
- *   Total capacity: 99,999 customer sub-ledger accounts per company.
+ *   in the customer linked account range and linked via ar_account_id.
+ *   Range: 10-digit codes 0103010001–0103999999.
+ *   Total capacity: 989,901 customer linked accounts per company.
  */
 export class CustomerService {
   private repo     = AppDataSource.getRepository(Customer);
@@ -30,8 +40,8 @@ export class CustomerService {
   constructor(private companyId: string) {}
 
   /* ── Customer code generator ─────────────────────────────────── */
-  async nextCode(): Promise<string> {
-    const last = await this.repo
+  async nextCode(manager: EntityManager = AppDataSource.manager): Promise<string> {
+    const last = await manager.getRepository(Customer)
       .createQueryBuilder('c')
       .select('c.code')
       .where('c.company_id = :cid', { cid: this.companyId })
@@ -50,24 +60,29 @@ export class CustomerService {
   /* ── GL account helpers ──────────────────────────────────────── */
 
   /**
-   * Return the next unused 7-digit GL code in the AR sub-ledger range
-   * 1300001–1399999.  7-digit codes are never COA hierarchy pivots, so no
-   * skipping is needed.  Capacity: 99,999 customer accounts per company.
+   * Return the next unused 10-digit account code in the customer linked account
+   * range 0103010001–0103999999.
    */
-  async nextArAccountCode(): Promise<string> {
-    const rows = await this.acctRepo
+  async nextArAccountCode(manager: EntityManager = AppDataSource.manager): Promise<string> {
+    const rows = await manager.getRepository(Account)
       .createQueryBuilder('a')
       .select('a.code')
       .where('a.company_id = :cid', { cid: this.companyId })
-      .andWhere('CAST(a.code AS BIGINT) BETWEEN 1300001 AND 1399999')
+      .andWhere('a.code BETWEEN :start AND :end', {
+        start: CUSTOMER_ACCOUNT_CODE_START,
+        end: CUSTOMER_ACCOUNT_CODE_END,
+      })
       .getMany();
 
-    const used = new Set(rows.map(r => parseInt(r.code, 10)));
-    for (let n = 1300001; n <= 1399999; n++) {
-      if (!used.has(n)) return String(n);
+    const used = new Set(rows.map(r => r.code));
+    for (let subgroup = PARTY_ACCOUNT_SUBGROUP_MIN; subgroup <= PARTY_ACCOUNT_SUBGROUP_MAX; subgroup++) {
+      for (let posting = POSTING_ACCOUNT_MIN; posting <= POSTING_ACCOUNT_MAX; posting++) {
+        const code = buildPostingAccountCode(CUSTOMER_ACCOUNT_CODE_PREFIX, subgroup, posting);
+        if (!used.has(code)) return code;
+      }
     }
     throw new Error(
-      'AR sub-ledger code range (1300001–1399999) is exhausted. ' +
+      'Customer linked account range (0103010001–0103999999) is exhausted. ' +
       'Contact your accountant to extend the chart of accounts.',
     );
   }
@@ -76,9 +91,10 @@ export class CustomerService {
    * Create a GL posting account for the AR sub-ledger and return its id + code.
    * Account type: Asset / Debit-normal / is_posting = true.
    */
-  async createArSubledgerAccount(customerName: string): Promise<{ id: string; code: string }> {
-    const code = await this.nextArAccountCode();
-    const acct = this.acctRepo.create({
+  async createArSubledgerAccount(customerName: string, manager: EntityManager = AppDataSource.manager): Promise<{ id: string; code: string }> {
+    const code = await this.nextArAccountCode(manager);
+    const accountRepo = manager.getRepository(Account);
+    const acct = accountRepo.create({
       company_id:     this.companyId,
       code,
       name:           `${customerName}`.slice(0, 100),
@@ -87,10 +103,21 @@ export class CustomerService {
       is_posting:     true,
       is_system:      false,
       is_active:      true,
-      description:    `AR sub-ledger — ${customerName}`,
+      description:    `Customer linked account - ${customerName}`,
     });
-    const saved = await this.acctRepo.save(acct);
+    const saved = await accountRepo.save(acct);
     return { id: saved.id, code: saved.code };
+  }
+
+  private normalizePartyRole(input: Pick<CreateCustomerInput, 'party_type' | 'main_role'>) {
+    const partyType = input.party_type ?? 'Customer';
+    if (partyType === 'Supplier') {
+      throw new Error('Use the Supplier screen for parties whose main record is Supplier.');
+    }
+    return {
+      party_type: partyType,
+      main_role: 'Customer' as const,
+    };
   }
 
   /* ── List ────────────────────────────────────────────────────── */
@@ -133,38 +160,47 @@ export class CustomerService {
 
   /* ── Create ──────────────────────────────────────────────────── */
   async create(input: CreateCustomerInput): Promise<Customer> {
-    const code = input.code?.trim().toUpperCase() || await this.nextCode();
+    return AppDataSource.transaction(async manager => {
+      const customerRepo = manager.getRepository(Customer);
+      const code = input.code?.trim().toUpperCase() || await this.nextCode(manager);
+      const roleFields = this.normalizePartyRole(input);
 
-    /* Unique code guard */
-    const exists = await this.repo.findOne({
-      where: { company_id: this.companyId, code },
-      select: ['id'],
+      /* Unique code guard */
+      const exists = await customerRepo.findOne({
+        where: { company_id: this.companyId, code },
+        select: ['id'],
+      });
+      if (exists) throw new Error(`Customer code "${code}" already exists.`);
+
+      /* Auto-create one linked GL account if caller did not supply one */
+      let arAccountId = input.ar_account_id;
+      if (!arAccountId) {
+        const gl = await this.createArSubledgerAccount(input.name, manager);
+        arAccountId = gl.id;
+      }
+
+      const customer = customerRepo.create({
+        ...input,
+        ...roleFields,
+        code,
+        company_id:          this.companyId,
+        ar_account_id:       arAccountId,
+        email:               input.email               || undefined,
+        trade_name:          input.trade_name           || undefined,
+        tax_registration_no: input.tax_registration_no || undefined,
+      });
+      return customerRepo.save(customer);
     });
-    if (exists) throw new Error(`Customer code "${code}" already exists.`);
-
-    /* Auto-create GL sub-ledger account if caller did not supply one */
-    let arAccountId = input.ar_account_id;
-    if (!arAccountId) {
-      const gl = await this.createArSubledgerAccount(input.name);
-      arAccountId = gl.id;
-    }
-
-    const customer = this.repo.create({
-      ...input,
-      code,
-      company_id:          this.companyId,
-      ar_account_id:       arAccountId,
-      email:               input.email               || undefined,
-      trade_name:          input.trade_name           || undefined,
-      tax_registration_no: input.tax_registration_no || undefined,
-    });
-    return this.repo.save(customer);
   }
 
   /* ── Update ──────────────────────────────────────────────────── */
   async update(input: UpdateCustomerInput): Promise<Customer> {
     const { id, ...rest } = input;
     const customer = await this.get(id);
+    const roleFields = this.normalizePartyRole({
+      party_type: rest.party_type ?? customer.party_type,
+      main_role: rest.main_role ?? customer.main_role,
+    });
 
     /* If code is being changed, check uniqueness */
     if (rest.code && rest.code !== customer.code) {
@@ -180,11 +216,11 @@ export class CustomerService {
     if (rest.name && rest.name !== customer.name && customer.ar_account_id) {
       await this.acctRepo.update(
         { id: customer.ar_account_id, company_id: this.companyId },
-        { name: rest.name.slice(0, 100), description: `AR sub-ledger — ${rest.name}` },
+        { name: rest.name.slice(0, 100), description: `Customer linked account - ${rest.name}` },
       );
     }
 
-    Object.assign(customer, rest);
+    Object.assign(customer, rest, roleFields);
     return this.repo.save(customer);
   }
 

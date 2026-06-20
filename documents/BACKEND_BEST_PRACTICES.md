@@ -7,6 +7,11 @@
 - Return clear error messages.
 - Do not expose raw database errors to users.
 - Keep route handlers thin and move business rules into services.
+- List endpoints must support backend pagination for large data. Accept `page`, `pageSize`, filters, and sort options where needed.
+- Enforce a safe maximum page size on the backend, normally 200 records unless there is a specific approved export endpoint.
+- Return pagination metadata with list results, such as `page`, `pageSize`, `totalRecords`, and `totalPages` when the count is practical.
+- Apply filters and sorting in the database query, not after loading records into memory.
+- List endpoints should return summary/header data by default. Load details, line items, and heavy related data only through detail endpoints or explicit include options.
 
 ## Database and Prisma
 
@@ -31,6 +36,21 @@
 - Product Catalogue APIs should filter by the same configurable master data used by item entry forms.
 - Business-specific item attributes should be handled through configurable item attribute records instead of service-specific hard-coded fields.
 
+## General Settings
+
+- Store shared company defaults in `general_settings`, not inside feature-specific services.
+- Backend services should read currency, date, locale, country, and number-format defaults from the company settings service when they need those values.
+- Keep company legal/profile fields separate from general application settings.
+
+## Account Codes
+
+- Backend validation must require 10-digit numeric Account Codes.
+- Store Account Codes as text, not numbers.
+- Account Codes must follow `MM GG SS PPPP`: Main Category, Group, Sub-Group, Posting Account.
+- Customer linked accounts should be created in the `0103010001` to `0103999999` range.
+- Supplier linked accounts should be created in the `0201010001` to `0201999999` range.
+- Account Code generation should use the shared account-code helper instead of local regex or local arithmetic.
+
 ## Transactions
 
 - Use database transactions when creating a voucher header with voucher lines.
@@ -44,6 +64,8 @@
 - Posting must protect against two users posting the same document at the same time.
 - Balance updates must happen in the same transaction as ledger/movement inserts.
 - If a multi-step workflow partly succeeds, return a clear message that tells the frontend exactly what happened.
+- Posted/history transaction list APIs must be paginated, filtered in the database, and sorted with a stable order.
+- Transaction list APIs should default to a practical date range, such as current fiscal year or recent period, when the user has not selected filters.
 
 ## Transaction Workflow
 

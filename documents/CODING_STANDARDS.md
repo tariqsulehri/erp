@@ -1,5 +1,15 @@
 # Coding Standards
 
+## Modular Code Rule
+
+- Keep modules highly scalable, reusable, and readable.
+- Do not place all business logic, UI logic, formatting, validation, API calls, and styles in one large component or service file.
+- Move reusable frontend UI to shared components.
+- Move reusable frontend helpers to shared library files.
+- Move reusable backend business logic to service/helper layers.
+- Keep CSS, theme tokens, spacing, radius, and common visual patterns reusable instead of hard-coded per screen.
+- Use comments for important business rules or non-obvious logic only.
+
 ## General
 
 - Keep names clear, consistent, and easy to understand.
@@ -12,6 +22,7 @@
 
 - Use descriptive table names in plural snake_case.
 - Use Prisma camelCase field names with snake_case database mappings.
+- Use 10-digit numeric text for Account Codes in `MM GG SS PPPP` format.
 - Every business table should include:
   - `companyId`
   - `isActive`

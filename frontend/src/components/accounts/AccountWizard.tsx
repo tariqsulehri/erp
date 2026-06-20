@@ -15,6 +15,7 @@
 import { useState } from 'react';
 import { trpc } from '@/lib/trpc/client';
 import type { Account } from '@/modules/accounts/account.entity';
+import { getAccountLevel } from '@/modules/accounts/account-code';
 
 /* ── colour palette per account type ──────────────────────────────── */
 const TYPE_COLOR: Record<string, string> = {
@@ -26,11 +27,11 @@ const TYPE_COLOR: Record<string, string> = {
 };
 
 const CATEGORY_ICON: Record<string, string> = {
-  '1000': '🏦',
-  '2000': '📋',
-  '3000': '📊',
-  '4000': '💰',
-  '5000': '💸',
+  '0100000000': '🏦',
+  '0200000000': '📋',
+  '0300000000': '📊',
+  '0400000000': '💰',
+  '0500000000': '💸',
 };
 
 /* ── Step progress bar ─────────────────────────────────────────────── */
@@ -133,8 +134,7 @@ interface AccountCardProps {
 
 function AccountCard({ account, selected, onClick }: AccountCardProps) {
   const color = TYPE_COLOR[account.account_type] ?? '#64748b';
-  const num   = parseInt(account.code, 10);
-  const level = num % 1000 === 0 ? 1 : num % 100 === 0 ? 2 : 3;
+  const level = getAccountLevel(account.code);
 
   return (
     <button
@@ -208,7 +208,7 @@ function NewAccountCard({
   const utils = trpc.useUtils();
 
   const nextCodeQuery = trpc.accounts.getNextCode.useQuery(
-    { parentCode },
+    { parentCode, isPosting },
     { enabled: open },
   );
 
@@ -371,7 +371,7 @@ function DetailsStep({ subgroup, onSuccess }: DetailsStepProps) {
   const [obDate,  setObDate]  = useState('');
   const [error,   setError]   = useState('');
 
-  const nextCodeQuery = trpc.accounts.getNextCode.useQuery({ parentCode: subgroup.code });
+  const nextCodeQuery = trpc.accounts.getNextCode.useQuery({ parentCode: subgroup.code, isPosting: true });
   const nextCode      = nextCodeQuery.data?.code;
 
   const createMutation = trpc.accounts.create.useMutation({

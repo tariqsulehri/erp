@@ -2,13 +2,14 @@
 
 import { useState } from 'react';
 import { trpc } from '@/lib/trpc/client';
+import { formatDate, type AppFormatSettingsSource } from '@/lib/app-settings';
 
 type FiscalYear   = any;
 type FiscalPeriod = any;
 
 /* ── helpers ─────────────────────────────────────────────────────────── */
-function fmt(d: string | Date) {
-  return new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+function fmt(d: string | Date, settings?: AppFormatSettingsSource | null) {
+  return formatDate(d, settings);
 }
 
 const STATUS_STYLE: Record<string, { bg: string; color: string }> = {
@@ -181,7 +182,7 @@ function CreateFYForm({ onCreated }: { onCreated: () => void }) {
 }
 
 /* ── Periods panel ──────────────────────────────────────────────────── */
-function PeriodsPanel({ fyId, fyStatus }: { fyId: string; fyStatus: string }) {
+function PeriodsPanel({ fyId, fyStatus, settings }: { fyId: string; fyStatus: string; settings?: AppFormatSettingsSource | null }) {
   const utils = trpc.useUtils();
 
   const { data: periods, isLoading } = trpc.fiscalYear.getPeriods.useQuery({ fiscalYearId: fyId });
@@ -222,10 +223,10 @@ function PeriodsPanel({ fyId, fyStatus }: { fyId: string; fyStatus: string }) {
                 </td>
                 <td style={{ padding: '8px 12px', fontWeight: 500 }}>{p.period_name}</td>
                 <td style={{ padding: '8px 12px', fontFamily: 'monospace', fontSize: '0.8125rem' }}>
-                  {fmt(p.start_date)}
+                  {fmt(p.start_date, settings)}
                 </td>
                 <td style={{ padding: '8px 12px', fontFamily: 'monospace', fontSize: '0.8125rem' }}>
-                  {fmt(p.end_date)}
+                  {fmt(p.end_date, settings)}
                 </td>
                 <td style={{ padding: '8px 12px' }}>
                   <span style={{
@@ -264,7 +265,7 @@ function PeriodsPanel({ fyId, fyStatus }: { fyId: string; fyStatus: string }) {
 }
 
 /* ── Fiscal Year card ────────────────────────────────────────────────── */
-function FYCard({ fy, onRefresh }: { fy: FiscalYear; onRefresh: () => void }) {
+function FYCard({ fy, onRefresh, settings }: { fy: FiscalYear; onRefresh: () => void; settings?: AppFormatSettingsSource | null }) {
   const [expanded, setExpanded] = useState(false);
   const utils = trpc.useUtils();
 
@@ -320,7 +321,7 @@ function FYCard({ fy, onRefresh }: { fy: FiscalYear; onRefresh: () => void }) {
 
         {/* Meta */}
         <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-muted)', textAlign: 'right' }}>
-          <div>{fmt(fy.start_date)} — {fmt(fy.end_date)}</div>
+          <div>{fmt(fy.start_date, settings)} — {fmt(fy.end_date, settings)}</div>
           <div>{fy.number_of_periods} periods · {fy.transaction_count} transactions</div>
         </div>
 
@@ -354,7 +355,7 @@ function FYCard({ fy, onRefresh }: { fy: FiscalYear; onRefresh: () => void }) {
       </div>
 
       {/* Periods table */}
-      {expanded && <PeriodsPanel fyId={fy.id} fyStatus={fy.status} />}
+      {expanded && <PeriodsPanel fyId={fy.id} fyStatus={fy.status} settings={settings} />}
     </div>
   );
 }
@@ -365,6 +366,7 @@ export default function FiscalYearPage() {
   const utils = trpc.useUtils();
 
   const { data, isLoading, error } = trpc.fiscalYear.list.useQuery({ page: 1, limit: 50 });
+  const { data: generalSettings } = trpc.settings.getGeneralSettings.useQuery();
   const years: FiscalYear[] = data?.data ?? [];
 
   return (
@@ -441,7 +443,7 @@ export default function FiscalYearPage() {
       {years.length > 0 && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           {years.map(fy => (
-            <FYCard key={fy.id} fy={fy} onRefresh={() => utils.fiscalYear.list.invalidate()} />
+            <FYCard key={fy.id} fy={fy} onRefresh={() => utils.fiscalYear.list.invalidate()} settings={generalSettings} />
           ))}
         </div>
       )}

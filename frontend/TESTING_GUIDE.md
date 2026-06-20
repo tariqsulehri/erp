@@ -71,7 +71,7 @@ docker-compose ps
 
 ```bash
 # Connect to PostgreSQL directly
-psql postgresql://erp_user:erp_password@localhost:5432/erp_financial_db
+psql postgresql://postgres:@localhost:5432/erp_financial_db
 
 # You should see the PostgreSQL prompt:
 # erp_financial_db=>
@@ -99,7 +99,7 @@ cp .env.example .env.local
 cat .env.local
 
 # Key variables should be:
-# DATABASE_URL=postgresql://erp_user:erp_password@localhost:5432/erp_financial_db
+# DATABASE_URL=postgresql://postgres:@localhost:5432/erp_financial_db
 # REDIS_URL=redis://localhost:6379/0
 # NEXTAUTH_SECRET=test-secret-key-for-testing
 ```
@@ -121,7 +121,7 @@ npm run db:migrate
 # Migration CreateFiscalYearTables1000000000001 has been executed successfully.
 
 # Verify migrations ran
-psql postgresql://erp_user:erp_password@localhost:5432/erp_financial_db
+psql postgresql://postgres:@localhost:5432/erp_financial_db
 
 # List all tables
 \dt
@@ -165,7 +165,7 @@ npm run db:seed
 # ✓ All seeds completed successfully!
 
 # Verify data was seeded
-psql postgresql://erp_user:erp_password@localhost:5432/erp_financial_db
+psql postgresql://postgres:@localhost:5432/erp_financial_db
 
 # Check account categories
 SELECT * FROM account_categories ORDER BY category_code;
@@ -196,7 +196,7 @@ SELECT template_code, template_name, account_count FROM coa_templates;
 
 ```bash
 # Check accounts table structure
-psql postgresql://erp_user:erp_password@localhost:5432/erp_financial_db
+psql postgresql://postgres:@localhost:5432/erp_financial_db
 
 # Describe accounts table
 \d accounts
@@ -426,7 +426,7 @@ curl -X GET http://localhost:3000/api/trpc/health.ping
 
 ```bash
 # Connect to database
-psql postgresql://erp_user:erp_password@localhost:5432/erp_financial_db
+psql postgresql://postgres:@localhost:5432/erp_financial_db
 
 # Create test company first
 INSERT INTO companies (id, group_id, name, currency_code, is_active)
@@ -477,7 +477,7 @@ WHERE company_id = 'test-company-uuid';
 
 ```bash
 # Connect to database
-psql postgresql://erp_user:erp_password@localhost:5432/erp_financial_db
+psql postgresql://postgres:@localhost:5432/erp_financial_db
 
 # Create fiscal year
 INSERT INTO fiscal_years (
@@ -691,7 +691,7 @@ npm run build
 ### Problem: "Accounts table is empty"
 ```bash
 # Check if seed ran
-psql postgresql://erp_user:erp_password@localhost:5432/erp_financial_db
+psql postgresql://postgres:@localhost:5432/erp_financial_db
 SELECT COUNT(*) FROM coa_templates;
 
 # If 0, re-run seed

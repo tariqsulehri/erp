@@ -23,7 +23,6 @@ interface JournalLine {
   accountId: string;
   description: string;
   projectId: string;
-  costCenterId: string;
   debit: string;
   credit: string;
 }
@@ -49,12 +48,11 @@ interface VoucherLinePayload {
   narration?: string;
   line_no: number;
   project_id?: string;
-  cost_center_id?: string;
 }
 
 const INITIAL_LINE_COUNT = 12;
 const today = () => new Date().toISOString().slice(0, 10);
-const blankLine = (id: number): JournalLine => ({ id, accountId: '', description: '', projectId: '', costCenterId: '', debit: '', credit: '' });
+const blankLine = (id: number): JournalLine => ({ id, accountId: '', description: '', projectId: '', debit: '', credit: '' });
 const initialLines = () => Array.from({ length: INITIAL_LINE_COUNT }, (_, index) => blankLine(index + 1));
 const cleanAmount = (value: string) => value.replace(/,/g, '');
 const amountValue = (value: string) => Number(cleanAmount(value) || 0);
@@ -96,9 +94,9 @@ function sanitizeAmountInput(value: string) {
   return decimalParts.length > 0 ? `${whole}.${decimals}` : whole;
 }
 
-function formatAmountInput(value: string) {
+function formatAmountInput(value: string, settings?: Parameters<typeof formatNumber>[1]) {
   const numericValue = amountValue(value);
-  return numericValue > 0 ? formatNumber(numericValue) : '';
+  return numericValue > 0 ? formatNumber(numericValue, settings) : '';
 }
 
 function SearchableSelect({
@@ -266,7 +264,7 @@ function FieldLabel({ label, required = false, children }: {
   );
 }
 
-function SummaryRow({ label, value, strong = false, danger = false }: { label: string; value: number; strong?: boolean; danger?: boolean }) {
+function SummaryRow({ label, value, strong = false, danger = false, formatMoneyValue = formatMoney }: { label: string; value: number; strong?: boolean; danger?: boolean; formatMoneyValue?: (value: number) => string }) {
   return (
     <div style={{ width: 124, minWidth: 0 }}>
       <span style={{ display: 'block', color: 'var(--color-text-muted)', fontSize: '0.66rem', fontWeight: 800, lineHeight: 1.1 }}>
@@ -289,7 +287,7 @@ function SummaryRow({ label, value, strong = false, danger = false }: { label: s
           lineHeight: 1.2,
         }}
       >
-        {formatMoney(value)}
+        {formatMoneyValue(value)}
       </span>
     </div>
   );
@@ -297,10 +295,9 @@ function SummaryRow({ label, value, strong = false, danger = false }: { label: s
 
 const journalLineColumns = [
   { label: 'No.', width: 32 },
-  { label: 'Account', width: 310 },
-  { label: 'Description', width: 300 },
-  { label: 'Project', width: 135 },
-  { label: 'Cost Center', width: 145 },
+  { label: 'Account', width: 360 },
+  { label: 'Description', width: 345 },
+  { label: 'Project', width: 200 },
   { label: 'Debit', width: 112, right: true },
   { label: 'Credit', width: 112, right: true },
   { label: '', width: 30 },
@@ -308,6 +305,7 @@ const journalLineColumns = [
 
 export default function JournalVoucherPage() {
   const utils = trpc.useUtils();
+  const { data: generalSettings } = trpc.settings.getGeneralSettings.useQuery();
   const [voucherDate, setVoucherDate] = useState(today());
   const [referenceNumber, setReferenceNumber] = useState('');
   const [description, setDescription] = useState('');
@@ -330,7 +328,6 @@ export default function JournalVoucherPage() {
     { enabled: isVoucherDateValid, retry: false },
   );
   const projectsQuery = trpc.transactionSupport.projects.useQuery({ search: '' });
-  const costCentersQuery = trpc.transactionSupport.costCenters.useQuery({ search: '' });
   const createVoucher = trpc.vouchers.create.useMutation();
   const postVoucher = trpc.vouchers.post.useMutation();
 
@@ -351,19 +348,10 @@ export default function JournalVoucherPage() {
       searchText: `${project.code} ${project.name}`,
     }));
   }, [projectsQuery.data]);
-  const costCenterOptions = useMemo<SelectOption[]>(() => {
-    return (costCentersQuery.data ?? []).map((costCenter: any) => ({
-      value: costCenter.id,
-      label: `${costCenter.code} - ${costCenter.name}`,
-      searchText: `${costCenter.code} ${costCenter.name}`,
-    }));
-  }, [costCentersQuery.data]);
-
   const enteredLines = lines.filter(line =>
     line.accountId ||
     line.description.trim() ||
     line.projectId ||
-    line.costCenterId ||
     amountValue(line.debit) > 0 ||
     amountValue(line.credit) > 0
   );
@@ -372,6 +360,7 @@ export default function JournalVoucherPage() {
   const totalCredit = lines.reduce((sum, line) => sum + amountValue(line.credit), 0);
   const outOfBalance = Math.abs(totalDebit - totalCredit);
   const isBalanced = outOfBalance < 0.001 && totalDebit > 0;
+  const money = useMemo(() => (value: number) => formatMoney(value, generalSettings), [generalSettings]);
   const saving = createVoucher.isPending || postVoucher.isPending;
   const actionDisabled = saving || accountsQuery.isLoading || dateValidation.isFetching;
   const dateStatusMessage = !voucherDate
@@ -411,15 +400,6 @@ export default function JournalVoucherPage() {
     }
   }, [projectsQuery.error]);
 
-  useEffect(() => {
-    if (costCentersQuery.error) {
-      setMessage({
-        kind: 'error',
-        text: friendlyErrorMessage(costCentersQuery.error, 'Unable to load cost centers. Please refresh and try again.'),
-      });
-    }
-  }, [costCentersQuery.error]);
-
   function updateLine(id: number, patch: Partial<JournalLine>) {
     setLines(current => current.map(line => (line.id === id ? { ...line, ...patch } : line)));
   }
@@ -453,12 +433,8 @@ export default function JournalVoucherPage() {
         const dateResult = await dateValidation.refetch();
         if (dateResult.error) throw dateResult.error;
       }
-      const [projectsResult, costCentersResult] = await Promise.all([
-        projectsQuery.refetch(),
-        costCentersQuery.refetch(),
-      ]);
+      const projectsResult = await projectsQuery.refetch();
       if (projectsResult.error) throw projectsResult.error;
-      if (costCentersResult.error) throw costCentersResult.error;
       setMessage({ kind: 'success', text: 'Voucher data refreshed successfully.' });
     } catch (error) {
       setMessage({
@@ -520,9 +496,6 @@ export default function JournalVoucherPage() {
       if (line.projectId && !projectOptions.some(option => option.value === line.projectId)) {
         return `Project was not found on line ${lineNumber}. Please select it again.`;
       }
-      if (line.costCenterId && !costCenterOptions.some(option => option.value === line.costCenterId)) {
-        return `Cost Center was not found on line ${lineNumber}. Please select it again.`;
-      }
       if (debit <= 0 && credit <= 0) return `Debit or Credit amount is required on line ${lineNumber}.`;
       if (debit > 0 && credit > 0) return `Line ${lineNumber} cannot have both Debit and Credit amounts.`;
       const debitError = validateAmount(line.debit, lineNumber, 'Debit');
@@ -533,7 +506,7 @@ export default function JournalVoucherPage() {
 
     if (totalDebit <= 0) return 'Total Debit must be greater than zero.';
     if (totalCredit <= 0) return 'Total Credit must be greater than zero.';
-    if (!isBalanced) return `Journal Voucher is out of balance by ${formatMoney(outOfBalance)}.`;
+    if (!isBalanced) return `Journal Voucher is out of balance by ${formatMoney(outOfBalance, generalSettings)}.`;
     return null;
   }
 
@@ -566,7 +539,6 @@ export default function JournalVoucherPage() {
         narration: line.description.trim() || description.trim(),
         line_no: index + 1,
         project_id: line.projectId || undefined,
-        cost_center_id: line.costCenterId || undefined,
       });
     }
 
@@ -843,15 +815,6 @@ export default function JournalVoucherPage() {
                         />
                       </td>
                       <td style={tableCellStyle()}>
-                        <SearchableSelect
-                          value={line.costCenterId}
-                          options={costCenterOptions}
-                          onChange={value => updateLine(line.id, { costCenterId: value })}
-                          placeholder={costCentersQuery.isLoading ? 'Loading Cost Centers' : costCentersQuery.error ? 'Cost Centers Not Loaded' : 'Search Cost Center'}
-                          disabled={costCentersQuery.isLoading || costCentersQuery.isError}
-                        />
-                      </td>
-                      <td style={tableCellStyle()}>
                         <input
                           className="form-input"
                           inputMode="decimal"
@@ -861,7 +824,7 @@ export default function JournalVoucherPage() {
                             updateLine(line.id, { debit: value, credit: value ? '' : line.credit });
                           }}
                           onFocus={() => updateLine(line.id, { debit: cleanAmount(line.debit) })}
-                          onBlur={() => updateLine(line.id, { debit: formatAmountInput(line.debit) })}
+                          onBlur={() => updateLine(line.id, { debit: formatAmountInput(line.debit, generalSettings) })}
                           placeholder="0.00"
                           style={compactMoneyInputStyle}
                         />
@@ -876,7 +839,7 @@ export default function JournalVoucherPage() {
                             updateLine(line.id, { credit: value, debit: value ? '' : line.debit });
                           }}
                           onFocus={() => updateLine(line.id, { credit: cleanAmount(line.credit) })}
-                          onBlur={() => updateLine(line.id, { credit: formatAmountInput(line.credit) })}
+                          onBlur={() => updateLine(line.id, { credit: formatAmountInput(line.credit, generalSettings) })}
                           placeholder="0.00"
                           style={compactMoneyInputStyle}
                         />
@@ -906,9 +869,9 @@ export default function JournalVoucherPage() {
             Active Lines: <strong style={{ color: 'var(--color-text)' }}>{activeLines.length}</strong>
           </span>
           <div style={voucherSummaryValuesStyle}>
-            <SummaryRow label="Debit Total" value={totalDebit} strong={isBalanced} />
-            <SummaryRow label="Credit Total" value={totalCredit} strong={isBalanced} />
-            <SummaryRow label="Out Of Balance" value={outOfBalance} danger={!isBalanced && outOfBalance > 0} />
+            <SummaryRow label="Debit Total" value={totalDebit} strong={isBalanced} formatMoneyValue={money} />
+            <SummaryRow label="Credit Total" value={totalCredit} strong={isBalanced} formatMoneyValue={money} />
+            <SummaryRow label="Out Of Balance" value={outOfBalance} danger={!isBalanced && outOfBalance > 0} formatMoneyValue={money} />
           </div>
         </div>
       </section>

@@ -19,6 +19,7 @@ import { useState, useEffect } from 'react';
 import { trpc } from '@/lib/trpc/client';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import type { Account } from '@/modules/accounts/account.entity';
+import { getAccountLevel } from '@/modules/accounts/account-code';
 
 /* ── Helpers ─────────────────────────────────────────────────────────── */
 const TYPE_COLOR: Record<string, string> = {
@@ -27,18 +28,14 @@ const TYPE_COLOR: Record<string, string> = {
 };
 
 const LEVEL_LABEL: Record<number, { label: string; color: string }> = {
-  1: { label: 'Category',        color: '#dbeafe' },
+  1: { label: 'Main Category',   color: '#dbeafe' },
   2: { label: 'Group',           color: '#e0e7ff' },
   3: { label: 'Sub-Group',       color: '#f3e8ff' },
   4: { label: 'Posting Account', color: '#dcfce7' },
 };
 
 function codeLevel(code: string): number {
-  const n = parseInt(code, 10);
-  if (n % 1000 === 0) return 1;
-  if (n % 100  === 0) return 2;
-  if (n % 10   === 0) return 3;
-  return 4;
+  return getAccountLevel(code);
 }
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {

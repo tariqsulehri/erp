@@ -3,6 +3,12 @@ import { Account, AccountCategory } from './account.entity';
 import { AccountAuditLog } from './account-audit.entity';
 import { AccountRepository, AccountTreeNode } from './account.repository';
 import { CreateAccountInput, UpdateAccountInput } from './account.schema';
+import {
+  ACCOUNT_CODE_LENGTH,
+  ACCOUNT_CODE_PATTERN,
+  getAccountLevel,
+  getChildCodeRange,
+} from './account-code';
 
 /**
  * Account Service
@@ -48,9 +54,9 @@ export class AccountService {
    * Validates code format, uniqueness, hierarchy, and deactivation rules
    */
   async createAccount(data: CreateAccountInput): Promise<Account> {
-    // Validate code format (exactly 4 digits)
-    if (!/^\d{4}$/.test(data.code)) {
-      throw new Error('Account code must be exactly 4 digits');
+    // Validate code format (exactly 10 digits)
+    if (!ACCOUNT_CODE_PATTERN.test(data.code)) {
+      throw new Error('Account Code must be exactly 10 digits');
     }
 
     // Check code uniqueness in company
@@ -271,13 +277,13 @@ export class AccountService {
   }
 
   /**
-   * Create a header (non-posting) account at any hierarchy level: 1, 2, or 4 digits.
+   * Create a header (non-posting) account at any hierarchy level.
    *
    * Used internally by COATemplateService to auto-create parent accounts before
-   * 8-digit posting accounts are inserted. Skips the 8-digit format check that
+   * posting accounts are inserted. Headers must still use the 10-digit format.
    * createAccount enforces for user-facing input.
    *
-   * @param code           1, 2, or 4 digit account code
+   * @param code           10-digit account code ending with 0000
    * @param name           Display name for the header account
    * @param accountType    Inherited from the first child account
    * @param normalBalance  Inherited from the first child account
@@ -288,13 +294,12 @@ export class AccountService {
     accountType: string,
     normalBalance: 'Debit' | 'Credit',
   ): Promise<Account> {
-    // All codes in the 4-digit system are exactly 4 digits; headers end in 0
-    if (!/^\d{4}$/.test(code)) {
-      throw new Error(`Header account code must be exactly 4 digits — got "${code}"`);
+    // All account codes are exactly 10 digits; headers end with a 0000 posting block
+    if (!ACCOUNT_CODE_PATTERN.test(code)) {
+      throw new Error(`Header Account Code must be exactly 10 digits. Received "${code}".`);
     }
-    const num = parseInt(code, 10);
-    if (num % 10 !== 0) {
-      throw new Error(`Header account code must end in 0 (category/group/sub-group) — got "${code}"`);
+    if (!code.endsWith('0000')) {
+      throw new Error(`Header Account Code must end with 0000. Received "${code}".`);
     }
 
     // Idempotent: skip if already exists
@@ -325,7 +330,7 @@ export class AccountService {
   }
 
   /**
-   * Get all top-level category accounts (X000)
+   * Get all top-level category accounts (MM00000000)
    * Used by the account creation wizard Step 1
    */
   async getTopLevelAccounts(): Promise<Account[]> {
@@ -342,42 +347,19 @@ export class AccountService {
 
   /**
    * Get the next available code under a parent account.
-   * Scans existing children and returns the first unused slot:
-   *   Category (X000) → next Group (XX00)
-   *   Group    (XX00) → next Sub-Group (XXX0)
-   *   Sub-Group(XXX0) → next Posting Account (XXXX)
+   * Scans existing children and returns the first unused slot.
    * Returns null when the parent is full or is itself a posting account.
    */
-  async getNextAvailableCode(parentCode: string): Promise<string | null> {
-    const parentNum = parseInt(parentCode, 10);
-    if (isNaN(parentNum)) return null;
-
-    let rangeStart: number;
-    let rangeEnd: number;
-    let step: number;
-
-    if (parentNum % 1000 === 0) {
-      rangeStart = parentNum + 100;
-      rangeEnd   = parentNum + 1000;
-      step       = 100;
-    } else if (parentNum % 100 === 0) {
-      rangeStart = parentNum + 10;
-      rangeEnd   = parentNum + 100;
-      step       = 10;
-    } else if (parentNum % 10 === 0) {
-      rangeStart = parentNum + 1;
-      rangeEnd   = parentNum + 10;
-      step       = 1;
-    } else {
-      return null; // Posting accounts have no children
-    }
+  async getNextAvailableCode(parentCode: string, options?: { isPosting?: boolean }): Promise<string | null> {
+    const range = getChildCodeRange(parentCode, options?.isPosting ?? false);
+    if (!range) return null;
 
     const children = await this.accountRepo.findChildren(parentCode);
     const taken = new Set(children.map(c => parseInt(c.code, 10)));
 
-    for (let code = rangeStart; code < rangeEnd; code += step) {
+    for (let code = range.rangeStart; code < range.rangeEnd; code += range.step) {
       if (!taken.has(code)) {
-        return String(code).padStart(4, '0');
+        return String(code).padStart(ACCOUNT_CODE_LENGTH, '0');
       }
     }
 
@@ -392,8 +374,8 @@ export class AccountService {
       return { valid: false, error: 'Code must be a string' };
     }
 
-    if (!/^\d{4}$/.test(code)) {
-      return { valid: false, error: 'Code must be exactly 4 digits' };
+    if (!ACCOUNT_CODE_PATTERN.test(code)) {
+      return { valid: false, error: 'Account Code must be exactly 10 digits' };
     }
 
     return { valid: true };
@@ -411,7 +393,7 @@ export class AccountService {
     const parentCode = this.accountRepo.getParentCode(source.code);
     if (!parentCode) throw new Error('Cannot clone a top-level category account');
 
-    const nextCode = await this.getNextAvailableCode(parentCode);
+    const nextCode = await this.getNextAvailableCode(parentCode, { isPosting: source.is_posting });
     if (!nextCode) throw new Error('No available code slots under the same parent');
 
     const cloned = await this.createAccount({
@@ -455,13 +437,7 @@ export class AccountService {
     }>,
   ): Promise<Array<{ code: string; success: boolean; message: string }>> {
     // Sort by level so parents always exist before children
-    const levelOf = (code: string) => {
-      const n = parseInt(code, 10);
-      if (n % 1000 === 0) return 1;
-      if (n % 100  === 0) return 2;
-      if (n % 10   === 0) return 3;
-      return 4;
-    };
+    const levelOf = (code: string) => getAccountLevel(code);
     const sorted = [...rows].sort((a, b) => levelOf(a.code) - levelOf(b.code) || a.code.localeCompare(b.code));
 
     const results: Array<{ code: string; success: boolean; message: string }> = [];

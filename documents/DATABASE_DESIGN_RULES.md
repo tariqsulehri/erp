@@ -74,6 +74,22 @@ Use configurable lookup tables for values users may manage:
 
 Do not hardcode these values in application code unless they are stable system behavior.
 
+General application settings should use a company-scoped `general_settings` table for values shared across modules, such as:
+
+- default country
+- time zone
+- locale
+- date format
+- time format
+- currency code
+- currency symbol
+- currency display position, such as `prefix` or `suffix`
+- decimal places
+- thousand separator
+- decimal separator
+
+Each company should have one active general settings record.
+
 Item-specific master data rules:
 
 - Category, Item Group, Product Type, Brand, Item Size, Origin, UOM, Warehouse, and Location should have their own descriptive tables.
@@ -130,6 +146,18 @@ Duplicate reference prevention should use company-scoped indexes or backend chec
 - Do not update posted ledger entries directly.
 - Use reversal entries for corrections.
 - Accounting periods must be checked before posting.
+- Account Codes must be stored as 10-digit numeric text, not as integers, so leading zeros remain intact.
+- Account Codes must follow `MM GG SS PPPP`: Main Category, Group, Sub-Group, Posting Account.
+- Example: `0101100001` means `01 01 10 0001`.
+- Use `0100000000` to `0199999999` for Asset accounts.
+- Use `0200000000` to `0299999999` for Liability accounts.
+- Use `0300000000` to `0399999999` for Equity accounts.
+- Use `0400000000` to `0499999999` for Revenue accounts.
+- Use `0500000000` to `0599999999` for Expense accounts.
+- Use `0103010001` to `0103999999` for Customer linked accounts.
+- Use `0201010001` to `0201999999` for Supplier linked accounts.
+- Customer and Supplier master records can be marked as `Customer And Supplier` when the same party works in both roles.
+- For the current phase, a party should keep one linked GL account based on its main role. Store the main role explicitly so reports can identify whether the base record started as a customer or supplier.
 
 ## Audit
 
@@ -147,5 +175,17 @@ Add indexes for common filters:
 - `companyId + status`
 - `companyId + itemId`
 - `companyId + warehouseId`
+- `companyId + documentDate + documentNumber` for stable paginated transaction lists.
+- `companyId + partyId + documentDate` for customer, supplier, and account history lists.
+- `companyId + status + documentDate` for draft, posted, void, and approval queues.
 
 Avoid over-indexing until there is a clear query need.
+
+## Pagination
+
+- Large ERP lists should be designed for database pagination from the start.
+- Page-based pagination is acceptable for normal screens because staff need page numbers and total counts.
+- Cursor pagination can be added later for very large audit logs or infinite-scroll style activity lists.
+- Queries used by paginated screens must have a stable `ORDER BY`, such as `documentDate DESC, documentNumber DESC, id DESC`.
+- Do not paginate without deterministic ordering, because records can repeat or disappear between pages.
+- List pages should select only the columns needed for the table. Load full headers, lines, notes, and print data from detail queries.

@@ -2,6 +2,7 @@ import { AppDataSource } from '@/db/data-source';
 import { COATemplate, TemplateAccount, ACCOUNT_CATEGORIES } from './coa-template.entity';
 import { Account } from './account.entity';
 import { AccountService } from './account.service';
+import { getAccountLevel, isHeaderAccountCode, toCurrentAccountCode } from './account-code';
 
 /**
  * ============================================================================
@@ -11,17 +12,15 @@ import { AccountService } from './account.service';
  * Manages predefined Chart of Accounts templates and instantiates them for
  * new companies.
  *
- * 6-digit hierarchy (all main COA codes exactly 6 digits):
- *   X00000  Category    (÷100000)  — top-level, non-posting
- *   XX0000  Group       (÷10000)   — non-posting
- *   XXX000  Sub-Group   (÷1000)    — non-posting
- *   XXXX00  Sub-Detail  (÷100)     — non-posting
- *   XXXXX0  Segment     (÷10)      — non-posting
- *   XXXXXX  Posting     (other)    — receives journal entries
+ * 10-digit hierarchy (MM GG SS PPPP):
+ *   0100000000  Main Category  — top-level, non-posting
+ *   0101000000  Group          — non-posting
+ *   0101100000  Sub-Group      — non-posting
+ *   0101100001  Posting        — receives journal entries
  *
- * Sub-ledger accounts use 7-digit codes (always posting leaf nodes):
- *   1300001–1399999  →  AR debtors  (customers) — 99,999 per company
- *   2100001–2199999  →  AP creditors (suppliers) — 99,999 per company
+ * Linked party account ranges:
+ *   0103010001–0103999999  →  Customers
+ *   0201010001–0201999999  →  Suppliers
  *
  * All five levels of header accounts plus the posting level are stored
  * explicitly in the template.accounts array.
@@ -65,18 +64,14 @@ export class COATemplateService {
 
     const service = new AccountService(companyId);
     const created: Account[] = [];
-    const ordered = this.buildOrderedEntries(template.accounts);
+    const ordered = this.buildOrderedEntries(this.normalizeAccountCodes(template.accounts));
 
     for (const entry of ordered) {
       const existing = await service.getAccountByCode(entry.code);
       if (existing) continue;
 
       try {
-        const num = parseInt(entry.code, 10);
-        // Any code whose last digit is 0 is a header (non-posting) account.
-        // This works for all 6-digit levels (L1–L5 always end in 0) and
-        // for 7-digit sub-ledger codes (which always end in a non-zero digit).
-        const isHeader = num % 10 === 0;
+        const isHeader = isHeaderAccountCode(entry.code);
 
         const account = isHeader
           ? await service.createHeaderAccount(
@@ -110,24 +105,20 @@ export class COATemplateService {
   }
 
   /**
-   * Sort template accounts so parents always come before children:
-   *   Level 1 (X00000) → Level 2 (XX0000) → Level 3 (XXX000) →
-   *   Level 4 (XXXX00) → Level 5 (XXXXX0) → Level 6 (XXXXXX)
+   * Sort template accounts so parents always come before children.
    */
   private buildOrderedEntries(accounts: TemplateAccount[]): TemplateAccount[] {
-    const level = (code: string): number => {
-      const n = parseInt(code, 10);
-      if (n % 100000 === 0) return 1;
-      if (n % 10000  === 0) return 2;
-      if (n % 1000   === 0) return 3;
-      if (n % 100    === 0) return 4;
-      if (n % 10     === 0) return 5;
-      return 6;
-    };
     return [...accounts].sort((a, b) => {
-      const diff = level(a.code) - level(b.code);
+      const diff = getAccountLevel(a.code) - getAccountLevel(b.code);
       return diff !== 0 ? diff : a.code.localeCompare(b.code);
     });
+  }
+
+  private normalizeAccountCodes(accounts: TemplateAccount[]): TemplateAccount[] {
+    return accounts.map(account => ({
+      ...account,
+      code: toCurrentAccountCode(account.code, account.is_posting),
+    }));
   }
 
   /**
@@ -149,23 +140,23 @@ export class COATemplateService {
   // Trading COA Template — 5 Standard Types
   // Asset | Liability | Equity | Revenue | Expense
   //
-  // All codes are 6-digit.  Non-posting header accounts end in 0
+  // Source codes below are normalized to 10 digits before the template is saved.
+  // Non-posting header accounts end in 0
   // (divisible by 10).  Posting leaf accounts do NOT end in 0.
   //
-  // Mapping from old 4-digit template:
-  //   Non-posting: append '00'  (1000 → 100000, 1110 → 111000 …)
-  //   Posting:     append '01'  (1111 → 111101, 2121 → 212101 …)
+  // The helper converts any older 6-digit source code to the current
+  // 10-digit account code before saving or importing.
   // ──────────────────────────────────────────────────────────────────
 
   /**
    * Build the Trading COA template.
    *
    * Structure:
-   *   100000 Assets       — Current Assets, Fixed Assets, Other Assets
-   *   200000 Liabilities  — Current Liabilities, Long-Term Liabilities
-   *   300000 Equity       — Share Capital, Retained Earnings, Drawings
-   *   400000 Revenue      — Sales Revenue, Other Income
-   *   500000 Expenses     — Cost of Goods Sold, Operating Expenses,
+   *   0100000000 Assets       — Current Assets, Fixed Assets, Other Assets
+   *   0200000000 Liabilities  — Current Liabilities, Long-Term Liabilities
+   *   0300000000 Equity       — Share Capital, Retained Earnings, Drawings
+   *   0400000000 Revenue      — Sales Revenue, Other Income
+   *   0500000000 Expenses     — Cost of Goods Sold, Operating Expenses,
    *                         Finance Costs, Depreciation, Tax Expense
    *
    * All COGS, OpEx, Depreciation, and Tax accounts use type = Expense.
@@ -474,12 +465,14 @@ export class COATemplateService {
         { code: '581601', name: 'Miscellaneous Expenses',         account_type: 'Expense', normal_balance: 'Debit', is_posting: true },
     ];
 
+    const normalizedAccounts = this.normalizeAccountCodes(accounts);
+
     return this.templateRepo.create({
       template_code:  'TRADING',
       template_name:  'Standard Trading COA',
       description:    'Complete Chart of Accounts for a trading company. Uses 5 standard types: Asset, Liability, Equity, Revenue, Expense. COGS, Operating, Finance, Depreciation and Tax expenses all classified as Expense type.',
-      accounts,
-      account_count:  accounts.length,
+      accounts:       normalizedAccounts,
+      account_count:  normalizedAccounts.length,
       is_active:      true,
     });
   }

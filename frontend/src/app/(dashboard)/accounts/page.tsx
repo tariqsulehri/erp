@@ -23,6 +23,8 @@ import { AccountSlideOver }  from '@/components/accounts/AccountSlideOver';
 import { ImportTemplateModal } from '@/components/modals/ImportTemplateModal';
 import { BulkImportModal }   from '@/components/modals/BulkImportModal';
 import type { Account } from '@/modules/accounts/account.entity';
+import { getAccountLevelLabel } from '@/modules/accounts/account-code';
+import { formatNumber } from '@/lib/app-settings';
 
 const PAGE_SIZE = 20;
 type ViewMode    = 'table' | 'tree' | 'group';
@@ -63,16 +65,9 @@ function ViewBtn({ active, onClick, title, children }: {
 /* ── CSV export utility ─────────────────────────────────────────────── */
 function exportCSV(accounts: Account[]) {
   const headers = ['Code', 'Name', 'Type', 'Level', 'Normal Balance', 'Posting', 'Active', 'System', 'Description'];
-  const levelOf = (code: string) => {
-    const n = parseInt(code, 10);
-    if (n % 1000 === 0) return 'Category';
-    if (n % 100  === 0) return 'Group';
-    if (n % 10   === 0) return 'Sub-Group';
-    return 'Posting';
-  };
   const rows = accounts.map(a => [
     a.code, `"${a.name.replace(/"/g, '""')}"`,
-    a.account_type, levelOf(a.code), a.normal_balance,
+    a.account_type, getAccountLevelLabel(a.code), a.normal_balance,
     a.is_posting ? 'Yes' : 'No',
     a.is_active  ? 'Yes' : 'No',
     a.is_system  ? 'Yes' : 'No',
@@ -90,7 +85,7 @@ function exportCSV(accounts: Account[]) {
 
 /* ── Page ────────────────────────────────────────────────────────────── */
 export default function AccountsPage() {
-  const [view,        setView]        = useState<ViewMode>('table');
+  const [view,        setView]        = useState<ViewMode>('tree');
   const [page,        setPage]        = useState(1);
   const [search,      setSearch]      = useState('');
   const [typeFilter,  setTypeFilter]  = useState('');
@@ -101,6 +96,7 @@ export default function AccountsPage() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   const utils = trpc.useUtils();
+  const { data: generalSettings } = trpc.settings.getGeneralSettings.useQuery();
 
   /* ── Table / stats query ──────────────────────────────────────────── */
   const { data, isLoading, error } = trpc.accounts.list.useQuery(
@@ -121,7 +117,6 @@ export default function AccountsPage() {
       type:       typeFilter || undefined,
       is_posting: postFilter === 'posting' ? true : postFilter === 'header' ? false : undefined,
     },
-    { enabled: view === 'group' || view === 'table' },
   );
 
   /* ── Bulk mutation ──────────────────────────────────────────────────── */
@@ -136,7 +131,7 @@ export default function AccountsPage() {
   const accounts    = (data?.data    ?? []) as Account[];
   const allAccounts = (allData?.data ?? []) as Account[];
   const total       = data?.pagination?.total ?? 0;
-  const stats       = buildStats(accounts, total);
+  const stats       = buildStats(allAccounts.length > 0 ? allAccounts : accounts, total);
 
   /* ── Selection helpers ─────────────────────────────────────────────── */
   const toggleSelect = useCallback((id: string) => {
@@ -220,7 +215,7 @@ export default function AccountsPage() {
         {stats.map(s => (
           <div key={s.label} className="stat-card">
             <div className="stat-label">{s.label}</div>
-            <div className="stat-value">{isLoading ? '—' : s.value.toLocaleString()}</div>
+            <div className="stat-value">{isLoading ? '—' : formatNumber(s.value, { ...(generalSettings ?? {}), decimal_places: 0 })}</div>
           </div>
         ))}
       </div>
@@ -386,7 +381,12 @@ export default function AccountsPage() {
           )
         )}
 
-        {view === 'tree' && <AccountTreeView />}
+        {view === 'tree' && (
+          <AccountTreeView
+            typeFilter={typeFilter}
+            postingFilter={postFilter}
+          />
+        )}
 
         {view === 'group' && (
           allLoading ? (
@@ -414,10 +414,11 @@ export default function AccountsPage() {
           <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/>
         </svg>
         <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-primary)' }}>
-          <strong>4-digit hierarchy:</strong>&nbsp;
-          X000 = Category &nbsp;|&nbsp; XX00 = Group &nbsp;|&nbsp; XXX0 = Sub-Group &nbsp;|&nbsp; XXXX = Posting Account.
+          <strong>10-digit hierarchy:</strong>&nbsp;
+          01 = Main Category &nbsp;|&nbsp; 0101 = Group &nbsp;|&nbsp; 010110 = Sub-Group &nbsp;|&nbsp; 0101100001 = Posting Account.
+          &nbsp; Tree view is the primary analysis view; table view is for maintenance and export.
           &nbsp; System accounts <strong>(SYS)</strong> cannot be deactivated.
-          &nbsp; Click any row to edit details.
+          &nbsp; Use Table view to edit account details.
         </div>
       </div>
 

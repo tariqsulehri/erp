@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { Account } from '@/modules/accounts/account.entity';
+import { getAccountLevelLabel } from '@/modules/accounts/account-code';
 
 interface AccountFormProps {
   account?: Account;
@@ -23,23 +24,19 @@ const ACCOUNT_TYPES = [
 /**
  * CodeBreakdown — shows which hierarchy level the typed code represents.
  *
- * 4-digit system:
- *   X000 (÷1000) → Category
- *   XX00 (÷100)  → Group
- *   XXX0 (÷10)   → Sub-Group
- *   XXXX          → Posting Account
+ * 10-digit system:
+ *   MM00000000 → Main Category
+ *   MMGG000000 → Group
+ *   MMGGSS0000 → Sub-Group
+ *   MMGGSSPPPP → Posting Account
  */
 function CodeBreakdown({ code }: { code: string }) {
-  if (code.length < 4) return null;
+  if (code.length < 10) return null;
   const num = parseInt(code, 10);
   if (isNaN(num)) return null;
 
-  let level: string;
-  let color: string;
-  if (num % 1000 === 0)      { level = 'Category';        color = '#dbeafe'; }
-  else if (num % 100 === 0)  { level = 'Group';            color = '#e0e7ff'; }
-  else if (num % 10  === 0)  { level = 'Sub-Group';        color = '#f3e8ff'; }
-  else                        { level = 'Posting Account'; color = '#dcfce7'; }
+  const level = getAccountLevelLabel(code);
+  const color = code.endsWith('0000') ? '#e0e7ff' : '#dcfce7';
 
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6 }}>
@@ -102,15 +99,15 @@ export function AccountForm({ account, onSubmit, loading = false }: AccountFormP
           </label>
           <input
             id="code" name="code" type="text" className="form-input"
-            placeholder="e.g. 10100001"
+            placeholder="e.g. 0101100001"
             value={formData.code}
             onChange={handleChange}
-            maxLength={4} pattern="\d{4}"
+            maxLength={10} pattern="\d{10}"
             required disabled={isEdit || loading}
             style={{ fontFamily: 'monospace', fontSize: '1rem', letterSpacing: '0.1em' }}
           />
           <CodeBreakdown code={formData.code} />
-          <span className="form-hint">Exactly 4 digits. X000 = Category · XX00 = Group · XXX0 = Sub-Group · XXXX = Posting. Cannot be changed after creation.</span>
+          <span className="form-hint">Exactly 10 digits. Format: 01 01 10 0001 = Main Category, Group, Sub-Group, Posting Account. Cannot be changed after creation.</span>
         </div>
 
         <div className="form-group">

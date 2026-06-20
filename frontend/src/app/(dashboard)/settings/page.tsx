@@ -12,24 +12,27 @@
 
 import { useState, useEffect } from 'react';
 import { trpc } from '@/lib/trpc/client';
+import {
+  APP_COUNTRY_OPTIONS,
+  APP_CURRENCY_POSITION_OPTIONS,
+  APP_CURRENCY_OPTIONS,
+  APP_CURRENCY_SYMBOLS,
+  APP_DATE_FORMAT_OPTIONS,
+  APP_LOCALE_OPTIONS,
+  APP_TIME_ZONE_OPTIONS,
+  defaultAppFormatSettings,
+  formatDate,
+  formatMoney,
+} from '@/lib/app-settings';
 
-type Tab = 'company' | 'accounting' | 'coa' | 'security';
+type Tab = 'company' | 'regional' | 'accounting' | 'coa' | 'security';
 
 const TABS: { id: Tab; label: string; icon: string }[] = [
   { id: 'company',    label: 'Company Profile',    icon: 'M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2zM17 21v-8H7v8M7 3v5h8' },
+  { id: 'regional',   label: 'Regional Settings',  icon: 'M12 21a9 9 0 100-18 9 9 0 000 18zM3.6 9h16.8M3.6 15h16.8M12 3a14 14 0 010 18M12 3a14 14 0 000 18' },
   { id: 'accounting', label: 'Accounting',         icon: 'M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14H9V8h2v8zm4 0h-2V8h2v8z' },
   { id: 'coa',        label: 'Chart of Accounts',  icon: 'M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8zM14 2v6h6M16 13H8M16 17H8M10 9H8' },
   { id: 'security',   label: 'Security',           icon: 'M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z' },
-];
-
-const CURRENCIES = [
-  { code: 'PKR', label: 'PKR — Pakistani Rupee' },
-  { code: 'USD', label: 'USD — US Dollar' },
-  { code: 'EUR', label: 'EUR — Euro' },
-  { code: 'GBP', label: 'GBP — British Pound' },
-  { code: 'AED', label: 'AED — UAE Dirham' },
-  { code: 'SAR', label: 'SAR — Saudi Riyal' },
-  { code: 'INR', label: 'INR — Indian Rupee' },
 ];
 
 /* ── Shared input wrapper ───────────────────────────────────────────── */
@@ -43,6 +46,261 @@ function FormRow({
         {hint && <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-muted)', marginTop: 2 }}>{hint}</div>}
       </div>
       <div style={{ maxWidth: 420 }}>{children}</div>
+    </div>
+  );
+}
+
+function selectNumericValue(event: { currentTarget: HTMLInputElement }) {
+  event.currentTarget.select();
+}
+
+function keepNumericValueSelected(event: { preventDefault: () => void }) {
+  event.preventDefault();
+}
+
+function formatSampleDate(format: string) {
+  switch (format) {
+    case 'MM/dd/yyyy': return '12/31/2026';
+    case 'yyyy-MM-dd': return '2026-12-31';
+    case 'dd-MMM-yyyy': return '31-Dec-2026';
+    default: return '31/12/2026';
+  }
+}
+
+function formatSampleNumber(decimalPlaces: number, thousandSeparator: string, decimalSeparator: string) {
+  const normalizedPlaces = Math.max(0, Math.min(6, Number(decimalPlaces) || 0));
+  const fixed = (1234567.89).toFixed(normalizedPlaces);
+  const [whole, fraction] = fixed.split('.');
+  const grouped = whole.replace(/\B(?=(\d{3})+(?!\d))/g, thousandSeparator);
+  return fraction ? `${grouped}${decimalSeparator}${fraction}` : grouped;
+}
+
+/* ── Regional Settings tab ─────────────────────────────────────────── */
+function RegionalTab({ settings }: { settings: any }) {
+  const [form, setForm] = useState({
+    currency_code: settings.currency_code ?? defaultAppFormatSettings.currencyCode,
+    currency_symbol: settings.currency_symbol ?? defaultAppFormatSettings.currencySymbol,
+    decimal_places: Number(settings.decimal_places ?? defaultAppFormatSettings.decimalPlaces),
+    thousand_separator: settings.thousand_separator ?? defaultAppFormatSettings.thousandsSeparator,
+    decimal_separator: settings.decimal_separator ?? defaultAppFormatSettings.decimalSeparator,
+    date_format: settings.date_format ?? defaultAppFormatSettings.dateDisplayFormat,
+    time_format: settings.time_format ?? defaultAppFormatSettings.timeFormat,
+    time_zone: settings.time_zone ?? defaultAppFormatSettings.timeZone,
+    locale: settings.locale ?? defaultAppFormatSettings.locale,
+    default_country_code: settings.default_country_code ?? defaultAppFormatSettings.countryCode,
+    currency_position: settings.currency_position ?? defaultAppFormatSettings.currencyPosition,
+  });
+  const [dirty, setDirty] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    setForm({
+      currency_code: settings.currency_code ?? defaultAppFormatSettings.currencyCode,
+      currency_symbol: settings.currency_symbol ?? defaultAppFormatSettings.currencySymbol,
+      decimal_places: Number(settings.decimal_places ?? defaultAppFormatSettings.decimalPlaces),
+      thousand_separator: settings.thousand_separator ?? defaultAppFormatSettings.thousandsSeparator,
+      decimal_separator: settings.decimal_separator ?? defaultAppFormatSettings.decimalSeparator,
+      date_format: settings.date_format ?? defaultAppFormatSettings.dateDisplayFormat,
+      time_format: settings.time_format ?? defaultAppFormatSettings.timeFormat,
+      time_zone: settings.time_zone ?? defaultAppFormatSettings.timeZone,
+      locale: settings.locale ?? defaultAppFormatSettings.locale,
+      default_country_code: settings.default_country_code ?? defaultAppFormatSettings.countryCode,
+      currency_position: settings.currency_position ?? defaultAppFormatSettings.currencyPosition,
+    });
+    setDirty(false);
+    setSaved(false);
+    setError('');
+  }, [settings?.id]);
+
+  const utils = trpc.useUtils();
+  const mutation = trpc.settings.updateGeneralSettings.useMutation({
+    onSuccess: () => {
+      utils.settings.getGeneralSettings.invalidate();
+      setSaved(true);
+      setDirty(false);
+      setError('');
+      setTimeout(() => setSaved(false), 3000);
+    },
+    onError: err => setError(err.message),
+  });
+
+  const set = (field: keyof typeof form, value: string | number) => {
+    setForm(current => ({ ...current, [field]: value }));
+    setDirty(true);
+    setSaved(false);
+    setError('');
+  };
+
+  const separatorError = form.thousand_separator === form.decimal_separator
+    ? 'Thousand Separator and Decimal Separator cannot be the same.'
+    : '';
+  const sampleNumber = formatSampleNumber(form.decimal_places, form.thousand_separator, form.decimal_separator);
+
+  return (
+    <div>
+      <div style={{ padding: '10px 0 8px', fontWeight: 700, fontSize: 'var(--font-size-xs)', color: 'var(--color-text-muted)', letterSpacing: 0 }}>
+        Location And Time
+      </div>
+
+      <FormRow label="Country" hint="Default country for reports, addresses, and new records">
+        <select className="form-input" value={form.default_country_code} onChange={e => set('default_country_code', e.target.value)}>
+          {APP_COUNTRY_OPTIONS.map(country => (
+            <option key={country.code} value={country.code}>{country.label}</option>
+          ))}
+        </select>
+      </FormRow>
+
+      <FormRow label="Time Zone" hint="Used for transaction time, reports, and audit dates">
+        <select className="form-input" value={form.time_zone} onChange={e => set('time_zone', e.target.value)}>
+          {APP_TIME_ZONE_OPTIONS.map(timeZone => (
+            <option key={timeZone.value} value={timeZone.value}>{timeZone.label}</option>
+          ))}
+        </select>
+      </FormRow>
+
+      <FormRow label="Language / Locale" hint="Controls local date, number, and language conventions">
+        <select className="form-input" value={form.locale} onChange={e => set('locale', e.target.value)}>
+          {APP_LOCALE_OPTIONS.map(locale => (
+            <option key={locale.value} value={locale.value}>{locale.label}</option>
+          ))}
+        </select>
+      </FormRow>
+
+      <div style={{ padding: '20px 0 8px', fontWeight: 700, fontSize: 'var(--font-size-xs)', color: 'var(--color-text-muted)', letterSpacing: 0 }}>
+        Date And Number Format
+      </div>
+
+      <FormRow label="Date Format" hint="How dates should appear on screens and printed documents">
+        <select className="form-input" value={form.date_format} onChange={e => set('date_format', e.target.value)}>
+          {APP_DATE_FORMAT_OPTIONS.map(option => (
+            <option key={option.value} value={option.value}>{option.value} - {option.label}</option>
+          ))}
+        </select>
+      </FormRow>
+
+      <FormRow label="Time Format" hint="How time should appear in the application">
+        <select className="form-input" value={form.time_format} onChange={e => set('time_format', e.target.value)}>
+          <option value="12-hour">12-Hour Time</option>
+          <option value="24-hour">24-Hour Time</option>
+        </select>
+      </FormRow>
+
+      <FormRow label="Decimal Places" hint="Default digits after decimal for money values">
+        <input
+          className="form-input"
+          type="number"
+          min={0}
+          max={6}
+          step={1}
+          inputMode="numeric"
+          value={form.decimal_places}
+          onFocus={selectNumericValue}
+          onMouseUp={keepNumericValueSelected}
+          onChange={e => set('decimal_places', Math.max(0, Math.min(6, Number(e.target.value) || 0)))}
+          style={{ width: 120, fontFamily: "'JetBrains Mono', monospace", fontWeight: 700 }}
+        />
+      </FormRow>
+
+      <FormRow label="Thousand Separator" hint="Character used to group thousands">
+        <select className="form-input" value={form.thousand_separator} onChange={e => set('thousand_separator', e.target.value)} style={{ width: 160 }}>
+          <option value=",">Comma (,)</option>
+          <option value=".">Dot (.)</option>
+          <option value="'">Apostrophe (')</option>
+          <option value=" ">Space</option>
+        </select>
+      </FormRow>
+
+      <FormRow label="Decimal Separator" hint="Character used before decimal digits">
+        <select className="form-input" value={form.decimal_separator} onChange={e => set('decimal_separator', e.target.value)} style={{ width: 160 }}>
+          <option value=".">Dot (.)</option>
+          <option value=",">Comma (,)</option>
+        </select>
+      </FormRow>
+
+      <div style={{ padding: '20px 0 8px', fontWeight: 700, fontSize: 'var(--font-size-xs)', color: 'var(--color-text-muted)', letterSpacing: 0 }}>
+        Currency
+      </div>
+
+      <FormRow label="Currency" hint="Default currency used for new records and reports">
+        <select
+          className="form-input"
+          value={form.currency_code}
+          onChange={e => {
+            const currencyCode = e.target.value;
+            setForm(current => ({
+              ...current,
+              currency_code: currencyCode,
+              currency_symbol: APP_CURRENCY_SYMBOLS[currencyCode] ?? currencyCode,
+            }));
+            setDirty(true);
+            setSaved(false);
+            setError('');
+          }}
+        >
+          {APP_CURRENCY_OPTIONS.map(currency => (
+            <option key={currency.code} value={currency.code}>{currency.label}</option>
+          ))}
+        </select>
+      </FormRow>
+
+      <FormRow label="Currency Symbol" hint="Short symbol or code shown before money values">
+        <input className="form-input" value={form.currency_symbol} onChange={e => set('currency_symbol', e.target.value.slice(0, 10))} maxLength={10} style={{ width: 140, fontFamily: "'JetBrains Mono', monospace", fontWeight: 700 }} />
+      </FormRow>
+
+      <FormRow label="Currency Position" hint="Choose where the currency symbol appears">
+        <select
+          className="form-input"
+          value={form.currency_position}
+          onChange={e => set('currency_position', e.target.value)}
+          style={{ width: 190 }}
+        >
+          {APP_CURRENCY_POSITION_OPTIONS.map(option => (
+            <option key={option.value} value={option.value}>{option.label}</option>
+          ))}
+        </select>
+      </FormRow>
+
+      <div style={{
+        marginTop: 16,
+        padding: '14px 16px',
+        borderRadius: 'var(--radius)',
+        border: '1px solid var(--color-border)',
+        background: 'var(--color-bg)',
+        display: 'grid',
+        gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
+        gap: 12,
+      }}>
+        {[
+          { label: 'Date Preview', value: formatDate('2026-12-31', form) || formatSampleDate(form.date_format) },
+          { label: 'Number Preview', value: sampleNumber },
+          { label: 'Money Preview', value: formatMoney(1234567.89, form) },
+        ].map(item => (
+          <div key={item.label}>
+            <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-muted)', marginBottom: 4 }}>{item.label}</div>
+            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontWeight: 800, color: 'var(--color-text)', fontSize: 'var(--font-size-sm)' }}>{item.value}</div>
+          </div>
+        ))}
+      </div>
+
+      {separatorError && <div className="alert alert-danger" style={{ marginTop: 16 }}>{separatorError}</div>}
+      {error && <div className="alert alert-danger" style={{ marginTop: 16 }}>{error}</div>}
+      {saved  && (
+        <div style={{ marginTop: 16, padding: '10px 14px', borderRadius: 'var(--radius)', background: '#f0fdf4', border: '1px solid #bbf7d0', color: '#16a34a', fontWeight: 600, fontSize: 'var(--font-size-sm)' }}>
+          Regional settings saved
+        </div>
+      )}
+
+      <div style={{ marginTop: 20 }}>
+        <button className="btn btn-primary"
+          onClick={() => mutation.mutate(form)}
+          disabled={!dirty || mutation.isPending || Boolean(separatorError)}
+          style={{ display: 'flex', alignItems: 'center', gap: 6 }}
+        >
+          {mutation.isPending && <div className="spinner" style={{ width: 14, height: 14, borderWidth: 2 }} />}
+          {mutation.isPending ? 'Saving...' : 'Save Regional Settings'}
+        </button>
+      </div>
     </div>
   );
 }
@@ -137,7 +395,6 @@ function CompanyTab({ company }: { company: any }) {
 
 /* ── Accounting tab ─────────────────────────────────────────────────── */
 function AccountingTab({ company }: { company: any }) {
-  const [currency,  setCurrency]  = useState(company.currency_code   ?? 'PKR');
   const [fyBasis,   setFyBasis]   = useState(company.fiscal_year_basis ?? 'calendar');
   const [periods,   setPeriods]   = useState(String(company.number_of_periods ?? 12));
   const [dirty,     setDirty]     = useState(false);
@@ -145,7 +402,6 @@ function AccountingTab({ company }: { company: any }) {
   const [error,     setError]     = useState('');
 
   useEffect(() => {
-    setCurrency(company.currency_code ?? 'PKR');
     setFyBasis(company.fiscal_year_basis ?? 'calendar');
     setPeriods(String(company.number_of_periods ?? 12));
     setDirty(false);
@@ -169,13 +425,6 @@ function AccountingTab({ company }: { company: any }) {
 
   return (
     <div>
-      <FormRow label="Base Currency" hint="All monetary amounts are stored in this currency">
-        <select className="form-input" value={currency}
-          onChange={e => { setCurrency(e.target.value); setDirty(true); setSaved(false); }}>
-          {CURRENCIES.map(c => <option key={c.code} value={c.code}>{c.label}</option>)}
-        </select>
-      </FormRow>
-
       <FormRow label="Fiscal Year" hint="When your company's financial year starts">
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {FY_OPTIONS.map(opt => (
@@ -228,7 +477,7 @@ function AccountingTab({ company }: { company: any }) {
 
       <div style={{ marginTop: 20 }}>
         <button className="btn btn-primary"
-          onClick={() => mutation.mutate({ currency_code: currency, fiscal_year_basis: fyBasis as any, number_of_periods: parseInt(periods) })}
+          onClick={() => mutation.mutate({ fiscal_year_basis: fyBasis as any, number_of_periods: parseInt(periods) })}
           disabled={!dirty || mutation.isPending}
           style={{ display: 'flex', alignItems: 'center', gap: 6 }}
         >
@@ -241,7 +490,7 @@ function AccountingTab({ company }: { company: any }) {
 }
 
 /* ── COA tab ────────────────────────────────────────────────────────── */
-function COATab() {
+function COATab({ generalSettings }: { generalSettings: any }) {
   const { data } = trpc.accounts.list.useQuery({ page: 1, limit: 1000 });
   const accounts = data?.data ?? [];
 
@@ -326,10 +575,10 @@ function COATab() {
                     <td style={{ padding: '8px 0', fontFamily: 'monospace', fontWeight: 700 }}>{a.code}</td>
                     <td style={{ padding: '8px 12px' }}>{a.name}</td>
                     <td style={{ padding: '8px 0', textAlign: 'right', fontWeight: 600, color: a.opening_balance >= 0 ? '#16a34a' : '#dc2626' }}>
-                      {parseFloat(a.opening_balance).toLocaleString('en-PK', { minimumFractionDigits: 2 })}
+                      {formatMoney(parseFloat(a.opening_balance), generalSettings)}
                     </td>
                     <td style={{ padding: '8px 0', textAlign: 'right', color: 'var(--color-text-muted)', fontSize: 'var(--font-size-xs)' }}>
-                      {a.opening_balance_date ? new Date(a.opening_balance_date).toLocaleDateString() : '—'}
+                      {a.opening_balance_date ? formatDate(a.opening_balance_date, generalSettings) : '—'}
                     </td>
                   </tr>
                 ))}
@@ -381,6 +630,11 @@ export default function SettingsPage() {
   const [tab, setTab] = useState<Tab>('company');
 
   const { data: company, isLoading, error } = trpc.settings.getCompany.useQuery();
+  const {
+    data: generalSettings,
+    isLoading: isGeneralSettingsLoading,
+    error: generalSettingsError,
+  } = trpc.settings.getGeneralSettings.useQuery();
 
   return (
     <>
@@ -393,6 +647,7 @@ export default function SettingsPage() {
       </div>
 
       {error && <div className="alert alert-danger" style={{ marginBottom: 16 }}>{error.message}</div>}
+      {generalSettingsError && <div className="alert alert-danger" style={{ marginBottom: 16 }}>{generalSettingsError.message}</div>}
 
       <div style={{ display: 'grid', gridTemplateColumns: '220px 1fr', gap: 24, alignItems: 'start' }}>
 
@@ -427,9 +682,14 @@ export default function SettingsPage() {
             }}>
               <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-muted)', marginBottom: 2 }}>Active Company</div>
               <div style={{ fontSize: 'var(--font-size-sm)', fontWeight: 700, color: 'var(--color-text)' }}>{company.name}</div>
-              {company.currency_code && (
+              {generalSettings?.currency_code && (
                 <div style={{ fontSize: '0.6875rem', color: 'var(--color-primary)', marginTop: 2, fontWeight: 600 }}>
-                  {company.currency_code}
+                  {generalSettings.currency_code}
+                </div>
+              )}
+              {generalSettings?.time_zone && (
+                <div style={{ fontSize: '0.6875rem', color: 'var(--color-text-muted)', marginTop: 2 }}>
+                  {generalSettings.time_zone}
                 </div>
               )}
             </div>
@@ -442,15 +702,16 @@ export default function SettingsPage() {
             <h2 className="card-title">{TABS.find(t => t.id === tab)?.label}</h2>
           </div>
           <div className="card-body" style={{ padding: '8px 24px 24px' }}>
-            {isLoading ? (
+            {isLoading || isGeneralSettingsLoading ? (
               <div style={{ padding: '40px 0', display: 'flex', justifyContent: 'center' }}>
                 <div className="spinner" style={{ width: 28, height: 28, borderWidth: 3 }} />
               </div>
             ) : (
               <>
                 {tab === 'company'    && company && <CompanyTab    company={company} />}
+                {tab === 'regional'   && generalSettings && <RegionalTab settings={generalSettings} />}
                 {tab === 'accounting' && company && <AccountingTab company={company} />}
-                {tab === 'coa'                   && <COATab />}
+                {tab === 'coa'                   && generalSettings && <COATab generalSettings={generalSettings} />}
                 {tab === 'security'              && <SecurityTab />}
               </>
             )}

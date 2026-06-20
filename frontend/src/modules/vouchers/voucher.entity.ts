@@ -4,7 +4,7 @@ import {
   OneToMany, ManyToOne, JoinColumn, Index,
 } from 'typeorm';
 
-export type VoucherType   = 'BRV' | 'BPV' | 'CRV' | 'CPV' | 'JV' | 'CV' | 'DN' | 'CN';
+export type VoucherType   = 'BRV' | 'BPV' | 'CRV' | 'CPV' | 'JV' | 'CV' | 'DN' | 'CN' | 'PI';
 export type VoucherStatus = 'Draft' | 'Posted' | 'Voided';
 export type ApprovalStatus = 'Not Required' | 'Pending' | 'Approved' | 'Rejected';
 export type ReversalStatus = 'None' | 'Scheduled' | 'Reversed';
@@ -19,6 +19,7 @@ export type ReversalStatus = 'None' | 'Scheduled' | 'Reversed';
  *   CV  — Contra Voucher         (cash ↔ bank transfer)
  *   DN  — Debit Note             (debit memo to party)
  *   CN  — Credit Note            (credit memo to party)
+ *   PI  — Purchase Invoice       (accounting entry created by posted purchase)
  */
 @Entity('vouchers')
 @Index(['company_id', 'voucher_number'], { unique: true })

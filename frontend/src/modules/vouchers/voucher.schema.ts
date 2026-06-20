@@ -1,12 +1,13 @@
 import { z } from 'zod';
+import { ACCOUNT_CODE_PATTERN } from '@/modules/accounts/account-code';
 
-export const VoucherTypeEnum   = z.enum(['BRV', 'BPV', 'CRV', 'CPV', 'JV', 'CV', 'DN', 'CN']);
+export const VoucherTypeEnum   = z.enum(['BRV', 'BPV', 'CRV', 'CPV', 'JV', 'CV', 'DN', 'CN', 'PI']);
 export const VoucherStatusEnum = z.enum(['Draft', 'Posted', 'Voided']);
 export const ApprovalStatusEnum = z.enum(['Not Required', 'Pending', 'Approved', 'Rejected']);
 
 export const VoucherLineInput = z.object({
   account_id:   z.string().uuid(),
-  account_code: z.string(),
+  account_code: z.string().regex(ACCOUNT_CODE_PATTERN, 'Account Code must be exactly 10 digits'),
   account_name: z.string(),
   dr_amount:    z.number().min(0).default(0),
   cr_amount:    z.number().min(0).default(0),

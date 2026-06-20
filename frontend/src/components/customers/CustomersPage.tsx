@@ -12,15 +12,17 @@
  *  - Styled ConfirmModal for delete
  */
 
-import { useState, useMemo } from 'react';
+import { useState } from 'react';
 import { trpc } from '@/lib/trpc/client';
 import type { CreateCustomerInput } from '@/modules/customers/customer.schema';
 import { CUSTOMER_TYPES } from '@/modules/customers/customer.schema';
+import { APP_CURRENCY_OPTIONS, formatMoney } from '@/lib/app-settings';
 
 /* ═══ Types ═══════════════════════════════════════════════════════════════ */
 interface CustomerRow {
   id: string; code: string; name: string; trade_name?: string | null;
   customer_type: string; tax_registration_no?: string | null;
+  party_type: 'Customer' | 'Customer And Supplier'; main_role: 'Customer';
   email?: string | null; phone?: string | null; mobile?: string | null;
   billing_address?: string | null; shipping_address?: string | null;
   city?: string | null; country?: string | null; postal_code?: string | null;
@@ -37,11 +39,26 @@ const TYPE_META: Record<string, { label: string; color: string; bg: string; bord
   government: { label: 'Government', color: '#0891b2', bg: 'rgba(8,145,178,0.08)',  border: 'rgba(8,145,178,0.2)'  },
 };
 
+const PARTY_ROLE_META: Record<string, { label: string; color: string; bg: string; border: string }> = {
+  Customer: { label: 'Customer', color: '#1d4ed8', bg: 'rgba(29,78,216,0.08)', border: 'rgba(29,78,216,0.22)' },
+  'Customer And Supplier': { label: 'Customer And Supplier', color: '#0f766e', bg: 'rgba(15,118,110,0.08)', border: 'rgba(15,118,110,0.22)' },
+};
+
+const NUMERIC_INPUT_STYLE = { textAlign: 'right' as const, fontFamily: "'JetBrains Mono', monospace", fontWeight: 700 };
+const CURRENCY_SELECT_STYLE = { fontFamily: "'JetBrains Mono', monospace", fontWeight: 700, textAlign: 'center' as const };
+function selectNumericValue(event: { currentTarget: HTMLInputElement }) {
+  event.currentTarget.select();
+}
+function keepNumericValueSelected(event: { preventDefault: () => void }) {
+  event.preventDefault();
+}
+
 const EMPTY_FORM: CreateCustomerInput = {
   name: '', code: '', trade_name: '', customer_type: 'company',
+  party_type: 'Customer', main_role: 'Customer',
   tax_registration_no: '', email: '', phone: '', mobile: '',
   billing_address: '', shipping_address: '', city: '', country: '', postal_code: '',
-  payment_terms_days: 30, credit_limit: 0, currency_code: 'USD',
+  payment_terms_days: 30, credit_limit: 0, currency_code: 'PKR',
   ar_account_id: undefined, advance_account_id: undefined,
   is_active: true, notes: '',
 };
@@ -110,6 +127,7 @@ export default function CustomersPage() {
   const { data: statsData } = trpc.customers.stats.useQuery();
   const { data: nextCode }  = trpc.customers.nextCode.useQuery(undefined, { enabled: !editId && showForm });
   const { data: accounts = [] } = trpc.customers.listAccounts.useQuery();
+  const { data: generalSettings } = trpc.settings.getGeneralSettings.useQuery();
 
   /* ── Mutations ── */
   const createMut = trpc.customers.create.useMutation({
@@ -128,15 +146,9 @@ export default function CustomersPage() {
   /* ── Derived ── */
   const rows = (listData?.data ?? []) as CustomerRow[];
 
-  const accountOptions = useMemo(() => {
-    const ar   = (accounts as AccountOption[]).filter(a => ['asset','Asset','ASSET'].includes(a.account_type));
-    const liab = (accounts as AccountOption[]).filter(a => ['liability','Liability','LIABILITIES','LIABILITY'].includes(a.account_type));
-    return { ar, liab, all: accounts as AccountOption[] };
-  }, [accounts]);
-
   /* ── Form helpers ── */
   function openNew() {
-    setEditId(null); setForm({ ...EMPTY_FORM, code: nextCode ?? '' });
+    setEditId(null); setForm({ ...EMPTY_FORM, code: nextCode ?? '', currency_code: generalSettings?.currency_code ?? EMPTY_FORM.currency_code });
     setFormError(''); setSaving(false); setActiveTab('basic'); setShowForm(true);
   }
   function openEdit(c: CustomerRow) {
@@ -144,6 +156,8 @@ export default function CustomersPage() {
     setForm({
       code: c.code, name: c.name, trade_name: c.trade_name ?? '',
       customer_type: c.customer_type as 'individual'|'company'|'government',
+      party_type: (c.party_type ?? 'Customer') as 'Customer' | 'Customer And Supplier',
+      main_role: 'Customer',
       tax_registration_no: c.tax_registration_no ?? '',
       email: c.email ?? '', phone: c.phone ?? '', mobile: c.mobile ?? '',
       billing_address: c.billing_address ?? '', shipping_address: c.shipping_address ?? '',
@@ -182,13 +196,11 @@ export default function CustomersPage() {
     else        createMut.mutate(payload);
   }
 
-  const fmt = (n: number) => n.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
-
   /* ══════════════════════════════════════════════════════════════
      RENDER
   ══════════════════════════════════════════════════════════════ */
   return (
-    <div style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 18 }}>
+    <div style={{ padding: showForm ? 0 : '20px 24px', display: 'flex', flexDirection: 'column', gap: showForm ? 0 : 18, height: showForm ? '100%' : undefined, minHeight: 0 }}>
 
       <style>{`
         .cust-row td { transition: background 0.1s; }
@@ -207,7 +219,7 @@ export default function CustomersPage() {
       `}</style>
 
       {/* ── Page header ── */}
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16 }}>
+      <div style={{ display: showForm ? 'none' : 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
           <div style={{ width: 46, height: 46, borderRadius: 12, background: 'linear-gradient(135deg,#1e3a5f,#1d4ed8)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 3px 10px rgba(29,78,216,0.35)', flexShrink: 0 }}>
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
@@ -220,19 +232,19 @@ export default function CustomersPage() {
             <p style={{ margin: '2px 0 0', fontSize: '0.78rem', color: 'var(--color-text-muted)' }}>Accounts Receivable sub-ledger</p>
           </div>
         </div>
-        <button className="btn-primary" onClick={openNew} style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '9px 18px', fontWeight: 700, whiteSpace: 'nowrap' }}>
+        <button className={showForm ? 'btn-secondary' : 'btn-primary'} onClick={showForm ? closeForm : openNew} style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '9px 18px', fontWeight: 700, whiteSpace: 'nowrap' }}>
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-          New Customer
+          {showForm ? 'Back To List' : 'New Customer'}
         </button>
       </div>
 
       {/* ── KPI chips ── */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0,1fr))', gap: 10, maxWidth: 580 }}>
+      <div style={{ display: showForm ? 'none' : 'grid', gridTemplateColumns: 'repeat(4, minmax(0,1fr))', gap: 10, maxWidth: 580 }}>
         {[
           { label: 'Total',        value: statsData?.total    ?? 0, col: '#1d4ed8', bg: 'rgba(29,78,216,0.08)',  border: 'rgba(29,78,216,0.2)',  icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg> },
           { label: 'Active',       value: statsData?.active   ?? 0, col: '#15803d', bg: 'rgba(21,128,61,0.08)',  border: 'rgba(21,128,61,0.2)',  icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><polyline points="20 6 9 17 4 12"/></svg> },
           { label: 'Inactive',     value: statsData?.inactive ?? 0, col: '#b45309', bg: 'rgba(180,83,9,0.08)',   border: 'rgba(180,83,9,0.2)',   icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><line x1="8" y1="12" x2="16" y2="12"/></svg> },
-          { label: 'Credit Limit', value: `$${fmt(statsData?.total_credit_limit ?? 0)}`, col: '#7c3aed', bg: 'rgba(124,58,237,0.08)', border: 'rgba(124,58,237,0.2)', icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg> },
+          { label: 'Credit Limit', value: formatMoney(statsData?.total_credit_limit ?? 0, generalSettings), col: '#7c3aed', bg: 'rgba(124,58,237,0.08)', border: 'rgba(124,58,237,0.2)', icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg> },
         ].map(s => (
           <div key={s.label} style={{ padding: '11px 14px', background: s.bg, border: `1px solid ${s.border}`, borderRadius: 10, display: 'flex', alignItems: 'center', gap: 10 }}>
             <div style={{ color: s.col, flexShrink: 0 }}>{s.icon}</div>
@@ -253,7 +265,7 @@ export default function CustomersPage() {
       )}
 
       {/* ── Toolbar ── */}
-      <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+      <div style={{ display: showForm ? 'none' : 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
         <div style={{ position: 'relative', width: 260 }}>
           <svg style={{ position: 'absolute', left: 9, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }} width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--color-text-muted)" strokeWidth="2.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
           <input className="input" placeholder="Search name, code, email…" value={search} onChange={e => setSearch(e.target.value)} style={{ paddingLeft: 30, width: '100%' }} />
@@ -280,15 +292,15 @@ export default function CustomersPage() {
         </span>
       </div>
 
-      {/* ── Main split ── */}
-      <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start' }}>
+      {/* ── Main view ── */}
+      <div style={{ display: 'block', flex: showForm ? 1 : undefined, minHeight: 0 }}>
 
         {/* ─── Table ─── */}
-        <div style={{ flex: showForm ? '0 0 55%' : 1, border: '1px solid var(--color-border)', borderRadius: 10, overflow: 'hidden', boxShadow: '0 1px 4px rgba(0,0,0,0.05)' }}>
+        <div style={{ display: showForm ? 'none' : 'block', border: '1px solid var(--color-border)', borderRadius: 10, overflow: 'hidden', boxShadow: '0 1px 4px rgba(0,0,0,0.05)' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
               <tr>
-                {['Code','Name','Type','Terms','Contact','Status',''].map((h, i) => (
+                {['Code','Name','Party Type','Terms','Contact','Status',''].map((h, i) => (
                   <th key={h+i} style={{ padding: '10px 12px', textAlign: i >= 5 ? 'center' : 'left', fontSize: '0.68rem', fontWeight: 700, letterSpacing: 0, background: 'var(--color-table-head-bg)', color: 'var(--color-table-head-fg)', borderBottom: '2px solid var(--color-border)', whiteSpace: 'nowrap' }}>{h}</th>
                 ))}
               </tr>
@@ -322,6 +334,7 @@ export default function CustomersPage() {
               ) : rows.map((c, idx) => {
                 const isEditing = editId === c.id && showForm;
                 const meta = TYPE_META[c.customer_type] ?? TYPE_META.company;
+                const roleMeta = PARTY_ROLE_META[c.party_type ?? 'Customer'] ?? PARTY_ROLE_META.Customer;
                 return (
                   <tr key={c.id} className={`cust-row${isEditing ? ' cust-editing' : ''}`}
                     style={{ borderBottom: '1px solid var(--color-border)', background: idx % 2 === 0 ? 'var(--color-table-row-even)' : 'var(--color-table-row-odd)' }}>
@@ -333,7 +346,10 @@ export default function CustomersPage() {
                       {c.trade_name && <div style={{ fontSize: '0.72rem', color: 'var(--color-text-muted)' }}>{c.trade_name}</div>}
                     </td>
                     <td style={{ padding: '9px 12px' }}>
-                      <span style={{ fontSize: '0.72rem', fontWeight: 600, padding: '3px 9px', borderRadius: 5, background: meta.bg, color: meta.color, border: `1px solid ${meta.border}` }}>{meta.label}</span>
+                      <span style={{ fontSize: '0.72rem', fontWeight: 700, padding: '3px 9px', borderRadius: 5, background: roleMeta.bg, color: roleMeta.color, border: `1px solid ${roleMeta.border}` }}>{roleMeta.label}</span>
+                      <div style={{ marginTop: 3, fontSize: '0.68rem', color: 'var(--color-text-muted)' }}>
+                        Main Role: Customer
+                      </div>
                     </td>
                     <td style={{ padding: '9px 12px', fontSize: '0.8rem', color: 'var(--color-text-muted)', whiteSpace: 'nowrap' }}>
                       Net {c.payment_terms_days}
@@ -366,7 +382,7 @@ export default function CustomersPage() {
 
         {/* ─── Form panel ─── */}
         {showForm && (
-          <div style={{ flex: '0 0 43%', border: '1px solid var(--color-border)', borderRadius: 12, background: 'var(--color-surface)', overflow: 'hidden', boxShadow: '0 6px 28px rgba(0,0,0,0.1)', display: 'flex', flexDirection: 'column', maxHeight: 'calc(100vh - 200px)' }}>
+          <div style={{ width: '100%', height: '100%', border: 'none', borderRadius: 0, background: 'var(--color-surface)', overflow: 'hidden', boxShadow: 'none', display: 'flex', flexDirection: 'column', maxHeight: 'none', minHeight: 0 }}>
 
             {/* Header */}
             <div style={{ padding: '15px 20px', background: 'linear-gradient(135deg,#1e3a5f,#1d4ed8)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexShrink: 0 }}>
@@ -378,8 +394,8 @@ export default function CustomersPage() {
                   <h3 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 700, color: '#fff' }}>
                     {editId ? 'Edit Customer' : 'New Customer'}
                   </h3>
-                  <p style={{ margin: '2px 0 0', fontSize: '0.72rem', color: 'rgba(255,255,255,0.65)' }}>
-                    Accounts Receivable sub-ledger
+                    <p style={{ margin: '2px 0 0', fontSize: '0.72rem', color: 'rgba(255,255,255,0.65)' }}>
+                    One linked account for this party
                   </p>
                 </div>
               </div>
@@ -425,7 +441,32 @@ export default function CustomersPage() {
                     <input className="input" value={form.trade_name ?? ''} onChange={e => setF('trade_name', e.target.value)} placeholder="ABC Corp (optional)" maxLength={200} />
                   </div>
                   <div className="form-group" style={{ marginBottom: 0 }}>
-                    <label className="form-label">Customer Type</label>
+                    <label className="form-label">Party Type</label>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap', minHeight: 38 }}>
+                      <span style={{ fontSize: '0.8rem', fontWeight: 800, padding: '6px 12px', borderRadius: 7, background: PARTY_ROLE_META.Customer.bg, color: PARTY_ROLE_META.Customer.color, border: `1px solid ${PARTY_ROLE_META.Customer.border}` }}>
+                        Customer
+                      </span>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', color: 'var(--color-text-secondary)', fontSize: '0.84rem', fontWeight: 700 }}>
+                        <input
+                          type="checkbox"
+                          checked={form.party_type === 'Customer And Supplier'}
+                          onChange={event => {
+                            setF('party_type', event.target.checked ? 'Customer And Supplier' : 'Customer');
+                            setF('main_role', 'Customer');
+                          }}
+                          style={{ width: 16, height: 16, accentColor: 'var(--color-primary)' }}
+                        />
+                        Also Works As Supplier
+                      </label>
+                    </div>
+                    {form.party_type === 'Customer And Supplier' && (
+                      <div style={{ marginTop: 6, fontSize: '0.72rem', color: 'var(--color-text-muted)', lineHeight: 1.5 }}>
+                        Main Role: <strong style={{ color: 'var(--color-text)' }}>Customer</strong>. This party can also supply items to us, using the same linked account.
+                      </div>
+                    )}
+                  </div>
+                  <div className="form-group" style={{ marginBottom: 0 }}>
+                    <label className="form-label">Business Type</label>
                     <div style={{ display: 'flex', gap: 6 }}>
                       {CUSTOMER_TYPES.map(t => {
                         const m = TYPE_META[t]; const active = form.customer_type === t;
@@ -504,27 +545,52 @@ export default function CustomersPage() {
               )}
 
               {/* ── FINANCIAL TAB ── */}
-              {activeTab === 'financial' && (
-                <>
-                  <Section title="Payment Terms" icon={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>} />
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 80px', gap: 12 }}>
-                    <div className="form-group" style={{ marginBottom: 0 }}>
-                      <label className="form-label">Payment Terms (days)</label>
-                      <select className="input" value={form.payment_terms_days} onChange={e => setF('payment_terms_days', Number(e.target.value))}>
-                        {[7, 14, 30, 45, 60, 90, 120].map(d => <option key={d} value={d}>Net {d}</option>)}
+	              {activeTab === 'financial' && (
+	                <>
+	                  <Section title="Payment Terms" icon={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>} />
+	                  <div style={{ display: 'grid', gridTemplateColumns: '150px 180px 92px', gap: 12, alignItems: 'end', justifyContent: 'start' }}>
+	                    <div className="form-group" style={{ marginBottom: 0 }}>
+	                      <label className="form-label">Payment Terms (days)</label>
+                      <input
+                        className="input"
+                        type="number"
+                        min={0}
+                        max={365}
+                        step={1}
+	                        inputMode="numeric"
+	                        value={form.payment_terms_days}
+	                        onFocus={selectNumericValue}
+	                        onMouseUp={keepNumericValueSelected}
+	                        onChange={e => setF('payment_terms_days', Math.max(0, Math.min(365, Number(e.target.value) || 0)))}
+	                        style={NUMERIC_INPUT_STYLE}
+	                      />
+	                    </div>
+	                    <div className="form-group" style={{ marginBottom: 0 }}>
+	                      <label className="form-label">Credit Limit</label>
+	                      <input
+	                        className="input"
+	                        type="number"
+	                        min={0}
+	                        step={100}
+	                        inputMode="decimal"
+	                        value={form.credit_limit}
+	                        onFocus={selectNumericValue}
+	                        onMouseUp={keepNumericValueSelected}
+	                        onChange={e => setF('credit_limit', parseFloat(e.target.value) || 0)}
+	                        style={NUMERIC_INPUT_STYLE}
+	                      />
+	                    </div>
+	                    <div className="form-group" style={{ marginBottom: 0 }}>
+	                      <label className="form-label">Currency</label>
+	                      <select className="input" value={form.currency_code} onChange={e => setF('currency_code', e.target.value)} style={CURRENCY_SELECT_STYLE}>
+	                        {APP_CURRENCY_OPTIONS.map(currency => (
+	                          <option key={currency.code} value={currency.code}>{currency.code}</option>
+	                        ))}
                       </select>
-                    </div>
-                    <div className="form-group" style={{ marginBottom: 0 }}>
-                      <label className="form-label">Credit Limit</label>
-                      <input className="input" type="number" min={0} step={100} value={form.credit_limit} onChange={e => setF('credit_limit', parseFloat(e.target.value) || 0)} />
-                    </div>
-                    <div className="form-group" style={{ marginBottom: 0 }}>
-                      <label className="form-label">Currency</label>
-                      <input className="input" value={form.currency_code} onChange={e => setF('currency_code', e.target.value.toUpperCase().slice(0,3))} maxLength={3} style={{ fontFamily: 'monospace', fontWeight: 700, textAlign: 'center' }} />
                     </div>
                   </div>
 
-                  <Section title="GL Sub-ledger Account" icon={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>} />
+                  <Section title="Linked Account" icon={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>} />
 
                   {/* Auto-assigned GL account display */}
                   {editId ? (
@@ -536,7 +602,7 @@ export default function CustomersPage() {
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#15803d" strokeWidth="2.5" strokeLinecap="round"><polyline points="20 6 9 17 4 12"/></svg>
                           </div>
                           <div style={{ flex: 1, minWidth: 0 }}>
-                            <div style={{ fontSize: '0.68rem', fontWeight: 700, color: '#15803d', letterSpacing: 0, marginBottom: 3 }}>AR Sub-ledger Account (Auto-assigned)</div>
+                            <div style={{ fontSize: '0.68rem', fontWeight: 700, color: '#15803d', letterSpacing: 0, marginBottom: 3 }}>Linked Account (Auto Assigned)</div>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                               <span style={{ fontFamily: "'JetBrains Mono',monospace", fontWeight: 800, fontSize: '0.9rem', color: '#15803d', background: 'rgba(21,128,61,0.12)', padding: '2px 8px', borderRadius: 5 }}>{assigned.code}</span>
                               <span style={{ fontSize: '0.84rem', fontWeight: 600, color: 'var(--color-text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{assigned.name}</span>
@@ -545,7 +611,7 @@ export default function CustomersPage() {
                         </div>
                       ) : (
                         <div style={{ padding: '10px 14px', borderRadius: 8, background: 'rgba(29,78,216,0.05)', border: '1px solid rgba(29,78,216,0.15)', fontSize: '0.78rem', color: '#1d4ed8' }}>
-                          GL account not yet assigned — will be auto-created on next save.
+                          Linked Account is not yet assigned. It will be auto-created on next save.
                         </div>
                       );
                     })()
@@ -555,23 +621,13 @@ export default function CustomersPage() {
                         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#1d4ed8" strokeWidth="2.5" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
                       </div>
                       <div>
-                        <div style={{ fontSize: '0.78rem', fontWeight: 700, color: '#1d4ed8', marginBottom: 3 }}>GL Account will be auto-created</div>
+                        <div style={{ fontSize: '0.78rem', fontWeight: 700, color: '#1d4ed8', marginBottom: 3 }}>Linked Account Will Be Auto Created</div>
                         <div style={{ fontSize: '0.74rem', color: '#1d4ed8', opacity: 0.8, lineHeight: 1.6 }}>
-                          A dedicated AR sub-ledger posting account (code range <strong>1300001–1399999</strong>, up to 99,999 customers) will be automatically created in the Chart of Accounts and linked to this customer when you save.
+                          One posting account will be automatically created in the Chart of Accounts and linked to this party when you save.
                         </div>
                       </div>
                     </div>
                   )}
-
-                  <div className="form-group" style={{ marginBottom: 0 }}>
-                    <label className="form-label">Advance / Customer Deposit Account</label>
-                    <select className="input" value={form.advance_account_id ?? ''} onChange={e => setF('advance_account_id', e.target.value || undefined)}>
-                      <option value="">(Use company default advance account)</option>
-                      {(accounts as AccountOption[]).map(a => (
-                        <option key={a.id} value={a.id}>{a.code} — {a.name}</option>
-                      ))}
-                    </select>
-                  </div>
                 </>
               )}
 

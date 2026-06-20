@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { ACCOUNT_CODE_PATTERN } from './account-code';
 
 /**
  * Account Zod Schemas
@@ -9,15 +10,15 @@ const AccountTypeEnum = z.enum(['Asset', 'Liability', 'Equity', 'Revenue', 'Expe
 const NormalBalanceEnum = z.enum(['Debit', 'Credit']);
 
 /**
- * Account code validation — exactly 4 digits.
+ * Account code validation — exactly 10 digits.
  *
- * Hierarchy is determined by numeric value:
- *   X000 = Category  |  XX00 = Group  |  XXX0 = Sub-Group  |  XXXX = Posting
+ * Hierarchy is MM GG SS PPPP:
+ *   0100000000 = Main Category  |  0101000000 = Group  |  0101100001 = Posting
  */
 const AccountCodeSchema = z
   .string()
-  .regex(/^\d{4}$/, 'Account code must be exactly 4 digits')
-  .describe('4-digit account code');
+  .regex(ACCOUNT_CODE_PATTERN, 'Account Code must be exactly 10 digits')
+  .describe('10-digit account code');
 
 /**
  * Create Account Input

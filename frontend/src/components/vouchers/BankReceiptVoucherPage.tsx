@@ -107,9 +107,9 @@ function sanitizeAmountInput(value: string) {
   return decimalParts.length > 0 ? `${whole}.${decimals}` : whole;
 }
 
-function formatAmountInput(value: string) {
+function formatAmountInput(value: string, settings?: Parameters<typeof formatNumber>[1]) {
   const numericValue = amountValue(value);
-  return numericValue > 0 ? formatNumber(numericValue) : '';
+  return numericValue > 0 ? formatNumber(numericValue, settings) : '';
 }
 
 function SearchableSelect({
@@ -274,7 +274,7 @@ function FieldLabel({ label, required = false, children }: {
   );
 }
 
-function SummaryRow({ label, value, strong = false }: { label: string; value: number; strong?: boolean }) {
+function SummaryRow({ label, value, strong = false, formatMoneyValue = formatMoney }: { label: string; value: number; strong?: boolean; formatMoneyValue?: (value: number) => string }) {
   return (
     <div style={{ width: 112, minWidth: 0 }}>
       <span style={{ display: 'block', color: 'var(--color-text-muted)', fontSize: '0.66rem', fontWeight: 800, lineHeight: 1.1 }}>
@@ -297,7 +297,7 @@ function SummaryRow({ label, value, strong = false }: { label: string; value: nu
           lineHeight: 1.2,
         }}
       >
-        {formatMoney(value)}
+        {formatMoneyValue(value)}
       </span>
     </div>
   );
@@ -318,6 +318,7 @@ const receiptLineColumns = [
 
 export default function BankReceiptVoucherPage() {
   const utils = trpc.useUtils();
+  const { data: generalSettings } = trpc.settings.getGeneralSettings.useQuery();
   const [depositDate, setDepositDate] = useState(today());
   const [referenceNumber, setReferenceNumber] = useState('');
   const [description, setDescription] = useState('');
@@ -371,6 +372,7 @@ export default function BankReceiptVoucherPage() {
   const otherTotal = lines.filter(line => line.depositKind === 'OTHER').reduce((sum, line) => sum + amountValue(line.amount), 0);
   const currentBalance = Number(selectedBankAccount?.openingBalance ?? 0);
   const balanceAfterDeposit = currentBalance + totalAmount;
+  const money = useMemo(() => (value: number) => formatMoney(value, generalSettings), [generalSettings]);
   const saving = createVoucher.isPending || postVoucher.isPending;
   const actionDisabled = saving || accountsQuery.isLoading || dateValidation.isFetching;
   const dateStatusMessage = !depositDate
@@ -723,8 +725,8 @@ export default function BankReceiptVoucherPage() {
                 disabled={accountsQuery.isLoading || accountsQuery.isError}
               />
             </FieldLabel>
-            <FieldLabel label="Current Balance"><input className="form-input" value={formatMoney(currentBalance)} disabled style={compactNumericInputStyle} /></FieldLabel>
-            <FieldLabel label="Balance After Deposit"><input className="form-input" value={formatMoney(balanceAfterDeposit)} disabled style={compactNumericInputStyle} /></FieldLabel>
+            <FieldLabel label="Current Balance"><input className="form-input" value={money(currentBalance)} disabled style={compactNumericInputStyle} /></FieldLabel>
+            <FieldLabel label="Balance After Deposit"><input className="form-input" value={money(balanceAfterDeposit)} disabled style={compactNumericInputStyle} /></FieldLabel>
           </div>
 
           <div
@@ -859,7 +861,7 @@ export default function BankReceiptVoucherPage() {
                           value={line.amount}
                           onChange={event => updateLine(line.id, { amount: sanitizeAmountInput(event.currentTarget.value) })}
                           onFocus={() => updateLine(line.id, { amount: cleanAmount(line.amount) })}
-                          onBlur={() => updateLine(line.id, { amount: formatAmountInput(line.amount) })}
+                          onBlur={() => updateLine(line.id, { amount: formatAmountInput(line.amount, generalSettings) })}
                           placeholder="0.00"
                           style={{ ...compactInputStyle, textAlign: 'right', fontFamily: 'var(--font-mono)', fontWeight: 800 }}
                         />
@@ -889,12 +891,12 @@ export default function BankReceiptVoucherPage() {
               Active Lines: <strong style={{ color: 'var(--color-text)' }}>{activeLines.length}</strong>
             </span>
             <div style={voucherSummaryValuesStyle}>
-              <SummaryRow label="Cash Deposit" value={cashTotal} />
-              <SummaryRow label="Cheque Deposit" value={chequeTotal} />
-              <SummaryRow label="Bank Transfer" value={transferTotal} />
-              <SummaryRow label="Other Deposit" value={otherTotal} />
-              <SummaryRow label="Total Deposit" value={totalAmount} strong />
-              <SummaryRow label="Difference" value={0} />
+              <SummaryRow label="Cash Deposit" value={cashTotal} formatMoneyValue={money} />
+              <SummaryRow label="Cheque Deposit" value={chequeTotal} formatMoneyValue={money} />
+              <SummaryRow label="Bank Transfer" value={transferTotal} formatMoneyValue={money} />
+              <SummaryRow label="Other Deposit" value={otherTotal} formatMoneyValue={money} />
+              <SummaryRow label="Total Deposit" value={totalAmount} strong formatMoneyValue={money} />
+              <SummaryRow label="Difference" value={0} formatMoneyValue={money} />
             </div>
           </div>
         </section>

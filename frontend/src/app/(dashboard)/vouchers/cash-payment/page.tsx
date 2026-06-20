@@ -1,7 +1,7 @@
-import VoucherEntryPage from '@/components/vouchers/VoucherEntryPage';
+import CashBankVoucherPage from '@/components/vouchers/CashBankVoucherPage';
 
 export const metadata = { title: 'Cash Payment Voucher — ERP Finance' };
 
 export default function CashPaymentPage() {
-  return <VoucherEntryPage voucherType="CPV" />;
+  return <CashBankVoucherPage voucherType="CPV" />;
 }

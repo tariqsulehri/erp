@@ -243,7 +243,7 @@ npm run type-check
 docker-compose ps
 
 # Test PostgreSQL connection
-psql postgresql://erp_user:erp_password@localhost:5432/erp_financial_db
+psql postgresql://postgres:@localhost:5432/erp_financial_db
 ```
 
 ---

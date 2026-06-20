@@ -254,7 +254,7 @@ export const accountsRouter = router({
   bulkCreate: protectedProcedure
     .input(z.object({
       rows: z.array(z.object({
-        code:           z.string().regex(/^\d{4}$/),
+        code:           z.string().regex(/^\d{10}$/),
         name:           z.string().min(1).max(100),
         account_type:   z.enum(['Asset', 'Liability', 'Equity', 'Revenue', 'Expense']),
         normal_balance: z.enum(['Debit', 'Credit']),
@@ -336,10 +336,10 @@ export const accountsRouter = router({
    * Get the next available code under a parent account for the wizard
    */
   getNextCode: protectedProcedure
-    .input(z.object({ parentCode: z.string() }))
+    .input(z.object({ parentCode: z.string(), isPosting: z.boolean().optional() }))
     .query(async ({ ctx, input }) => {
       const service = new AccountService(ctx.company_id);
-      const code = await service.getNextAvailableCode(input.parentCode);
+      const code = await service.getNextAvailableCode(input.parentCode, { isPosting: input.isPosting });
       return { code };
     }),
 

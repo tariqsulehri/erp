@@ -10,6 +10,8 @@
  */
 
 import { useState } from 'react';
+import { formatDate, formatMoney, normalizeFormatSettings, type AppFormatSettingsSource } from '@/lib/app-settings';
+import { trpc } from '@/lib/trpc/client';
 
 type Tab = 'accounts' | 'pdc' | 'reconciliation';
 type PDCType = 'received' | 'issued';
@@ -17,9 +19,9 @@ type PDCStatus = 'Pending' | 'Deposited' | 'Matured' | 'Returned' | 'Cancelled';
 
 /* ── Sample data (replace with tRPC queries once bank module is built) ── */
 const SAMPLE_BANK_ACCOUNTS = [
-  { id: '1', name: 'Main Operating Account', bank: 'HBL', branch: 'Main Branch', accountNo: '****-1234', currency: 'PKR', balance: 2_450_000, is_active: true },
-  { id: '2', name: 'Savings Account',        bank: 'MCB', branch: 'Gulberg',     accountNo: '****-5678', currency: 'PKR', balance:   850_000, is_active: true },
-  { id: '3', name: 'Payroll Account',        bank: 'UBL', branch: 'Defence',     accountNo: '****-9012', currency: 'PKR', balance:   120_000, is_active: true },
+  { id: '1', name: 'Main Operating Account', bank: 'HBL', branch: 'Main Branch', accountNo: '****-1234', balance: 2_450_000, is_active: true },
+  { id: '2', name: 'Savings Account',        bank: 'MCB', branch: 'Gulberg',     accountNo: '****-5678', balance:   850_000, is_active: true },
+  { id: '3', name: 'Payroll Account',        bank: 'UBL', branch: 'Defence',     accountNo: '****-9012', balance:   120_000, is_active: true },
 ];
 
 const SAMPLE_PDCS = [
@@ -50,30 +52,23 @@ const STATUS_STYLE: Record<PDCStatus, { bg: string; color: string }> = {
   Cancelled:  { bg: '#f1f5f9', color: '#64748b' },
 };
 
-function fmt(n: number) {
-  return new Intl.NumberFormat('en-PK', { minimumFractionDigits: 0 }).format(n);
-}
-
-function fmtDate(d: string) {
-  return new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
-}
-
 function isOverdue(dueDate: string) {
   return new Date(dueDate) < new Date();
 }
 
 /* ── Bank Accounts Tab ───────────────────────────────────────────────── */
-function BankAccountsTab() {
+function BankAccountsTab({ settings }: { settings?: AppFormatSettingsSource | null }) {
   const totalBalance = SAMPLE_BANK_ACCOUNTS.reduce((s, a) => s + a.balance, 0);
+  const formatSettings = normalizeFormatSettings(settings);
 
   return (
     <div>
       {/* KPI */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14, marginBottom: 24 }}>
         {[
-          { label: 'Total Bank Balance', value: `PKR ${fmt(totalBalance)}`, color: '#2563eb' },
+          { label: 'Total Bank Balance', value: formatMoney(totalBalance, settings), color: '#2563eb' },
           { label: 'Active Accounts',    value: SAMPLE_BANK_ACCOUNTS.filter(a => a.is_active).length, color: '#16a34a' },
-          { label: 'Currencies',         value: [...new Set(SAMPLE_BANK_ACCOUNTS.map(a => a.currency))].join(', '), color: '#7c3aed' },
+          { label: 'Currency',           value: formatSettings.currencyCode, color: '#7c3aed' },
         ].map(k => (
           <div key={k.label} style={{
             background: 'var(--color-surface)', border: '1px solid var(--color-border)',
@@ -110,7 +105,7 @@ function BankAccountsTab() {
             </div>
             <div style={{ textAlign: 'right' }}>
               <div style={{ fontWeight: 700, fontSize: '1.0625rem', color: '#2563eb' }}>
-                {acct.currency} {fmt(acct.balance)}
+                {formatMoney(acct.balance, settings)}
               </div>
               <div style={{ fontSize: 'var(--font-size-xs)', color: acct.is_active ? '#16a34a' : '#94a3b8' }}>
                 {acct.is_active ? 'Active' : 'Inactive'}
@@ -141,7 +136,7 @@ function BankAccountsTab() {
 }
 
 /* ── PDC Tab ─────────────────────────────────────────────────────────── */
-function PDCTab() {
+function PDCTab({ settings }: { settings?: AppFormatSettingsSource | null }) {
   const [pdcType, setPdcType] = useState<'all' | PDCType>('all');
   const [statusFilter, setStatusFilter] = useState<PDCStatus | 'all'>('all');
 
@@ -160,9 +155,9 @@ function PDCTab() {
       {/* KPI */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14, marginBottom: 24 }}>
         {[
-          { label: 'Pending PDCs',   value: `PKR ${fmt(totalPending)}`,  count: SAMPLE_PDCS.filter(p=>p.status==='Pending').length,  color: '#d97706' },
-          { label: 'Matured (Due)',  value: `PKR ${fmt(totalMatured)}`,  count: SAMPLE_PDCS.filter(p=>p.status==='Matured').length,  color: '#1d4ed8' },
-          { label: 'Returned',       value: `PKR ${fmt(totalReturned)}`, count: SAMPLE_PDCS.filter(p=>p.status==='Returned').length, color: '#b91c1c' },
+          { label: 'Pending PDCs',   value: formatMoney(totalPending, settings),  count: SAMPLE_PDCS.filter(p=>p.status==='Pending').length,  color: '#d97706' },
+          { label: 'Matured (Due)',  value: formatMoney(totalMatured, settings),  count: SAMPLE_PDCS.filter(p=>p.status==='Matured').length,  color: '#1d4ed8' },
+          { label: 'Returned',       value: formatMoney(totalReturned, settings), count: SAMPLE_PDCS.filter(p=>p.status==='Returned').length, color: '#b91c1c' },
         ].map(k => (
           <div key={k.label} style={{
             background: 'var(--color-surface)', border: '1px solid var(--color-border)',
@@ -257,11 +252,11 @@ function PDCTab() {
                     {pdc.bank}
                   </td>
                   <td style={{ padding: '10px 14px', fontWeight: 600, textAlign: 'right' }}>
-                    PKR {fmt(pdc.amount)}
+                    {formatMoney(pdc.amount, settings)}
                   </td>
                   <td style={{ padding: '10px 14px', fontSize: 'var(--font-size-sm)' }}>
                     <span style={{ color: overdue ? '#b91c1c' : 'var(--color-text)' }}>
-                      {fmtDate(pdc.dueDate)}
+                      {formatDate(pdc.dueDate, settings)}
                     </span>
                     {overdue && (
                       <span style={{ marginLeft: 6, fontSize: '0.625rem', fontWeight: 700,
@@ -335,7 +330,7 @@ function PDCTab() {
 }
 
 /* ── Reconciliation Tab ──────────────────────────────────────────────── */
-function ReconciliationTab() {
+function ReconciliationTab({ settings }: { settings?: AppFormatSettingsSource | null }) {
   const [period, setPeriod] = useState('2026-03');
 
   const cleared   = SAMPLE_RECON.filter(r => r.cleared);
@@ -397,7 +392,7 @@ function ReconciliationTab() {
           }}>
             <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-muted)', marginBottom: 4 }}>{k.label}</div>
             <div style={{ fontSize: '1.125rem', fontWeight: 700, color: k.color }}>
-              PKR {fmt(Math.abs(k.value))}
+              {formatMoney(Math.abs(k.value), settings)}
               {k.value < 0 && <span style={{ fontSize: '0.75rem', marginLeft: 4 }}>(Cr)</span>}
             </div>
           </div>
@@ -432,16 +427,16 @@ function ReconciliationTab() {
             {uncleared.map((row, i) => (
               <tr key={row.id} style={{ borderBottom: i < uncleared.length - 1 ? '1px solid var(--color-border)' : 'none' }}>
                 <td style={{ padding: '10px 14px', fontSize: 'var(--font-size-xs)', color: 'var(--color-text-muted)' }}>
-                  {fmtDate(row.date)}
+                  {formatDate(row.date, settings)}
                 </td>
                 <td style={{ padding: '10px 14px', fontSize: 'var(--font-size-sm)' }}>{row.description}</td>
                 <td style={{ padding: '10px 14px', fontFamily: 'monospace', fontSize: '0.8125rem',
                   color: row.gl_amount ? (row.gl_amount > 0 ? '#16a34a' : '#b91c1c') : '#94a3b8' }}>
-                  {row.gl_amount != null ? `${row.gl_amount > 0 ? '+' : ''}${fmt(row.gl_amount)}` : '—'}
+                  {row.gl_amount != null ? `${row.gl_amount > 0 ? '+' : ''}${formatMoney(Math.abs(row.gl_amount), settings)}` : '—'}
                 </td>
                 <td style={{ padding: '10px 14px', fontFamily: 'monospace', fontSize: '0.8125rem',
                   color: row.bank_amount ? (row.bank_amount > 0 ? '#16a34a' : '#b91c1c') : '#94a3b8' }}>
-                  {row.bank_amount != null ? `${row.bank_amount > 0 ? '+' : ''}${fmt(row.bank_amount)}` : '—'}
+                  {row.bank_amount != null ? `${row.bank_amount > 0 ? '+' : ''}${formatMoney(Math.abs(row.bank_amount), settings)}` : '—'}
                 </td>
                 <td style={{ padding: '10px 14px' }}>
                   <button style={{
@@ -486,16 +481,16 @@ function ReconciliationTab() {
             {cleared.map((row, i) => (
               <tr key={row.id} style={{ borderBottom: i < cleared.length - 1 ? '1px solid var(--color-border)' : 'none' }}>
                 <td style={{ padding: '10px 14px', fontSize: 'var(--font-size-xs)', color: 'var(--color-text-muted)' }}>
-                  {fmtDate(row.date)}
+                  {formatDate(row.date, settings)}
                 </td>
                 <td style={{ padding: '10px 14px', fontSize: 'var(--font-size-sm)' }}>{row.description}</td>
                 <td style={{ padding: '10px 14px', fontFamily: 'monospace', fontSize: '0.8125rem',
                   color: (row.gl_amount ?? 0) > 0 ? '#16a34a' : '#b91c1c' }}>
-                  {row.gl_amount != null ? `${row.gl_amount > 0 ? '+' : ''}${fmt(row.gl_amount)}` : '—'}
+                  {row.gl_amount != null ? `${row.gl_amount > 0 ? '+' : ''}${formatMoney(Math.abs(row.gl_amount), settings)}` : '—'}
                 </td>
                 <td style={{ padding: '10px 14px', fontFamily: 'monospace', fontSize: '0.8125rem',
                   color: (row.bank_amount ?? 0) > 0 ? '#16a34a' : '#b91c1c' }}>
-                  {row.bank_amount != null ? `${row.bank_amount > 0 ? '+' : ''}${fmt(row.bank_amount)}` : '—'}
+                  {row.bank_amount != null ? `${row.bank_amount > 0 ? '+' : ''}${formatMoney(Math.abs(row.bank_amount), settings)}` : '—'}
                 </td>
                 <td style={{ padding: '10px 14px' }}>
                   <span style={{ fontSize: '0.6875rem', fontWeight: 600, padding: '2px 8px', borderRadius: 10,
@@ -525,6 +520,7 @@ function ReconciliationTab() {
 /* ── Page ─────────────────────────────────────────────────────────────── */
 export default function BankPage() {
   const [activeTab, setActiveTab] = useState<Tab>('accounts');
+  const { data: generalSettings } = trpc.settings.getGeneralSettings.useQuery();
 
   const TABS: { id: Tab; label: string; icon: string }[] = [
     { id: 'accounts',       label: 'Bank Accounts',      icon: 'M3 9a2 2 0 012-2h14a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9zM8 9V7a4 4 0 018 0v2' },
@@ -589,9 +585,9 @@ export default function BankPage() {
       </div>
 
       {/* Tab content */}
-      {activeTab === 'accounts'       && <BankAccountsTab />}
-      {activeTab === 'pdc'            && <PDCTab />}
-      {activeTab === 'reconciliation' && <ReconciliationTab />}
+      {activeTab === 'accounts'       && <BankAccountsTab settings={generalSettings} />}
+      {activeTab === 'pdc'            && <PDCTab settings={generalSettings} />}
+      {activeTab === 'reconciliation' && <ReconciliationTab settings={generalSettings} />}
     </div>
   );
 }

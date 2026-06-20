@@ -7,6 +7,7 @@ import { dashboardRouter }  from './dashboard.router';
 import { productsRouter }   from './products.router';
 import { customersRouter }  from './customers.router';
 import { suppliersRouter }  from './suppliers.router';
+import { purchasesRouter }  from './purchases.router';
 import { transactionSupportRouter } from './transaction-support.router';
 
 /**
@@ -99,6 +100,7 @@ export const appRouter = router({
   // Phase 3: AR / AP Sub-ledger Masters
   customers: customersRouter,
   suppliers: suppliersRouter,
+  purchases: purchasesRouter,
 
   // Shared transaction support
   transactionSupport: transactionSupportRouter,

@@ -24,6 +24,9 @@ Examples:
 - Do not show database field names to users.
 - Prefer dropdowns for configurable master data such as category, brand, size, UOM, warehouse, and location.
 - All dropdowns for ERP master data and filters should be searchable.
+- List, dropdown, and selectable controls must show a chevron or dropdown indicator so users can identify them as selectable fields.
+- Account Code inputs and displays must use the 10-digit Account Code format.
+- Account Code examples should use clear `MM GG SS PPPP` examples such as `0101100001`, not older 4-digit, 6-digit, 7-digit, or 8-digit examples.
 
 ## Configurable Item Fields
 
@@ -49,10 +52,24 @@ Examples:
 - Theme names and palettes should feel professional and work-focused. Avoid playful theme names, neon accents, and loud multi-color combinations for ERP workspaces.
 - Theme selector controls should be compact, clear, and consistent with common settings/account controls used in professional web applications.
 
+## Frontend Architecture
+
+- Large screens should be split into small reusable components. Avoid putting form controls, list views, analytics, print previews, validation helpers, and formatting helpers in one component file.
+- General UI pieces such as searchable dropdowns, field labels, summary boxes, pagination controls, chart cards, and message banners should live in reusable component files.
+- General business helpers such as date parsing, numeric cleanup, amount formatting, HTML escaping, debouncing, and friendly error messages should live in shared library files.
+- Component files should mainly orchestrate data, state, and screen flow. Move repeated UI and helper logic out before it spreads to another module.
+- CSS and inline style objects should be reusable through shared components, theme tokens, or shared style helpers. Avoid hard-coded one-off styling when the pattern will be used by other modules.
+- Add comments only where they explain important business rules, non-obvious calculations, or integration behavior. Do not comment obvious code.
+- Prefer clear props and descriptive component names so sales, purchase, voucher, inventory, and report modules can reuse the same building blocks.
+
 ## Configuration And Hardcoding Rules
 
-- Date format, currency symbol, currency code, locale, decimal places, thousand separator, and decimal separator must come from one shared formatting/configuration module.
-- Do not hard-code currency text such as `Rs`, date locales such as `en-PK`, or date display formats inside screens or components.
+- Date format, currency symbol, currency code, currency display position, locale, decimal places, thousand separator, and decimal separator must come from one shared formatting/configuration module.
+- Frontend modules should use the company `general_settings` record when displaying money, numbers, dates, time, country defaults, or currency choices.
+- Currency display position must be configurable as `prefix` or `suffix`; every money display must use the shared formatter.
+- Do not hard-code currency text such as `$` or `Rs`, date locales such as `en-PK`, or date display formats inside screens or components.
+- Do not build currency strings manually in screens, tables, summaries, buttons, print formats, or reports.
+- If a user sees `$1`, `$2`, or similar values in a technical log, treat them as SQL parameter placeholders, not currency symbols.
 - Form control sizes, button sizes, font sizes, spacing, border radius, shadows, table colors, and status colors should use shared theme tokens or shared component styles.
 - Voucher-specific layout values, such as table column widths or default blank row count, may live in the voucher component while the voucher is being finalized. When reused by another voucher, move them to a shared voucher configuration file.
 - User-facing business labels can stay inside the component while the screen is being designed. Repeated labels, status names, and messages should move to shared constants when they appear in more than one place.
@@ -91,6 +108,9 @@ Avoid messages:
 - Show thousand separators for money and quantity values when the field is not actively being typed.
 - Right align numeric inputs and numeric table cells.
 - Right align all amount, money, quantity, debit, credit, balance, and total values in inputs, tables, and summaries.
+- Numeric inputs should use compact widths based on the expected value length instead of stretching across the full row.
+- Numeric inputs should select the existing value on focus so users can replace `0` or an existing amount without creating leading-zero values.
+- Numeric inputs should use strong readable formatting, such as tabular digits, clear selection color, and consistent weight.
 - Do not allow negative values unless the business case needs them.
 - Do not allow zero values for transaction line amounts when the line is being saved or posted.
 - Use percentage fields for discounts and tax rates.
@@ -103,7 +123,15 @@ Avoid messages:
 - Use readable column names.
 - Show status clearly, such as `Active`, `Inactive`, `Blocked`, `Draft`, or `Posted`.
 - Provide search and filters for large lists.
+- Large transaction and master-data lists must use backend pagination. Do not load all records into the browser.
+- Default page size should normally be 50 records. Allow user choices such as 25, 50, 100, and 200 only when the screen remains responsive.
+- Show clear pagination controls: First, Previous, page number, Next, Last, page size, and total record count when the backend can provide it efficiently.
+- Keep sorting stable across pages. Use a deterministic order such as document date descending plus document number descending.
+- When filters change, reset the list back to page 1.
+- Search boxes on large lists should debounce backend calls by about 300 to 500 milliseconds.
 - Keep actions predictable: View, Edit, Print, Export, Activate, Deactivate.
+- Chart Of Accounts should default to a clear tree hierarchy view for analysis, with separate Table/List views for maintenance, search, import, export, and bulk actions.
+- Account hierarchy displays should show each level in a readable way: Main Category, Group, Sub-Group, and Posting Account. Avoid showing only a flat list when the user needs to understand account structure.
 
 ## API Usage
 
@@ -136,11 +164,29 @@ Avoid messages:
 - Use searchable dropdowns for master data and filters by default.
 - Use status labels users understand, such as `Active`, `Inactive`, `Blocked`, `Draft`, and `Posted`.
 - Disable editing for posted documents unless the workflow explicitly allows correction documents.
+- Customer and Supplier forms should use `Party Type` and `Main Role` labels when a party can work as both customer and supplier.
+- On Customer and Supplier screens, the base role should be shown as the default role and the second role should be a checkbox such as `Also Works As Supplier` or `Also Works As Customer`.
+- Business Type should use a segmented choice when there are only a few fixed choices, defaulting to `Company`.
+- Customer and Supplier screens should show the accounting link as `Linked Account`.
+- Customer and Supplier forms should default the status to `Active`.
+- Let users change the status to `Inactive` only when the party should not be used in new transactions.
+- Currency should be selected from a dropdown, not typed as free text.
+- Payment Terms should be a numeric day input when users may need any day value, not only fixed choices.
+- Master data list views and input forms should be separate views when the form is detailed. Do not show the list/table beside the input form unless the user explicitly asks for a split view.
+- Detailed master data input forms should fill the available workspace and should not look like a smaller screen or modal inside the page.
 
 ## Transaction Module Layout
 
 These rules apply to vouchers, sales, purchases, payments, receipts, stock documents, and future transaction screens.
 
+- Use the Purchase Voucher screen as the reference pattern for future transaction modules when the option applies.
+- Transaction modules should include New Entry, Posted/History List, Search, backend-powered filters, Detail View, Print Preview, Print, and Download PDF where the business flow supports them.
+- Common filters should include party/account, date range, document status, payment type, warehouse/location, reference number, and amount range when those fields exist in the module.
+- Do not show a filter or action unless it is connected to real frontend behavior and backend support.
+- Posted or historical transaction lists should use backend filters and pagination, not only browser-side filtering.
+- Posted or historical transaction lists should load header summary rows first. Load line items only when the user opens a detail view, print preview, or export that requires them.
+- Posted transaction detail views should be read-only by default and should show the header, linked accounting reference, line items, totals, support fields, and status clearly.
+- Print and PDF output should use the same settings-based date, number, and currency formatting as the screen.
 - Keep a consistent space in transaction screens for workflow controls such as Approval Status, Attachments, Print, and document status.
 - Keep a consistent space for document support fields such as Reference Number, Project, Cost Center, Department, and Auto Reverse Date when the module uses them.
 - Do not show editable fields for Project, Cost Center, Attachment, Auto Reverse Date, or Approval unless the backend saves and validates them.

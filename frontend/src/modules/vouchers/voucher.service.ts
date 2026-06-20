@@ -7,7 +7,7 @@ import { TransactionSupportService } from '@/modules/transactions/transaction-su
 
 const VOUCHER_PREFIXES: Record<VoucherType, string> = {
   BRV: 'BRV', BPV: 'BPV', CRV: 'CRV', CPV: 'CPV',
-  JV: 'JV', CV: 'CV', DN: 'DN', CN: 'CN',
+  JV: 'JV', CV: 'CV', DN: 'DN', CN: 'CN', PI: 'PI',
 };
 
 export class VoucherService {

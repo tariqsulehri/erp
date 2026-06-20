@@ -20,6 +20,7 @@
 
 import { useState, useRef } from 'react';
 import { trpc } from '@/lib/trpc/client';
+import { ACCOUNT_CODE_PATTERN } from '@/modules/accounts/account-code';
 
 /* ── Types ───────────────────────────────────────────────────────────── */
 const VALID_TYPES    = ['Asset', 'Liability', 'Equity', 'Revenue', 'Expense'] as const;
@@ -80,7 +81,7 @@ function parseCSV(text: string): ParsedRow[] {
     const description   = iDesc    >= 0 ? (cols[iDesc]    ?? '').trim() : '';
 
     const errors: string[] = [];
-    if (!code || !/^\d{4}$/.test(code))       errors.push('Code must be exactly 4 digits');
+    if (!code || !ACCOUNT_CODE_PATTERN.test(code)) errors.push('Code must be exactly 10 digits');
     if (!name)                                  errors.push('Name is required');
     if (!VALID_TYPES.includes(account_type as any))
       errors.push(`account_type must be one of: ${VALID_TYPES.join(', ')}`);
@@ -104,10 +105,10 @@ function parseCSV(text: string): ParsedRow[] {
 function downloadTemplate() {
   const header = 'code,name,account_type,normal_balance,is_posting,description';
   const rows = [
-    '1100,Current Assets,Asset,Debit,false,Short-term assets',
-    '1110,Cash & Cash Equivalents,Asset,Debit,false,',
-    '1111,Cash in Hand,Asset,Debit,true,Physical cash held at office',
-    '1112,Petty Cash,Asset,Debit,true,Small discretionary expenses fund',
+    '0101000000,Current Assets,Asset,Debit,false,Short-term assets',
+    '0101100000,Cash And Cash Equivalents,Asset,Debit,false,',
+    '0101100001,Cash In Hand,Asset,Debit,true,Physical cash held at office',
+    '0101100002,Petty Cash,Asset,Debit,true,Small discretionary expenses fund',
   ];
   const csv  = [header, ...rows].join('\n');
   const blob = new Blob([csv], { type: 'text/csv' });

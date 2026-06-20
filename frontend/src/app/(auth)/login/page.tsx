@@ -53,7 +53,7 @@ export default function LoginPage() {
 
           <div className="login-features">
             {[
-              'Chart of Accounts with 8-digit hierarchy',
+              'Chart of Accounts with 10-digit hierarchy',
               'Fiscal Year & Period Management',
               'Journal Vouchers with GL posting',
               'Trial Balance & Financial Statements',

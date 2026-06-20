@@ -11,6 +11,13 @@
 
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { trpc } from '@/lib/trpc/client';
+import {
+  formatDate,
+  formatMoney,
+  formatNumber,
+  normalizeFormatSettings,
+  type AppFormatSettingsSource,
+} from '@/lib/app-settings';
 
 /* ── constants ──────────────────────────────────────────────────── */
 const PRODUCT_TYPE_META: Record<string, { label: string; color: string; bg: string }> = {
@@ -46,16 +53,18 @@ type PageMode = 'list' | 'form' | 'detail';
 type SelectOption = { value: string; label: string; searchText?: string };
 
 /* ── helpers ────────────────────────────────────────────────────── */
-const fmtAmt = (n: string | number | undefined) => {
+const fmtAmt = (n: string | number | undefined, settings?: AppFormatSettingsSource | null) => {
   const v = Number(n ?? 0);
-  return v.toLocaleString('en-PK', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return formatNumber(v, settings);
 };
-const fmtQty = (n: string | number | undefined) => {
+const fmtQty = (n: string | number | undefined, settings?: AppFormatSettingsSource | null) => {
   const v = Number(n ?? 0);
-  return v % 1 === 0 ? v.toLocaleString() : v.toLocaleString('en-PK', { maximumFractionDigits: 3 });
+  const baseSettings = settings ?? {};
+  return v % 1 === 0
+    ? formatNumber(v, { ...baseSettings, decimal_places: 0 })
+    : formatNumber(v, { ...baseSettings, decimal_places: 3 });
 };
-const fmtDate = (d: string | Date) =>
-  new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' });
+const fmtDate = (d: string | Date, settings?: AppFormatSettingsSource | null) => formatDate(d, settings);
 
 /* ── shared mini components ─────────────────────────────────────── */
 function StatusBadge({ status }: { status: string }) {
@@ -79,29 +88,27 @@ function TypeBadge({ type }: { type: string }) {
   );
 }
 
-function MoneyCell({ value, muted = false }: { value?: string | number; muted?: boolean }) {
+function MoneyCell({ value, muted = false, settings }: { value?: string | number; muted?: boolean; settings?: AppFormatSettingsSource | null }) {
   return (
     <span
       style={{
-        display: 'grid',
-        gridTemplateColumns: '28px minmax(0, 1fr)',
+        display: 'block',
         alignItems: 'baseline',
-        gap: 6,
         width: '100%',
         fontFamily: 'var(--font-mono)',
         fontWeight: 700,
         fontSize: '0.8rem',
         color: muted ? 'var(--color-text-secondary)' : 'var(--color-debit)',
         fontVariantNumeric: 'tabular-nums',
+        textAlign: 'right',
       }}
     >
-      <span style={{ textAlign: 'left', color: 'var(--color-text-muted)' }}>Rs</span>
-      <span style={{ textAlign: 'right' }}>{fmtAmt(value)}</span>
+      {formatMoney(Number(value ?? 0), settings)}
     </span>
   );
 }
 
-function StockIndicator({ onHand, minLevel, reorderLevel }: { onHand: string; minLevel?: string; reorderLevel?: string }) {
+function StockIndicator({ onHand, minLevel, reorderLevel, settings }: { onHand: string; minLevel?: string; reorderLevel?: string; settings?: AppFormatSettingsSource | null }) {
   const qty = parseFloat(onHand) || 0;
   const min = minLevel ? parseFloat(minLevel) : null;
   const reorder = reorderLevel ? parseFloat(reorderLevel) : null;
@@ -117,7 +124,7 @@ function StockIndicator({ onHand, minLevel, reorderLevel }: { onHand: string; mi
         minWidth: 56, textAlign: 'right', fontVariantNumeric: 'tabular-nums',
         color: isOut ? 'var(--color-danger)' : (isBelowMin || isAtReorder) ? 'var(--color-warning)' : 'var(--color-text)',
       }}>
-        {fmtQty(qty)}
+        {fmtQty(qty, settings)}
       </span>
       {badge && (
         <span style={{
@@ -305,6 +312,8 @@ function ProductForm({ editId, onSaved, onCancel }: {
   const isEdit     = !!editId;
   const [tab, setTab] = useState<TabLabel>('Basic');
   const [error, setError] = useState('');
+  const { data: generalSettings } = trpc.settings.getGeneralSettings.useQuery();
+  const formatSettings = useMemo(() => normalizeFormatSettings(generalSettings), [generalSettings]);
 
   /* ── Form state ── */
   const [sku,          setSku]          = useState('');
@@ -801,21 +810,21 @@ function ProductForm({ editId, onSaved, onCancel }: {
               <div style={{ padding: 18, display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16 }}>
                 <LabelInput label="Cost Price (Purchase)">
                   <div style={{ position: 'relative' }}>
-                    <span style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--color-text-muted)', fontWeight: 700, fontSize: '0.875rem' }}>₨</span>
+                    <span style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--color-text-muted)', fontWeight: 700, fontSize: '0.875rem' }}>{formatSettings.currencySymbol}</span>
                     <input className="form-input" type="number" inputMode="decimal" min="0" step="0.01" value={costPrice} onChange={e => setCostPrice(e.target.value)}
                       placeholder="0.00" style={{ paddingLeft: 28, fontFamily: 'var(--font-mono)', fontWeight: 700, textAlign: 'right' }} />
                   </div>
                 </LabelInput>
                 <LabelInput label="Sale Price">
                   <div style={{ position: 'relative' }}>
-                    <span style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--color-text-muted)', fontWeight: 700, fontSize: '0.875rem' }}>₨</span>
+                    <span style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--color-text-muted)', fontWeight: 700, fontSize: '0.875rem' }}>{formatSettings.currencySymbol}</span>
                     <input className="form-input" type="number" inputMode="decimal" min="0" step="0.01" value={salePrice} onChange={e => setSalePrice(e.target.value)}
                       placeholder="0.00" style={{ paddingLeft: 28, fontFamily: 'var(--font-mono)', fontWeight: 700, textAlign: 'right' }} />
                   </div>
                 </LabelInput>
                 <LabelInput label="Min Sale Price (Floor)">
                   <div style={{ position: 'relative' }}>
-                    <span style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--color-text-muted)', fontWeight: 700, fontSize: '0.875rem' }}>₨</span>
+                    <span style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--color-text-muted)', fontWeight: 700, fontSize: '0.875rem' }}>{formatSettings.currencySymbol}</span>
                     <input className="form-input" type="number" inputMode="decimal" min="0" step="0.01" value={minSalePrice} onChange={e => setMinSalePrice(e.target.value)}
                       placeholder="0.00" style={{ paddingLeft: 28, fontFamily: 'var(--font-mono)', textAlign: 'right' }} />
                   </div>
@@ -827,9 +836,9 @@ function ProductForm({ editId, onSaved, onCancel }: {
                 <div style={{ margin: '0 18px 18px', padding: '10px 16px', borderRadius: 'var(--radius)', background: 'var(--color-primary-light)', border: '1px solid var(--color-border)' }}>
                   <div style={{ display: 'flex', gap: 24, alignItems: 'center' }}>
                     {[
-                      { label: 'Cost',   value: `₨ ${fmtAmt(costPrice)}`, color: 'var(--color-text-secondary)' },
-                      { label: 'Sale',   value: `₨ ${fmtAmt(salePrice)}`, color: 'var(--color-debit)' },
-                      { label: 'Profit', value: `₨ ${fmtAmt((parseFloat(salePrice)||0) - (parseFloat(costPrice)||0))}`, color: 'var(--color-credit)' },
+                      { label: 'Cost',   value: formatMoney(costPrice || 0, generalSettings), color: 'var(--color-text-secondary)' },
+                      { label: 'Sale',   value: formatMoney(salePrice || 0, generalSettings), color: 'var(--color-debit)' },
+                      { label: 'Profit', value: formatMoney((parseFloat(salePrice)||0) - (parseFloat(costPrice)||0), generalSettings), color: 'var(--color-credit)' },
                       { label: 'Margin', value: `${margin()}%`, color: parseFloat(margin()!) >= 20 ? 'var(--color-credit)' : 'var(--color-warning)' },
                     ].map(item => (
                       <div key={item.label}>
@@ -907,9 +916,9 @@ function ProductForm({ editId, onSaved, onCancel }: {
                 <div style={{ marginTop: 14, padding: '12px 16px', background: 'var(--color-surface)', border: '1.5px solid var(--color-border)', borderRadius: 'var(--radius-md)' }}>
                   <p style={{ fontSize: '0.6875rem', fontWeight: 700, color: 'var(--color-text-muted)', letterSpacing: 0, marginBottom: 8 }}>Stock Preview</p>
                   <div style={{ display: 'flex', gap: 20 }}>
-                    <div><div style={{ fontSize: '0.6875rem', color: 'var(--color-text-muted)' }}>On Hand</div><div style={{ fontFamily: 'var(--font-mono)', fontWeight: 800, fontSize: '1.25rem', color: 'var(--color-text)' }}>{fmtQty(qtyOnHand)}</div></div>
-                    {minStock && <div><div style={{ fontSize: '0.6875rem', color: 'var(--color-text-muted)' }}>Reorder At</div><div style={{ fontFamily: 'var(--font-mono)', fontWeight: 800, fontSize: '1.25rem', color: 'var(--color-warning)' }}>{fmtQty(minStock)}</div></div>}
-                    {maxStock && <div><div style={{ fontSize: '0.6875rem', color: 'var(--color-text-muted)' }}>Max</div><div style={{ fontFamily: 'var(--font-mono)', fontWeight: 800, fontSize: '1.25rem', color: 'var(--color-text)' }}>{fmtQty(maxStock)}</div></div>}
+                    <div><div style={{ fontSize: '0.6875rem', color: 'var(--color-text-muted)' }}>On Hand</div><div style={{ fontFamily: 'var(--font-mono)', fontWeight: 800, fontSize: '1.25rem', color: 'var(--color-text)' }}>{fmtQty(qtyOnHand, generalSettings)}</div></div>
+                    {minStock && <div><div style={{ fontSize: '0.6875rem', color: 'var(--color-text-muted)' }}>Reorder At</div><div style={{ fontFamily: 'var(--font-mono)', fontWeight: 800, fontSize: '1.25rem', color: 'var(--color-warning)' }}>{fmtQty(minStock, generalSettings)}</div></div>}
+                    {maxStock && <div><div style={{ fontSize: '0.6875rem', color: 'var(--color-text-muted)' }}>Max</div><div style={{ fontFamily: 'var(--font-mono)', fontWeight: 800, fontSize: '1.25rem', color: 'var(--color-text)' }}>{fmtQty(maxStock, generalSettings)}</div></div>}
                   </div>
                 </div>
               ) : null}
@@ -1012,6 +1021,7 @@ function DetailPanel({ id, onClose, onEdit }: {
   const utils = trpc.useUtils();
   const [showArchiveConfirm, setShowArchiveConfirm] = useState(false);
   const { data: p, isLoading } = trpc.products.getById.useQuery({ id });
+  const { data: generalSettings } = trpc.settings.getGeneralSettings.useQuery();
   const archiveMut = trpc.products.archive.useMutation({
     onSuccess: () => { utils.products.list.invalidate(); onClose(); },
   });
@@ -1060,8 +1070,8 @@ function DetailPanel({ id, onClose, onEdit }: {
           gap: 0, borderBottom: '1.5px solid var(--color-border)',
         }}>
           {[
-            { label: 'Cost Price',  value: `₨ ${fmtAmt(p.cost_price)}`,  color: 'var(--color-text)' },
-            { label: 'Sale Price',  value: `₨ ${fmtAmt(p.sale_price)}`,  color: 'var(--color-debit)' },
+            { label: 'Cost Price',  value: formatMoney(p.cost_price, generalSettings),  color: 'var(--color-text)' },
+            { label: 'Sale Price',  value: formatMoney(p.sale_price, generalSettings),  color: 'var(--color-debit)' },
             { label: 'Margin',      value: margin ? `${margin}%` : '—',   color: margin && parseFloat(margin) >= 20 ? 'var(--color-credit)' : 'var(--color-warning)' },
           ].map((k, i) => (
             <div key={k.label} style={{
@@ -1081,9 +1091,9 @@ function DetailPanel({ id, onClose, onEdit }: {
           gap: 0, borderBottom: '1.5px solid var(--color-border)',
         }}>
           {[
-            { label: 'On Hand',   value: fmtQty(p.qty_on_hand),     color: isLowStock ? 'var(--color-warning)' : 'var(--color-text)' },
-            { label: 'Reserved',  value: fmtQty(p.qty_reserved),    color: 'var(--color-text-muted)' },
-            { label: 'Available', value: fmtQty((parseFloat(p.qty_on_hand)||0) - (parseFloat(p.qty_reserved)||0)), color: 'var(--color-text)' },
+            { label: 'On Hand',   value: fmtQty(p.qty_on_hand, generalSettings),     color: isLowStock ? 'var(--color-warning)' : 'var(--color-text)' },
+            { label: 'Reserved',  value: fmtQty(p.qty_reserved, generalSettings),    color: 'var(--color-text-muted)' },
+            { label: 'Available', value: fmtQty((parseFloat(p.qty_on_hand)||0) - (parseFloat(p.qty_reserved)||0), generalSettings), color: 'var(--color-text)' },
           ].map((k, i) => (
             <div key={k.label} style={{ padding: '10px 14px', borderRight: i < 2 ? '1px solid var(--color-border)' : 'none' }}>
               <div style={{ fontSize: '0.6rem', fontWeight: 800, color: 'var(--color-text-muted)', letterSpacing: 0, marginBottom: 3 }}>{k.label}</div>
@@ -1099,10 +1109,10 @@ function DetailPanel({ id, onClose, onEdit }: {
             { label: 'UOM',        value: p.uom       ? `${p.uom.abbreviation} (${p.uom.name})` : '—' },
             { label: 'Barcode',    value: p.barcode   ?? '—' },
             { label: 'Tax',        value: `${p.tax_category} · ${p.tax_rate}%` },
-            { label: 'Min Level',  value: p.min_stock_level ? fmtQty(p.min_stock_level) : '—' },
-            { label: 'Reorder Qty',value: p.reorder_qty     ? fmtQty(p.reorder_qty)     : '—' },
-            { label: 'Created',    value: fmtDate(p.created_at) },
-            { label: 'Updated',    value: fmtDate(p.updated_at) },
+            { label: 'Min Level',  value: p.min_stock_level ? fmtQty(p.min_stock_level, generalSettings) : '—' },
+            { label: 'Reorder Qty',value: p.reorder_qty     ? fmtQty(p.reorder_qty, generalSettings)     : '—' },
+            { label: 'Created',    value: fmtDate(p.created_at, generalSettings) },
+            { label: 'Updated',    value: fmtDate(p.updated_at, generalSettings) },
           ].map(row => (
             <div key={row.label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8, paddingBottom: 8, borderBottom: '1px solid var(--color-border-subtle)' }}>
               <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--color-text-muted)', minWidth: 100, flexShrink: 0 }}>{row.label}</span>
@@ -1205,6 +1215,7 @@ function ProductList({ selectedId, onSelect, onNew, onEdit, detailOpen }: {
 
   const { data: categories } = trpc.products.listCategories.useQuery();
   const { data: brands }     = trpc.products.listBrands.useQuery();
+  const { data: generalSettings } = trpc.settings.getGeneralSettings.useQuery();
   const { data, isLoading }  = trpc.products.list.useQuery({
     page, limit: LIMIT,
     search:       search    || undefined,
@@ -1409,13 +1420,13 @@ function ProductList({ selectedId, onSelect, onNew, onEdit, detailOpen }: {
                     {p.category?.name ?? '—'}
                   </td>
                   <td style={{ ...TD, textAlign: 'right' }}>
-                    <MoneyCell value={p.sale_price} />
+                    <MoneyCell value={p.sale_price} settings={generalSettings} />
                   </td>
                   <td style={{ ...TD, textAlign: 'right' }}>
-                    {p.min_sale_price ? <MoneyCell value={p.min_sale_price} muted /> : '—'}
+                    {p.min_sale_price ? <MoneyCell value={p.min_sale_price} muted settings={generalSettings} /> : '—'}
                   </td>
                   <td style={{ ...TD, textAlign: 'right' }}>
-                    <StockIndicator onHand={p.qty_on_hand} minLevel={p.min_stock_level} reorderLevel={p.reorder_level} />
+                    <StockIndicator onHand={p.qty_on_hand} minLevel={p.min_stock_level} reorderLevel={p.reorder_level} settings={generalSettings} />
                   </td>
                   <td style={{ ...TD, textAlign: 'center' }}><StatusBadge status={p.status} /></td>
                   <td style={{ ...TD, textAlign: 'center' }}>

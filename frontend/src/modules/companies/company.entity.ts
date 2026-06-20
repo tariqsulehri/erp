@@ -72,6 +72,33 @@ export class Company {
   @Column('varchar', { length: 50, nullable: true })
   currency_code?: string;
 
+  @Column('varchar', { length: 10, default: 'Rs' })
+  currency_symbol!: string;
+
+  @Column('int', { default: 2 })
+  decimal_places!: number;
+
+  @Column('varchar', { length: 5, default: ',' })
+  thousand_separator!: string;
+
+  @Column('varchar', { length: 5, default: '.' })
+  decimal_separator!: string;
+
+  @Column('varchar', { length: 20, default: 'dd/MM/yyyy' })
+  date_format!: string;
+
+  @Column('varchar', { length: 20, default: '12-hour' })
+  time_format!: '12-hour' | '24-hour';
+
+  @Column('varchar', { length: 80, default: 'Asia/Karachi' })
+  time_zone!: string;
+
+  @Column('varchar', { length: 20, default: 'en-PK' })
+  locale!: string;
+
+  @Column('char', { length: 2, default: 'PK' })
+  default_country_code!: string;
+
   @Column('varchar', { length: 100, nullable: true })
   address?: string;
 

@@ -1,6 +1,11 @@
 import { Repository, FindOptionsWhere, In } from 'typeorm';
 import { Account } from './account.entity';
 import { BaseRepository } from '@/db/base.repository';
+import {
+  getDescendantCodeRange,
+  getParentAccountCode,
+  isTopLevelAccountCode,
+} from './account-code';
 
 /**
  * Account Repository
@@ -13,14 +18,14 @@ export class AccountRepository extends BaseRepository<Account> {
   }
 
   /**
-   * Return all X000 top-level category accounts for the company.
+   * Return all MM00000000 top-level category accounts for the company.
    * Used by the account creation wizard Step 1.
    */
   async findTopLevel(): Promise<Account[]> {
     if (!this.companyId) throw new Error('Company ID not set on repository');
     return this.createQueryBuilder('account')
       .where('account.company_id = :companyId', { companyId: this.companyId })
-      .andWhere('CAST(account.code AS INTEGER) % 1000 = 0')
+      .andWhere('CAST(account.code AS BIGINT) % 100000000 = 0')
       .andWhere('account.is_deleted = false')
       .andWhere('account.is_active = true')
       .orderBy('account.code', 'ASC')
@@ -28,7 +33,7 @@ export class AccountRepository extends BaseRepository<Account> {
   }
 
   /**
-   * Find account by exact 4-digit code, scoped to current company.
+   * Find account by exact 10-digit code, scoped to current company.
    */
   async findByCode(code: string): Promise<Account | null> {
     if (!this.companyId) {
@@ -65,7 +70,7 @@ export class AccountRepository extends BaseRepository<Account> {
   /**
    * Get all direct children of a parent account.
    *
-   * In the 4-digit system every code is the same length, so children are
+   * In the 10-digit system every code is the same length, so children are
    * identified by their parent code matching what getParentCode() returns for them.
    * We fetch all accounts in the numeric range of the parent and filter in JS.
    */
@@ -74,19 +79,13 @@ export class AccountRepository extends BaseRepository<Account> {
       throw new Error('Company ID not set on repository');
     }
 
-    const parentNum = parseInt(parentCode, 10);
-
-    // Determine the numeric range that belongs to this parent's sub-tree
-    let rangeSize: number;
-    if (parentNum % 1000 === 0) rangeSize = 1000; // Category → all codes XYYY
-    else if (parentNum % 100 === 0) rangeSize = 100;  // Group → XXYY
-    else if (parentNum % 10  === 0) rangeSize = 10;   // Sub-Group → XXXY
-    else return [];                                     // Posting → no children
+    const range = getDescendantCodeRange(parentCode);
+    if (!range) return [];
 
     const allInRange = await this.createQueryBuilder('account')
       .where('account.company_id = :companyId', { companyId: this.companyId })
-      .andWhere('CAST(account.code AS INTEGER) > :min', { min: parentNum })
-      .andWhere('CAST(account.code AS INTEGER) < :max', { max: parentNum + rangeSize })
+      .andWhere('CAST(account.code AS BIGINT) > :min', { min: Number(parentCode) })
+      .andWhere('CAST(account.code AS BIGINT) < :max', { max: range.rangeEnd })
       .andWhere('account.is_deleted = false')
       .orderBy('account.code', 'ASC')
       .getMany();
@@ -96,23 +95,14 @@ export class AccountRepository extends BaseRepository<Account> {
   }
 
   /**
-   * Get parent account code using the 4-digit numeric hierarchy.
+   * Get parent account code using the 10-digit numeric hierarchy.
    *
-   * All codes are exactly 4 digits; level is determined by divisibility:
-   *   X000 (÷1000) → Category  → no parent
-   *   XX00 (÷100)  → Group     → parent is X000
-   *   XXX0 (÷10)   → Sub-Group → parent is XX00
-   *   XXXX          → Posting   → parent is XXX0
+   * All codes are exactly 10 digits and use MM GG SS PPPP blocks.
    *
    * No database lookup — pure arithmetic.
    */
   getParentCode(code: string): string | null {
-    const num = parseInt(code, 10);
-    if (isNaN(num)) return null;
-    if (num % 1000 === 0) return null;                                                    // Category — top level
-    if (num % 100  === 0) return String(Math.floor(num / 1000) * 1000).padStart(4, '0'); // Group → Category
-    if (num % 10   === 0) return String(Math.floor(num / 100)  * 100 ).padStart(4, '0'); // Sub-Group → Group
-    return                       String(Math.floor(num / 10)   * 10  ).padStart(4, '0'); // Posting → Sub-Group
+    return getParentAccountCode(code);
   }
 
   /**
@@ -137,7 +127,7 @@ export class AccountRepository extends BaseRepository<Account> {
       .where('account.company_id = :companyId', { companyId: this.companyId })
       .andWhere('account.code IN (:...codes)', { codes })
       .andWhere('account.is_deleted = false')
-      .orderBy('CAST(account.code AS INTEGER) % 1000 = 0 AND CAST(account.code AS INTEGER) > 0', 'DESC') // Categories first
+      .orderBy('account.code', 'ASC')
       .addOrderBy('account.code', 'ASC');
 
     return query.getMany();
@@ -228,7 +218,7 @@ export class AccountRepository extends BaseRepository<Account> {
       const parentCode = this.getParentCode(account.code);
       if (parentCode && nodeMap.has(parentCode)) {
         nodeMap.get(parentCode)!.children.push(nodeMap.get(account.code)!);
-      } else if (!parentCode) {
+      } else if (!parentCode || isTopLevelAccountCode(account.code)) {
         tree.push(nodeMap.get(account.code)!);
       }
     }

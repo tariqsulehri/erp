@@ -7,11 +7,11 @@ import {
  * Supplier — Accounts Payable sub-ledger master.
  *
  * Each supplier corresponds to one or more entries in the AP control account
- * (typically account code 2100).  The sum of all supplier open balances must
+ * (normally an account in the 0201010001–0201999999 range). The sum of all supplier open balances must
  * always reconcile to the AP control account in the General Ledger.
  *
  * COA linkage:
- *   ap_account_id      → 2100  Accounts Payable (Control)
+ *   ap_account_id      → linked supplier account, normally in 0201010001–0201999999
  *   advance_account_id → 2300  Supplier Advances / Prepayments
  *
  * Bank details are stored here for use when generating payment vouchers.
@@ -32,6 +32,12 @@ export class Supplier {
   @Column('varchar', { length: 20, default: 'company' })
   supplier_type!: string;                 // individual | company | government
 
+  @Column('varchar', { length: 30, default: 'Supplier' })
+  party_type!: 'Customer' | 'Supplier' | 'Customer And Supplier';
+
+  @Column('varchar', { length: 20, default: 'Supplier' })
+  main_role!: 'Customer' | 'Supplier';
+
   @Column('varchar', { length: 50, nullable: true })
   tax_registration_no?: string;           // VAT / GST / TRN
 
@@ -46,10 +52,10 @@ export class Supplier {
 
   /* ── Financial terms ──────────────────────────────────────── */
   @Column('smallint',              { default: 30  }) payment_terms_days!: number;
-  @Column('char',    { length: 3, default: 'USD' }) currency_code!: string;
+  @Column('char',    { length: 3, default: 'PKR' }) currency_code!: string;
 
   /* ── COA linkage ──────────────────────────────────────────── */
-  @Column('uuid', { nullable: true }) ap_account_id?:      string; // 2100 AP Control
+  @Column('uuid', { nullable: true }) ap_account_id?:      string; // Linked supplier account
   @Column('uuid', { nullable: true }) advance_account_id?: string; // 2300 Advances
 
   /* ── Bank details (used on payment vouchers) ──────────────── */

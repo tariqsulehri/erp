@@ -13,15 +13,17 @@
  *  - Styled ConfirmModal for delete
  */
 
-import { useState, useMemo } from 'react';
+import { useState } from 'react';
 import { trpc } from '@/lib/trpc/client';
 import type { CreateSupplierInput } from '@/modules/suppliers/supplier.schema';
 import { SUPPLIER_TYPES } from '@/modules/suppliers/supplier.schema';
+import { APP_CURRENCY_OPTIONS } from '@/lib/app-settings';
 
 /* ═══ Types ═══════════════════════════════════════════════════════════════ */
 interface SupplierRow {
   id: string; code: string; name: string; trade_name?: string | null;
   supplier_type: string; tax_registration_no?: string | null;
+  party_type: 'Supplier' | 'Customer And Supplier'; main_role: 'Supplier';
   email?: string | null; phone?: string | null; mobile?: string | null;
   address?: string | null;
   city?: string | null; country?: string | null; postal_code?: string | null;
@@ -40,11 +42,26 @@ const TYPE_META: Record<string, { label: string; color: string; bg: string; bord
   government: { label: 'Government', color: '#15803d', bg: 'rgba(21,128,61,0.08)',  border: 'rgba(21,128,61,0.2)'  },
 };
 
+const PARTY_ROLE_META: Record<string, { label: string; color: string; bg: string; border: string }> = {
+  Supplier: { label: 'Supplier', color: '#0891b2', bg: 'rgba(8,145,178,0.08)', border: 'rgba(8,145,178,0.22)' },
+  'Customer And Supplier': { label: 'Customer And Supplier', color: '#0f766e', bg: 'rgba(15,118,110,0.08)', border: 'rgba(15,118,110,0.22)' },
+};
+
+const NUMERIC_INPUT_STYLE = { textAlign: 'right' as const, fontFamily: "'JetBrains Mono', monospace", fontWeight: 700 };
+const CURRENCY_SELECT_STYLE = { fontFamily: "'JetBrains Mono', monospace", fontWeight: 700, textAlign: 'center' as const };
+function selectNumericValue(event: { currentTarget: HTMLInputElement }) {
+  event.currentTarget.select();
+}
+function keepNumericValueSelected(event: { preventDefault: () => void }) {
+  event.preventDefault();
+}
+
 const EMPTY_FORM: CreateSupplierInput = {
   name: '', code: '', trade_name: '', supplier_type: 'company',
+  party_type: 'Supplier', main_role: 'Supplier',
   tax_registration_no: '', email: '', phone: '', mobile: '',
   address: '', city: '', country: '', postal_code: '',
-  payment_terms_days: 30, currency_code: 'USD',
+  payment_terms_days: 30, currency_code: 'PKR',
   ap_account_id: undefined, advance_account_id: undefined,
   bank_name: '', bank_account_no: '', bank_swift_code: '', bank_iban: '',
   is_active: true, notes: '',
@@ -114,6 +131,7 @@ export default function SuppliersPage() {
   const { data: statsData } = trpc.suppliers.stats.useQuery();
   const { data: nextCode }  = trpc.suppliers.nextCode.useQuery(undefined, { enabled: !editId && showForm });
   const { data: accounts = [] } = trpc.suppliers.listAccounts.useQuery();
+  const { data: generalSettings } = trpc.settings.getGeneralSettings.useQuery();
 
   /* ── Mutations ── */
   const createMut = trpc.suppliers.create.useMutation({
@@ -132,13 +150,9 @@ export default function SuppliersPage() {
   /* ── Derived ── */
   const rows = (listData?.data ?? []) as SupplierRow[];
 
-  const _accountOptions = useMemo(() => {
-    return accounts as AccountOption[];
-  }, [accounts]);
-
   /* ── Form helpers ── */
   function openNew() {
-    setEditId(null); setForm({ ...EMPTY_FORM, code: nextCode ?? '' });
+    setEditId(null); setForm({ ...EMPTY_FORM, code: nextCode ?? '', currency_code: generalSettings?.currency_code ?? EMPTY_FORM.currency_code });
     setFormError(''); setSaving(false); setActiveTab('basic'); setShowForm(true);
   }
   function openEdit(s: SupplierRow) {
@@ -146,6 +160,8 @@ export default function SuppliersPage() {
     setForm({
       code: s.code, name: s.name, trade_name: s.trade_name ?? '',
       supplier_type: s.supplier_type as 'individual'|'company'|'government',
+      party_type: (s.party_type ?? 'Supplier') as 'Supplier' | 'Customer And Supplier',
+      main_role: 'Supplier',
       tax_registration_no: s.tax_registration_no ?? '',
       email: s.email ?? '', phone: s.phone ?? '', mobile: s.mobile ?? '',
       address: s.address ?? '',
@@ -195,7 +211,7 @@ export default function SuppliersPage() {
      RENDER
   ══════════════════════════════════════════════════════════════ */
   return (
-    <div style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 18 }}>
+    <div style={{ padding: showForm ? 0 : '20px 24px', display: 'flex', flexDirection: 'column', gap: showForm ? 0 : 18, height: showForm ? '100%' : undefined, minHeight: 0 }}>
 
       <style>{`
         .supp-row td { transition: background 0.1s; }
@@ -214,7 +230,7 @@ export default function SuppliersPage() {
       `}</style>
 
       {/* ── Page header ── */}
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16 }}>
+      <div style={{ display: showForm ? 'none' : 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
           <div style={{ width: 46, height: 46, borderRadius: 12, background: 'linear-gradient(135deg,#0c4a6e,#0891b2)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 3px 10px rgba(8,145,178,0.35)', flexShrink: 0 }}>
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
@@ -227,15 +243,15 @@ export default function SuppliersPage() {
             <p style={{ margin: '2px 0 0', fontSize: '0.78rem', color: 'var(--color-text-muted)' }}>Accounts Payable sub-ledger</p>
           </div>
         </div>
-        <button className="btn-primary" onClick={openNew}
-          style={{ background: 'linear-gradient(135deg,#0c4a6e,#0891b2)', display: 'flex', alignItems: 'center', gap: 7, padding: '9px 18px', fontWeight: 700, whiteSpace: 'nowrap' }}>
+        <button className={showForm ? 'btn-secondary' : 'btn-primary'} onClick={showForm ? closeForm : openNew}
+          style={{ background: showForm ? undefined : 'linear-gradient(135deg,#0c4a6e,#0891b2)', display: 'flex', alignItems: 'center', gap: 7, padding: '9px 18px', fontWeight: 700, whiteSpace: 'nowrap' }}>
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-          New Supplier
+          {showForm ? 'Back To List' : 'New Supplier'}
         </button>
       </div>
 
       {/* ── KPI chips ── */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0,1fr))', gap: 10, maxWidth: 580 }}>
+      <div style={{ display: showForm ? 'none' : 'grid', gridTemplateColumns: 'repeat(4, minmax(0,1fr))', gap: 10, maxWidth: 580 }}>
         {[
           { label: 'Total',    value: statsData?.total    ?? 0, col: '#0891b2', bg: 'rgba(8,145,178,0.08)',  border: 'rgba(8,145,178,0.2)',
             icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M20 7H4a2 2 0 00-2 2v6a2 2 0 002 2h16a2 2 0 002-2V9a2 2 0 00-2-2z"/><path d="M16 21V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v16"/></svg> },
@@ -265,7 +281,7 @@ export default function SuppliersPage() {
       )}
 
       {/* ── Toolbar ── */}
-      <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+      <div style={{ display: showForm ? 'none' : 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
         <div style={{ position: 'relative', width: 260 }}>
           <svg style={{ position: 'absolute', left: 9, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }} width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--color-text-muted)" strokeWidth="2.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
           <input className="input" placeholder="Search name, code, email…" value={search} onChange={e => setSearch(e.target.value)} style={{ paddingLeft: 30, width: '100%' }} />
@@ -292,15 +308,15 @@ export default function SuppliersPage() {
         </span>
       </div>
 
-      {/* ── Main split ── */}
-      <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start' }}>
+      {/* ── Main view ── */}
+      <div style={{ display: 'block', flex: showForm ? 1 : undefined, minHeight: 0 }}>
 
         {/* ─── Table ─── */}
-        <div style={{ flex: showForm ? '0 0 55%' : 1, border: '1px solid var(--color-border)', borderRadius: 10, overflow: 'hidden', boxShadow: '0 1px 4px rgba(0,0,0,0.05)' }}>
+        <div style={{ display: showForm ? 'none' : 'block', border: '1px solid var(--color-border)', borderRadius: 10, overflow: 'hidden', boxShadow: '0 1px 4px rgba(0,0,0,0.05)' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
               <tr>
-                {['Code','Name','Type','Terms','Contact','Bank','Status',''].map((h, i) => (
+                {['Code','Name','Party Type','Terms','Contact','Bank','Status',''].map((h, i) => (
                   <th key={h+i} style={{ padding: '10px 12px', textAlign: i >= 6 ? 'center' : 'left', fontSize: '0.68rem', fontWeight: 700, letterSpacing: 0, background: 'var(--color-table-head-bg)', color: 'var(--color-table-head-fg)', borderBottom: '2px solid var(--color-border)', whiteSpace: 'nowrap' }}>{h}</th>
                 ))}
               </tr>
@@ -337,6 +353,7 @@ export default function SuppliersPage() {
               ) : rows.map((s, idx) => {
                 const isEditing = editId === s.id && showForm;
                 const meta = TYPE_META[s.supplier_type] ?? TYPE_META.company;
+                const roleMeta = PARTY_ROLE_META[s.party_type ?? 'Supplier'] ?? PARTY_ROLE_META.Supplier;
                 const hasBank = !!(s.bank_account_no || s.bank_iban);
                 return (
                   <tr key={s.id} className={`supp-row${isEditing ? ' supp-editing' : ''}`}
@@ -349,7 +366,10 @@ export default function SuppliersPage() {
                       {s.trade_name && <div style={{ fontSize: '0.72rem', color: 'var(--color-text-muted)' }}>{s.trade_name}</div>}
                     </td>
                     <td style={{ padding: '9px 12px' }}>
-                      <span style={{ fontSize: '0.72rem', fontWeight: 600, padding: '3px 9px', borderRadius: 5, background: meta.bg, color: meta.color, border: `1px solid ${meta.border}` }}>{meta.label}</span>
+                      <span style={{ fontSize: '0.72rem', fontWeight: 700, padding: '3px 9px', borderRadius: 5, background: roleMeta.bg, color: roleMeta.color, border: `1px solid ${roleMeta.border}` }}>{roleMeta.label}</span>
+                      <div style={{ marginTop: 3, fontSize: '0.68rem', color: 'var(--color-text-muted)' }}>
+                        Main Role: Supplier
+                      </div>
                     </td>
                     <td style={{ padding: '9px 12px', fontSize: '0.8rem', color: 'var(--color-text-muted)', whiteSpace: 'nowrap' }}>
                       Net {s.payment_terms_days}
@@ -392,7 +412,7 @@ export default function SuppliersPage() {
 
         {/* ─── Form panel ─── */}
         {showForm && (
-          <div style={{ flex: '0 0 43%', border: '1px solid var(--color-border)', borderRadius: 12, background: 'var(--color-surface)', overflow: 'hidden', boxShadow: '0 6px 28px rgba(0,0,0,0.1)', display: 'flex', flexDirection: 'column', maxHeight: 'calc(100vh - 200px)' }}>
+          <div style={{ width: '100%', height: '100%', border: 'none', borderRadius: 0, background: 'var(--color-surface)', overflow: 'hidden', boxShadow: 'none', display: 'flex', flexDirection: 'column', maxHeight: 'none', minHeight: 0 }}>
 
             {/* Header */}
             <div style={{ padding: '15px 20px', background: 'linear-gradient(135deg,#0c4a6e,#0891b2)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexShrink: 0 }}>
@@ -404,8 +424,8 @@ export default function SuppliersPage() {
                   <h3 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 700, color: '#fff' }}>
                     {editId ? 'Edit Supplier' : 'New Supplier'}
                   </h3>
-                  <p style={{ margin: '2px 0 0', fontSize: '0.72rem', color: 'rgba(255,255,255,0.65)' }}>
-                    Accounts Payable sub-ledger
+                    <p style={{ margin: '2px 0 0', fontSize: '0.72rem', color: 'rgba(255,255,255,0.65)' }}>
+                    One linked account for this party
                   </p>
                 </div>
               </div>
@@ -451,7 +471,32 @@ export default function SuppliersPage() {
                     <input className="input" value={form.trade_name ?? ''} onChange={e => setF('trade_name', e.target.value)} placeholder="ABC Suppliers (optional)" maxLength={200} />
                   </div>
                   <div className="form-group" style={{ marginBottom: 0 }}>
-                    <label className="form-label">Supplier Type</label>
+                    <label className="form-label">Party Type</label>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap', minHeight: 38 }}>
+                      <span style={{ fontSize: '0.8rem', fontWeight: 800, padding: '6px 12px', borderRadius: 7, background: PARTY_ROLE_META.Supplier.bg, color: PARTY_ROLE_META.Supplier.color, border: `1px solid ${PARTY_ROLE_META.Supplier.border}` }}>
+                        Supplier
+                      </span>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', color: 'var(--color-text-secondary)', fontSize: '0.84rem', fontWeight: 700 }}>
+                        <input
+                          type="checkbox"
+                          checked={form.party_type === 'Customer And Supplier'}
+                          onChange={event => {
+                            setF('party_type', event.target.checked ? 'Customer And Supplier' : 'Supplier');
+                            setF('main_role', 'Supplier');
+                          }}
+                          style={{ width: 16, height: 16, accentColor: '#0891b2' }}
+                        />
+                        Also Works As Customer
+                      </label>
+                    </div>
+                    {form.party_type === 'Customer And Supplier' && (
+                      <div style={{ marginTop: 6, fontSize: '0.72rem', color: 'var(--color-text-muted)', lineHeight: 1.5 }}>
+                        Main Role: <strong style={{ color: 'var(--color-text)' }}>Supplier</strong>. This party can also buy from us, using the same linked account.
+                      </div>
+                    )}
+                  </div>
+                  <div className="form-group" style={{ marginBottom: 0 }}>
+                    <label className="form-label">Business Type</label>
                     <div style={{ display: 'flex', gap: 6 }}>
                       {SUPPLIER_TYPES.map(t => {
                         const m = TYPE_META[t]; const active = form.supplier_type === t;
@@ -523,23 +568,37 @@ export default function SuppliersPage() {
               )}
 
               {/* ── FINANCIAL TAB ── */}
-              {activeTab === 'financial' && (
-                <>
-                  <Section title="Payment Terms" icon={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>} />
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 80px', gap: 12 }}>
-                    <div className="form-group" style={{ marginBottom: 0 }}>
-                      <label className="form-label">Payment Terms (days)</label>
-                      <select className="input" value={form.payment_terms_days} onChange={e => setF('payment_terms_days', Number(e.target.value))}>
-                        {[7, 14, 30, 45, 60, 90, 120].map(d => <option key={d} value={d}>Net {d}</option>)}
+	              {activeTab === 'financial' && (
+	                <>
+	                  <Section title="Payment Terms" icon={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>} />
+	                  <div style={{ display: 'grid', gridTemplateColumns: '150px 92px', gap: 12, alignItems: 'end', justifyContent: 'start' }}>
+	                    <div className="form-group" style={{ marginBottom: 0 }}>
+	                      <label className="form-label">Payment Terms (days)</label>
+                      <input
+                        className="input"
+                        type="number"
+                        min={0}
+                        max={365}
+                        step={1}
+	                        inputMode="numeric"
+	                        value={form.payment_terms_days}
+	                        onFocus={selectNumericValue}
+	                        onMouseUp={keepNumericValueSelected}
+	                        onChange={e => setF('payment_terms_days', Math.max(0, Math.min(365, Number(e.target.value) || 0)))}
+	                        style={NUMERIC_INPUT_STYLE}
+	                      />
+	                    </div>
+	                    <div className="form-group" style={{ marginBottom: 0 }}>
+	                      <label className="form-label">Currency</label>
+	                      <select className="input" value={form.currency_code} onChange={e => setF('currency_code', e.target.value)} style={CURRENCY_SELECT_STYLE}>
+	                        {APP_CURRENCY_OPTIONS.map(currency => (
+	                          <option key={currency.code} value={currency.code}>{currency.code}</option>
+	                        ))}
                       </select>
-                    </div>
-                    <div className="form-group" style={{ marginBottom: 0 }}>
-                      <label className="form-label">Currency</label>
-                      <input className="input" value={form.currency_code} onChange={e => setF('currency_code', e.target.value.toUpperCase().slice(0,3))} maxLength={3} style={{ fontFamily: 'monospace', fontWeight: 700, textAlign: 'center' }} />
                     </div>
                   </div>
 
-                  <Section title="GL Sub-ledger Account" icon={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>} />
+                  <Section title="Linked Account" icon={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>} />
 
                   {/* Auto-assigned GL account display */}
                   {editId ? (
@@ -551,7 +610,7 @@ export default function SuppliersPage() {
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#0891b2" strokeWidth="2.5" strokeLinecap="round"><polyline points="20 6 9 17 4 12"/></svg>
                           </div>
                           <div style={{ flex: 1, minWidth: 0 }}>
-                            <div style={{ fontSize: '0.68rem', fontWeight: 700, color: '#0891b2', letterSpacing: 0, marginBottom: 3 }}>AP Sub-ledger Account (Auto-assigned)</div>
+                            <div style={{ fontSize: '0.68rem', fontWeight: 700, color: '#0891b2', letterSpacing: 0, marginBottom: 3 }}>Linked Account (Auto Assigned)</div>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                               <span style={{ fontFamily: "'JetBrains Mono',monospace", fontWeight: 800, fontSize: '0.9rem', color: '#0891b2', background: 'rgba(8,145,178,0.12)', padding: '2px 8px', borderRadius: 5 }}>{assigned.code}</span>
                               <span style={{ fontSize: '0.84rem', fontWeight: 600, color: 'var(--color-text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{assigned.name}</span>
@@ -560,7 +619,7 @@ export default function SuppliersPage() {
                         </div>
                       ) : (
                         <div style={{ padding: '10px 14px', borderRadius: 8, background: 'rgba(8,145,178,0.05)', border: '1px solid rgba(8,145,178,0.15)', fontSize: '0.78rem', color: '#0891b2' }}>
-                          GL account not yet assigned — will be auto-created on next save.
+                          Linked Account is not yet assigned. It will be auto-created on next save.
                         </div>
                       );
                     })()
@@ -570,23 +629,13 @@ export default function SuppliersPage() {
                         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#0891b2" strokeWidth="2.5" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
                       </div>
                       <div>
-                        <div style={{ fontSize: '0.78rem', fontWeight: 700, color: '#0891b2', marginBottom: 3 }}>GL Account will be auto-created</div>
+                        <div style={{ fontSize: '0.78rem', fontWeight: 700, color: '#0891b2', marginBottom: 3 }}>Linked Account Will Be Auto Created</div>
                         <div style={{ fontSize: '0.74rem', color: '#0891b2', opacity: 0.8, lineHeight: 1.6 }}>
-                          A dedicated AP sub-ledger posting account (code range <strong>2100001–2199999</strong>, up to 99,999 suppliers) will be automatically created in the Chart of Accounts and linked to this supplier when you save.
+                          One posting account will be automatically created in the Chart of Accounts and linked to this party when you save.
                         </div>
                       </div>
                     </div>
                   )}
-
-                  <div className="form-group" style={{ marginBottom: 0 }}>
-                    <label className="form-label">Advance / Prepayment Account</label>
-                    <select className="input" value={form.advance_account_id ?? ''} onChange={e => setF('advance_account_id', e.target.value || undefined)}>
-                      <option value="">(Use company default advance account)</option>
-                      {(accounts as AccountOption[]).map(a => (
-                        <option key={a.id} value={a.id}>{a.code} — {a.name}</option>
-                      ))}
-                    </select>
-                  </div>
                 </>
               )}
 

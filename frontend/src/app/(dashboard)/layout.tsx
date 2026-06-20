@@ -31,31 +31,48 @@ import {
 const iconProps = { size: 18, stroke: 1.8 } as const;
 const smallIconProps = { size: 15, stroke: 1.9 } as const;
 
+type SidebarChild =
+  | { label: string; section: true }
+  | {
+      label: string;
+      href: string;
+      icon: TablerIcon;
+      color: string;
+      code: string;
+      moduleKey: string;
+      featureKey: string;
+      permissionKey: string;
+    };
+
 /* ── Voucher sub-menu items ──────────────────────────────────────────────── */
 const VOUCHER_ITEMS = [
-  { label: 'Bank Receipt',  href: '/vouchers/bank-receipt',  icon: IconBuildingBank, color: '#15803d', code: 'BRV' },
-  { label: 'Bank Payment',  href: '/vouchers/bank-payment',  icon: IconBuildingBank, color: '#b91c1c', code: 'BPV' },
-  { label: 'Cash Receipt',  href: '/vouchers/cash-receipt',  icon: IconWallet,       color: '#0891b2', code: 'CRV' },
-  { label: 'Cash Payment',  href: '/vouchers/cash-payment',  icon: IconWallet,       color: '#d97706', code: 'CPV' },
-  { label: 'Journal Entry', href: '/vouchers/journal',       icon: IconFileInvoice,  color: '#1d4ed8', code: 'JV'  },
-] as const;
+  { label: 'Bank Receipt',  href: '/vouchers/bank-receipt',  icon: IconBuildingBank, color: '#15803d', code: 'BRV', moduleKey: 'finance', featureKey: 'bank-receipt', permissionKey: 'finance.vouchers.bank_receipt.view' },
+  { label: 'Bank Payment',  href: '/vouchers/bank-payment',  icon: IconBuildingBank, color: '#b91c1c', code: 'BPV', moduleKey: 'finance', featureKey: 'bank-payment', permissionKey: 'finance.vouchers.bank_payment.view' },
+  { label: 'Cash Receipt',  href: '/vouchers/cash-receipt',  icon: IconWallet,       color: '#0891b2', code: 'CRV', moduleKey: 'finance', featureKey: 'cash-receipt', permissionKey: 'finance.vouchers.cash_receipt.view' },
+  { label: 'Cash Payment',  href: '/vouchers/cash-payment',  icon: IconWallet,       color: '#d97706', code: 'CPV', moduleKey: 'finance', featureKey: 'cash-payment', permissionKey: 'finance.vouchers.cash_payment.view' },
+  { label: 'Journal Entry', href: '/vouchers/journal',       icon: IconFileInvoice,  color: '#1d4ed8', code: 'JV',  moduleKey: 'finance', featureKey: 'journal-entry', permissionKey: 'finance.vouchers.journal_entry.view' },
+] satisfies readonly SidebarChild[];
 
 /* ── Inventory sub-menu items ────────────────────────────────────────────── */
 const INVENTORY_ITEMS = [
-  { label: 'Products',          href: '/inventory/products',   icon: IconPackage,     color: '#1d4ed8', code: 'PRD' },
-  { label: 'Categories',        href: '/inventory/categories', icon: IconCategory2,   color: '#0891b2', code: 'CAT' },
-  { label: 'Units of Measure',  href: '/inventory/uom',        icon: IconRulerMeasure,color: '#15803d', code: 'UOM' },
-] as const;
+  { label: 'Products',          href: '/inventory/products',   icon: IconPackage,     color: '#1d4ed8', code: 'PRD', moduleKey: 'inventory', featureKey: 'products', permissionKey: 'inventory.products.view' },
+  { label: 'Categories',        href: '/inventory/categories', icon: IconCategory2,   color: '#0891b2', code: 'CAT', moduleKey: 'inventory', featureKey: 'categories', permissionKey: 'inventory.categories.view' },
+  { label: 'Units of Measure',  href: '/inventory/uom',        icon: IconRulerMeasure,color: '#15803d', code: 'UOM', moduleKey: 'inventory', featureKey: 'units-of-measure', permissionKey: 'inventory.units_of_measure.view' },
+] satisfies readonly SidebarChild[];
 
 /* ── AR sub-menu items ───────────────────────────────────────────────────── */
 const AR_ITEMS = [
-  { label: 'Customers', href: '/ar/customers', icon: IconUsersGroup, color: '#1d4ed8', code: 'CUS' },
-] as const;
+  { label: 'Master Data', section: true },
+  { label: 'Customers', href: '/ar/customers', icon: IconUsersGroup, color: '#1d4ed8', code: 'CUS', moduleKey: 'receivables', featureKey: 'customers', permissionKey: 'receivables.customers.view' },
+] satisfies readonly SidebarChild[];
 
 /* ── AP sub-menu items ───────────────────────────────────────────────────── */
 const AP_ITEMS = [
-  { label: 'Suppliers', href: '/ap/suppliers', icon: IconTruckDelivery, color: '#0891b2', code: 'SUP' },
-] as const;
+  { label: 'Master Data', section: true },
+  { label: 'Suppliers', href: '/ap/suppliers', icon: IconTruckDelivery, color: '#0891b2', code: 'SUP', moduleKey: 'payables', featureKey: 'suppliers', permissionKey: 'payables.suppliers.view' },
+  { label: 'Transactions', section: true },
+  { label: 'Purchase Voucher', href: '/ap/purchases', icon: IconFileInvoice, color: '#1d4ed8', code: 'PI', moduleKey: 'payables', featureKey: 'purchase-voucher', permissionKey: 'payables.purchase_voucher.view' },
+] satisfies readonly SidebarChild[];
 
 /* ── NAV definition ──────────────────────────────────────────────────────── */
 const NAV = [
@@ -124,9 +141,9 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
     if (vItem) return vItem.label;
     const iItem = INVENTORY_ITEMS.find(i => pathname.startsWith(i.href));
     if (iItem) return iItem.label;
-    const arItem = AR_ITEMS.find(a => pathname.startsWith(a.href));
+    const arItem = AR_ITEMS.find(a => !('section' in a) && pathname.startsWith(a.href));
     if (arItem) return arItem.label;
-    const apItem = AP_ITEMS.find(a => pathname.startsWith(a.href));
+    const apItem = AP_ITEMS.find(a => !('section' in a) && pathname.startsWith(a.href));
     if (apItem) return apItem.label;
     const nav = NAV.find(n => !n.section && n.href && pathname.startsWith(n.href));
     return nav?.label ?? 'Dashboard';
@@ -204,7 +221,23 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
                       borderLeft: '2px solid var(--color-border)',
                       paddingLeft: 2,
                     }}>
-                      {(subItems as readonly { label: string; href: string; icon: TablerIcon; color: string; code: string }[]).map(sub => {
+                      {(subItems as readonly SidebarChild[]).map(sub => {
+                        if ('section' in sub) {
+                          return (
+                            <div
+                              key={sub.label}
+                              style={{
+                                padding: '7px 10px 3px',
+                                color: 'var(--color-text-light)',
+                                fontSize: '0.62rem',
+                                fontWeight: 900,
+                                letterSpacing: 0,
+                              }}
+                            >
+                              {sub.label}
+                            </div>
+                          );
+                        }
                         const subActive = pathname.startsWith(sub.href);
                         const SubIcon = sub.icon;
                         return (
@@ -212,6 +245,9 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
                             key={sub.href}
                             href={sub.href}
                             className={`nav-item nav-sub-item${subActive ? ' active' : ''}`}
+                            data-module={sub.moduleKey}
+                            data-feature={sub.featureKey}
+                            data-permission={sub.permissionKey}
                             style={{
                               paddingLeft: 10,
                               fontSize: '0.8rem',

@@ -2,6 +2,8 @@ import { z } from 'zod';
 
 export const CUSTOMER_TYPES = ['individual', 'company', 'government'] as const;
 export type CustomerType = typeof CUSTOMER_TYPES[number];
+export const PARTY_TYPES = ['Customer', 'Supplier', 'Customer And Supplier'] as const;
+export const MAIN_ROLES = ['Customer', 'Supplier'] as const;
 
 export const PAYMENT_TERMS = [7, 14, 30, 45, 60, 90, 120] as const;
 
@@ -11,6 +13,8 @@ export const CreateCustomerInput = z.object({
   name:                z.string().min(1).max(200).trim(),
   trade_name:          z.string().max(200).trim().optional(),
   customer_type:       z.enum(CUSTOMER_TYPES).default('company'),
+  party_type:          z.enum(PARTY_TYPES).default('Customer'),
+  main_role:           z.enum(MAIN_ROLES).default('Customer'),
   tax_registration_no: z.string().max(50).trim().optional(),
 
   email:    z.string().email().optional().or(z.literal('')),
@@ -25,7 +29,7 @@ export const CreateCustomerInput = z.object({
 
   payment_terms_days: z.number().int().min(0).max(365).default(30),
   credit_limit:       z.number().min(0).default(0),
-  currency_code:      z.string().length(3).toUpperCase().default('USD'),
+  currency_code:      z.string().length(3).toUpperCase().default('PKR'),
 
   ar_account_id:      z.string().uuid().optional(),
   advance_account_id: z.string().uuid().optional(),

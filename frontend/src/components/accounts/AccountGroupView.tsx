@@ -13,32 +13,29 @@
 
 import { useState } from 'react';
 import type { Account } from '@/modules/accounts/account.entity';
+import { getAccountLevel } from '@/modules/accounts/account-code';
 
 interface AccountGroupViewProps {
   accounts: Account[];
 }
 
-/** Category metadata keyed by X000 code */
+/** Category metadata keyed by MM00000000 code */
 const CATEGORY_META: Record<string, { label: string; color: string; bg: string; icon: string }> = {
-  '1000': { label: 'Assets',      color: '#2563eb', bg: '#eff6ff', icon: '🏦' },
-  '2000': { label: 'Liabilities', color: '#dc2626', bg: '#fef2f2', icon: '📋' },
-  '3000': { label: 'Equity',      color: '#7c3aed', bg: '#f5f3ff', icon: '📊' },
-  '4000': { label: 'Revenue',     color: '#16a34a', bg: '#f0fdf4', icon: '💰' },
-  '5000': { label: 'Expenses',    color: '#d97706', bg: '#fffbeb', icon: '💸' },
+  '0100000000': { label: 'Assets',      color: '#2563eb', bg: '#eff6ff', icon: '🏦' },
+  '0200000000': { label: 'Liabilities', color: '#dc2626', bg: '#fef2f2', icon: '📋' },
+  '0300000000': { label: 'Equity',      color: '#7c3aed', bg: '#f5f3ff', icon: '📊' },
+  '0400000000': { label: 'Revenue',     color: '#16a34a', bg: '#f0fdf4', icon: '💰' },
+  '0500000000': { label: 'Expenses',    color: '#d97706', bg: '#fffbeb', icon: '💸' },
 };
 
-/** Returns the X000 category code for any 4-digit account code */
+/** Returns the MM00000000 category code for any 10-digit account code */
 function categoryOf(code: string): string {
-  return String(Math.floor(parseInt(code, 10) / 1000) * 1000).padStart(4, '0');
+  return `${code.slice(0, 2)}00000000`;
 }
 
 /** Returns the hierarchy level */
 function levelOf(code: string): number {
-  const n = parseInt(code, 10);
-  if (n % 1000 === 0) return 1;
-  if (n % 100  === 0) return 2;
-  if (n % 10   === 0) return 3;
-  return 4;
+  return getAccountLevel(code);
 }
 
 /** Indent per level for group rows */
@@ -114,7 +111,7 @@ function GroupPanel({ catCode, accounts }: GroupPanelProps) {
         <div>
           {/* Sub-header */}
           <div style={{
-            display: 'grid', gridTemplateColumns: '100px 1fr 90px 80px 70px',
+            display: 'grid', gridTemplateColumns: '130px 1fr 90px 80px 70px',
             padding: '6px 20px', gap: 8,
             background: '#f8fafc', borderBottom: '1px solid var(--color-border)',
             fontSize: 'var(--font-size-xs)', fontWeight: 600,
@@ -137,7 +134,7 @@ function GroupPanel({ catCode, accounts }: GroupPanelProps) {
                 key={acct.id}
                 style={{
                   display: 'grid',
-                  gridTemplateColumns: '100px 1fr 90px 80px 70px',
+                  gridTemplateColumns: '130px 1fr 90px 80px 70px',
                   gap: 8,
                   padding: '8px 20px',
                   paddingLeft: 20 + indent,
