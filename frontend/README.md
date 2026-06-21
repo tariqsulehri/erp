@@ -1,219 +1,99 @@
-# ERP Financial Module
+# ERP Frontend
 
-A professional-grade, multi-company ERP Financial Module built with Next.js, TypeScript, and PostgreSQL.
+Professional ERP frontend for the current split architecture.
+
+The frontend is a Next.js application. It owns screens, forms, layout, validation, formatting, and API clients. It does not own database migrations, seeds, ORM entities, or backend business rules.
 
 ## Quick Start
 
 ### Prerequisites
+
 - Node.js 24
-- Docker & Docker Compose
 - npm 10+
+- Backend API running on port `4000`
 
-### Installation
+### Environment
 
-1. **Clone and setup:**
+Create or update `frontend/.env.local`:
+
 ```bash
-cd /path/to/ERP
+NEXT_PUBLIC_BACKEND_API_URL=http://localhost:4000/api/v1
+```
+
+If the variable is not set, the frontend API client defaults to `http://localhost:4000/api/v1`.
+
+### Install And Run
+
+```bash
+cd frontend
 npm install
-```
-
-2. **Start databases:**
-```bash
-docker-compose up -d
-```
-
-3. **Environment configuration:**
-```bash
-cp .env.example .env.local
-# Edit .env.local with your settings
-```
-
-4. **Initialize database:**
-```bash
-npm run db:migrate
-npm run db:seed
-```
-
-5. **Start development server:**
-```bash
 npm run dev
 ```
 
-Visit `http://localhost:3000` and log in with:
-- Email: `admin@example.com`
-- Password: `admin123`
+Open `http://localhost:3000`.
+
+The frontend development server should use port `3000`.
 
 ## Architecture
 
-### Directory Structure
-
-```
+```text
 src/
-├── app/              # Next.js App Router (thin presentation layer)
-├── modules/          # Business logic (fat domain models)
-├── server/           # tRPC API layer (thin wrappers)
-├── db/               # Database configuration & entities
-├── lib/              # Utilities & helpers
-├── components/       # React components
-├── types/            # TypeScript type definitions
-└── worker/           # BullMQ background jobs
+├── app/              # Next.js App Router pages and layouts
+├── components/       # Reusable UI and module components
+├── constants/        # Shared UI constants and defaults
+├── hooks/            # Reusable React hooks
+├── lib/              # API clients, formatting, validation, helpers
+├── modules/          # Frontend module models and helpers only
+└── types/            # Shared frontend TypeScript types
 ```
 
-### Key Principles
+## Current Integration Pattern
 
-1. **Thin App, Fat Modules**: Business logic lives in `/modules`, isolated from Next.js
-2. **Money Math**: All financial calculations use `Decimal.js`, never floats
-3. **Multi-Company**: Every table has `company_id`, filtering is automatic at repository level
-4. **Type Safety**: Full TypeScript + tRPC for end-to-end type safety
-5. **Audit Trail**: All mutations are immutable, versioned in the database
+- Frontend calls backend REST APIs through files in `src/lib/api/`.
+- Backend owns Prisma, PostgreSQL, business rules, posting logic, and transactions.
+- Frontend validates before calling the API, but backend validation remains required.
+- Currency, date format, numeric format, country, and timezone should come from configurable settings.
+
+## Available Scripts
+
+```bash
+npm run dev          # Start frontend on localhost:3000
+npm run build        # Build for production
+npm run start        # Start production build
+npm run lint         # Run ESLint
+npm run type-check   # Check TypeScript
+```
+
+Database commands are intentionally not available in the frontend. Use the backend project for Prisma migrations, database seeds, and backend API work.
 
 ## Technology Stack
 
 | Layer | Technology |
-|-------|-----------|
+| --- | --- |
 | Runtime | Node.js 24 |
-| Framework | Next.js 15 LTS |
-| Language | TypeScript 5.8+ |
-| API | tRPC 11 |
-| Database | PostgreSQL 16 |
-| ORM | TypeORM |
-| Cache | Redis 7 |
-| Auth | Auth.js v5 |
-| Workers | BullMQ |
-| UI | Mantine |
-| Money Math | Decimal.js |
+| Framework | Next.js |
+| Language | TypeScript |
+| Data Fetching | TanStack Query + REST API clients |
+| UI | Tailwind CSS + reusable ERP components |
+| Icons | Lucide React |
+| Formatting | Shared frontend formatting helpers |
 
-## Development
+## Development Rules
 
-### Available Scripts
+- Read `../AGENTS.md` and the relevant files in `../documents/` before code changes.
+- Keep labels, titles, descriptions, and field names simple and easy to understand.
+- Keep modules reusable and avoid putting all logic inside one component.
+- Put shared formatting, validation, API, and UI behavior in reusable files.
+- Keep numeric and amount fields right aligned.
+- Keep voucher action buttons at the top.
+- Keep line item grids dense, readable, and consistent across vouchers.
 
-```bash
-npm run dev              # Start dev server
-npm run build            # Build for production
-npm run start            # Start production server
-npm run lint             # Run ESLint
-npm run format           # Format code with Prettier
-npm run type-check       # Check TypeScript
-npm run test             # Run Jest tests
-npm run test:watch       # Watch mode
-npm run db:migrate       # Run migrations
-npm run db:seed          # Seed database
-npm run worker:dev       # Start BullMQ worker
-npm run docker:up        # Start Docker containers
-npm run docker:down      # Stop Docker containers
-```
+## Verification
 
-### Database
-
-#### Migrations
-```bash
-# Run pending migrations
-npm run db:migrate
-
-# Generate a new migration
-npm run db:migrate:generate --name=AddNewTable
-
-# Revert last migration
-npm run db:migrate:revert
-```
-
-#### Seeds
-```bash
-# Seed initial data (COA templates, roles, etc.)
-npm run db:seed
-```
-
-### Testing
+Before handing over frontend changes, run:
 
 ```bash
-# Run all tests
-npm run test
-
-# Watch mode
-npm run test:watch
-
-# Coverage report
-npm run test:coverage
+npm run type-check
 ```
 
-## Project Structure
-
-### Phase 1: Financial Core (Current)
-
-- ✅ Project initialization
-- ✅ Database setup
-- ✅ Authentication
-- ⏳ Chart of Accounts (COA)
-- ⏳ General Ledger & Journal
-- ⏳ Vouchers (CPV, CRV, JV, BPV, BRV)
-- ⏳ Bank Module
-- ⏳ Accounts Payable & Receivable
-- ⏳ Financial Reports
-
-### Phase 2: Inventory (Coming Q3 2026)
-
-- Item Master & Warehouses
-- Purchase Flow (PO → GRN → PINV)
-- Sales Flow (SO → DN → SINV)
-- Inventory Costing (FIFO, AVCO, Standard)
-- Inventory Adjustment
-
-### Phase 3: Advanced Features (Coming Q4 2026)
-
-- Budget Module
-- Multi-Currency Support
-- Fixed Assets & Depreciation
-- Cost Centre Accounting
-- Custom Report Builder
-
-## Configuration
-
-### Environment Variables
-
-See `.env.example` for all available configuration options.
-
-Key variables:
-- `DATABASE_URL`: PostgreSQL connection
-- `REDIS_URL`: Redis connection
-- `NEXTAUTH_SECRET`: Session encryption secret
-- `S3_ENDPOINT`: MinIO/S3 endpoint
-
-## Deployment
-
-### Docker
-
-```bash
-# Build image
-docker build -t erp-app .
-
-# Build worker image
-docker build -f Dockerfile.worker -t erp-worker .
-
-# Run with docker-compose
-docker-compose -f docker-compose.yml up -d
-```
-
-### Production Checklist
-
-- [ ] Set strong `NEXTAUTH_SECRET`
-- [ ] Enable SSL for database
-- [ ] Configure backups
-- [ ] Set up error monitoring
-- [ ] Enable request logging
-- [ ] Run security audit
-
-## Contributing
-
-1. Follow the architecture principles (thin app, fat modules)
-2. Ensure TypeScript strict mode compliance
-3. Use Decimal.js for all money calculations
-4. Add tests for new features
-5. Run `npm run format` before commit
-
-## License
-
-Proprietary - All rights reserved
-
-## Support
-
-For issues and questions, refer to the project documentation at `/ERP/CONTEXT.md`
+Run browser smoke tests against `http://localhost:3000` when the user has already started the frontend server.

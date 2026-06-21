@@ -11,7 +11,7 @@
 
 import { useState } from 'react';
 import { formatDate, formatMoney, normalizeFormatSettings, type AppFormatSettingsSource } from '@/lib/app-settings';
-import { trpc } from '@/lib/trpc/client';
+import { useGeneralSettings } from '@/lib/api/settings';
 
 type Tab = 'accounts' | 'pdc' | 'reconciliation';
 type PDCType = 'received' | 'issued';
@@ -520,7 +520,7 @@ function ReconciliationTab({ settings }: { settings?: AppFormatSettingsSource | 
 /* ── Page ─────────────────────────────────────────────────────────────── */
 export default function BankPage() {
   const [activeTab, setActiveTab] = useState<Tab>('accounts');
-  const { data: generalSettings } = trpc.settings.getGeneralSettings.useQuery();
+  const { data: generalSettings } = useGeneralSettings();
 
   const TABS: { id: Tab; label: string; icon: string }[] = [
     { id: 'accounts',       label: 'Bank Accounts',      icon: 'M3 9a2 2 0 012-2h14a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9zM8 9V7a4 4 0 018 0v2' },

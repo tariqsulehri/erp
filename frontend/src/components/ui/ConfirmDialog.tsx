@@ -1,5 +1,7 @@
 'use client';
 
+import { IconAlertTriangle, IconInfoCircle } from '@tabler/icons-react';
+
 /**
  * ConfirmDialog — reusable modal for destructive action confirmation.
  *
@@ -29,9 +31,9 @@ interface ConfirmDialogProps {
 }
 
 const VARIANT_STYLE = {
-  danger:  { btn: 'btn-danger',   icon: '⚠️', iconColor: '#dc2626', iconBg: '#fee2e2' },
-  warning: { btn: 'btn-warning',  icon: '⚠️', iconColor: '#d97706', iconBg: '#fef3c7' },
-  primary: { btn: 'btn-primary',  icon: 'ℹ️', iconColor: '#2563eb', iconBg: '#dbeafe' },
+  danger:  { Icon: IconAlertTriangle, color: 'var(--color-danger)', background: 'rgba(220, 38, 38, 0.12)' },
+  warning: { Icon: IconAlertTriangle, color: 'var(--color-warning, #d97706)', background: 'rgba(217, 119, 6, 0.14)' },
+  primary: { Icon: IconInfoCircle, color: 'var(--color-primary)', background: 'var(--color-primary-soft, rgba(37, 99, 235, 0.12))' },
 };
 
 export function ConfirmDialog({
@@ -45,6 +47,7 @@ export function ConfirmDialog({
   if (!open) return null;
 
   const v = VARIANT_STYLE[variant];
+  const Icon = v.Icon;
 
   return (
     <>
@@ -75,11 +78,11 @@ export function ConfirmDialog({
           <div style={{ padding: '24px 24px 20px', display: 'flex', gap: 16 }}>
             <div style={{
               width: 40, height: 40, borderRadius: '50%', flexShrink: 0,
-              background: v.iconBg,
+              background: v.background,
+              color: v.color,
               display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontSize: 18,
             }}>
-              {v.icon}
+              <Icon size={22} stroke={1.9} />
             </div>
             <div>
               <h3 style={{
@@ -102,7 +105,7 @@ export function ConfirmDialog({
             padding: '16px 24px',
             borderTop: '1px solid var(--color-border)',
             display: 'flex', justifyContent: 'flex-end', gap: 10,
-            background: '#f8fafc',
+            background: 'var(--color-surface-muted, var(--color-panel))',
           }}>
             <button
               className="btn btn-secondary"
@@ -116,7 +119,7 @@ export function ConfirmDialog({
               onClick={onConfirm}
               disabled={loading}
               style={{
-                background: variant === 'danger' ? '#dc2626' : variant === 'warning' ? '#d97706' : 'var(--color-primary)',
+                background: variant === 'danger' ? 'var(--color-danger)' : variant === 'warning' ? 'var(--color-warning, #d97706)' : 'var(--color-primary)',
                 color: 'white', border: 'none',
                 display: 'flex', alignItems: 'center', gap: 6,
               }}

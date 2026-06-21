@@ -9,7 +9,15 @@
  */
 
 import { useState, useEffect, useRef } from 'react';
-import { trpc } from '@/lib/trpc/client';
+import { useAccountsList } from '@/lib/api/accounts';
+import { useValidatePostingDate } from '@/lib/api/fiscal-years';
+import {
+  useCreateVoucher,
+  usePostVoucher,
+  useVoidVoucher,
+  useVoucherDetail,
+  useVouchersList,
+} from '@/lib/api/vouchers';
 
 /* ── types ──────────────────────────────────────────────────────────────── */
 type VoucherType   = 'BRV' | 'BPV' | 'CRV' | 'CPV' | 'JV' | 'CV' | 'DN' | 'CN';
@@ -90,9 +98,9 @@ function AccountPicker({ value, label, onSelect, autoFocus }: {
   useEffect(() => { setQ(label); }, [label]);
   useEffect(() => { if (autoFocus) ref.current?.focus(); }, [autoFocus]);
 
-  const { data } = trpc.accounts.list.useQuery(
-    { page: 1, limit: 20, search: q, is_posting: true },
-    { enabled: open && q.length >= 1 },
+  const { data } = useAccountsList(
+    { page: 1, limit: 20, search: q, is_posting: true, is_active: true },
+    open && q.length >= 1,
   );
 
   return (
@@ -185,7 +193,6 @@ export function TypeIcon({ type, size = 16 }: { type: VoucherType; size?: number
 function CreateForm({ voucherType, onSaved, onCancel }: {
   voucherType: VoucherType; onSaved: (id: string) => void; onCancel: () => void;
 }) {
-  const utils = trpc.useUtils();
   const meta  = VOUCHER_META[voucherType];
 
   const [date,      setDate]      = useState(today());
@@ -197,9 +204,7 @@ function CreateForm({ voucherType, onSaved, onCancel }: {
   const nextKey = useRef(4);
 
   /* Fiscal date validation */
-  const dateVal = trpc.fiscalYear.validatePostingDate.useQuery(
-    { date: new Date(date) }, { enabled: date.length === 10, retry: false },
-  );
+  const dateVal = useValidatePostingDate(date, date.length === 10);
   useEffect(() => {
     if (date.length < 10) { setDateErr(''); return; }
     if (dateVal.isLoading) return;
@@ -239,10 +244,7 @@ function CreateForm({ voucherType, onSaved, onCancel }: {
   const balanced = diff < 0.001 && totalDr > 0;
 
   /* Mutation */
-  const createMut = trpc.vouchers.create.useMutation({
-    onSuccess: v => { utils.vouchers.list.invalidate(); onSaved(v.id); },
-    onError:   e => setError(e.message),
-  });
+  const createMut = useCreateVoucher();
 
   function save() {
     setError('');
@@ -258,6 +260,9 @@ function CreateForm({ voucherType, onSaved, onCancel }: {
         dr_amount: parseFloat(l.dr_amount) || 0, cr_amount: parseFloat(l.cr_amount) || 0,
         narration: l.narration || undefined, line_no: i + 1,
       })),
+    }, {
+      onSuccess: voucher => onSaved(voucher.id),
+      onError: error => setError(error.message),
     });
   }
 
@@ -619,17 +624,12 @@ function CreateForm({ voucherType, onSaved, onCancel }: {
 function DetailPanel({ id, onClose, onPosted, voucherType }: {
   id: string; onClose: () => void; onPosted?: () => void; voucherType: VoucherType;
 }) {
-  const utils = trpc.useUtils();
   const [voidReason, setVoidReason] = useState('');
   const [showVoid,   setShowVoid]   = useState(false);
 
-  const { data: v, isLoading } = trpc.vouchers.getById.useQuery({ id });
-  const postMut = trpc.vouchers.post.useMutation({
-    onSuccess: () => { utils.vouchers.list.invalidate(); onPosted?.(); },
-  });
-  const voidMut = trpc.vouchers.void.useMutation({
-    onSuccess: () => { utils.vouchers.list.invalidate(); setShowVoid(false); },
-  });
+  const { data: v, isLoading } = useVoucherDetail(id);
+  const postMut = usePostVoucher();
+  const voidMut = useVoidVoucher();
 
   if (isLoading) return (
     <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--color-text-muted)', gap: 8 }}>
@@ -745,7 +745,7 @@ function DetailPanel({ id, onClose, onPosted, voucherType }: {
             <button className="btn btn-primary btn-sm"
               style={{ background: meta.color, borderColor: meta.color }}
               disabled={postMut.isPending}
-              onClick={() => postMut.mutate({ id: v.id })}
+              onClick={() => postMut.mutate({ id: v.id }, { onSuccess: () => onPosted?.() })}
             >
               {postMut.isPending
                 ? <><div className="spinner" style={{ width: 12, height: 12, borderWidth: 2, borderTopColor: '#fff', borderColor: 'rgba(255,255,255,0.3)' }} /> Posting…</>
@@ -771,7 +771,7 @@ function DetailPanel({ id, onClose, onPosted, voucherType }: {
               />
               <button className="btn btn-danger btn-sm"
                 disabled={!voidReason.trim() || voidMut.isPending}
-                onClick={() => voidMut.mutate({ id: v.id, reason: voidReason })}
+                onClick={() => voidMut.mutate({ id: v.id, reason: voidReason }, { onSuccess: () => setShowVoid(false) })}
               >{voidMut.isPending ? 'Voiding…' : 'Confirm Void'}</button>
               <button className="btn btn-ghost btn-sm" onClick={() => setShowVoid(false)}>Cancel</button>
             </div>
@@ -806,13 +806,13 @@ function VoucherList({ voucherType, selectedId, onSelect, onNewClick, detailOpen
   const [page,      setPage]      = useState(1);
   const LIMIT = 60;
 
-  const { data, isLoading } = trpc.vouchers.list.useQuery({
+  const { data, isLoading } = useVouchersList({
     page, limit: LIMIT, voucher_type: voucherType,
     status:    statusFlt || undefined,
     search:    search    || undefined,
     date_from: dateFrom  || undefined,
     date_to:   dateTo    || undefined,
-  }, { placeholderData: prev => prev });
+  });
 
   const rows  = data?.data ?? [];
   const total = data?.pagination?.total ?? 0;

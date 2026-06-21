@@ -33,6 +33,7 @@ model Company {
   inventoryItems      InventoryItem[]
   origins             Origin[]
   productTypes        ProductType[]
+  branches            Branch[]
   stockBalances       StockBalance[]
   stockMovements      StockMovement[]
   unitsOfMeasure      UnitOfMeasure[]
@@ -42,8 +43,33 @@ model Company {
   bankDepositTypes    BankDepositType[]
   bankDeposits        BankDeposit[]
   bankDepositLines    BankDepositLine[]
+  stockTransfers      StockTransfer[]
+  stockTransferLines  StockTransferLine[]
 
   @@map("companies")
+}
+
+model Branch {
+  id          String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId   String      @map("company_id") @db.Uuid
+  code        String      @db.VarChar(30)
+  name        String      @db.VarChar(150)
+  description String?
+  address     String?
+  city        String?     @db.VarChar(100)
+  phone       String?     @db.VarChar(30)
+  email       String?     @db.VarChar(120)
+  managerName String?     @map("manager_name") @db.VarChar(150)
+  isDefault   Boolean     @default(false) @map("is_default")
+  isActive    Boolean     @default(true) @map("is_active")
+  createdAt   DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime    @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  company     Company     @relation(fields: [companyId], references: [id])
+  warehouses  Warehouse[]
+
+  @@unique([companyId, code])
+  @@index([companyId, isActive])
+  @@map("branches")
 }
 
 model Account {
@@ -489,11 +515,13 @@ model UnitConversion {
 model Warehouse {
   id             String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   companyId      String              @map("company_id") @db.Uuid
+  branchId       String?             @map("branch_id") @db.Uuid
   code           String              @db.VarChar(30)
   name           String              @db.VarChar(150)
   description    String?
   address        String?
   isDefault      Boolean             @default(false) @map("is_default")
+  useLocations   Boolean             @default(false) @map("use_locations")
   isActive       Boolean             @default(true) @map("is_active")
   createdAt      DateTime            @default(now()) @map("created_at")
   updatedAt      DateTime            @default(now()) @updatedAt @map("updated_at")
@@ -501,10 +529,13 @@ model Warehouse {
   stockBalances  StockBalance[]
   stockMovements StockMovement[]
   locations      WarehouseLocation[]
+  branch         Branch?             @relation(fields: [branchId], references: [id])
   company        Company             @relation(fields: [companyId], references: [id])
 
   @@unique([companyId, code])
   @@index([companyId, isActive])
+  @@index([companyId, branchId])
+  @@index([companyId, useLocations])
   @@map("inventory_warehouses")
 }
 
@@ -748,6 +779,62 @@ model StockMovement {
   @@map("inventory_stock_movements")
 }
 
+model StockTransfer {
+  id                  String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId           String              @map("company_id") @db.Uuid
+  transferNumber      String              @map("transfer_number") @db.VarChar(60)
+  transferDate        DateTime            @map("transfer_date") @db.Date
+  fromWarehouseId     String              @map("from_warehouse_id") @db.Uuid
+  fromLocationId      String?             @map("from_location_id") @db.Uuid
+  toWarehouseId       String              @map("to_warehouse_id") @db.Uuid
+  toLocationId        String?             @map("to_location_id") @db.Uuid
+  referenceNumber     String?             @map("reference_number") @db.VarChar(100)
+  description         String?
+  status              String              @default("Draft") @db.VarChar(20)
+  totalQuantity       Decimal             @default(0) @map("total_quantity") @db.Decimal(18, 4)
+  totalCost           Decimal             @default(0) @map("total_cost") @db.Decimal(18, 4)
+  createdById         String?             @map("created_by_id") @db.Uuid
+  updatedById         String?             @map("updated_by_id") @db.Uuid
+  postedById          String?             @map("posted_by_id") @db.Uuid
+  postedAt            DateTime?           @map("posted_at") @db.Timestamptz(6)
+  createdAt           DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime            @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  isActive            Boolean             @default(true) @map("is_active")
+  company             Company             @relation(fields: [companyId], references: [id])
+  lines               StockTransferLine[]
+
+  @@unique([companyId, transferNumber])
+  @@index([companyId, transferDate, transferNumber])
+  @@index([companyId, status, transferDate])
+  @@index([companyId, fromWarehouseId])
+  @@index([companyId, toWarehouseId])
+  @@map("stock_transfers")
+}
+
+model StockTransferLine {
+  id              String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId       String        @map("company_id") @db.Uuid
+  stockTransferId String        @map("stock_transfer_id") @db.Uuid
+  lineNumber      Int           @map("line_number")
+  itemId          String        @map("item_id") @db.Uuid
+  itemCode        String        @map("item_code") @db.VarChar(60)
+  itemName        String        @map("item_name") @db.VarChar(250)
+  uomName         String?       @map("uom_name") @db.VarChar(30)
+  quantity        Decimal       @db.Decimal(18, 4)
+  unitCost        Decimal       @default(0) @map("unit_cost") @db.Decimal(18, 4)
+  totalCost       Decimal       @default(0) @map("total_cost") @db.Decimal(18, 4)
+  description     String?
+  createdAt       DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime      @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  isActive        Boolean       @default(true) @map("is_active")
+  company         Company       @relation(fields: [companyId], references: [id])
+  stockTransfer   StockTransfer @relation(fields: [stockTransferId], references: [id], onDelete: Cascade)
+
+  @@unique([stockTransferId, lineNumber])
+  @@index([companyId, itemId])
+  @@map("stock_transfer_lines")
+}
+
 model AccountAuditLog {
   id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   accountId String   @map("account_id") @db.Uuid
@@ -821,6 +908,8 @@ model Customer {
   currencyCode      String   @default("USD") @map("currency_code") @db.Char(3)
   arAccountId       String?  @map("ar_account_id") @db.Uuid
   advanceAccountId  String?  @map("advance_account_id") @db.Uuid
+  partyType         String   @default("Customer") @map("party_type") @db.VarChar(30)
+  mainRole          String   @default("Customer") @map("main_role") @db.VarChar(20)
   isActive          Boolean  @default(true) @map("is_active")
   notes             String?
   createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
@@ -861,6 +950,8 @@ model Supplier {
   currencyCode      String   @default("USD") @map("currency_code") @db.Char(3)
   apAccountId       String?  @map("ap_account_id") @db.Uuid
   advanceAccountId  String?  @map("advance_account_id") @db.Uuid
+  partyType         String   @default("Supplier") @map("party_type") @db.VarChar(30)
+  mainRole          String   @default("Supplier") @map("main_role") @db.VarChar(20)
   bankName          String?  @map("bank_name") @db.VarChar(100)
   bankAccountNo     String?  @map("bank_account_no") @db.VarChar(50)
   bankSwiftCode     String?  @map("bank_swift_code") @db.VarChar(20)

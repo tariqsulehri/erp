@@ -1,6 +1,6 @@
 'use client';
 
-import { trpc } from '@/lib/trpc/client';
+import { useDashboardSummary } from '@/lib/api/dashboard';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, Legend,
@@ -94,9 +94,7 @@ function MonthlyTooltip({ active, payload, label }: any) {
 
 // ── Main page ─────────────────────────────────────────────────────────────────
 export default function DashboardPage() {
-  const { data, isLoading, error } = trpc.dashboard.summary.useQuery(undefined, {
-    refetchOnWindowFocus: false,
-  });
+  const { data, isLoading, error } = useDashboardSummary();
 
   if (isLoading) {
     return (

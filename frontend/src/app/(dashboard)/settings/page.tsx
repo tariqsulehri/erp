@@ -11,7 +11,13 @@
  */
 
 import { useState, useEffect } from 'react';
-import { trpc } from '@/lib/trpc/client';
+import { useAccountsList } from '@/lib/api/accounts';
+import {
+  useCompanyProfile,
+  useGeneralSettings,
+  useUpdateCompanyProfile,
+  useUpdateGeneralSettings,
+} from '@/lib/api/settings';
 import {
   APP_COUNTRY_OPTIONS,
   APP_CURRENCY_POSITION_OPTIONS,
@@ -113,17 +119,24 @@ function RegionalTab({ settings }: { settings: any }) {
     setError('');
   }, [settings?.id]);
 
-  const utils = trpc.useUtils();
-  const mutation = trpc.settings.updateGeneralSettings.useMutation({
-    onSuccess: () => {
-      utils.settings.getGeneralSettings.invalidate();
+  const mutation = useUpdateGeneralSettings();
+
+  useEffect(() => {
+    if (mutation.isSuccess) {
       setSaved(true);
       setDirty(false);
       setError('');
-      setTimeout(() => setSaved(false), 3000);
-    },
-    onError: err => setError(err.message),
-  });
+      const timeoutId = window.setTimeout(() => setSaved(false), 3000);
+      return () => window.clearTimeout(timeoutId);
+    }
+    return undefined;
+  }, [mutation.isSuccess]);
+
+  useEffect(() => {
+    if (mutation.error) {
+      setError(mutation.error.message);
+    }
+  }, [mutation.error]);
 
   const set = (field: keyof typeof form, value: string | number) => {
     setForm(current => ({ ...current, [field]: value }));
@@ -314,17 +327,24 @@ function CompanyTab({ company }: { company: any }) {
 
   useEffect(() => { setForm({ ...company }); setDirty(false); }, [company?.id]);
 
-  const utils = trpc.useUtils();
-  const mutation = trpc.settings.updateCompany.useMutation({
-    onSuccess: () => {
-      utils.settings.getCompany.invalidate();
+  const mutation = useUpdateCompanyProfile();
+
+  useEffect(() => {
+    if (mutation.isSuccess) {
       setSaved(true);
       setDirty(false);
       setError('');
-      setTimeout(() => setSaved(false), 3000);
-    },
-    onError: err => setError(err.message),
-  });
+      const timeoutId = window.setTimeout(() => setSaved(false), 3000);
+      return () => window.clearTimeout(timeoutId);
+    }
+    return undefined;
+  }, [mutation.isSuccess]);
+
+  useEffect(() => {
+    if (mutation.error) {
+      setError(mutation.error.message);
+    }
+  }, [mutation.error]);
 
   const set = (field: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     setForm((f: any) => ({ ...f, [field]: e.target.value || null }));
@@ -407,15 +427,24 @@ function AccountingTab({ company }: { company: any }) {
     setDirty(false);
   }, [company?.id]);
 
-  const utils = trpc.useUtils();
-  const mutation = trpc.settings.updateCompany.useMutation({
-    onSuccess: () => {
-      utils.settings.getCompany.invalidate();
-      setSaved(true); setDirty(false); setError('');
-      setTimeout(() => setSaved(false), 3000);
-    },
-    onError: err => setError(err.message),
-  });
+  const mutation = useUpdateCompanyProfile();
+
+  useEffect(() => {
+    if (mutation.isSuccess) {
+      setSaved(true);
+      setDirty(false);
+      setError('');
+      const timeoutId = window.setTimeout(() => setSaved(false), 3000);
+      return () => window.clearTimeout(timeoutId);
+    }
+    return undefined;
+  }, [mutation.isSuccess]);
+
+  useEffect(() => {
+    if (mutation.error) {
+      setError(mutation.error.message);
+    }
+  }, [mutation.error]);
 
   const FY_OPTIONS = [
     { value: 'calendar', label: 'Calendar Year (Jan – Dec)' },
@@ -491,7 +520,7 @@ function AccountingTab({ company }: { company: any }) {
 
 /* ── COA tab ────────────────────────────────────────────────────────── */
 function COATab({ generalSettings }: { generalSettings: any }) {
-  const { data } = trpc.accounts.list.useQuery({ page: 1, limit: 1000 });
+  const { data } = useAccountsList({ page: 1, limit: 1000 });
   const accounts = data?.data ?? [];
 
   const stats = [
@@ -629,12 +658,12 @@ function SecurityTab() {
 export default function SettingsPage() {
   const [tab, setTab] = useState<Tab>('company');
 
-  const { data: company, isLoading, error } = trpc.settings.getCompany.useQuery();
+  const { data: company, isLoading, error } = useCompanyProfile();
   const {
     data: generalSettings,
     isLoading: isGeneralSettingsLoading,
     error: generalSettingsError,
-  } = trpc.settings.getGeneralSettings.useQuery();
+  } = useGeneralSettings();
 
   return (
     <>
