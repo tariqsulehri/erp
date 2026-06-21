@@ -14,7 +14,16 @@
  */
 
 import { useState } from 'react';
-import { trpc } from '@/lib/trpc/client';
+import { useGeneralSettings } from '@/lib/api/settings';
+import {
+  useCreateSupplier,
+  useDeleteSupplier,
+  useSupplierAccounts,
+  useSupplierNextCode,
+  useSupplierStats,
+  useSuppliersList,
+  useUpdateSupplier,
+} from '@/lib/api/parties';
 import type { CreateSupplierInput } from '@/modules/suppliers/supplier.schema';
 import { SUPPLIER_TYPES } from '@/modules/suppliers/supplier.schema';
 import { APP_CURRENCY_OPTIONS } from '@/lib/app-settings';
@@ -119,33 +128,22 @@ export default function SuppliersPage() {
   const [showInactive, setShowInactive] = useState(false);
   const [activeTab,    setActiveTab]    = useState<'basic' | 'contact' | 'financial' | 'bank'>('basic');
 
-  const utils = trpc.useUtils();
-
   /* ── Queries ── */
-  const { data: listData, isLoading } = trpc.suppliers.list.useQuery({
+  const { data: listData, isLoading } = useSuppliersList({
     search: search || undefined,
-    supplier_type: (typeFilter as 'individual'|'company'|'government') || undefined,
+    type: (typeFilter as 'individual'|'company'|'government') || undefined,
     is_active: showInactive ? undefined : true,
     page: 1, limit: 200,
   });
-  const { data: statsData } = trpc.suppliers.stats.useQuery();
-  const { data: nextCode }  = trpc.suppliers.nextCode.useQuery(undefined, { enabled: !editId && showForm });
-  const { data: accounts = [] } = trpc.suppliers.listAccounts.useQuery();
-  const { data: generalSettings } = trpc.settings.getGeneralSettings.useQuery();
+  const { data: statsData } = useSupplierStats();
+  const { data: nextCode }  = useSupplierNextCode(!editId && showForm);
+  const { data: accounts = [] } = useSupplierAccounts();
+  const { data: generalSettings } = useGeneralSettings();
 
   /* ── Mutations ── */
-  const createMut = trpc.suppliers.create.useMutation({
-    onSuccess: () => { utils.suppliers.list.invalidate(); utils.suppliers.stats.invalidate(); closeForm(); },
-    onError: e => { setFormError(e.message); setSaving(false); },
-  });
-  const updateMut = trpc.suppliers.update.useMutation({
-    onSuccess: () => { utils.suppliers.list.invalidate(); utils.suppliers.stats.invalidate(); closeForm(); },
-    onError: e => { setFormError(e.message); setSaving(false); },
-  });
-  const deleteMut = trpc.suppliers.delete.useMutation({
-    onSuccess: () => { utils.suppliers.list.invalidate(); utils.suppliers.stats.invalidate(); setDeleteTarget(null); },
-    onError: e => { setBannerError(e.message); setDeleteTarget(null); },
-  });
+  const createMut = useCreateSupplier();
+  const updateMut = useUpdateSupplier();
+  const deleteMut = useDeleteSupplier();
 
   /* ── Derived ── */
   const rows = (listData?.data ?? []) as SupplierRow[];
@@ -203,8 +201,12 @@ export default function SuppliersPage() {
       bank_iban:       form.bank_iban?.trim()       || undefined,
       notes:       form.notes?.trim()       || undefined,
     };
-    if (editId) updateMut.mutate({ id: editId, ...payload });
-    else        createMut.mutate(payload);
+    const callbacks = {
+      onSuccess: () => closeForm(),
+      onError: (error: Error) => { setFormError(error.message); setSaving(false); },
+    };
+    if (editId) updateMut.mutate({ id: editId, ...payload }, callbacks);
+    else        createMut.mutate(payload, callbacks);
   }
 
   /* ══════════════════════════════════════════════════════════════
@@ -698,8 +700,11 @@ export default function SuppliersPage() {
       {deleteTarget && (
         <ConfirmModal
           title="Delete Supplier?"
-          message={`"${deleteTarget.name}" will be permanently removed. Suppliers with bills or transactions cannot be deleted.`}
-          onConfirm={() => deleteMut.mutate({ id: deleteTarget.id })}
+          message={`"${deleteTarget.name}" will be marked inactive and hidden from new transactions.`}
+          onConfirm={() => deleteMut.mutate(deleteTarget.id, {
+            onSuccess: () => setDeleteTarget(null),
+            onError: (error: Error) => { setBannerError(error.message); setDeleteTarget(null); },
+          })}
           onCancel={() => setDeleteTarget(null)}
         />
       )}

@@ -15,14 +15,15 @@
 
 import { useState, useCallback } from 'react';
 import Link from 'next/link';
-import { trpc } from '@/lib/trpc/client';
+import { useQueryClient } from '@tanstack/react-query';
+import { accountsQueryKey, useAccountsList, useBulkSetAccountActive, type AccountListItem } from '@/lib/api/accounts';
+import { useGeneralSettings } from '@/lib/api/settings';
 import { AccountsTable }     from '@/components/tables/AccountsTable';
 import { AccountTreeView }   from '@/components/accounts/AccountTreeView';
 import { AccountGroupView }  from '@/components/accounts/AccountGroupView';
 import { AccountSlideOver }  from '@/components/accounts/AccountSlideOver';
 import { ImportTemplateModal } from '@/components/modals/ImportTemplateModal';
 import { BulkImportModal }   from '@/components/modals/BulkImportModal';
-import type { Account } from '@/modules/accounts/account.entity';
 import { getAccountLevelLabel } from '@/modules/accounts/account-code';
 import { formatNumber } from '@/lib/app-settings';
 
@@ -33,7 +34,7 @@ type PostingFilter = 'all' | 'posting' | 'header';
 const ACCOUNT_TYPES = ['Asset', 'Liability', 'Equity', 'Revenue', 'Expense'];
 
 /* ── KPI stats ──────────────────────────────────────────────────────── */
-function buildStats(accounts: Account[], total: number) {
+function buildStats(accounts: AccountListItem[], total: number) {
   return [
     { label: 'Total Accounts',   value: total },
     { label: 'Posting Accounts', value: accounts.filter(a => a.is_posting).length },
@@ -63,7 +64,7 @@ function ViewBtn({ active, onClick, title, children }: {
 }
 
 /* ── CSV export utility ─────────────────────────────────────────────── */
-function exportCSV(accounts: Account[]) {
+function exportCSV(accounts: AccountListItem[]) {
   const headers = ['Code', 'Name', 'Type', 'Level', 'Normal Balance', 'Posting', 'Active', 'System', 'Description'];
   const rows = accounts.map(a => [
     a.code, `"${a.name.replace(/"/g, '""')}"`,
@@ -92,14 +93,14 @@ export default function AccountsPage() {
   const [postFilter,  setPostFilter]  = useState<PostingFilter>('all');
   const [showImport,     setShowImport]     = useState(false);
   const [showBulkImport, setShowBulkImport] = useState(false);
-  const [slideOver,   setSlideOver]   = useState<Account | null>(null);
+  const [slideOver,   setSlideOver]   = useState<AccountListItem | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
-  const utils = trpc.useUtils();
-  const { data: generalSettings } = trpc.settings.getGeneralSettings.useQuery();
+  const queryClient = useQueryClient();
+  const { data: generalSettings } = useGeneralSettings();
 
   /* ── Table / stats query ──────────────────────────────────────────── */
-  const { data, isLoading, error } = trpc.accounts.list.useQuery(
+  const { data, isLoading, error } = useAccountsList(
     {
       page,
       limit: PAGE_SIZE,
@@ -107,11 +108,10 @@ export default function AccountsPage() {
       type:       typeFilter || undefined,
       is_posting: postFilter === 'posting' ? true : postFilter === 'header' ? false : undefined,
     },
-    { placeholderData: prev => prev },
   );
 
   /* ── Full list for group view + CSV export ─────────────────────────── */
-  const { data: allData, isLoading: allLoading } = trpc.accounts.list.useQuery(
+  const { data: allData, isLoading: allLoading } = useAccountsList(
     {
       page: 1, limit: 1000,
       type:       typeFilter || undefined,
@@ -120,16 +120,22 @@ export default function AccountsPage() {
   );
 
   /* ── Bulk mutation ──────────────────────────────────────────────────── */
-  const bulkMutation = trpc.accounts.bulkSetActive.useMutation({
-    onSuccess: () => {
-      utils.accounts.list.invalidate();
-      utils.accounts.getHierarchy.invalidate();
-      setSelectedIds(new Set());
-    },
-  });
+  const bulkMutation = useBulkSetAccountActive();
 
-  const accounts    = (data?.data    ?? []) as Account[];
-  const allAccounts = (allData?.data ?? []) as Account[];
+  const bulkSetActive = (isActive: boolean) => {
+    bulkMutation.mutate(
+      { ids: [...selectedIds], is_active: isActive },
+      {
+        onSuccess: () => {
+          queryClient.invalidateQueries({ queryKey: accountsQueryKey });
+          setSelectedIds(new Set());
+        },
+      },
+    );
+  };
+
+  const accounts    = data?.data    ?? [];
+  const allAccounts = allData?.data ?? [];
   const total       = data?.pagination?.total ?? 0;
   const stats       = buildStats(allAccounts.length > 0 ? allAccounts : accounts, total);
 
@@ -374,8 +380,8 @@ export default function AccountsPage() {
               selectedIds={selectedIds}
               onToggleSelect={toggleSelect}
               onSelectAll={selectAll}
-              onBulkActivate={() => bulkMutation.mutate({ ids: [...selectedIds], is_active: true })}
-              onBulkDeactivate={() => bulkMutation.mutate({ ids: [...selectedIds], is_active: false })}
+              onBulkActivate={() => bulkSetActive(true)}
+              onBulkDeactivate={() => bulkSetActive(false)}
               bulkLoading={bulkMutation.isPending}
             />
           )
@@ -427,8 +433,7 @@ export default function AccountsPage() {
         open={showBulkImport}
         onClose={() => setShowBulkImport(false)}
         onDone={() => {
-          utils.accounts.list.invalidate();
-          utils.accounts.getHierarchy.invalidate();
+          queryClient.invalidateQueries({ queryKey: accountsQueryKey });
         }}
       />
 
@@ -437,8 +442,7 @@ export default function AccountsPage() {
         open={showImport}
         onClose={() => setShowImport(false)}
         onDone={() => {
-          utils.accounts.list.invalidate();
-          utils.accounts.getHierarchy.invalidate();
+          queryClient.invalidateQueries({ queryKey: accountsQueryKey });
         }}
       />
 
@@ -447,7 +451,7 @@ export default function AccountsPage() {
         account={slideOver}
         onClose={() => setSlideOver(null)}
         onSaved={() => {
-          utils.accounts.list.invalidate();
+          queryClient.invalidateQueries({ queryKey: accountsQueryKey });
           // Update the slide-over with refreshed data after save
         }}
       />

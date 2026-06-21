@@ -1,11 +1,24 @@
 'use client';
 
 import { useState } from 'react';
-import { trpc } from '@/lib/trpc/client';
+import { useQueryClient } from '@tanstack/react-query';
+import {
+  fiscalYearsQueryKey,
+  useCloseFiscalPeriod,
+  useCreateFiscalYear,
+  useFiscalPeriods,
+  useFiscalYearsList,
+  useLockFiscalPeriod,
+  useLockFiscalYear,
+  type CreateFiscalYearInput,
+  type FiscalPeriodItem,
+  type FiscalYearItem,
+} from '@/lib/api/fiscal-years';
+import { useGeneralSettings } from '@/lib/api/settings';
 import { formatDate, type AppFormatSettingsSource } from '@/lib/app-settings';
 
-type FiscalYear   = any;
-type FiscalPeriod = any;
+type FiscalYear   = FiscalYearItem;
+type FiscalPeriod = FiscalPeriodItem;
 
 /* ── helpers ─────────────────────────────────────────────────────────── */
 function fmt(d: string | Date, settings?: AppFormatSettingsSource | null) {
@@ -27,7 +40,7 @@ const PERIOD_STATUS_STYLE: Record<string, { bg: string; color: string }> = {
 
 /* ── Create Fiscal Year form ─────────────────────────────────────────── */
 function CreateFYForm({ onCreated }: { onCreated: () => void }) {
-  const utils = trpc.useUtils();
+  const queryClient = useQueryClient();
 
   const [form, setForm] = useState({
     fiscal_year:         '',
@@ -39,13 +52,19 @@ function CreateFYForm({ onCreated }: { onCreated: () => void }) {
   });
   const [error, setError] = useState('');
 
-  const createMutation = trpc.fiscalYear.create.useMutation({
-    onSuccess: () => {
-      utils.fiscalYear.list.invalidate();
-      onCreated();
-    },
-    onError: (e) => setError(e.message),
-  });
+  const createMutation = useCreateFiscalYear();
+
+  function createFiscalYear(payload: CreateFiscalYearInput) {
+    createMutation.mutate(payload, {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: fiscalYearsQueryKey });
+        onCreated();
+      },
+      onError: (error) => setError(error.message),
+    });
+  }
+
+  // The backend owns fiscal-year overlap and period validation.
 
   /* Auto-fill dates when year_basis or fiscal_year changes */
   function applyBasis(basis: typeof form.year_basis, fy: string) {
@@ -75,11 +94,11 @@ function CreateFYForm({ onCreated }: { onCreated: () => void }) {
     setError('');
     if (!form.fiscal_year) return setError('Fiscal year identifier is required');
     if (!form.start_date || !form.end_date) return setError('Start and end dates are required');
-    createMutation.mutate({
+    createFiscalYear({
       fiscal_year:         form.fiscal_year,
       year_basis:          form.year_basis,
-      start_date:          new Date(form.start_date),
-      end_date:            new Date(form.end_date),
+      start_date:          form.start_date,
+      end_date:            form.end_date,
       number_of_periods:   form.number_of_periods,
       posting_cutoff_days: form.posting_cutoff_days,
     });
@@ -183,16 +202,14 @@ function CreateFYForm({ onCreated }: { onCreated: () => void }) {
 
 /* ── Periods panel ──────────────────────────────────────────────────── */
 function PeriodsPanel({ fyId, fyStatus, settings }: { fyId: string; fyStatus: string; settings?: AppFormatSettingsSource | null }) {
-  const utils = trpc.useUtils();
+  const queryClient = useQueryClient();
+  const { data: periods, isLoading } = useFiscalPeriods(fyId);
+  const lockPeriodMut = useLockFiscalPeriod();
+  const closePeriodMut = useCloseFiscalPeriod();
 
-  const { data: periods, isLoading } = trpc.fiscalYear.getPeriods.useQuery({ fiscalYearId: fyId });
-
-  const lockPeriodMut  = trpc.fiscalYear.lockPeriod.useMutation({
-    onSuccess: () => utils.fiscalYear.getPeriods.invalidate({ fiscalYearId: fyId }),
-  });
-  const closePeriodMut = trpc.fiscalYear.closePeriod.useMutation({
-    onSuccess: () => utils.fiscalYear.getPeriods.invalidate({ fiscalYearId: fyId }),
-  });
+  function refreshPeriods() {
+    queryClient.invalidateQueries({ queryKey: fiscalYearsQueryKey });
+  }
 
   if (isLoading) return <div style={{ padding: 20, color: 'var(--color-text-muted)' }}>Loading periods…</div>;
   if (!periods?.length) return <div style={{ padding: 20, color: 'var(--color-text-muted)' }}>No periods found.</div>;
@@ -242,14 +259,14 @@ function PeriodsPanel({ fyId, fyStatus, settings }: { fyId: string; fyStatus: st
                     {p.status === 'open' && fyStatus !== 'closed' && (
                       <button
                         disabled={busy}
-                        onClick={() => lockPeriodMut.mutate({ id: p.id })}
+                        onClick={() => lockPeriodMut.mutate({ id: p.id }, { onSuccess: refreshPeriods })}
                         style={actionBtnStyle('#92400e', '#fef3c7')}
                       >Lock</button>
                     )}
                     {p.status === 'locked' && fyStatus !== 'closed' && (
                       <button
                         disabled={busy}
-                        onClick={() => closePeriodMut.mutate({ id: p.id })}
+                        onClick={() => closePeriodMut.mutate({ id: p.id }, { onSuccess: refreshPeriods })}
                         style={actionBtnStyle('#b91c1c', '#fee2e2')}
                       >Close</button>
                     )}
@@ -267,11 +284,7 @@ function PeriodsPanel({ fyId, fyStatus, settings }: { fyId: string; fyStatus: st
 /* ── Fiscal Year card ────────────────────────────────────────────────── */
 function FYCard({ fy, onRefresh, settings }: { fy: FiscalYear; onRefresh: () => void; settings?: AppFormatSettingsSource | null }) {
   const [expanded, setExpanded] = useState(false);
-  const utils = trpc.useUtils();
-
-  const lockMut = trpc.fiscalYear.lock.useMutation({
-    onSuccess: () => { utils.fiscalYear.list.invalidate(); onRefresh(); },
-  });
+  const lockMut = useLockFiscalYear();
 
   const ss = STATUS_STYLE[fy.status] ?? STATUS_STYLE.open;
 
@@ -329,7 +342,7 @@ function FYCard({ fy, onRefresh, settings }: { fy: FiscalYear; onRefresh: () => 
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           {fy.status === 'open' && !fy.is_locked && (
             <button
-              onClick={() => lockMut.mutate({ id: fy.id })}
+              onClick={() => lockMut.mutate({ id: fy.id }, { onSuccess: onRefresh })}
               disabled={lockMut.isPending}
               style={actionBtnStyle('#b91c1c', '#fee2e2')}
             >
@@ -363,11 +376,12 @@ function FYCard({ fy, onRefresh, settings }: { fy: FiscalYear; onRefresh: () => 
 /* ── Page ─────────────────────────────────────────────────────────────── */
 export default function FiscalYearPage() {
   const [showForm, setShowForm] = useState(false);
-  const utils = trpc.useUtils();
+  const queryClient = useQueryClient();
 
-  const { data, isLoading, error } = trpc.fiscalYear.list.useQuery({ page: 1, limit: 50 });
-  const { data: generalSettings } = trpc.settings.getGeneralSettings.useQuery();
+  const { data, isLoading, error } = useFiscalYearsList({ page: 1, limit: 50 });
+  const { data: generalSettings } = useGeneralSettings();
   const years: FiscalYear[] = data?.data ?? [];
+  const refreshFiscalYears = () => queryClient.invalidateQueries({ queryKey: fiscalYearsQueryKey });
 
   return (
     <div>
@@ -443,7 +457,7 @@ export default function FiscalYearPage() {
       {years.length > 0 && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           {years.map(fy => (
-            <FYCard key={fy.id} fy={fy} onRefresh={() => utils.fiscalYear.list.invalidate()} settings={generalSettings} />
+            <FYCard key={fy.id} fy={fy} onRefresh={refreshFiscalYears} settings={generalSettings} />
           ))}
         </div>
       )}

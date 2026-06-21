@@ -19,7 +19,8 @@
  */
 
 import { useState, useRef } from 'react';
-import { trpc } from '@/lib/trpc/client';
+import { useQueryClient } from '@tanstack/react-query';
+import { accountsQueryKey, useBulkCreateAccounts } from '@/lib/api/accounts';
 import { ACCOUNT_CODE_PATTERN } from '@/modules/accounts/account-code';
 
 /* ── Types ───────────────────────────────────────────────────────────── */
@@ -133,15 +134,8 @@ export function BulkImportModal({ open, onClose, onDone }: BulkImportModalProps)
   const [dragOver, setDragOver] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  const utils = trpc.useUtils();
-
-  const importMutation = trpc.accounts.bulkCreate.useMutation({
-    onSuccess: data => {
-      setResults(data.results as ResultRow[]);
-      utils.accounts.list.invalidate();
-      utils.accounts.getHierarchy.invalidate();
-    },
-  });
+  const queryClient = useQueryClient();
+  const importMutation = useBulkCreateAccounts();
 
   if (!open) return null;
 
@@ -167,7 +161,12 @@ export function BulkImportModal({ open, onClose, onDone }: BulkImportModalProps)
 
   const handleImport = () => {
     if (!validRows.length) return;
-    importMutation.mutate({ rows: validRows });
+    importMutation.mutate({ rows: validRows }, {
+      onSuccess: data => {
+        setResults(data.results as ResultRow[]);
+        queryClient.invalidateQueries({ queryKey: accountsQueryKey });
+      },
+    });
   };
 
   const handleClose = () => {

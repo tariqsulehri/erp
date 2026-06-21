@@ -15,7 +15,14 @@
  */
 
 import { useState, useMemo } from 'react';
-import { trpc } from '@/lib/trpc/client';
+import { useQueryClient } from '@tanstack/react-query';
+import {
+  productsQueryKey,
+  useCreateProductCategory,
+  useDeleteProductCategory,
+  useProductCategories,
+  useUpdateProductCategory,
+} from '@/lib/api/products';
 
 /* ═══════════════════════════════════════════════════════════════════════════
    Types
@@ -165,23 +172,15 @@ export default function CategoriesPage() {
   const [showInactive, setShowInactive] = useState(false);
   const [collapsed,    setCollapsed]    = useState<Set<string>>(new Set());
 
-  const utils = trpc.useUtils();
+  const queryClient = useQueryClient();
 
   /* ── Queries / mutations ── */
-  const { data: rawCats = [], isLoading } = trpc.products.listCategories.useQuery();
+  const { data: rawCats = [], isLoading } = useProductCategories();
+  const refreshCategories = () => queryClient.invalidateQueries({ queryKey: productsQueryKey });
 
-  const createMut = trpc.products.createCategory.useMutation({
-    onSuccess: () => { utils.products.listCategories.invalidate(); closeForm(); },
-    onError:   e  => { setFormError(e.message); setSaving(false); },
-  });
-  const updateMut = trpc.products.updateCategory.useMutation({
-    onSuccess: () => { utils.products.listCategories.invalidate(); closeForm(); },
-    onError:   e  => { setFormError(e.message); setSaving(false); },
-  });
-  const deleteMut = trpc.products.deleteCategory.useMutation({
-    onSuccess: () => { utils.products.listCategories.invalidate(); setDeleteTarget(null); },
-    onError:   e  => { setBannerError(e.message); setDeleteTarget(null); },
-  });
+  const createMut = useCreateProductCategory();
+  const updateMut = useUpdateProductCategory();
+  const deleteMut = useDeleteProductCategory();
 
   /* ── Derived data ── */
   const allCats = rawCats as CategoryRow[];
@@ -240,8 +239,17 @@ export default function CategoriesPage() {
       sort_order:  Number(form.sort_order),
       is_active:   form.is_active,
     };
-    if (editId) updateMut.mutate({ id: editId, ...payload });
-    else        createMut.mutate(payload);
+    if (editId) {
+      updateMut.mutate(
+        { id: editId, data: payload },
+        { onSuccess: () => { refreshCategories(); closeForm(); }, onError: error => { setFormError(error.message); setSaving(false); } },
+      );
+    } else {
+      createMut.mutate(
+        payload,
+        { onSuccess: () => { refreshCategories(); closeForm(); }, onError: error => { setFormError(error.message); setSaving(false); } },
+      );
+    }
   }
 
   /* ── Helpers ── */
@@ -677,7 +685,13 @@ export default function CategoriesPage() {
           title="Delete Category?"
           message={`"${deleteTarget.name}" will be permanently removed. Categories with child categories or assigned products cannot be deleted.`}
           confirmLabel="Delete"
-          onConfirm={() => deleteMut.mutate({ id: deleteTarget.id })}
+          onConfirm={() => deleteMut.mutate(
+            { id: deleteTarget.id },
+            {
+              onSuccess: () => { refreshCategories(); setDeleteTarget(null); },
+              onError: error => { setBannerError(error.message); setDeleteTarget(null); },
+            },
+          )}
           onCancel={() => setDeleteTarget(null)}
         />
       )}

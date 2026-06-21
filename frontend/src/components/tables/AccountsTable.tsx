@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { Account } from '@/modules/accounts/account.entity';
+import type { AccountListItem } from '@/lib/api/accounts';
 import { getAccountLevel } from '@/modules/accounts/account-code';
 
 /* ── Type badge ──────────────────────────────────────────────────────── */
@@ -40,12 +40,12 @@ function levelOf(code: string): number {
 
 /* ── Props ───────────────────────────────────────────────────────────── */
 interface AccountsTableProps {
-  accounts:        Account[];
+  accounts:        AccountListItem[];
   total:           number;
   page:            number;
   pageSize:        number;
   onPageChange:    (page: number) => void;
-  onRowClick?:     (account: Account) => void;
+  onRowClick?:     (account: AccountListItem) => void;
   selectedIds?:    Set<string>;
   onToggleSelect?: (id: string) => void;
   onSelectAll?:    () => void;

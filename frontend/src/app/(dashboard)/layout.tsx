@@ -9,6 +9,9 @@ import { ThemeSwitcher } from '@/components/ui/ThemeSwitcher';
 import {
   IconAdjustmentsHorizontal,
   IconBuildingBank,
+  IconBuildingStore,
+  IconBuildingWarehouse,
+  IconArrowsExchange,
   IconCalendarStats,
   IconCategory2,
   IconChevronDown,
@@ -46,6 +49,7 @@ type SidebarChild =
 
 /* ── Voucher sub-menu items ──────────────────────────────────────────────── */
 const VOUCHER_ITEMS = [
+  { label: 'Posted Vouchers', href: '/vouchers/posted',        icon: IconFileAnalytics, color: '#0f766e', code: 'POST', moduleKey: 'finance', featureKey: 'posted-vouchers', permissionKey: 'finance.vouchers.posted.view' },
   { label: 'Bank Receipt',  href: '/vouchers/bank-receipt',  icon: IconBuildingBank, color: '#15803d', code: 'BRV', moduleKey: 'finance', featureKey: 'bank-receipt', permissionKey: 'finance.vouchers.bank_receipt.view' },
   { label: 'Bank Payment',  href: '/vouchers/bank-payment',  icon: IconBuildingBank, color: '#b91c1c', code: 'BPV', moduleKey: 'finance', featureKey: 'bank-payment', permissionKey: 'finance.vouchers.bank_payment.view' },
   { label: 'Cash Receipt',  href: '/vouchers/cash-receipt',  icon: IconWallet,       color: '#0891b2', code: 'CRV', moduleKey: 'finance', featureKey: 'cash-receipt', permissionKey: 'finance.vouchers.cash_receipt.view' },
@@ -55,7 +59,10 @@ const VOUCHER_ITEMS = [
 
 /* ── Inventory sub-menu items ────────────────────────────────────────────── */
 const INVENTORY_ITEMS = [
+  { label: 'Branches',          href: '/inventory/branches',   icon: IconBuildingStore, color: '#2563eb', code: 'BR', moduleKey: 'inventory', featureKey: 'branches', permissionKey: 'inventory.branches.view' },
   { label: 'Products',          href: '/inventory/products',   icon: IconPackage,     color: '#1d4ed8', code: 'PRD', moduleKey: 'inventory', featureKey: 'products', permissionKey: 'inventory.products.view' },
+  { label: 'Warehouses',        href: '/inventory/warehouses', icon: IconBuildingWarehouse, color: '#0f766e', code: 'WH', moduleKey: 'inventory', featureKey: 'warehouses', permissionKey: 'inventory.warehouses.view' },
+  { label: 'Stock Transfer',    href: '/inventory/stock-transfers', icon: IconArrowsExchange, color: '#b45309', code: 'ST', moduleKey: 'inventory', featureKey: 'stock-transfer', permissionKey: 'inventory.stock_transfer.view' },
   { label: 'Categories',        href: '/inventory/categories', icon: IconCategory2,   color: '#0891b2', code: 'CAT', moduleKey: 'inventory', featureKey: 'categories', permissionKey: 'inventory.categories.view' },
   { label: 'Units of Measure',  href: '/inventory/uom',        icon: IconRulerMeasure,color: '#15803d', code: 'UOM', moduleKey: 'inventory', featureKey: 'units-of-measure', permissionKey: 'inventory.units_of_measure.view' },
 ] satisfies readonly SidebarChild[];
@@ -64,6 +71,9 @@ const INVENTORY_ITEMS = [
 const AR_ITEMS = [
   { label: 'Master Data', section: true },
   { label: 'Customers', href: '/ar/customers', icon: IconUsersGroup, color: '#1d4ed8', code: 'CUS', moduleKey: 'receivables', featureKey: 'customers', permissionKey: 'receivables.customers.view' },
+  { label: 'Transactions', section: true },
+  { label: 'Sale Voucher', href: '/ar/sales', icon: IconFileInvoice, color: '#0f766e', code: 'SI', moduleKey: 'receivables', featureKey: 'sale-voucher', permissionKey: 'receivables.sale_voucher.view' },
+  { label: 'Sale Return', href: '/ar/sale-returns', icon: IconFileInvoice, color: '#b45309', code: 'SR', moduleKey: 'receivables', featureKey: 'sale-return', permissionKey: 'receivables.sale_return.view' },
 ] satisfies readonly SidebarChild[];
 
 /* ── AP sub-menu items ───────────────────────────────────────────────────── */
@@ -72,6 +82,7 @@ const AP_ITEMS = [
   { label: 'Suppliers', href: '/ap/suppliers', icon: IconTruckDelivery, color: '#0891b2', code: 'SUP', moduleKey: 'payables', featureKey: 'suppliers', permissionKey: 'payables.suppliers.view' },
   { label: 'Transactions', section: true },
   { label: 'Purchase Voucher', href: '/ap/purchases', icon: IconFileInvoice, color: '#1d4ed8', code: 'PI', moduleKey: 'payables', featureKey: 'purchase-voucher', permissionKey: 'payables.purchase_voucher.view' },
+  { label: 'Purchase Return', href: '/ap/purchase-returns', icon: IconFileInvoice, color: '#b45309', code: 'PR', moduleKey: 'payables', featureKey: 'purchase-return', permissionKey: 'payables.purchase_return.view' },
 ] satisfies readonly SidebarChild[];
 
 /* ── NAV definition ──────────────────────────────────────────────────────── */

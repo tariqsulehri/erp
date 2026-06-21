@@ -13,7 +13,14 @@
  */
 
 import { useState } from 'react';
-import { trpc } from '@/lib/trpc/client';
+import { useQueryClient } from '@tanstack/react-query';
+import {
+  productsQueryKey,
+  useCreateProductUom,
+  useDeleteProductUom,
+  useProductUnitsOfMeasure,
+  useUpdateProductUom,
+} from '@/lib/api/products';
 
 /* ═══════════════════════════════════════════════════════════════════════════
    Types / constants
@@ -132,23 +139,15 @@ export default function UomPage() {
   const [formError,    setFormError]    = useState('');
   const [typeFilter,   setTypeFilter]   = useState('');
 
-  const utils = trpc.useUtils();
+  const queryClient = useQueryClient();
 
   /* ── Queries / mutations ── */
-  const { data: uoms = [], isLoading } = trpc.products.listUom.useQuery();
+  const { data: uoms = [], isLoading } = useProductUnitsOfMeasure();
+  const refreshUom = () => queryClient.invalidateQueries({ queryKey: productsQueryKey });
 
-  const createMut = trpc.products.createUom.useMutation({
-    onSuccess: () => { utils.products.listUom.invalidate(); closeForm(); },
-    onError:   e  => { setFormError(e.message); setSaving(false); },
-  });
-  const updateMut = trpc.products.updateUom.useMutation({
-    onSuccess: () => { utils.products.listUom.invalidate(); closeForm(); },
-    onError:   e  => { setFormError(e.message); setSaving(false); },
-  });
-  const deleteMut = trpc.products.deleteUom.useMutation({
-    onSuccess: () => { utils.products.listUom.invalidate(); setDeleteTarget(null); },
-    onError:   e  => { setBannerError(e.message); setDeleteTarget(null); },
-  });
+  const createMut = useCreateProductUom();
+  const updateMut = useUpdateProductUom();
+  const deleteMut = useDeleteProductUom();
 
   /* ── Helpers ── */
   function openNew() {
@@ -171,8 +170,17 @@ export default function UomPage() {
     }
     setSaving(true); setFormError('');
     const payload = { name: form.name.trim(), abbreviation: form.abbreviation.trim(), uom_type: form.uom_type, is_active: form.is_active, is_default: form.is_default };
-    if (editId) updateMut.mutate({ id: editId, ...payload });
-    else        createMut.mutate(payload);
+    if (editId) {
+      updateMut.mutate(
+        { id: editId, data: payload },
+        { onSuccess: () => { refreshUom(); closeForm(); }, onError: error => { setFormError(error.message); setSaving(false); } },
+      );
+    } else {
+      createMut.mutate(
+        payload,
+        { onSuccess: () => { refreshUom(); closeForm(); }, onError: error => { setFormError(error.message); setSaving(false); } },
+      );
+    }
   }
 
   /* ── Derived ── */
@@ -597,7 +605,13 @@ export default function UomPage() {
           title="Delete Unit of Measure?"
           message={`"${deleteTarget.name}" will be permanently removed. Units assigned to products cannot be deleted.`}
           confirmLabel="Delete"
-          onConfirm={() => deleteMut.mutate({ id: deleteTarget.id })}
+          onConfirm={() => deleteMut.mutate(
+            { id: deleteTarget.id },
+            {
+              onSuccess: () => { refreshUom(); setDeleteTarget(null); },
+              onError: error => { setBannerError(error.message); setDeleteTarget(null); },
+            },
+          )}
           onCancel={() => setDeleteTarget(null)}
         />
       )}

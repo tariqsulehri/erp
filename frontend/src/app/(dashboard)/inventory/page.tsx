@@ -4,6 +4,23 @@ export const metadata = { title: 'Inventory — ERP Finance' };
 
 const CARDS = [
   {
+    href:  '/inventory/branches',
+    icon:  (
+      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M3 21h18" />
+        <path d="M5 21V7l7-4 7 4v14" />
+        <path d="M9 21v-6h6v6" />
+        <path d="M9 9h.01" />
+        <path d="M15 9h.01" />
+      </svg>
+    ),
+    label:    'Branches',
+    desc:     'Manage business branches used for branch-wise sales, users, warehouses and reporting.',
+    color:    '#2563eb',
+    bgColor:  'rgba(37,99,235,0.08)',
+    badge:    'BR',
+  },
+  {
     href:  '/inventory/products',
     icon:  (
       <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
@@ -17,6 +34,39 @@ const CARDS = [
     color:    '#1d4ed8',
     bgColor:  'rgba(29,78,216,0.08)',
     badge:    'CRUD',
+  },
+  {
+    href:  '/inventory/warehouses',
+    icon:  (
+      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M3 21V8l9-5 9 5v13" />
+        <path d="M7 21v-8h10v8" />
+        <path d="M9 13v8" />
+        <path d="M15 13v8" />
+        <path d="M7 10h10" />
+      </svg>
+    ),
+    label:    'Warehouses',
+    desc:     'Manage storage places, internal locations, default warehouse, and warehouse-wise stock summary.',
+    color:    '#0f766e',
+    bgColor:  'rgba(15,118,110,0.08)',
+    badge:    'WH',
+  },
+  {
+    href:  '/inventory/stock-transfers',
+    icon:  (
+      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M7 7h11l-3-3" />
+        <path d="M18 7l-3 3" />
+        <path d="M17 17H6l3 3" />
+        <path d="M6 17l3-3" />
+      </svg>
+    ),
+    label:    'Stock Transfer',
+    desc:     'Move stock from one warehouse or branch store to another with posted stock movements.',
+    color:    '#b45309',
+    bgColor:  'rgba(180,83,9,0.08)',
+    badge:    'ST',
   },
   {
     href:  '/inventory/categories',

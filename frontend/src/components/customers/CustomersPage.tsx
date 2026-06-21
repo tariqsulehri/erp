@@ -13,7 +13,16 @@
  */
 
 import { useState } from 'react';
-import { trpc } from '@/lib/trpc/client';
+import { useGeneralSettings } from '@/lib/api/settings';
+import {
+  useCreateCustomer,
+  useCustomerAccounts,
+  useCustomerNextCode,
+  useCustomerStats,
+  useCustomersList,
+  useDeleteCustomer,
+  useUpdateCustomer,
+} from '@/lib/api/parties';
 import type { CreateCustomerInput } from '@/modules/customers/customer.schema';
 import { CUSTOMER_TYPES } from '@/modules/customers/customer.schema';
 import { APP_CURRENCY_OPTIONS, formatMoney } from '@/lib/app-settings';
@@ -115,33 +124,22 @@ export default function CustomersPage() {
   const [showInactive, setShowInactive] = useState(false);
   const [activeTab,    setActiveTab]    = useState<'basic' | 'contact' | 'financial'>('basic');
 
-  const utils = trpc.useUtils();
-
   /* ── Queries ── */
-  const { data: listData, isLoading } = trpc.customers.list.useQuery({
+  const { data: listData, isLoading } = useCustomersList({
     search: search || undefined,
-    customer_type: (typeFilter as 'individual'|'company'|'government') || undefined,
+    type: (typeFilter as 'individual'|'company'|'government') || undefined,
     is_active: showInactive ? undefined : true,
     page: 1, limit: 200,
   });
-  const { data: statsData } = trpc.customers.stats.useQuery();
-  const { data: nextCode }  = trpc.customers.nextCode.useQuery(undefined, { enabled: !editId && showForm });
-  const { data: accounts = [] } = trpc.customers.listAccounts.useQuery();
-  const { data: generalSettings } = trpc.settings.getGeneralSettings.useQuery();
+  const { data: statsData } = useCustomerStats();
+  const { data: nextCode }  = useCustomerNextCode(!editId && showForm);
+  const { data: accounts = [] } = useCustomerAccounts();
+  const { data: generalSettings } = useGeneralSettings();
 
   /* ── Mutations ── */
-  const createMut = trpc.customers.create.useMutation({
-    onSuccess: () => { utils.customers.list.invalidate(); utils.customers.stats.invalidate(); closeForm(); },
-    onError: e => { setFormError(e.message); setSaving(false); },
-  });
-  const updateMut = trpc.customers.update.useMutation({
-    onSuccess: () => { utils.customers.list.invalidate(); utils.customers.stats.invalidate(); closeForm(); },
-    onError: e => { setFormError(e.message); setSaving(false); },
-  });
-  const deleteMut = trpc.customers.delete.useMutation({
-    onSuccess: () => { utils.customers.list.invalidate(); utils.customers.stats.invalidate(); setDeleteTarget(null); },
-    onError: e => { setBannerError(e.message); setDeleteTarget(null); },
-  });
+  const createMut = useCreateCustomer();
+  const updateMut = useUpdateCustomer();
+  const deleteMut = useDeleteCustomer();
 
   /* ── Derived ── */
   const rows = (listData?.data ?? []) as CustomerRow[];
@@ -192,8 +190,12 @@ export default function CustomersPage() {
       postal_code: form.postal_code?.trim() || undefined,
       notes:       form.notes?.trim()       || undefined,
     };
-    if (editId) updateMut.mutate({ id: editId, ...payload });
-    else        createMut.mutate(payload);
+    const callbacks = {
+      onSuccess: () => closeForm(),
+      onError: (error: Error) => { setFormError(error.message); setSaving(false); },
+    };
+    if (editId) updateMut.mutate({ id: editId, ...payload }, callbacks);
+    else        createMut.mutate(payload, callbacks);
   }
 
   /* ══════════════════════════════════════════════════════════════
@@ -655,8 +657,11 @@ export default function CustomersPage() {
       {deleteTarget && (
         <ConfirmModal
           title="Delete Customer?"
-          message={`"${deleteTarget.name}" will be permanently removed. Customers with invoices or transactions cannot be deleted.`}
-          onConfirm={() => deleteMut.mutate({ id: deleteTarget.id })}
+          message={`"${deleteTarget.name}" will be marked inactive and hidden from new transactions.`}
+          onConfirm={() => deleteMut.mutate(deleteTarget.id, {
+            onSuccess: () => setDeleteTarget(null),
+            onError: (error: Error) => { setBannerError(error.message); setDeleteTarget(null); },
+          })}
           onCancel={() => setDeleteTarget(null)}
         />
       )}
