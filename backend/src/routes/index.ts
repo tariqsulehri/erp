@@ -1,6 +1,38 @@
 import { Router } from 'express';
+import { accountsRouter } from './accounts.routes.js';
+import { branchesRouter } from './branches.routes.js';
+import { fiscalYearsRouter } from './fiscal-years.routes.js';
+import { customersRouter } from './customers.routes.js';
+import { dashboardRouter } from './dashboard.routes.js';
 import { healthRouter } from './health.routes.js';
+import { purchaseReturnsRouter } from './purchase-returns.routes.js';
+import { purchasesRouter } from './purchases.routes.js';
+import { productsRouter } from './products.routes.js';
+import { reportsRouter } from './reports.routes.js';
+import { saleReturnsRouter } from './sale-returns.routes.js';
+import { salesRouter } from './sales.routes.js';
+import { settingsRouter } from './settings.routes.js';
+import { stockTransfersRouter } from './stock-transfers.routes.js';
+import { suppliersRouter } from './suppliers.routes.js';
+import { vouchersRouter } from './vouchers.routes.js';
+import { warehousesRouter } from './warehouses.routes.js';
 
 export const apiRouter = Router();
 
 apiRouter.use('/health', healthRouter);
+apiRouter.use('/accounts', accountsRouter);
+apiRouter.use('/branches', branchesRouter);
+apiRouter.use('/customers', customersRouter);
+apiRouter.use('/dashboard', dashboardRouter);
+apiRouter.use('/fiscal-years', fiscalYearsRouter);
+apiRouter.use('/purchase-returns', purchaseReturnsRouter);
+apiRouter.use('/purchases', purchasesRouter);
+apiRouter.use('/products', productsRouter);
+apiRouter.use('/reports', reportsRouter);
+apiRouter.use('/sale-returns', saleReturnsRouter);
+apiRouter.use('/sales', salesRouter);
+apiRouter.use('/settings', settingsRouter);
+apiRouter.use('/stock-transfers', stockTransfersRouter);
+apiRouter.use('/suppliers', suppliersRouter);
+apiRouter.use('/vouchers', vouchersRouter);
+apiRouter.use('/warehouses', warehousesRouter);

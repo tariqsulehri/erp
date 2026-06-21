@@ -1,16 +1,18 @@
 # Project Rules
 
-## Simple Naming Rule
+This file contains business-wide rules that apply across frontend, backend, and database work. Detailed technical rules live in the specific documents listed in `README.md`.
 
-Use clear, descriptive names that a non-technical user can understand.
+## Simple Naming
+
+Use clear, descriptive names that business staff can understand.
 
 - Prefer simple words over technical accounting or database jargon.
 - Use labels, titles, descriptions, field names, and table names that are easy for non-native English speakers.
-- Avoid abbreviations unless they are common in the business, such as SKU, UOM, PO, or SO.
-- Do not expose internal implementation terms to users when a plain business word is available.
-- Use Title Case for user-facing labels, headings, table columns, and field titles.
-- Do not force normal labels to all uppercase. Common business abbreviations such as SKU, UOM, PO, SO, VAT, and EAN may stay uppercase.
-- Use `active` / `inactive` language in the UI. In code and database fields, use `is_active`.
+- Avoid abbreviations unless they are common in the business, such as SKU, UOM, PO, SO, VAT, or EAN.
+- Do not expose internal implementation terms when a plain business word is available.
+- Use Title Case for user-facing labels, headings, table columns, tabs, and field titles.
+- Do not force normal labels to all uppercase.
+- Use `Active` and `Inactive` in the UI. Use `is_active` or `isActive` in database/code based on the layer convention.
 
 Examples:
 
@@ -20,54 +22,90 @@ Examples:
 - Use `stock_on_hand`, not `qty_bal`.
 - Use `blocked_reason`, not `inactive_meta`.
 
-## Inventory Rules
+## Shared Settings
 
-- Draft documents must not affect stock.
-- Posted documents should not be directly edited; use returns, reversals, corrections, or adjustments.
-- Stock reports should read from stock movements and stock balances, not directly from all source documents.
-- Keep item master fields clean. Do not store report-only values as editable item fields.
+Date, currency, number, locale, and regional values must be configurable.
 
-## Voucher Rules
+- Company profile information belongs to the company record.
+- Date format, time zone, locale, country, currency, decimal places, thousand separator, and decimal separator belong to `general_settings`.
+- Currency display position must be configurable as `prefix` or `suffix`.
+- Application modules should read shared formatting values from `general_settings`.
+- Do not hard-code currency symbols, currency position, date formats, locale names, or separators in screens, services, reports, print formats, or backend messages.
+- Do not use `$`, `Rs`, or any other currency text directly in UI code.
+- SQL parameter placeholders such as `$1`, `$2`, and `$7` are database syntax and are not currency display.
 
-- Draft vouchers must not affect account balances or reports.
-- Posted vouchers should not be directly edited; use reversal, void, correction, debit note, or credit note workflows.
-
-## Customer And Supplier Party Rules
+## Customer And Supplier Parties
 
 - A party can be `Customer`, `Supplier`, or `Customer And Supplier`.
-- Use `Main Role` to show the original/base role when a party is both.
-- For now, keep one linked GL account for the party, even when it works as both customer and supplier.
+- Use `Main Role` to show whether the party started as customer or supplier when it works as both.
+- Keep one linked GL account for the party in the current phase, even when it works as both customer and supplier.
 - User-facing screens should say `Linked Account`, not technical terms such as AR/AP sub-ledger account.
-- Account Codes must be 10 digits using `MM GG SS PPPP`: Main Category, Group, Sub-Group, Posting Account.
-- Example Account Code: `0101100001` means `01 01 10 0001`.
-- Customer linked accounts should use `0103010001` to `0103999999`.
-- Supplier linked accounts should use `0201010001` to `0201999999`.
 - Do not create a duplicate party record only because a customer starts supplying items or a supplier starts buying from us.
 - New Customer and Supplier records should be `Active` by default.
 - Users can mark a Customer or Supplier as `Inactive` only when the party should no longer be used in new transactions.
 
-## Transaction Workflow Rules
+## Account Codes
 
-- These workflow standards apply to vouchers, sales, purchases, payments, receipts, stock documents, and future transaction modules.
-- New transaction modules should follow the Purchase Voucher feature pattern where applicable: entry view, posted/history list, backend filters, read-only detail view, print preview, print, and PDF download.
-- Large transaction lists must use backend pagination, backend filters, stable sorting, and summary rows. Do not load full history or line items into the browser list.
-- Every module should be scalable, reusable, readable, and easy to maintain. Do not put all logic, UI, formatting, validation, and data access in one large file.
-- Posted documents should be locked and corrected through approved correction documents.
-- Transaction screens should reserve a consistent area for approval, attachments, print, and workflow status.
-- Cost Center, Project, Department, Auto Reverse Date, and Attachments should be added only when the backend and database save and validate them.
+- Account Codes must be 10-digit numeric text.
+- Format: `MM GG SS PPPP`: Main Category, Group, Sub-Group, Posting Account.
+- Example: `0101100001` means `01 01 10 0001`.
+- Customer linked accounts use `0103010001` to `0103999999`.
+- Supplier linked accounts use `0201010001` to `0201999999`.
+- Do not use older 4-digit, 6-digit, 7-digit, or 8-digit account code rules in new code.
 
-## General Settings Rules
+## Transaction Workflow
 
-- Company profile information belongs to the company record.
-- Date format, time zone, locale, country, currency, decimal places, thousand separator, and decimal separator belong to `general_settings`.
-- Currency display position belongs to shared settings as `prefix` or `suffix`.
-- Application modules should read shared format and currency values from `general_settings`.
-- Do not hard-code currency symbols, currency position, date formats, locale names, or separators inside module screens.
-- Do not use `$`, `Rs`, or any other currency text directly in UI code, backend messages, reports, or print formats.
-- SQL parameter placeholders such as `$1`, `$2`, and `$7` are database syntax and must not be confused with currency display.
+These rules apply to vouchers, sales, purchases, payments, receipts, stock documents, and future transaction modules.
+
+- Draft documents must not affect stock, customer balances, supplier balances, cash, bank, or ledger reports.
+- Posted documents should not be edited directly.
+- Corrections should use approved workflows such as reversal, void, return, debit note, credit note, or adjustment.
+- Posted documents must open in read-only mode by default.
+- Transaction numbers should be generated by the backend and remain permanent.
+- Transaction screens should reserve consistent space for workflow controls such as approval, attachments, print, and document status when those features are supported.
+- Cost Center, Project, Department, Auto Reverse Date, and Attachments should be shown only when the backend and database save and validate them.
+- All posted accounting impact belongs in `vouchers` and `voucher_lines`.
+- Business document tables store source document totals such as gross amount, discount amount, tax amount, freight amount, other charges, and net amount.
+- `vouchers.total_debit` and `vouchers.total_credit` store the sum of accounting voucher lines and must always be equal.
+- Detailed posting rules live in `documents/ACCOUNTING_POSTING_RULES.md`.
+
+## Purchase Module Pattern
+
+New frontend modules must follow the same structure established in the Purchase module unless there is a clear reason not to.
+
+- Page files act as orchestrators.
+- UI sections live in focused child components.
+- Common text, numeric, date, select, searchable select, checkbox, and textarea fields use shared UI components.
+- Data shaping and state workflows live in hooks.
+- Validation, payload building, and business helper logic live in helper files.
+- API calls go through `src/lib/api`.
+- Print preview and print/PDF HTML logic are separated from entry screens.
+- Transaction lists use backend pagination, backend filters, stable sorting, and summary/header rows.
+- Analytics use modular chart components and backend aggregate data.
+- No user action should fail silently.
+
+## Inventory
+
+- Draft inventory documents must not affect stock.
+- Every posted inventory transaction must create an `inventory_stock_movements` record.
+- `inventory_stock_movements` is the source of truth for stock history.
+- `inventory_stock_balances` is a fast current-stock snapshot.
+- Stock reports should read from stock movements and stock balances, not by joining every purchase, sale, return, and adjustment document directly.
+- Keep item master fields clean. Do not store report-only values as editable item fields.
+- Posted Stock Transfers must create two stock movement rows for each item line: one `TRANSFER_OUT` from the source Warehouse and one `TRANSFER_IN` to the destination Warehouse.
+- Stock Transfer posting must reject the transaction when source Warehouse stock is not enough.
+
+## Branch And Warehouse
+
+- A Branch represents where business happens, such as sales, users, cash, bank, and reporting.
+- A Warehouse represents where stock is stored.
+- Each Branch can be attached to one or more Warehouses.
+- Sales should use the selected Branch and reduce stock from a Warehouse attached to that Branch.
+- Branch-wise stock should be calculated by summing stock balances of Warehouses attached to that Branch.
+- Do not store stock directly on the Branch or Item master record.
 
 ## Rule Ownership
 
-- Frontend UI, validation, layout, theme, messages, and voucher screen rules belong in `documents/FRONTEND_BEST_PRACTICES.md`.
+- Frontend UI, validation, layout, theme, messages, and transaction screen rules belong in `documents/FRONTEND_BEST_PRACTICES.md`.
 - Backend API, service, transaction, validation, security, and error-handling rules belong in `documents/BACKEND_BEST_PRACTICES.md`.
 - Database schema, table, field, index, master-data, and transaction design rules belong in `documents/DATABASE_DESIGN_RULES.md`.

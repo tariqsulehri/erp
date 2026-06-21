@@ -13,9 +13,19 @@
  */
 
 import { useState } from 'react';
-import { trpc } from '@/lib/trpc/client';
-import type { Account } from '@/modules/accounts/account.entity';
+import { useQueryClient } from '@tanstack/react-query';
+import {
+  accountsQueryKey,
+  useChildAccounts,
+  useCreateAccount,
+  useNextAccountCode,
+  useTopLevelAccounts,
+  type AccountListItem,
+} from '@/lib/api/accounts';
 import { getAccountLevel } from '@/modules/accounts/account-code';
+
+type Account = AccountListItem;
+type NormalBalance = 'Debit' | 'Credit';
 
 /* ── colour palette per account type ──────────────────────────────── */
 const TYPE_COLOR: Record<string, string> = {
@@ -205,25 +215,9 @@ function NewAccountCard({
   const [name,  setName]  = useState('');
   const [error, setError] = useState('');
 
-  const utils = trpc.useUtils();
-
-  const nextCodeQuery = trpc.accounts.getNextCode.useQuery(
-    { parentCode, isPosting },
-    { enabled: open },
-  );
-
-  const createMutation = trpc.accounts.create.useMutation({
-    onSuccess: (result) => {
-      utils.accounts.getChildren.invalidate({ parentCode });
-      setOpen(false);
-      setName('');
-      setError('');
-      onCreated(result.account as Account);
-    },
-    onError: (err) => {
-      setError(err.message);
-    },
-  });
+  const queryClient = useQueryClient();
+  const nextCodeQuery = useNextAccountCode(parentCode, isPosting, open);
+  const createMutation = useCreateAccount();
 
   const nextCode = nextCodeQuery.data?.code;
 
@@ -239,6 +233,17 @@ function NewAccountCard({
       normal_balance: parentBalance,
       is_posting:     isPosting,
       is_system:      false,
+    }, {
+      onSuccess: (result) => {
+        queryClient.invalidateQueries({ queryKey: accountsQueryKey });
+        setOpen(false);
+        setName('');
+        setError('');
+        onCreated(result.account);
+      },
+      onError: (err) => {
+        setError(err.message);
+      },
     });
   };
 
@@ -371,13 +376,11 @@ function DetailsStep({ subgroup, onSuccess }: DetailsStepProps) {
   const [obDate,  setObDate]  = useState('');
   const [error,   setError]   = useState('');
 
-  const nextCodeQuery = trpc.accounts.getNextCode.useQuery({ parentCode: subgroup.code, isPosting: true });
+  const nextCodeQuery = useNextAccountCode(subgroup.code, true);
   const nextCode      = nextCodeQuery.data?.code;
 
-  const createMutation = trpc.accounts.create.useMutation({
-    onSuccess: (result) => onSuccess(result.account as Account),
-    onError:   (err)    => setError(err.message),
-  });
+  const queryClient = useQueryClient();
+  const createMutation = useCreateAccount();
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -389,11 +392,17 @@ function DetailsStep({ subgroup, onSuccess }: DetailsStepProps) {
       name:                 name.trim(),
       description:          desc.trim() || undefined,
       account_type:         subgroup.account_type as any,
-      normal_balance:       subgroup.normal_balance,
+      normal_balance:       subgroup.normal_balance as NormalBalance,
       is_posting:           true,
       is_system:            false,
       opening_balance:      obAmt !== '' ? parseFloat(obAmt) : undefined,
       opening_balance_date: obDate || undefined,
+    }, {
+      onSuccess: (result) => {
+        queryClient.invalidateQueries({ queryKey: accountsQueryKey });
+        onSuccess(result.account);
+      },
+      onError: (err) => setError(err.message),
     });
   };
 
@@ -528,18 +537,10 @@ export function AccountWizard({ onSuccess }: AccountWizardProps) {
   const [group,    setGroup]    = useState<Account | null>(null);
   const [subgroup, setSubgroup] = useState<Account | null>(null);
 
-  const utils = trpc.useUtils();
-
   /* Queries */
-  const categoriesQ = trpc.accounts.getTopLevel.useQuery();
-  const groupsQ     = trpc.accounts.getChildren.useQuery(
-    { parentCode: category?.code ?? '' },
-    { enabled: !!category },
-  );
-  const subgroupsQ  = trpc.accounts.getChildren.useQuery(
-    { parentCode: group?.code ?? '' },
-    { enabled: !!group },
-  );
+  const categoriesQ = useTopLevelAccounts();
+  const groupsQ     = useChildAccounts(category?.code, !!category);
+  const subgroupsQ  = useChildAccounts(group?.code, !!group);
 
   /* Back-navigation: reset downstream selections */
   const goBack = (toStep: number) => {
@@ -588,7 +589,6 @@ export function AccountWizard({ onSuccess }: AccountWizardProps) {
                   setGroup(null);
                   setSubgroup(null);
                   setStep(2);
-                  utils.accounts.getChildren.prefetch({ parentCode: acct.code });
                 }}
               />
             ))}
@@ -616,14 +616,13 @@ export function AccountWizard({ onSuccess }: AccountWizardProps) {
                   setGroup(acct);
                   setSubgroup(null);
                   setStep(3);
-                  utils.accounts.getChildren.prefetch({ parentCode: acct.code });
                 }}
               />
             ))}
             <NewAccountCard
               parentCode={category.code}
               parentType={category.account_type}
-              parentBalance={category.normal_balance}
+              parentBalance={category.normal_balance as NormalBalance}
               isPosting={false}
               label="Create New Group"
               onCreated={(newAcct) => {
@@ -661,7 +660,7 @@ export function AccountWizard({ onSuccess }: AccountWizardProps) {
             <NewAccountCard
               parentCode={group.code}
               parentType={group.account_type}
-              parentBalance={group.normal_balance}
+              parentBalance={group.normal_balance as NormalBalance}
               isPosting={false}
               label="Create New Sub-Group"
               onCreated={(newAcct) => {

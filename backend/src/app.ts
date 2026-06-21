@@ -4,6 +4,7 @@ import helmet from 'helmet';
 import morgan from 'morgan';
 import { env } from './config/env.js';
 import { errorHandler } from './middleware/error-handler.js';
+import { healthRouter } from './routes/health.routes.js';
 import { apiRouter } from './routes/index.js';
 
 export function createApp() {
@@ -23,6 +24,7 @@ export function createApp() {
     });
   });
 
+  app.use('/health', healthRouter);
   app.use('/api/v1', apiRouter);
   app.use(errorHandler);
 

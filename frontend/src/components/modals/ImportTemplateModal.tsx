@@ -13,7 +13,7 @@
  */
 
 import { useState } from 'react';
-import { trpc } from '@/lib/trpc/client';
+import { useAccountTemplates, useImportAccountTemplate } from '@/lib/api/accounts';
 
 interface ImportTemplateModalProps {
   open: boolean;
@@ -33,26 +33,25 @@ export function ImportTemplateModal({ open, onClose, onDone }: ImportTemplateMod
 
   /* ── Data ─────────────────────────────────────────────────────────── */
   const { data: templates, isLoading: loadingTemplates } =
-    trpc.accounts.listTemplates.useQuery(undefined, { enabled: open });
+    useAccountTemplates(open);
 
-  const importMutation = trpc.accounts.importTemplate.useMutation({
-    onSuccess: () => {
-      onDone();
-      onClose();
-      setSelected(null);
-    },
-  });
+  const importMutation = useImportAccountTemplate();
 
   /* ── Handlers ─────────────────────────────────────────────────────── */
   const handleImport = () => {
     if (!selected) return;
-    importMutation.mutate({ templateCode: selected });
+    importMutation.mutate({ templateCode: selected }, {
+      onSuccess: () => {
+        onDone();
+        onClose();
+        setSelected(null);
+      },
+    });
   };
 
   const handleClose = () => {
     if (importMutation.isPending) return; // block close during import
     setSelected(null);
-    importMutation.reset();
     onClose();
   };
 

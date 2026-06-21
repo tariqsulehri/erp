@@ -16,9 +16,17 @@
  */
 
 import { useState, useEffect } from 'react';
-import { trpc } from '@/lib/trpc/client';
+import { useQueryClient } from '@tanstack/react-query';
+import {
+  accountsQueryKey,
+  useAccountDetail,
+  useAccountHistory,
+  useCloneAccount,
+  useToggleAccountActive,
+  useUpdateAccount,
+  type AccountListItem,
+} from '@/lib/api/accounts';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
-import type { Account } from '@/modules/accounts/account.entity';
 import { getAccountLevel } from '@/modules/accounts/account-code';
 
 /* ── Helpers ─────────────────────────────────────────────────────────── */
@@ -52,7 +60,7 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 type Tab = 'details' | 'clone' | 'history';
 
 /* ── Details tab ─────────────────────────────────────────────────────── */
-function DetailsTab({ account, onSaved }: { account: Account; onSaved: () => void }) {
+function DetailsTab({ account, onSaved }: { account: AccountListItem; onSaved: () => void }) {
   const [name,        setName]        = useState(account.name);
   const [desc,        setDesc]        = useState(account.description ?? '');
   const [obAmount,    setObAmount]    = useState(account.opening_balance?.toString() ?? '');
@@ -77,44 +85,52 @@ function DetailsTab({ account, onSaved }: { account: Account; onSaved: () => voi
     setSaveErr('');
   }, [account.id]);
 
-  const utils = trpc.useUtils();
+  const queryClient = useQueryClient();
 
-  const updateMutation = trpc.accounts.update.useMutation({
-    onSuccess: () => {
-      utils.accounts.list.invalidate();
-      utils.accounts.getById.invalidate({ id: account.id });
-      utils.accounts.getHierarchy.invalidate();
-      setDirty(false);
-      setSaveErr('');
-      onSaved();
-    },
-    onError: err => setSaveErr(err.message),
-  });
+  const updateMutation = useUpdateAccount();
+  const toggleMutation = useToggleAccountActive();
 
-  const toggleMutation = trpc.accounts.toggleActive.useMutation({
-    onSuccess: () => {
-      utils.accounts.list.invalidate();
-      utils.accounts.getById.invalidate({ id: account.id });
-      utils.accounts.getHierarchy.invalidate();
-      setConfirmOpen(false);
-      onSaved();
-    },
-    onError: err => setSaveErr(err.message),
-  });
+  const refreshAccountData = () => {
+    queryClient.invalidateQueries({ queryKey: accountsQueryKey });
+    onSaved();
+  };
 
   const isBusy = updateMutation.isPending || toggleMutation.isPending;
 
   const handleSave = () => {
     setSaveErr('');
-    updateMutation.mutate({
-      id:   account.id,
-      data: {
-        name:                 name.trim(),
-        description:          desc.trim() || undefined,
-        opening_balance:      obAmount !== '' ? parseFloat(obAmount) : undefined,
-        opening_balance_date: obDate || undefined,
+    updateMutation.mutate(
+      {
+        id: account.id,
+        data: {
+          name: name.trim(),
+          description: desc.trim() || null,
+          opening_balance: obAmount !== '' ? parseFloat(obAmount) : null,
+          opening_balance_date: obDate || null,
+        },
       },
-    });
+      {
+        onSuccess: () => {
+          refreshAccountData();
+          setDirty(false);
+          setSaveErr('');
+        },
+        onError: error => setSaveErr(error.message),
+      },
+    );
+  };
+
+  const toggleActive = (isActive: boolean) => {
+    toggleMutation.mutate(
+      { id: account.id, is_active: isActive },
+      {
+        onSuccess: () => {
+          refreshAccountData();
+          setConfirmOpen(false);
+        },
+        onError: error => setSaveErr(error.message),
+      },
+    );
   };
 
   return (
@@ -236,7 +252,7 @@ function DetailsTab({ account, onSaved }: { account: Account; onSaved: () => voi
 
         {!account.is_system && (
           <button
-            onClick={() => account.is_active ? setConfirmOpen(true) : toggleMutation.mutate({ id: account.id, is_active: true })}
+            onClick={() => account.is_active ? setConfirmOpen(true) : toggleActive(true)}
             disabled={isBusy}
             style={{
               width: '100%',
@@ -262,7 +278,7 @@ function DetailsTab({ account, onSaved }: { account: Account; onSaved: () => voi
         confirmLabel="Deactivate"
         variant="danger"
         loading={toggleMutation.isPending}
-        onConfirm={() => toggleMutation.mutate({ id: account.id, is_active: false })}
+        onConfirm={() => toggleActive(false)}
         onCancel={() => setConfirmOpen(false)}
       />
     </>
@@ -270,21 +286,13 @@ function DetailsTab({ account, onSaved }: { account: Account; onSaved: () => voi
 }
 
 /* ── Clone tab ───────────────────────────────────────────────────────── */
-function CloneTab({ account, onCloned }: { account: Account; onCloned: (a: Account) => void }) {
+function CloneTab({ account, onCloned }: { account: AccountListItem; onCloned: (a: AccountListItem) => void }) {
   const [name,  setName]  = useState(`${account.name} (Copy)`);
   const [error, setError] = useState('');
 
-  const utils = trpc.useUtils();
+  const queryClient = useQueryClient();
 
-  const cloneMutation = trpc.accounts.clone.useMutation({
-    onSuccess: result => {
-      utils.accounts.list.invalidate();
-      utils.accounts.getHierarchy.invalidate();
-      setError('');
-      onCloned(result.account as Account);
-    },
-    onError: err => setError(err.message),
-  });
+  const cloneMutation = useCloneAccount();
 
   const level = codeLevel(account.code);
 
@@ -335,7 +343,17 @@ function CloneTab({ account, onCloned }: { account: Account; onCloned: (a: Accou
       )}
 
       <button className="btn btn-primary"
-        onClick={() => cloneMutation.mutate({ sourceId: account.id, newName: name.trim() })}
+        onClick={() => cloneMutation.mutate(
+          { sourceId: account.id, newName: name.trim() },
+          {
+            onSuccess: result => {
+              queryClient.invalidateQueries({ queryKey: accountsQueryKey });
+              setError('');
+              onCloned(result.account);
+            },
+            onError: error => setError(error.message),
+          },
+        )}
         disabled={cloneMutation.isPending || !name.trim()}
         style={{ justifyContent: 'center' }}
       >
@@ -357,7 +375,7 @@ const ACTION_STYLE: Record<string, { color: string; bg: string; label: string }>
 };
 
 function HistoryTab({ accountId }: { accountId: string }) {
-  const { data, isLoading, error } = trpc.accounts.getHistory.useQuery({ accountId });
+  const { data, isLoading, error } = useAccountHistory(accountId);
 
   if (isLoading) {
     return (
@@ -430,7 +448,7 @@ function HistoryTab({ accountId }: { accountId: string }) {
 
 /* ── Main component ──────────────────────────────────────────────────── */
 interface AccountSlideOverProps {
-  account:  Account | null;
+  account:  AccountListItem | null;
   onClose:  () => void;
   onSaved:  () => void;
 }
@@ -439,13 +457,10 @@ export function AccountSlideOver({ account, onClose, onSaved }: AccountSlideOver
   const [tab, setTab] = useState<Tab>('details');
 
   /* Fetch fresh account data so the panel is never stale after a save */
-  const { data: fresh } = trpc.accounts.getById.useQuery(
-    { id: account?.id ?? '' },
-    { enabled: !!account?.id },
-  );
+  const { data: fresh } = useAccountDetail(account?.id, Boolean(account?.id));
 
   /* Use fresh data when available, fall back to prop while loading */
-  const current = (fresh ?? account) as Account | null;
+  const current = (fresh ?? account) as AccountListItem | null;
 
   /* Reset to details tab when a different account is opened */
   useEffect(() => { setTab('details'); }, [account?.id]);

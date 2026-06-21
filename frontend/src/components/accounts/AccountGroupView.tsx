@@ -12,11 +12,11 @@
  */
 
 import { useState } from 'react';
-import type { Account } from '@/modules/accounts/account.entity';
+import type { AccountListItem } from '@/lib/api/accounts';
 import { getAccountLevel } from '@/modules/accounts/account-code';
 
 interface AccountGroupViewProps {
-  accounts: Account[];
+  accounts: AccountListItem[];
 }
 
 /** Category metadata keyed by MM00000000 code */
@@ -43,7 +43,7 @@ const LEVEL_INDENT: Record<number, number> = { 1: 0, 2: 12, 3: 24, 4: 36 };
 
 interface GroupPanelProps {
   catCode: string;
-  accounts: Account[];
+  accounts: AccountListItem[];
 }
 
 /** Collapsible panel for one top-level category */
@@ -242,7 +242,7 @@ export function AccountGroupView({ accounts }: AccountGroupViewProps) {
   }
 
   // Bucket accounts by category (X000)
-  const buckets = new Map<string, Account[]>();
+  const buckets = new Map<string, AccountListItem[]>();
   for (const acct of accounts) {
     const cat = categoryOf(acct.code);
     if (!buckets.has(cat)) buckets.set(cat, []);

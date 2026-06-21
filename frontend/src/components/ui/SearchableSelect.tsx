@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
+import { fieldStyle } from './FormFields';
 
 export interface SelectOption {
   value: string;
@@ -12,20 +13,24 @@ export function SearchableSelect({
   value,
   options,
   onChange,
+  onSearchChange,
   placeholder,
   disabled = false,
+  selectedLabel,
 }: {
   value: string;
   options: SelectOption[];
   onChange: (value: string) => void;
+  onSearchChange?: (value: string) => void;
   placeholder: string;
   disabled?: boolean;
+  selectedLabel?: string;
 }) {
   const wrapRef = useRef<HTMLDivElement | null>(null);
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
   const selected = options.find(option => option.value === value);
-  const visibleValue = open ? query : selected?.label ?? '';
+  const visibleValue = open ? query : selected?.label ?? selectedLabel ?? '';
   const filtered = useMemo(() => {
     const needle = query.trim().toLowerCase();
     if (!needle) return options;
@@ -53,12 +58,15 @@ export function SearchableSelect({
         onFocus={() => {
           setOpen(true);
           setQuery('');
+          onSearchChange?.('');
         }}
         onChange={event => {
-          setQuery(event.currentTarget.value);
+          const nextQuery = event.currentTarget.value;
+          setQuery(nextQuery);
+          onSearchChange?.(nextQuery);
           setOpen(true);
         }}
-        style={compactInputStyle}
+        style={fieldStyle('compact')}
       />
       <span aria-hidden style={chevronStyle(open)}>▼</span>
       {open && !disabled && (
@@ -70,6 +78,7 @@ export function SearchableSelect({
               onChange('');
               setOpen(false);
               setQuery('');
+              onSearchChange?.('');
             }}
             style={dropdownButton(value === '')}
           >
@@ -84,6 +93,7 @@ export function SearchableSelect({
                 onChange(option.value);
                 setOpen(false);
                 setQuery('');
+                onSearchChange?.('');
               }}
               style={dropdownButton(option.value === value)}
             >
@@ -128,13 +138,6 @@ function chevronStyle(open: boolean): CSSProperties {
     fontSize: 10,
   };
 }
-
-const compactInputStyle: CSSProperties = {
-  height: 28,
-  minHeight: 28,
-  padding: '3px 8px',
-  fontSize: '0.76rem',
-};
 
 const dropdownMenuStyle: CSSProperties = {
   position: 'absolute',
