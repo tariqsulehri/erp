@@ -12,9 +12,9 @@ import {
 import { DateField, NumericField, SelectField, TextField, fieldStyle } from '@/components/ui/FormFields';
 import { FieldLabel } from '@/components/ui/FieldLabel';
 import { SearchableSelect } from '@/components/ui/SearchableSelect';
+import { PaginationBar } from '@/components/ui/PaginationBar';
 import { formatDate, formatNumber } from '@/lib/app-settings';
 import { friendlyErrorMessage, numericValue } from '@/lib/erp-utils';
-import { useDebouncedValue } from '@/lib/use-debounced-value';
 import { usePurchaseReturnDetail, usePurchaseReturnsList } from '@/lib/api/purchase-returns';
 import {
   badgeStyle,
@@ -48,6 +48,7 @@ export function PostedPurchaseReturnsView({
   onNewReturn,
   onAnalytics,
 }: PostedPurchaseReturnsViewProps) {
+  const [searchText, setSearchText] = useState('');
   const [search, setSearch] = useState('');
   const [supplierId, setSupplierId] = useState('');
   const [paymentType, setPaymentType] = useState('');
@@ -59,13 +60,12 @@ export function PostedPurchaseReturnsView({
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(50);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const debouncedSearch = useDebouncedValue(search.trim(), 350);
 
   const listQuery = usePurchaseReturnsList({
     page,
     limit: pageSize,
     status: 'Posted',
-    search: debouncedSearch || undefined,
+    search: search || undefined,
     supplier_id: supplierId || undefined,
     payment_type: paymentType as PaymentType || undefined,
     warehouse_id: warehouseId || undefined,
@@ -83,6 +83,7 @@ export function PostedPurchaseReturnsView({
   const toRecord = Math.min(page * pageSize, total);
 
   function resetFilters() {
+    setSearchText('');
     setSearch('');
     setSupplierId('');
     setPaymentType('');
@@ -99,6 +100,17 @@ export function PostedPurchaseReturnsView({
     action();
     setPage(1);
     setSelectedId(null);
+  }
+
+  function applySearch() {
+    updateFilter(() => setSearch(searchText.trim()));
+  }
+
+  function clearSearch() {
+    updateFilter(() => {
+      setSearchText('');
+      setSearch('');
+    });
   }
 
   return (
@@ -122,8 +134,13 @@ export function PostedPurchaseReturnsView({
       </section>
 
       <section className="workspace-card" style={{ padding: 10, flex: 1, minHeight: 0, display: 'grid', gridTemplateRows: 'auto 1fr auto', gap: 8, overflow: 'hidden' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(220px, 1.3fr) minmax(210px, 0.9fr) 120px minmax(190px, 0.8fr) 118px 118px 112px 112px auto', gap: 7, alignItems: 'end' }}>
-          <TextField label="Search" value={search} onChange={value => updateFilter(() => setSearch(value))} placeholder="Return No., Supplier, Reference" />
+        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(220px, 1.3fr) 84px 76px minmax(210px, 0.9fr) 120px minmax(190px, 0.8fr) 118px 118px 112px 112px auto', gap: 7, alignItems: 'end' }}>
+          <TextField label="Search" value={searchText} onChange={setSearchText} placeholder="Return No., Supplier, Reference" inputProps={{ onKeyDown: event => { if (event.key === 'Enter') applySearch(); } }} />
+          <button type="button" className="btn-secondary" onClick={applySearch} disabled={listQuery.isFetching} style={{ ...compactButtonStyle, alignSelf: 'end' }}>
+            {listQuery.isFetching && <span className="spinner" style={{ width: 12, height: 12, borderWidth: 2 }} />}
+            {listQuery.isFetching ? 'Searching...' : 'Search'}
+          </button>
+          <button type="button" className="btn-secondary" onClick={clearSearch} disabled={listQuery.isFetching || (!search && !searchText)} style={{ ...compactButtonStyle, alignSelf: 'end' }}>Clear</button>
           <FieldLabel label="Supplier">
             <SearchableSelect value={supplierId} options={suppliers} onChange={value => updateFilter(() => setSupplierId(value))} placeholder="All Suppliers" />
           </FieldLabel>
@@ -266,19 +283,15 @@ export function PostedPurchaseReturnsView({
           )}
         </div>
 
-        <div style={purchaseListFooterStyle}>
-          <span>Showing {formatNumber(fromRecord, generalSettings)}-{formatNumber(toRecord, generalSettings)} Of {formatNumber(total, generalSettings)}</span>
-          <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
-            <span>Page {formatNumber(page, generalSettings)} Of {formatNumber(pages, generalSettings)}</span>
-            <select className="form-input" value={pageSize} onChange={event => { setPageSize(Number(event.currentTarget.value)); setPage(1); setSelectedId(null); }} style={{ ...fieldStyle('compact'), width: 76 }} title="Page Size">
-              {[25, 50, 100, 200].map(size => <option key={size} value={size}>{size}</option>)}
-            </select>
-            <button type="button" className="btn-secondary" disabled={page <= 1} onClick={() => setPage(1)} style={compactButtonStyle}>First</button>
-            <button type="button" className="btn-secondary" disabled={page <= 1} onClick={() => setPage(value => Math.max(1, value - 1))} style={compactButtonStyle}>Previous</button>
-            <button type="button" className="btn-secondary" disabled={page >= pages} onClick={() => setPage(value => Math.min(pages, value + 1))} style={compactButtonStyle}>Next</button>
-            <button type="button" className="btn-secondary" disabled={page >= pages} onClick={() => setPage(pages)} style={compactButtonStyle}>Last</button>
-          </div>
-        </div>
+        <PaginationBar
+          page={page}
+          totalPages={pages}
+          totalRecords={total}
+          pageSize={pageSize}
+          recordLabel={total === 1 ? 'Purchase Return' : 'Purchase Returns'}
+          onPageChange={setPage}
+          onPageSizeChange={value => { setPageSize(value); setPage(1); setSelectedId(null); }}
+        />
       </section>
     </main>
   );

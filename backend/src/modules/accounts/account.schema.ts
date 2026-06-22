@@ -9,7 +9,7 @@ export const accountListQuerySchema = z.object({
   is_active: z.coerce.boolean().optional(),
   is_posting: z.coerce.boolean().optional(),
   page: z.coerce.number().int().min(1).default(1),
-  limit: z.coerce.number().int().min(1).max(1000).default(50),
+  limit: z.coerce.number().int().min(1).max(200).default(50),
 });
 
 export const createAccountSchema = z.object({

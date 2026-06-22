@@ -59,12 +59,25 @@ const VOUCHER_ITEMS = [
 
 /* ── Inventory sub-menu items ────────────────────────────────────────────── */
 const INVENTORY_ITEMS = [
-  { label: 'Branches',          href: '/inventory/branches',   icon: IconBuildingStore, color: '#2563eb', code: 'BR', moduleKey: 'inventory', featureKey: 'branches', permissionKey: 'inventory.branches.view' },
+  { label: 'Master Data', section: true },
   { label: 'Products',          href: '/inventory/products',   icon: IconPackage,     color: '#1d4ed8', code: 'PRD', moduleKey: 'inventory', featureKey: 'products', permissionKey: 'inventory.products.view' },
-  { label: 'Warehouses',        href: '/inventory/warehouses', icon: IconBuildingWarehouse, color: '#0f766e', code: 'WH', moduleKey: 'inventory', featureKey: 'warehouses', permissionKey: 'inventory.warehouses.view' },
+  { label: 'Transactions', section: true },
   { label: 'Stock Transfer',    href: '/inventory/stock-transfers', icon: IconArrowsExchange, color: '#b45309', code: 'ST', moduleKey: 'inventory', featureKey: 'stock-transfer', permissionKey: 'inventory.stock_transfer.view' },
-  { label: 'Categories',        href: '/inventory/categories', icon: IconCategory2,   color: '#0891b2', code: 'CAT', moduleKey: 'inventory', featureKey: 'categories', permissionKey: 'inventory.categories.view' },
-  { label: 'Units of Measure',  href: '/inventory/uom',        icon: IconRulerMeasure,color: '#15803d', code: 'UOM', moduleKey: 'inventory', featureKey: 'units-of-measure', permissionKey: 'inventory.units_of_measure.view' },
+  { label: 'Stock Adjustment',  href: '/inventory/stock-adjustments', icon: IconAdjustmentsHorizontal, color: '#a16207', code: 'SA', moduleKey: 'inventory', featureKey: 'stock-adjustment', permissionKey: 'inventory.stock_adjustment.view' },
+] satisfies readonly SidebarChild[];
+
+/* ── Config sub-menu items ──────────────────────────────────────────────── */
+const CONFIG_ITEMS = [
+  { label: 'Company Setup', section: true },
+  { label: 'Settings', href: '/settings', icon: IconAdjustmentsHorizontal, color: '#0f766e', code: 'SET', moduleKey: 'config', featureKey: 'settings', permissionKey: 'config.settings.view' },
+  { label: 'Finance Setup', section: true },
+  { label: 'Chart of Accounts', href: '/accounts', icon: IconScale, color: '#1d4ed8', code: 'COA', moduleKey: 'config', featureKey: 'chart-of-accounts', permissionKey: 'config.chart_of_accounts.view' },
+  { label: 'Fiscal Year', href: '/fiscal-year', icon: IconCalendarStats, color: '#7c3aed', code: 'FY', moduleKey: 'config', featureKey: 'fiscal-year', permissionKey: 'config.fiscal_year.view' },
+  { label: 'Inventory Setup', section: true },
+  { label: 'Branches', href: '/inventory/branches', icon: IconBuildingStore, color: '#2563eb', code: 'BR', moduleKey: 'config', featureKey: 'branches', permissionKey: 'config.branches.view' },
+  { label: 'Warehouses', href: '/inventory/warehouses', icon: IconBuildingWarehouse, color: '#0f766e', code: 'WH', moduleKey: 'config', featureKey: 'warehouses', permissionKey: 'config.warehouses.view' },
+  { label: 'Categories', href: '/inventory/categories', icon: IconCategory2, color: '#0891b2', code: 'CAT', moduleKey: 'config', featureKey: 'inventory-categories', permissionKey: 'config.inventory_categories.view' },
+  { label: 'Units of Measure', href: '/inventory/uom', icon: IconRulerMeasure, color: '#15803d', code: 'UOM', moduleKey: 'config', featureKey: 'units-of-measure', permissionKey: 'config.units_of_measure.view' },
 ] satisfies readonly SidebarChild[];
 
 /* ── AR sub-menu items ───────────────────────────────────────────────────── */
@@ -90,8 +103,6 @@ const NAV = [
   { label: 'Overview',           section: true },
   { label: 'Dashboard',          href: '/dashboard',   icon: IconDashboard },
   { label: 'Finance',            section: true },
-  { label: 'Accounts',           href: '/accounts',    icon: IconScale },
-  { label: 'Fiscal Year',        href: '/fiscal-year', icon: IconCalendarStats },
   { label: 'Vouchers',           href: '/vouchers',    icon: IconReceipt,  hasChildren: true, childKey: 'vouchers' },
   { label: 'Bank',               href: '/bank',        icon: IconBuildingBank },
   { label: 'Inventory',          section: true },
@@ -102,8 +113,8 @@ const NAV = [
   { label: 'Payables',           href: '/ap',          icon: IconTruckDelivery, hasChildren: true, childKey: 'ap' },
   { label: 'Reports',            section: true },
   { label: 'Reports',            href: '/reports',     icon: IconFileAnalytics },
-  { label: 'System',             section: true },
-  { label: 'Settings',           href: '/settings',    icon: IconAdjustmentsHorizontal },
+  { label: 'Configuration',      section: true },
+  { label: 'Config',             href: '/config',      icon: IconAdjustmentsHorizontal, hasChildren: true, childKey: 'config' },
 ];
 
 export default function DashboardLayout({ children }: { children: ReactNode }) {
@@ -113,18 +124,21 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
 
   /* Keep sub-menus open when on their routes */
   const isVoucherRoute   = pathname.startsWith('/vouchers');
-  const isInventoryRoute = pathname.startsWith('/inventory');
+  const isConfigRoute    = CONFIG_ITEMS.some(item => !('section' in item) && pathname.startsWith(item.href));
+  const isInventoryRoute = pathname.startsWith('/inventory') && !isConfigRoute;
   const isARRoute        = pathname.startsWith('/ar');
   const isAPRoute        = pathname.startsWith('/ap');
   const [vouchersOpen,  setVouchersOpen]  = useState(isVoucherRoute);
   const [inventoryOpen, setInventoryOpen] = useState(isInventoryRoute);
   const [arOpen,        setArOpen]        = useState(isARRoute);
   const [apOpen,        setApOpen]        = useState(isAPRoute);
+  const [configOpen,    setConfigOpen]    = useState(isConfigRoute);
 
   useEffect(() => { if (isVoucherRoute)   setVouchersOpen(true);  }, [isVoucherRoute]);
   useEffect(() => { if (isInventoryRoute) setInventoryOpen(true); }, [isInventoryRoute]);
   useEffect(() => { if (isARRoute)        setArOpen(true);        }, [isARRoute]);
   useEffect(() => { if (isAPRoute)        setApOpen(true);        }, [isAPRoute]);
+  useEffect(() => { if (isConfigRoute)    setConfigOpen(true);    }, [isConfigRoute]);
 
   useEffect(() => {
     if (status === 'unauthenticated') router.push('/login');
@@ -150,7 +164,9 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
   function currentPageLabel() {
     const vItem = VOUCHER_ITEMS.find(v => pathname.startsWith(v.href));
     if (vItem) return vItem.label;
-    const iItem = INVENTORY_ITEMS.find(i => pathname.startsWith(i.href));
+    const configItem = CONFIG_ITEMS.find(item => !('section' in item) && pathname.startsWith(item.href));
+    if (configItem) return configItem.label;
+    const iItem = INVENTORY_ITEMS.find(item => !('section' in item) && pathname.startsWith(item.href));
     if (iItem) return iItem.label;
     const arItem = AR_ITEMS.find(a => !('section' in a) && pathname.startsWith(a.href));
     if (arItem) return arItem.label;
@@ -180,29 +196,34 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
               return <div key={i} className="sidebar-section-label">{item.label}</div>;
             }
 
-            /* Collapsible sub-menu parents (Vouchers, Inventory, AR, AP) */
+            /* Collapsible sub-menu parents (Vouchers, Inventory, AR, AP, Config) */
             if (item.hasChildren) {
               const childKey    = item.childKey!;
               const isVouchers  = childKey === 'vouchers';
               const isInventory = childKey === 'inventory';
               const isAR        = childKey === 'ar';
               const isAP        = childKey === 'ap';
+              const isConfig    = childKey === 'config';
               const subItems    = isVouchers  ? VOUCHER_ITEMS
                                 : isInventory ? INVENTORY_ITEMS
                                 : isAR        ? AR_ITEMS
-                                :               AP_ITEMS;
+                                : isAP        ? AP_ITEMS
+                                :               CONFIG_ITEMS;
               const isOpen      = isVouchers  ? vouchersOpen
                                 : isInventory ? inventoryOpen
                                 : isAR        ? arOpen
-                                :               apOpen;
+                                : isAP        ? apOpen
+                                :               configOpen;
               const toggleOpen  = isVouchers  ? () => setVouchersOpen(o => !o)
                                 : isInventory ? () => setInventoryOpen(o => !o)
                                 : isAR        ? () => setArOpen(o => !o)
-                                :               () => setApOpen(o => !o);
+                                : isAP        ? () => setApOpen(o => !o)
+                                :               () => setConfigOpen(o => !o);
               const isParentActive = isVouchers  ? pathname.startsWith('/vouchers')
                                    : isInventory ? pathname.startsWith('/inventory')
                                    : isAR        ? pathname.startsWith('/ar')
-                                   :               pathname.startsWith('/ap');
+                                   : isAP        ? pathname.startsWith('/ap')
+                                   :               isConfigRoute;
 
               return (
                 <div key={childKey}>
@@ -332,6 +353,12 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
               {isInventoryRoute && (
                 <>
                   <span style={{ color: 'var(--color-text-secondary)' }}>Inventory</span>
+                  <span className="breadcrumb-sep">/</span>
+                </>
+              )}
+              {isConfigRoute && (
+                <>
+                  <span style={{ color: 'var(--color-text-secondary)' }}>Config</span>
                   <span className="breadcrumb-sep">/</span>
                 </>
               )}

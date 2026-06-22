@@ -3,10 +3,6 @@
 import { useState } from 'react';
 import {
   IconChartBar,
-  IconChevronLeft,
-  IconChevronRight,
-  IconChevronsLeft,
-  IconChevronsRight,
   IconCircleX,
   IconEye,
   IconFileInvoice,
@@ -17,10 +13,10 @@ import {
 } from '@tabler/icons-react';
 import { formatDate, formatNumber } from '@/lib/app-settings';
 import { friendlyErrorMessage, numericValue } from '@/lib/erp-utils';
-import { useDebouncedValue } from '@/lib/use-debounced-value';
 import { useCompanyProfile } from '@/lib/api/settings';
 import { usePurchaseInvoiceDetail, usePurchaseInvoicesList } from '@/lib/api/purchases';
 import { fieldStyle } from '@/components/ui/FormFields';
+import { PaginationBar } from '@/components/ui/PaginationBar';
 import { PurchaseInvoicePrintPreview } from './PurchasePrintPreview';
 import { PostedPurchasesFilters } from './components';
 import {
@@ -56,6 +52,7 @@ export function PostedPurchasesView({
   onNewPurchase,
   onAnalytics,
 }: PostedPurchasesViewProps) {
+  const [searchText, setSearchText] = useState('');
   const [search, setSearch] = useState('');
   const [supplierId, setSupplierId] = useState('');
   const [paymentType, setPaymentType] = useState('');
@@ -69,14 +66,13 @@ export function PostedPurchasesView({
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [printPreviewInvoice, setPrintPreviewInvoice] = useState<any | null>(null);
   const [printError, setPrintError] = useState('');
-  const debouncedSearch = useDebouncedValue(search.trim(), 350);
   const { data: company } = useCompanyProfile();
 
   const listQuery = usePurchaseInvoicesList({
     page,
     limit: pageSize,
     status: 'Posted',
-    search: debouncedSearch || undefined,
+    search: search || undefined,
     supplier_id: supplierId || undefined,
     payment_type: paymentType as PaymentType || undefined,
     warehouse_id: warehouseId || undefined,
@@ -96,6 +92,7 @@ export function PostedPurchasesView({
 
   function resetFilters() {
     setPrintError('');
+    setSearchText('');
     setSearch('');
     setSupplierId('');
     setPaymentType('');
@@ -113,6 +110,17 @@ export function PostedPurchasesView({
     action();
     setPage(1);
     setSelectedId(null);
+  }
+
+  function applySearch() {
+    updateFilter(() => setSearch(searchText.trim()));
+  }
+
+  function clearSearch() {
+    updateFilter(() => {
+      setSearchText('');
+      setSearch('');
+    });
   }
 
   return (
@@ -146,7 +154,7 @@ export function PostedPurchasesView({
 
       <section className="workspace-card" style={{ padding: 10, flex: 1, minHeight: 0, display: 'grid', gridTemplateRows: 'auto 1fr auto', gap: 8, overflow: 'hidden' }}>
         <PostedPurchasesFilters
-          search={search}
+          search={searchText}
           supplierId={supplierId}
           paymentType={paymentType}
           warehouseId={warehouseId}
@@ -156,7 +164,11 @@ export function PostedPurchasesView({
           amountTo={amountTo}
           suppliers={suppliers}
           warehouses={warehouses}
-          onSearchChange={value => updateFilter(() => setSearch(value))}
+          onSearchChange={setSearchText}
+          onSearchSubmit={applySearch}
+          onSearchClear={clearSearch}
+          searchApplied={Boolean(search)}
+          loading={listQuery.isFetching}
           onSupplierChange={value => updateFilter(() => setSupplierId(value))}
           onPaymentTypeChange={value => updateFilter(() => setPaymentType(value))}
           onWarehouseChange={value => updateFilter(() => setWarehouseId(value))}
@@ -335,31 +347,15 @@ export function PostedPurchasesView({
           )}
         </div>
 
-        <div style={purchaseListFooterStyle}>
-          <span>
-            Showing {formatNumber(fromRecord, generalSettings)}-{formatNumber(toRecord, generalSettings)} Of {formatNumber(total, generalSettings)}
-          </span>
-          <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
-            <span>Page {formatNumber(page, generalSettings)} Of {formatNumber(pages, generalSettings)}</span>
-            <select
-              className="form-input"
-              value={pageSize}
-              onChange={event => {
-                setPageSize(Number(event.currentTarget.value));
-                setPage(1);
-                setSelectedId(null);
-              }}
-              style={{ ...fieldStyle('compact'), width: 76 }}
-              title="Page Size"
-            >
-              {[25, 50, 100, 200].map(size => <option key={size} value={size}>{size}</option>)}
-            </select>
-            <button type="button" className="btn-secondary" disabled={page <= 1} onClick={() => setPage(1)} title="First Page" style={{ ...compactButtonStyle, minWidth: 34, padding: '5px 8px' }}><IconChevronsLeft size={15} /></button>
-            <button type="button" className="btn-secondary" disabled={page <= 1} onClick={() => setPage(value => Math.max(1, value - 1))} title="Previous Page" style={{ ...compactButtonStyle, minWidth: 34, padding: '5px 8px' }}><IconChevronLeft size={15} /></button>
-            <button type="button" className="btn-secondary" disabled={page >= pages} onClick={() => setPage(value => Math.min(pages, value + 1))} title="Next Page" style={{ ...compactButtonStyle, minWidth: 34, padding: '5px 8px' }}><IconChevronRight size={15} /></button>
-            <button type="button" className="btn-secondary" disabled={page >= pages} onClick={() => setPage(pages)} title="Last Page" style={{ ...compactButtonStyle, minWidth: 34, padding: '5px 8px' }}><IconChevronsRight size={15} /></button>
-          </div>
-        </div>
+        <PaginationBar
+          page={page}
+          totalPages={pages}
+          totalRecords={total}
+          pageSize={pageSize}
+          recordLabel={total === 1 ? 'Purchase' : 'Purchases'}
+          onPageChange={setPage}
+          onPageSizeChange={value => { setPageSize(value); setPage(1); setSelectedId(null); }}
+        />
       </section>
 
       {printPreviewInvoice && (
