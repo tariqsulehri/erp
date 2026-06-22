@@ -11,11 +11,11 @@ import {
   IconRefresh,
 } from '@tabler/icons-react';
 import { DateField, NumericField, SelectField, TextField, fieldStyle } from '@/components/ui/FormFields';
+import { PaginationBar } from '@/components/ui/PaginationBar';
 import { formatDate, formatMoney, formatNumber } from '@/lib/app-settings';
 import { useCompanyProfile, useGeneralSettings } from '@/lib/api/settings';
 import { useVoucherDetail, useVouchersList } from '@/lib/api/vouchers';
 import { friendlyErrorMessage, numericValue } from '@/lib/erp-utils';
-import { useDebouncedValue } from '@/lib/use-debounced-value';
 import { PostedVoucherPrintPreview } from './PostedVoucherPrintPreview';
 import {
   badgeStyle,
@@ -83,6 +83,7 @@ function statusBadge(status: string) {
 export function PostedVouchersView() {
   const { data: generalSettings } = useGeneralSettings();
   const { data: company } = useCompanyProfile();
+  const [searchText, setSearchText] = useState('');
   const [search, setSearch] = useState('');
   const [voucherType, setVoucherType] = useState('');
   const [dateFrom, setDateFrom] = useState('');
@@ -94,7 +95,6 @@ export function PostedVouchersView() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [printPreviewOpen, setPrintPreviewOpen] = useState(false);
   const [message, setMessage] = useState('');
-  const debouncedSearch = useDebouncedValue(search.trim(), 350);
   const money = useMemo(() => (value: string | number) => formatMoney(value, generalSettings), [generalSettings]);
 
   const listQuery = useVouchersList({
@@ -102,7 +102,7 @@ export function PostedVouchersView() {
     limit: pageSize,
     status: 'Posted',
     voucher_type: voucherType || undefined,
-    search: debouncedSearch || undefined,
+    search: search || undefined,
     date_from: dateFrom || undefined,
     date_to: dateTo || undefined,
     amount_from: amountFrom ? numericValue(amountFrom) : undefined,
@@ -117,6 +117,7 @@ export function PostedVouchersView() {
   const toRecord = Math.min(page * pageSize, total);
 
   function resetFilters() {
+    setSearchText('');
     setSearch('');
     setVoucherType('');
     setDateFrom('');
@@ -135,6 +136,17 @@ export function PostedVouchersView() {
     setPage(1);
     setSelectedId(null);
     setPrintPreviewOpen(false);
+  }
+
+  function applySearch() {
+    updateFilter(() => setSearch(searchText.trim()));
+  }
+
+  function clearSearch() {
+    updateFilter(() => {
+      setSearchText('');
+      setSearch('');
+    });
   }
 
   function printDetail() {
@@ -194,8 +206,15 @@ export function PostedVouchersView() {
       )}
 
       <section className="workspace-card" style={{ padding: 10, flex: 1, minHeight: 0, display: 'grid', gridTemplateRows: 'auto 1fr auto', gap: 8, overflow: 'hidden' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(220px, 1.4fr) 145px 118px 118px 112px 112px auto', gap: 7, alignItems: 'end' }}>
-          <TextField label="Search" value={search} onChange={value => updateFilter(() => setSearch(value))} placeholder="Voucher No., Reference, Description" />
+        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(220px, 1.4fr) 84px 76px 145px 118px 118px 112px 112px auto', gap: 7, alignItems: 'end' }}>
+          <TextField label="Search" value={searchText} onChange={setSearchText} placeholder="Voucher No., Reference, Description" inputProps={{ onKeyDown: event => { if (event.key === 'Enter') applySearch(); } }} />
+          <button type="button" className="btn-secondary" onClick={applySearch} disabled={listQuery.isFetching} style={{ ...compactButtonStyle, alignSelf: 'end' }}>
+            {listQuery.isFetching && <span className="spinner" style={{ width: 12, height: 12, borderWidth: 2 }} />}
+            {listQuery.isFetching ? 'Searching...' : 'Search'}
+          </button>
+          <button type="button" className="btn-secondary" onClick={clearSearch} disabled={listQuery.isFetching || (!search && !searchText)} style={{ ...compactButtonStyle, alignSelf: 'end' }}>
+            Clear
+          </button>
           <SelectField
             label="Voucher Type"
             value={voucherType}
@@ -365,29 +384,15 @@ export function PostedVouchersView() {
           )}
         </div>
 
-        <div style={purchaseListFooterStyle}>
-          <span>
-            Showing {fromRecord} - {toRecord} of {total} Posted Voucher{total === 1 ? '' : 's'}
-          </span>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <select
-              className="form-input"
-              value={pageSize}
-              onChange={event => {
-                setPageSize(Number(event.currentTarget.value));
-                setPage(1);
-              }}
-              style={{ ...fieldStyle('compact'), width: 76 }}
-            >
-              {[25, 50, 100, 200].map(size => <option key={size} value={size}>{size}</option>)}
-            </select>
-            <button type="button" className="btn-secondary" disabled={page <= 1} onClick={() => setPage(1)} style={compactButtonStyle}>First</button>
-            <button type="button" className="btn-secondary" disabled={page <= 1} onClick={() => setPage(value => Math.max(1, value - 1))} style={compactButtonStyle}>Previous</button>
-            <span style={{ minWidth: 92, textAlign: 'center' }}>Page {page} of {pages}</span>
-            <button type="button" className="btn-secondary" disabled={page >= pages} onClick={() => setPage(value => Math.min(pages, value + 1))} style={compactButtonStyle}>Next</button>
-            <button type="button" className="btn-secondary" disabled={page >= pages} onClick={() => setPage(pages)} style={compactButtonStyle}>Last</button>
-          </div>
-        </div>
+        <PaginationBar
+          page={page}
+          totalPages={pages}
+          totalRecords={total}
+          pageSize={pageSize}
+          recordLabel={total === 1 ? 'Posted Voucher' : 'Posted Vouchers'}
+          onPageChange={setPage}
+          onPageSizeChange={value => { setPageSize(value); setPage(1); }}
+        />
       </section>
     </main>
   );

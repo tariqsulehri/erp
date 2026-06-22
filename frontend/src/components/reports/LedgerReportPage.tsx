@@ -7,7 +7,6 @@ import { useLedgerReport } from '@/lib/api/reports';
 import { useGeneralSettings } from '@/lib/api/settings';
 import { formatDate } from '@/lib/app-settings';
 import { friendlyErrorMessage, isValidDateInput } from '@/lib/erp-utils';
-import { useDebouncedValue } from '@/lib/use-debounced-value';
 import { LedgerReportFilters } from './LedgerReportFilters';
 import { firstDayOfCurrentYear, todayInputDate } from './LedgerReportHelpers';
 import { LedgerReportSummary } from './LedgerReportSummary';
@@ -24,9 +23,7 @@ export function LedgerReportPage({ embedded = false }: LedgerReportPageProps) {
   const [dateTo, setDateTo] = useState(todayInputDate());
   const [shouldLoad, setShouldLoad] = useState(false);
   const [message, setMessage] = useState('');
-  const [accountSearch, setAccountSearch] = useState('');
   const [selectedAccountLabel, setSelectedAccountLabel] = useState('');
-  const debouncedAccountSearch = useDebouncedValue(accountSearch.trim(), 350);
   const { data: generalSettings } = useGeneralSettings();
 
   const accountsQuery = useAccountsList({
@@ -34,7 +31,6 @@ export function LedgerReportPage({ embedded = false }: LedgerReportPageProps) {
     limit: 200,
     is_active: true,
     is_posting: true,
-    search: debouncedAccountSearch || undefined,
   });
   const reportQuery = useLedgerReport({ account_id: accountId, date_from: dateFrom, date_to: dateTo }, shouldLoad && Boolean(accountId));
 
@@ -129,7 +125,6 @@ export function LedgerReportPage({ embedded = false }: LedgerReportPageProps) {
           setShouldLoad(false);
           setMessage('');
         }}
-        onAccountSearchChange={setAccountSearch}
         onDateFromChange={value => {
           setDateFrom(value);
           setShouldLoad(false);

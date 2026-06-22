@@ -34,6 +34,7 @@ import {
   warehousesQueryKey,
 } from '@/lib/api/warehouses';
 import { SelectField, TextField, fieldStyle, numericFieldStyle } from '@/components/ui/FormFields';
+import { PaginationBar } from '@/components/ui/PaginationBar';
 
 type ViewMode = 'list' | 'form';
 
@@ -66,9 +67,11 @@ export default function WarehouseManagementPage() {
   const [locationForm, setLocationForm] = useState(EMPTY_LOCATION_FORM);
   const [editingLocationId, setEditingLocationId] = useState('');
   const [message, setMessage] = useState('');
+  const [searchText, setSearchText] = useState('');
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState<'All' | 'Active' | 'Inactive'>('All');
   const [page, setPage] = useState(1);
+  const [stockSearchText, setStockSearchText] = useState('');
   const [stockSearch, setStockSearch] = useState('');
 
   const warehousesQuery = useWarehousesList({ page, limit: 50, search: search.trim() || undefined, status });
@@ -90,6 +93,26 @@ export default function WarehouseManagementPage() {
 
   function refreshAll() {
     queryClient.invalidateQueries({ queryKey: warehousesQueryKey });
+  }
+
+  function applySearch() {
+    setSearch(searchText.trim());
+    setPage(1);
+  }
+
+  function clearSearch() {
+    setSearchText('');
+    setSearch('');
+    setPage(1);
+  }
+
+  function applyStockSearch() {
+    setStockSearch(stockSearchText.trim());
+  }
+
+  function clearStockSearch() {
+    setStockSearchText('');
+    setStockSearch('');
   }
 
   function openNewWarehouse() {
@@ -299,8 +322,26 @@ export default function WarehouseManagementPage() {
           <div style={{ ...formCardStyle, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
               <SectionTitle icon={<IconPackage size={16} />} title="Stock Summary" />
-              <div style={{ width: 300 }}>
-                <input className="form-input" value={stockSearch} placeholder="Search Item Or Location" onChange={event => setStockSearch(event.currentTarget.value)} style={fieldStyle('compact')} />
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <input
+                  className="form-input"
+                  value={stockSearchText}
+                  placeholder="Search Item Or Location"
+                  onChange={event => setStockSearchText(event.currentTarget.value)}
+                  onKeyDown={event => {
+                    if (event.key === 'Enter') applyStockSearch();
+                  }}
+                  style={{ ...fieldStyle('compact'), width: 260 }}
+                />
+                <button className="btn-ghost" type="button" onClick={applyStockSearch} disabled={stockQuery.isFetching} style={{ height: 28, padding: '4px 8px', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                  {stockQuery.isFetching ? <span className="spinner" style={{ width: 12, height: 12, borderWidth: 2 }} /> : <IconSearch size={14} />}
+                  {stockQuery.isFetching ? 'Searching...' : 'Search'}
+                </button>
+                {(stockSearch || stockSearchText) && (
+                  <button className="btn-ghost" type="button" onClick={clearStockSearch} disabled={stockQuery.isFetching} style={{ height: 28, padding: '4px 8px' }}>
+                    Clear
+                  </button>
+                )}
               </div>
             </div>
             <StockSummaryTable rows={stockQuery.data?.data ?? []} loading={stockQuery.isFetching} settings={generalSettings} />
@@ -333,9 +374,27 @@ export default function WarehouseManagementPage() {
           <label className="form-label">Search</label>
           <div style={{ position: 'relative' }}>
             <IconSearch size={15} style={{ position: 'absolute', left: 9, top: 7, color: 'var(--color-text-muted)' }} />
-            <input className="form-input" value={search} onChange={event => { setSearch(event.currentTarget.value); setPage(1); }} placeholder="Warehouse Code, Name, Or Address" style={{ ...fieldStyle('compact'), paddingLeft: 30 }} />
+            <input
+              className="form-input"
+              value={searchText}
+              onChange={event => setSearchText(event.currentTarget.value)}
+              onKeyDown={event => {
+                if (event.key === 'Enter') applySearch();
+              }}
+              placeholder="Warehouse Code, Name, Or Address"
+              style={{ ...fieldStyle('compact'), paddingLeft: 30 }}
+            />
           </div>
         </div>
+        <button className="btn-ghost" type="button" onClick={applySearch} disabled={warehousesQuery.isFetching} style={{ alignSelf: 'end', height: 30, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+          {warehousesQuery.isFetching ? <span className="spinner" style={{ width: 12, height: 12, borderWidth: 2 }} /> : <IconSearch size={14} />}
+          {warehousesQuery.isFetching ? 'Searching...' : 'Search'}
+        </button>
+        {(search || searchText) && (
+          <button className="btn-ghost" type="button" onClick={clearSearch} disabled={warehousesQuery.isFetching} style={{ alignSelf: 'end', height: 30 }}>
+            Clear
+          </button>
+        )}
         <div style={{ width: 180 }}>
           <SelectField
             label="Status"
@@ -355,16 +414,13 @@ export default function WarehouseManagementPage() {
         />
       </section>
 
-      <footer style={paginationStyle}>
-        <span>Showing {warehousesQuery.data?.data.length ?? 0} Of {warehousesQuery.data?.pagination.total ?? 0} Warehouses</span>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          <button className="btn-ghost" disabled={page <= 1} onClick={() => setPage(1)}>First</button>
-          <button className="btn-ghost" disabled={page <= 1} onClick={() => setPage(current => Math.max(1, current - 1))}>Previous</button>
-          <span style={{ fontSize: '0.75rem', fontWeight: 800 }}>Page {page} Of {warehousesQuery.data?.pagination.pages || 1}</span>
-          <button className="btn-ghost" disabled={page >= (warehousesQuery.data?.pagination.pages || 1)} onClick={() => setPage(current => current + 1)}>Next</button>
-          <button className="btn-ghost" disabled={page >= (warehousesQuery.data?.pagination.pages || 1)} onClick={() => setPage(warehousesQuery.data?.pagination.pages || 1)}>Last</button>
-        </div>
-      </footer>
+      <PaginationBar
+        page={page}
+        totalPages={warehousesQuery.data?.pagination.pages || 1}
+        totalRecords={warehousesQuery.data?.pagination.total ?? 0}
+        recordLabel={(warehousesQuery.data?.pagination.total ?? 0) === 1 ? 'Warehouse' : 'Warehouses'}
+        onPageChange={setPage}
+      />
     </main>
   );
 }
@@ -636,17 +692,6 @@ const amountCellStyle: CSSProperties = {
 };
 
 const iconButtonStyle: CSSProperties = { height: 26, width: 28, minWidth: 28, padding: 0 };
-
-const paginationStyle: CSSProperties = {
-  display: 'flex',
-  justifyContent: 'space-between',
-  alignItems: 'center',
-  gap: 10,
-  color: 'var(--color-text-muted)',
-  fontSize: '0.74rem',
-  fontWeight: 800,
-  flexShrink: 0,
-};
 
 function messageStyle(success: boolean): CSSProperties {
   return {

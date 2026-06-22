@@ -15,7 +15,6 @@ interface LedgerReportFiltersProps {
   loadingAccounts: boolean;
   loadingReport: boolean;
   onAccountChange: (value: string) => void;
-  onAccountSearchChange: (value: string) => void;
   onDateFromChange: (value: string) => void;
   onDateToChange: (value: string) => void;
   onViewReport: () => void;
@@ -31,7 +30,6 @@ export function LedgerReportFilters({
   loadingAccounts,
   loadingReport,
   onAccountChange,
-  onAccountSearchChange,
   onDateFromChange,
   onDateToChange,
   onViewReport,
@@ -46,7 +44,6 @@ export function LedgerReportFilters({
             selectedLabel={selectedAccountLabel}
             options={accountOptions}
             onChange={onAccountChange}
-            onSearchChange={onAccountSearchChange}
             placeholder={loadingAccounts ? 'Loading Accounts...' : 'Search Account'}
             disabled={loadingAccounts}
           />

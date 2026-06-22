@@ -3,10 +3,6 @@
 import { useState } from 'react';
 import {
   IconChartBar,
-  IconChevronLeft,
-  IconChevronRight,
-  IconChevronsLeft,
-  IconChevronsRight,
   IconCircleX,
   IconEye,
   IconFilePlus,
@@ -16,9 +12,9 @@ import {
 } from '@tabler/icons-react';
 import { formatDate, formatNumber } from '@/lib/app-settings';
 import { friendlyErrorMessage, numericValue } from '@/lib/erp-utils';
-import { useDebouncedValue } from '@/lib/use-debounced-value';
 import { useSaleInvoiceDetail, useSaleInvoicesList } from '@/lib/api/sales';
 import { SearchableSelect } from '@/components/ui/SearchableSelect';
+import { PaginationBar } from '@/components/ui/PaginationBar';
 import { DateField, SelectField, TextField, fieldStyle } from '@/components/ui/FormFields';
 import {
   badgeStyle,
@@ -52,6 +48,7 @@ export function PostedSalesView({
   onNewSale,
   onAnalytics,
 }: PostedSalesViewProps) {
+  const [searchText, setSearchText] = useState('');
   const [search, setSearch] = useState('');
   const [customerId, setCustomerId] = useState('');
   const [paymentType, setPaymentType] = useState('');
@@ -63,13 +60,12 @@ export function PostedSalesView({
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(50);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const debouncedSearch = useDebouncedValue(search.trim(), 350);
 
   const listQuery = useSaleInvoicesList({
     page,
     limit: pageSize,
     status: 'Posted',
-    search: debouncedSearch || undefined,
+    search: search || undefined,
     customer_id: customerId || undefined,
     payment_type: paymentType as SalePaymentType || undefined,
     warehouse_id: warehouseId || undefined,
@@ -93,6 +89,7 @@ export function PostedSalesView({
   }
 
   function resetFilters() {
+    setSearchText('');
     setSearch('');
     setCustomerId('');
     setPaymentType('');
@@ -103,6 +100,17 @@ export function PostedSalesView({
     setAmountTo('');
     setPage(1);
     setSelectedId(null);
+  }
+
+  function applySearch() {
+    updateFilter(() => setSearch(searchText.trim()));
+  }
+
+  function clearSearch() {
+    updateFilter(() => {
+      setSearchText('');
+      setSearch('');
+    });
   }
 
   return (
@@ -126,8 +134,13 @@ export function PostedSalesView({
       </section>
 
       <section className="workspace-card" style={{ padding: 10, flex: 1, minHeight: 0, display: 'grid', gridTemplateRows: 'auto 1fr auto', gap: 8, overflow: 'hidden' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(220px, 1.5fr) minmax(210px, 1fr) 120px 150px 115px 115px 110px 110px 110px', gap: 6, alignItems: 'end' }}>
-          <TextField label="Search" value={search} onChange={value => updateFilter(() => setSearch(value))} placeholder="Sale No., Customer, Reference" />
+        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(220px, 1.5fr) 84px 76px minmax(210px, 1fr) 120px 150px 115px 115px 110px 110px 110px', gap: 6, alignItems: 'end' }}>
+          <TextField label="Search" value={searchText} onChange={setSearchText} placeholder="Sale No., Customer, Reference" inputProps={{ onKeyDown: event => { if (event.key === 'Enter') applySearch(); } }} />
+          <button type="button" className="btn-secondary" onClick={applySearch} disabled={listQuery.isFetching} style={{ ...compactButtonStyle, alignSelf: 'end' }}>
+            {listQuery.isFetching && <span className="spinner" style={{ width: 12, height: 12, borderWidth: 2 }} />}
+            {listQuery.isFetching ? 'Searching...' : 'Search'}
+          </button>
+          <button type="button" className="btn-secondary" onClick={clearSearch} disabled={listQuery.isFetching || (!search && !searchText)} style={{ ...compactButtonStyle, alignSelf: 'end' }}>Clear</button>
           <div>
             <label className="field-label">Customer</label>
             <SearchableSelect value={customerId} options={customers} onChange={value => updateFilter(() => setCustomerId(value))} placeholder="All Customers" />
@@ -268,19 +281,15 @@ export function PostedSalesView({
           )}
         </div>
 
-        <div style={purchaseListFooterStyle}>
-          <span>Showing {formatNumber(fromRecord, generalSettings)}-{formatNumber(toRecord, generalSettings)} Of {formatNumber(total, generalSettings)}</span>
-          <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
-            <span>Page {formatNumber(page, generalSettings)} Of {formatNumber(pages, generalSettings)}</span>
-            <select className="form-input" value={pageSize} onChange={event => { setPageSize(Number(event.currentTarget.value)); setPage(1); setSelectedId(null); }} style={{ ...fieldStyle('compact'), width: 76 }} title="Page Size">
-              {[25, 50, 100, 200].map(size => <option key={size} value={size}>{size}</option>)}
-            </select>
-            <button type="button" className="btn-secondary" disabled={page <= 1} onClick={() => setPage(1)} title="First Page" style={{ ...compactButtonStyle, minWidth: 34, padding: '5px 8px' }}><IconChevronsLeft size={15} /></button>
-            <button type="button" className="btn-secondary" disabled={page <= 1} onClick={() => setPage(value => Math.max(1, value - 1))} title="Previous Page" style={{ ...compactButtonStyle, minWidth: 34, padding: '5px 8px' }}><IconChevronLeft size={15} /></button>
-            <button type="button" className="btn-secondary" disabled={page >= pages} onClick={() => setPage(value => Math.min(pages, value + 1))} title="Next Page" style={{ ...compactButtonStyle, minWidth: 34, padding: '5px 8px' }}><IconChevronRight size={15} /></button>
-            <button type="button" className="btn-secondary" disabled={page >= pages} onClick={() => setPage(pages)} title="Last Page" style={{ ...compactButtonStyle, minWidth: 34, padding: '5px 8px' }}><IconChevronsRight size={15} /></button>
-          </div>
-        </div>
+        <PaginationBar
+          page={page}
+          totalPages={pages}
+          totalRecords={total}
+          pageSize={pageSize}
+          recordLabel={total === 1 ? 'Sale' : 'Sales'}
+          onPageChange={setPage}
+          onPageSizeChange={value => { setPageSize(value); setPage(1); setSelectedId(null); }}
+        />
       </section>
     </main>
   );

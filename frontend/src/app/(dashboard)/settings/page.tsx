@@ -520,14 +520,14 @@ function AccountingTab({ company }: { company: any }) {
 
 /* ── COA tab ────────────────────────────────────────────────────────── */
 function COATab({ generalSettings }: { generalSettings: any }) {
-  const { data } = useAccountsList({ page: 1, limit: 1000 });
+  const { data } = useAccountsList({ page: 1, limit: 200 });
   const accounts = data?.data ?? [];
 
   const stats = [
     { label: 'Total Accounts',    value: data?.pagination?.total ?? 0,                   color: '#2563eb' },
-    { label: 'Posting Accounts',  value: accounts.filter((a: any) => a.is_posting).length,  color: '#16a34a' },
-    { label: 'Header Accounts',   value: accounts.filter((a: any) => !a.is_posting).length, color: '#7c3aed' },
-    { label: 'Inactive Accounts', value: accounts.filter((a: any) => !a.is_active).length,  color: '#dc2626' },
+    { label: 'Posting Shown',     value: accounts.filter((a: any) => a.is_posting).length,  color: '#16a34a' },
+    { label: 'Header Shown',      value: accounts.filter((a: any) => !a.is_posting).length, color: '#7c3aed' },
+    { label: 'Inactive Shown',    value: accounts.filter((a: any) => !a.is_active).length,  color: '#dc2626' },
   ];
 
   const byType = ['Asset', 'Liability', 'Equity', 'Revenue', 'Expense'].map(t => ({

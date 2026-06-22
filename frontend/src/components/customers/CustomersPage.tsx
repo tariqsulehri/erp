@@ -119,13 +119,14 @@ export default function CustomersPage() {
   const [formError,    setFormError]    = useState('');
   const [bannerError,  setBannerError]  = useState('');
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
+  const [searchText,   setSearchText]   = useState('');
   const [search,       setSearch]       = useState('');
   const [typeFilter,   setTypeFilter]   = useState('');
   const [showInactive, setShowInactive] = useState(false);
   const [activeTab,    setActiveTab]    = useState<'basic' | 'contact' | 'financial'>('basic');
 
   /* ── Queries ── */
-  const { data: listData, isLoading } = useCustomersList({
+  const { data: listData, isLoading, isFetching } = useCustomersList({
     search: search || undefined,
     type: (typeFilter as 'individual'|'company'|'government') || undefined,
     is_active: showInactive ? undefined : true,
@@ -170,6 +171,15 @@ export default function CustomersPage() {
   }
   function closeForm() { setShowForm(false); setEditId(null); setForm(EMPTY_FORM); setFormError(''); setSaving(false); }
   function setF(key: keyof CreateCustomerInput, val: unknown) { setForm(f => ({ ...f, [key]: val })); }
+
+  function applySearch() {
+    setSearch(searchText.trim());
+  }
+
+  function clearSearch() {
+    setSearchText('');
+    setSearch('');
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -270,8 +280,26 @@ export default function CustomersPage() {
       <div style={{ display: showForm ? 'none' : 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
         <div style={{ position: 'relative', width: 260 }}>
           <svg style={{ position: 'absolute', left: 9, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }} width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--color-text-muted)" strokeWidth="2.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-          <input className="input" placeholder="Search name, code, email…" value={search} onChange={e => setSearch(e.target.value)} style={{ paddingLeft: 30, width: '100%' }} />
+          <input
+            className="input"
+            placeholder="Search name, code, email…"
+            value={searchText}
+            onChange={e => setSearchText(e.target.value)}
+            onKeyDown={event => {
+              if (event.key === 'Enter') applySearch();
+            }}
+            style={{ paddingLeft: 30, width: '100%' }}
+          />
         </div>
+        <button className="btn-secondary" type="button" onClick={applySearch} disabled={isFetching} style={{ padding: '7px 12px', fontSize: '0.78rem', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+          {isFetching && <span className="spinner" style={{ width: 12, height: 12, borderWidth: 2 }} />}
+          {isFetching ? 'Searching...' : 'Search'}
+        </button>
+        {(search || searchText) && (
+          <button className="btn-secondary" type="button" onClick={clearSearch} disabled={isFetching} style={{ padding: '7px 12px', fontSize: '0.78rem', fontWeight: 700 }}>
+            Clear
+          </button>
+        )}
         {/* Type filter */}
         <div style={{ display: 'flex', gap: 5 }}>
           {(['', ...CUSTOMER_TYPES] as const).map(t => {
