@@ -37,9 +37,9 @@ const ACCOUNT_TYPES = ['Asset', 'Liability', 'Equity', 'Revenue', 'Expense'];
 function buildStats(accounts: AccountListItem[], total: number) {
   return [
     { label: 'Total Accounts',   value: total },
-    { label: 'Posting Accounts', value: accounts.filter(a => a.is_posting).length },
-    { label: 'Asset Accounts',   value: accounts.filter(a => a.account_type === 'Asset').length },
-    { label: 'Active Accounts',  value: accounts.filter(a => a.is_active).length },
+    { label: 'Posting On Page',  value: accounts.filter(a => a.is_posting).length },
+    { label: 'Assets On Page',   value: accounts.filter(a => a.account_type === 'Asset').length },
+    { label: 'Active On Page',   value: accounts.filter(a => a.is_active).length },
   ];
 }
 
@@ -88,6 +88,7 @@ function exportCSV(accounts: AccountListItem[]) {
 export default function AccountsPage() {
   const [view,        setView]        = useState<ViewMode>('tree');
   const [page,        setPage]        = useState(1);
+  const [searchText,  setSearchText]  = useState('');
   const [search,      setSearch]      = useState('');
   const [typeFilter,  setTypeFilter]  = useState('');
   const [postFilter,  setPostFilter]  = useState<PostingFilter>('all');
@@ -100,7 +101,7 @@ export default function AccountsPage() {
   const { data: generalSettings } = useGeneralSettings();
 
   /* ── Table / stats query ──────────────────────────────────────────── */
-  const { data, isLoading, error } = useAccountsList(
+  const { data, isLoading, isFetching, error } = useAccountsList(
     {
       page,
       limit: PAGE_SIZE,
@@ -110,13 +111,15 @@ export default function AccountsPage() {
     },
   );
 
-  /* ── Full list for group view + CSV export ─────────────────────────── */
-  const { data: allData, isLoading: allLoading } = useAccountsList(
+  /* ── Larger list only when the grouped view is open ────────────────── */
+  const { data: groupData, isLoading: groupLoading } = useAccountsList(
     {
-      page: 1, limit: 1000,
+      page: 1, limit: 200,
+      search:     search     || undefined,
       type:       typeFilter || undefined,
       is_posting: postFilter === 'posting' ? true : postFilter === 'header' ? false : undefined,
     },
+    view === 'group',
   );
 
   /* ── Bulk mutation ──────────────────────────────────────────────────── */
@@ -135,9 +138,9 @@ export default function AccountsPage() {
   };
 
   const accounts    = data?.data    ?? [];
-  const allAccounts = allData?.data ?? [];
+  const groupAccounts = groupData?.data ?? [];
   const total       = data?.pagination?.total ?? 0;
-  const stats       = buildStats(allAccounts.length > 0 ? allAccounts : accounts, total);
+  const stats       = buildStats(accounts, total);
 
   /* ── Selection helpers ─────────────────────────────────────────────── */
   const toggleSelect = useCallback((id: string) => {
@@ -158,9 +161,20 @@ export default function AccountsPage() {
 
   /* ── Filter reset ──────────────────────────────────────────────────── */
   const resetFilters = () => {
-    setSearch(''); setTypeFilter(''); setPostFilter('all'); setPage(1);
+    setSearchText(''); setSearch(''); setTypeFilter(''); setPostFilter('all'); setPage(1);
   };
   const hasFilters = search || typeFilter || postFilter !== 'all';
+
+  const applySearch = () => {
+    setSearch(searchText.trim());
+    setPage(1);
+  };
+
+  const clearSearch = () => {
+    setSearchText('');
+    setSearch('');
+    setPage(1);
+  };
 
   return (
     <>
@@ -174,14 +188,14 @@ export default function AccountsPage() {
           {/* CSV Export */}
           <button
             className="btn btn-secondary"
-            onClick={() => exportCSV(allAccounts)}
-            disabled={allAccounts.length === 0}
-            title="Export current filter to CSV"
+            onClick={() => exportCSV(accounts)}
+            disabled={accounts.length === 0}
+            title="Export the current page to CSV"
           >
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/>
             </svg>
-            Export CSV
+            Export Page CSV
           </button>
 
           {/* Template import — only when COA is empty */}
@@ -256,11 +270,27 @@ export default function AccountsPage() {
                 <input
                   type="text" className="form-input"
                   placeholder="Search accounts…"
-                  value={search}
-                  onChange={e => { setSearch(e.target.value); setPage(1); }}
+                  value={searchText}
+                  onChange={e => setSearchText(e.target.value)}
+                  onKeyDown={event => {
+                    if (event.key === 'Enter') applySearch();
+                  }}
                   style={{ paddingLeft: 30, width: 200, height: 34 }}
                 />
               </div>
+            )}
+            {view === 'table' && (
+              <>
+                <button className="btn btn-secondary btn-sm" type="button" onClick={applySearch} disabled={isFetching} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                  {isFetching && <span className="spinner" style={{ width: 12, height: 12, borderWidth: 2 }} />}
+                  {isFetching ? 'Searching...' : 'Search'}
+                </button>
+                {(search || searchText) && (
+                  <button className="btn btn-secondary btn-sm" type="button" onClick={clearSearch} disabled={isFetching}>
+                    Clear
+                  </button>
+                )}
+              </>
             )}
 
             {/* View toggle */}
@@ -395,7 +425,7 @@ export default function AccountsPage() {
         )}
 
         {view === 'group' && (
-          allLoading ? (
+          groupLoading ? (
             <div className="loading-overlay" style={{ minHeight: 320 }}>
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
                 <div className="spinner" style={{ width: 28, height: 28, borderWidth: 3 }} />
@@ -405,7 +435,14 @@ export default function AccountsPage() {
               </div>
             </div>
           ) : (
-            <AccountGroupView accounts={allAccounts} />
+            <>
+              {total > groupAccounts.length && (
+                <div className="alert alert-warning" style={{ marginBottom: 12 }}>
+                  Showing the first {groupAccounts.length} accounts in Group view. Use Table search or filters for the full list.
+                </div>
+              )}
+              <AccountGroupView accounts={groupAccounts} />
+            </>
           )
         )}
       </div>

@@ -43,10 +43,10 @@ export function ChartMetricBadge({ label, value }: { label: string; value: strin
 
 export function ChartTitle({ title, subtitle, right }: { title: string; subtitle: string; right?: ReactNode }) {
   return (
-    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'start', marginBottom: 8 }}>
+    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'start', marginBottom: 6 }}>
       <div>
-        <h2 style={{ margin: 0, color: 'var(--color-heading)', fontSize: '0.88rem', lineHeight: 1.15 }}>{title}</h2>
-        <div style={{ marginTop: 3, color: 'var(--color-text-muted)', fontSize: '0.68rem', fontWeight: 700 }}>{subtitle}</div>
+        <h2 style={{ margin: 0, color: 'var(--color-heading)', fontSize: '0.8rem', lineHeight: 1.15 }}>{title}</h2>
+        <div style={{ marginTop: 2, color: 'var(--color-text-muted)', fontSize: '0.64rem', fontWeight: 700 }}>{subtitle}</div>
       </div>
       {right}
     </div>
@@ -61,11 +61,11 @@ const analyticsKpiBackground = {
 } as const;
 
 const analyticsKpiStyle: CSSProperties = {
-  minHeight: 82,
+  minHeight: 68,
   display: 'grid',
   gridTemplateRows: 'auto 1fr auto',
-  gap: 5,
-  padding: '10px 12px',
+  gap: 3,
+  padding: '7px 10px',
   border: '1px solid var(--color-border)',
   borderTop: '3px solid var(--color-primary)',
   borderRadius: 'var(--radius)',
@@ -77,8 +77,8 @@ const analyticsInsightBoxStyle: CSSProperties = {
   display: 'grid',
   gridTemplateRows: 'auto auto auto',
   gap: 4,
-  minHeight: 70,
-  padding: '9px 11px',
+  minHeight: 58,
+  padding: '7px 9px',
   border: '1px solid var(--color-border-subtle)',
   borderRadius: 'var(--radius)',
   background: 'linear-gradient(180deg, var(--color-surface), var(--color-surface-alt))',
@@ -87,8 +87,8 @@ const analyticsInsightBoxStyle: CSSProperties = {
 const chartMetricBadgeStyle: CSSProperties = {
   display: 'grid',
   gap: 2,
-  minWidth: 108,
-  padding: '6px 9px',
+  minWidth: 96,
+  padding: '5px 8px',
   border: '1px solid var(--color-border-subtle)',
   borderRadius: 'var(--radius-sm)',
   background: 'var(--color-surface)',

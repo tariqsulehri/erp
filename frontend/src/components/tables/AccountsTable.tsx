@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import type { AccountListItem } from '@/lib/api/accounts';
 import { getAccountLevel } from '@/modules/accounts/account-code';
+import { PaginationBar } from '@/components/ui/PaginationBar';
 
 /* ── Type badge ──────────────────────────────────────────────────────── */
 const TYPE_COLOR: Record<string, { text: string; bg: string }> = {
@@ -59,22 +60,9 @@ export function AccountsTable({
   onRowClick, selectedIds, onToggleSelect, onSelectAll,
   onBulkActivate, onBulkDeactivate, bulkLoading,
 }: AccountsTableProps) {
-  const totalPages   = Math.ceil(total / pageSize);
-  const from         = total === 0 ? 0 : (page - 1) * pageSize + 1;
-  const to           = Math.min(page * pageSize, total);
+  const totalPages   = Math.max(1, Math.ceil(total / pageSize));
   const selectedCount = selectedIds?.size ?? 0;
   const allSelected  = accounts.length > 0 && accounts.every(a => selectedIds?.has(a.id));
-
-  /* Smart pagination: show up to 7 page buttons with ellipsis */
-  const pageButtons = (() => {
-    if (totalPages <= 7) return Array.from({ length: totalPages }, (_, i) => i + 1);
-    const pages: (number | '…')[] = [1];
-    if (page > 3) pages.push('…');
-    for (let p = Math.max(2, page - 1); p <= Math.min(totalPages - 1, page + 1); p++) pages.push(p);
-    if (page < totalPages - 2) pages.push('…');
-    pages.push(totalPages);
-    return pages;
-  })();
 
   return (
     <div>
@@ -282,25 +270,20 @@ export function AccountsTable({
 
       {/* ── Pagination ─────────────────────────────────────────── */}
       {total > 0 && (
-        <div className="pagination">
-          <span className="pagination-info">
-            Showing <strong>{from}–{to}</strong> of <strong>{total}</strong> accounts
-            {selectedCount > 0 && (
-              <span style={{ marginLeft: 8, color: 'var(--color-primary)', fontWeight: 600 }}>
-                · {selectedCount} selected
-              </span>
-            )}
-          </span>
-          <div className="pagination-controls">
-            <button className="pagination-btn" onClick={() => onPageChange(page - 1)} disabled={page === 1} aria-label="Previous">‹</button>
-            {pageButtons.map((p, i) =>
-              p === '…'
-                ? <span key={`ellipsis-${i}`} style={{ padding: '0 4px', color: 'var(--color-text-muted)' }}>…</span>
-                : <button key={p} className={`pagination-btn${page === p ? ' active' : ''}`} onClick={() => onPageChange(p as number)}>{p}</button>
-            )}
-            <button className="pagination-btn" onClick={() => onPageChange(page + 1)} disabled={page === totalPages} aria-label="Next">›</button>
-          </div>
-        </div>
+        <>
+          {selectedCount > 0 && (
+            <div style={{ padding: '6px 10px 0', color: 'var(--color-primary)', fontSize: '0.74rem', fontWeight: 800 }}>
+              {selectedCount} account{selectedCount === 1 ? '' : 's'} selected
+            </div>
+          )}
+          <PaginationBar
+            page={page}
+            totalPages={totalPages}
+            totalRecords={total}
+            recordLabel={total === 1 ? 'Account' : 'Accounts'}
+            onPageChange={onPageChange}
+          />
+        </>
       )}
     </div>
   );

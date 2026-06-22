@@ -11,6 +11,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useAccountsList } from '@/lib/api/accounts';
 import { useValidatePostingDate } from '@/lib/api/fiscal-years';
+import { PaginationBar } from '@/components/ui/PaginationBar';
 import {
   useCreateVoucher,
   usePostVoucher,
@@ -799,6 +800,7 @@ function VoucherList({ voucherType, selectedId, onSelect, onNewClick, detailOpen
 }) {
   const meta = VOUCHER_META[voucherType];
 
+  const [searchText,setSearchText]= useState('');
   const [search,    setSearch]    = useState('');
   const [statusFlt, setStatusFlt] = useState<VoucherStatus | ''>('');
   const [dateFrom,  setDateFrom]  = useState('');
@@ -817,6 +819,17 @@ function VoucherList({ voucherType, selectedId, onSelect, onNewClick, detailOpen
   const rows  = data?.data ?? [];
   const total = data?.pagination?.total ?? 0;
   const pages = data?.pagination?.pages ?? 1;
+
+  function applySearch() {
+    setSearch(searchText.trim());
+    setPage(1);
+  }
+
+  function clearSearch() {
+    setSearchText('');
+    setSearch('');
+    setPage(1);
+  }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', padding: detailOpen ? '12px 12px 12px 16px' : '12px 16px', gap: 10, overflow: 'hidden' }}>
@@ -850,9 +863,22 @@ function VoucherList({ voucherType, selectedId, onSelect, onNewClick, detailOpen
           background: 'var(--color-surface)', overflow: 'hidden',
         }}>
           <input className="form-input" placeholder="Search no. / reference…"
-            value={search} onChange={e => { setSearch(e.target.value); setPage(1); }}
+            value={searchText}
+            onChange={e => setSearchText(e.target.value)}
+            onKeyDown={event => {
+              if (event.key === 'Enter') applySearch();
+            }}
             style={{ fontSize: '0.8rem', padding: '4px 10px', height: 32, width: 190, border: 'none', borderRadius: 0, borderRight: '1.5px solid var(--color-border)' }}
           />
+          <button type="button" className="btn-secondary" onClick={applySearch} disabled={isLoading}
+            style={{ fontSize: '0.75rem', height: 32, padding: '4px 9px', border: 'none', borderRight: '1.5px solid var(--color-border)', borderRadius: 0 }}>
+            {isLoading && <span className="spinner" style={{ width: 12, height: 12, borderWidth: 2, marginRight: 5 }} />}
+            {isLoading ? 'Searching...' : 'Search'}
+          </button>
+          <button type="button" className="btn-secondary" onClick={clearSearch} disabled={isLoading || (!search && !searchText)}
+            style={{ fontSize: '0.75rem', height: 32, padding: '4px 9px', border: 'none', borderRight: '1.5px solid var(--color-border)', borderRadius: 0 }}>
+            Clear
+          </button>
           <select className="form-select" value={statusFlt}
             onChange={e => { setStatusFlt(e.target.value as any); setPage(1); }}
             style={{ fontSize: '0.8rem', padding: '4px 8px', height: 32, width: 110, border: 'none', borderRadius: 0, borderRight: '1.5px solid var(--color-border)' }}
@@ -992,19 +1018,13 @@ function VoucherList({ voucherType, selectedId, onSelect, onNewClick, detailOpen
         </table>
       </div>
 
-      {/* ── Pagination ── */}
-      <div style={{
-        display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8,
-        padding: '6px 16px',
-        background: 'var(--color-panel-footer-bg)',
-        borderTop: '1.5px solid var(--color-panel-footer-border)',
-        borderRadius: '0 0 var(--radius-md) var(--radius-md)',
-        flexShrink: 0, fontSize: '0.75rem', color: 'var(--color-text-muted)',
-      }}>
-        <span>Page {page} of {pages} · {total} record{total !== 1 ? 's' : ''}</span>
-        <button disabled={page === 1} onClick={() => setPage(p => p - 1)} style={PG_BTN}>‹ Prev</button>
-        <button disabled={page >= pages} onClick={() => setPage(p => p + 1)} style={PG_BTN}>Next ›</button>
-      </div>
+      <PaginationBar
+        page={page}
+        totalPages={pages}
+        totalRecords={total}
+        recordLabel={total === 1 ? 'Voucher' : 'Vouchers'}
+        onPageChange={setPage}
+      />
       </div>
     </div>
   );
@@ -1080,8 +1100,3 @@ const LBL: React.CSSProperties = {
   letterSpacing: 0,
 };
 const TD: React.CSSProperties = { padding: '5px 10px', verticalAlign: 'middle', fontSize: '0.8rem' };
-const PG_BTN: React.CSSProperties = {
-  padding: '3px 12px', borderRadius: 'var(--radius-sm)',
-  border: '1.5px solid var(--color-border)', background: 'var(--color-surface)',
-  cursor: 'pointer', fontSize: '0.75rem', fontWeight: 600, color: 'var(--color-text-secondary)',
-};

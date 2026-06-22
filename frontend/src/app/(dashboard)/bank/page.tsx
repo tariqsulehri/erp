@@ -9,9 +9,21 @@
  *  Reconciliation  — Bank reconciliation statement (match GL vs bank statement)
  */
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { formatDate, formatMoney, normalizeFormatSettings, type AppFormatSettingsSource } from '@/lib/app-settings';
 import { useGeneralSettings } from '@/lib/api/settings';
+import {
+  type BankAccountPayload,
+  useBankAccountsList,
+  useBankAccountsSupportData,
+  useCreateBankAccount,
+  useInvalidateBankAccounts,
+  useUpdateBankAccount,
+} from '@/lib/api/bank-accounts';
+import { friendlyErrorMessage, numericValue } from '@/lib/erp-utils';
+import { FieldLabel } from '@/components/ui/FieldLabel';
+import { DateField, NumericField, TextField } from '@/components/ui/FormFields';
+import { SearchableSelect } from '@/components/ui/SearchableSelect';
 
 type Tab = 'accounts' | 'pdc' | 'reconciliation';
 type PDCType = 'received' | 'issued';
@@ -56,18 +68,297 @@ function isOverdue(dueDate: string) {
   return new Date(dueDate) < new Date();
 }
 
+function maskAccountNumber(value: string) {
+  const clean = value.trim();
+  if (clean.length <= 4) return clean;
+  return `****-${clean.slice(-4)}`;
+}
+
+function BankMessage({ message }: { message: { kind: 'success' | 'error'; text: string } }) {
+  return (
+    <div style={{
+      marginBottom: 12,
+      padding: '8px 12px',
+      border: `1px solid ${message.kind === 'success' ? 'var(--color-success-border)' : 'var(--color-danger-border)'}`,
+      background: message.kind === 'success' ? 'var(--color-success-bg)' : 'var(--color-danger-bg)',
+      color: message.kind === 'success' ? 'var(--color-success-text)' : 'var(--color-danger-text)',
+      fontSize: '0.78rem',
+      fontWeight: 750,
+    }}>
+      {message.text}
+    </div>
+  );
+}
+
+function SectionTitle({ children }: { children: React.ReactNode }) {
+  return <h3 style={{ margin: '0 0 10px', fontSize: '0.82rem', color: 'var(--color-heading)', fontWeight: 900 }}>{children}</h3>;
+}
+
+function InlineSpinner({ light = false, size = 14 }: { light?: boolean; size?: number }) {
+  return (
+    <div
+      className="spinner"
+      style={{
+        width: size,
+        height: size,
+        borderWidth: 2,
+        ...(light ? { borderColor: 'rgba(255,255,255,0.3)', borderTopColor: '#fff' } : {}),
+      }}
+    />
+  );
+}
+
 /* ── Bank Accounts Tab ───────────────────────────────────────────────── */
-function BankAccountsTab({ settings }: { settings?: AppFormatSettingsSource | null }) {
-  const totalBalance = SAMPLE_BANK_ACCOUNTS.reduce((s, a) => s + a.balance, 0);
+interface BankAccountsTabProps {
+  settings?: AppFormatSettingsSource | null;
+  entryOpen: boolean;
+  onEntryOpenChange: (open: boolean) => void;
+}
+
+const blankBankForm = (): BankAccountPayload => ({
+  code: '',
+  ledger_account_id: '',
+  bank_name: '',
+  branch_name: '',
+  branch_code: '',
+  account_title: '',
+  account_number: '',
+  account_type: 'Current',
+  iban: '',
+  swift_code: '',
+  currency_code: 'PKR',
+  opening_balance: 0,
+  opening_balance_date: '',
+  contact_name: '',
+  address: '',
+  post_code: '',
+  country: '',
+  city: '',
+  area: '',
+  phone_1: '',
+  phone_2: '',
+  mobile_number: '',
+  fax_number: '',
+  email: '',
+  website: '',
+  notes: '',
+  is_default: false,
+  is_active: true,
+});
+
+function BankAccountsTab({ settings, entryOpen, onEntryOpenChange }: BankAccountsTabProps) {
+  const supportQuery = useBankAccountsSupportData();
+  const listQuery = useBankAccountsList({ page: 1, limit: 50 });
+  const createBankAccount = useCreateBankAccount();
+  const updateBankAccount = useUpdateBankAccount();
+  const invalidateBankAccounts = useInvalidateBankAccounts();
   const formatSettings = normalizeFormatSettings(settings);
+  const [form, setForm] = useState<BankAccountPayload>(blankBankForm);
+  const [editingId, setEditingId] = useState('');
+  const [entryWasOpen, setEntryWasOpen] = useState(entryOpen);
+  const [message, setMessage] = useState<{ kind: 'success' | 'error'; text: string } | null>(null);
+  const saving = createBankAccount.isPending || updateBankAccount.isPending;
+  const accounts = listQuery.data?.data ?? [];
+  const totalBalance = accounts.reduce((sum: number, account: any) => sum + Number(account.current_balance ?? 0), 0);
+  const activeCount = accounts.filter((account: any) => account.is_active).length;
+  const accountOptions = (supportQuery.data?.accounts ?? []).map((account: any) => ({
+    value: account.id,
+    label: `${account.code} - ${account.name}`,
+    searchText: `${account.code} ${account.name}`,
+  }));
+
+  useEffect(() => {
+    if (entryOpen && !entryWasOpen && !editingId) {
+      setForm(blankBankForm());
+      setMessage(null);
+    }
+    setEntryWasOpen(entryOpen);
+  }, [editingId, entryOpen, entryWasOpen]);
+
+  function patchForm(patch: Partial<BankAccountPayload>) {
+    setForm(current => ({ ...current, ...patch }));
+  }
+
+  function startNew() {
+    setEditingId('');
+    setForm(blankBankForm());
+    setMessage(null);
+    onEntryOpenChange(true);
+  }
+
+  function startEdit(account: any) {
+    setEditingId(account.id);
+    setForm({
+      code: account.code ?? '',
+      ledger_account_id: account.ledger_account_id ?? '',
+      bank_name: account.bank_name ?? '',
+      branch_name: account.branch_name ?? '',
+      branch_code: account.branch_code ?? '',
+      account_title: account.account_title ?? '',
+      account_number: account.account_number ?? '',
+      account_type: account.account_type ?? 'Current',
+      iban: account.iban ?? '',
+      swift_code: account.swift_code ?? '',
+      currency_code: account.currency_code ?? formatSettings.currencyCode,
+      opening_balance: Number(account.opening_balance ?? 0),
+      opening_balance_date: String(account.opening_balance_date ?? '').slice(0, 10),
+      contact_name: account.contact_name ?? '',
+      address: account.address ?? '',
+      post_code: account.post_code ?? '',
+      country: account.country ?? '',
+      city: account.city ?? '',
+      area: account.area ?? '',
+      phone_1: account.phone_1 ?? '',
+      phone_2: account.phone_2 ?? '',
+      mobile_number: account.mobile_number ?? '',
+      fax_number: account.fax_number ?? '',
+      email: account.email ?? '',
+      website: account.website ?? '',
+      notes: account.notes ?? '',
+      is_default: Boolean(account.is_default),
+      is_active: Boolean(account.is_active),
+    });
+    setMessage(null);
+    onEntryOpenChange(true);
+  }
+
+  function validateForm() {
+    if (!form.code.trim()) return 'Code is required.';
+    if (!form.ledger_account_id) return 'Linked Account is required.';
+    if (!form.bank_name.trim()) return 'Bank Name is required.';
+    if (!form.account_title.trim()) return 'Account Title is required.';
+    if (!form.account_number.trim()) return 'Account Number is required.';
+    if (form.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) return 'Email is not valid.';
+    if (numericValue(String(form.opening_balance)) < 0) return 'Opening Balance cannot be negative.';
+    return '';
+  }
+
+  async function saveBankAccount() {
+    const validationMessage = validateForm();
+    if (validationMessage) {
+      setMessage({ kind: 'error', text: validationMessage });
+      return;
+    }
+
+    try {
+      const payload = {
+        ...form,
+        code: form.code.trim(),
+        bank_name: form.bank_name.trim(),
+        account_title: form.account_title.trim(),
+        account_number: form.account_number.trim(),
+        currency_code: form.currency_code.trim().toUpperCase() || formatSettings.currencyCode,
+        opening_balance: numericValue(String(form.opening_balance)),
+      };
+      const result = editingId
+        ? await updateBankAccount.mutateAsync({ id: editingId, input: payload })
+        : await createBankAccount.mutateAsync(payload);
+      await invalidateBankAccounts();
+      setMessage({ kind: 'success', text: result.message ?? 'Bank Account saved successfully.' });
+      setEditingId('');
+      setForm(blankBankForm());
+      onEntryOpenChange(false);
+    } catch (error) {
+      setMessage({ kind: 'error', text: friendlyErrorMessage(error, 'Unable to save Bank Account.') });
+    }
+  }
+
+  if (entryOpen) {
+    return (
+      <div>
+        {message && <BankMessage message={message} />}
+        <div style={formShellStyle}>
+          <div style={formToolbarStyle}>
+            <div>
+              <h2 style={formTitleStyle}>{editingId ? 'Edit Bank Account' : 'Add Bank Account'}</h2>
+              <p style={formSubtitleStyle}>Bank details, linked account, branch, and contact information</p>
+            </div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button className="btn btn-secondary" type="button" onClick={() => { onEntryOpenChange(false); setEditingId(''); setForm(blankBankForm()); }} disabled={saving}>Cancel</button>
+              <button className="btn btn-primary" type="button" onClick={saveBankAccount} disabled={saving} style={{ minWidth: 92, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 7 }}>
+                {saving ? <><InlineSpinner light />Saving...</> : 'Save'}
+              </button>
+            </div>
+          </div>
+
+          <section style={formSectionStyle}>
+            <SectionTitle>Account Details</SectionTitle>
+            <div style={formGridStyle}>
+              <TextField label="Code" required value={form.code} onChange={value => patchForm({ code: value })} />
+              <FieldLabel label="Linked Account" required>
+                <SearchableSelect
+                  value={form.ledger_account_id}
+                  options={accountOptions}
+                  onChange={value => patchForm({ ledger_account_id: value })}
+                  placeholder={supportQuery.isLoading ? 'Loading Accounts' : 'Search Linked Account'}
+                  disabled={supportQuery.isLoading || supportQuery.isError}
+                />
+                {supportQuery.isFetching && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 6, color: 'var(--color-text-muted)', fontSize: '0.72rem', fontWeight: 700 }}>
+                    <InlineSpinner size={12} /> Loading Linked Accounts...
+                  </div>
+                )}
+              </FieldLabel>
+              <TextField label="Account Title" required value={form.account_title} onChange={value => patchForm({ account_title: value })} />
+              <TextField label="Account Number" required value={form.account_number} onChange={value => patchForm({ account_number: value })} />
+              <TextField label="Bank Name" required value={form.bank_name} onChange={value => patchForm({ bank_name: value })} />
+              <TextField label="Branch Name" value={form.branch_name ?? ''} onChange={value => patchForm({ branch_name: value })} />
+              <TextField label="Branch Code" value={form.branch_code ?? ''} onChange={value => patchForm({ branch_code: value })} />
+              <FieldLabel label="Account Type">
+                <select className="form-input" value={form.account_type ?? ''} onChange={event => patchForm({ account_type: event.currentTarget.value })}>
+                  <option value="Current">Current</option>
+                  <option value="Savings">Savings</option>
+                  <option value="Payroll">Payroll</option>
+                  <option value="Deposit">Deposit</option>
+                  <option value="Other">Other</option>
+                </select>
+              </FieldLabel>
+              <TextField label="IBAN" value={form.iban ?? ''} onChange={value => patchForm({ iban: value })} />
+              <TextField label="SWIFT Code" value={form.swift_code ?? ''} onChange={value => patchForm({ swift_code: value })} />
+              <TextField label="Currency" value={form.currency_code} onChange={value => patchForm({ currency_code: value.toUpperCase().slice(0, 3) })} />
+              <NumericField label="Opening Balance" value={String(form.opening_balance || '')} onChange={value => patchForm({ opening_balance: numericValue(value) })} />
+              <DateField label="Opening Balance Date" value={form.opening_balance_date ?? ''} onChange={value => patchForm({ opening_balance_date: value })} />
+            </div>
+          </section>
+
+          <section style={formSectionStyle}>
+            <SectionTitle>Contact And Address</SectionTitle>
+            <div style={formGridStyle}>
+              <TextField label="Contact" value={form.contact_name ?? ''} onChange={value => patchForm({ contact_name: value })} />
+              <TextField label="Phone 1" value={form.phone_1 ?? ''} onChange={value => patchForm({ phone_1: value })} />
+              <TextField label="Phone 2" value={form.phone_2 ?? ''} onChange={value => patchForm({ phone_2: value })} />
+              <TextField label="Mobile Number" value={form.mobile_number ?? ''} onChange={value => patchForm({ mobile_number: value })} />
+              <TextField label="Fax Number" value={form.fax_number ?? ''} onChange={value => patchForm({ fax_number: value })} />
+              <TextField label="Email" value={form.email ?? ''} onChange={value => patchForm({ email: value })} />
+              <TextField label="Website" value={form.website ?? ''} onChange={value => patchForm({ website: value })} />
+              <TextField label="Post Code" value={form.post_code ?? ''} onChange={value => patchForm({ post_code: value })} />
+              <TextField label="Country" value={form.country ?? ''} onChange={value => patchForm({ country: value })} />
+              <TextField label="City" value={form.city ?? ''} onChange={value => patchForm({ city: value })} />
+              <TextField label="Area" value={form.area ?? ''} onChange={value => patchForm({ area: value })} />
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.78rem', fontWeight: 700, alignSelf: 'end' }}>
+                <input type="checkbox" checked={!form.is_active} onChange={event => patchForm({ is_active: !event.currentTarget.checked })} />
+                Inactive
+              </label>
+            </div>
+            <div style={{ marginTop: 8 }}>
+              <FieldLabel label="Address">
+                <textarea className="form-input" value={form.address ?? ''} onChange={event => patchForm({ address: event.currentTarget.value })} rows={3} />
+              </FieldLabel>
+            </div>
+          </section>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div>
+      {message && <BankMessage message={message} />}
       {/* KPI */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14, marginBottom: 24 }}>
         {[
           { label: 'Total Bank Balance', value: formatMoney(totalBalance, settings), color: '#2563eb' },
-          { label: 'Active Accounts',    value: SAMPLE_BANK_ACCOUNTS.filter(a => a.is_active).length, color: '#16a34a' },
+          { label: 'Active Accounts',    value: activeCount, color: '#16a34a' },
           { label: 'Currency',           value: formatSettings.currencyCode, color: '#7c3aed' },
         ].map(k => (
           <div key={k.label} style={{
@@ -82,7 +373,24 @@ function BankAccountsTab({ settings }: { settings?: AppFormatSettingsSource | nu
 
       {/* Account cards */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-        {SAMPLE_BANK_ACCOUNTS.map(acct => (
+        {listQuery.isFetching && accounts.length > 0 && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 7, color: 'var(--color-text-muted)', fontSize: '0.75rem', fontWeight: 750 }}>
+            <InlineSpinner size={13} /> Refreshing Bank Accounts...
+          </div>
+        )}
+        {listQuery.isLoading && accounts.length === 0 && (
+          <div style={emptyStateStyle}>
+            <InlineSpinner size={18} />
+            <span>Loading Bank Accounts...</span>
+          </div>
+        )}
+        {!listQuery.isLoading && accounts.length === 0 && (
+          <div style={emptyStateStyle}>
+            <div style={{ fontWeight: 800, color: 'var(--color-heading)' }}>No Bank Accounts Found</div>
+            <button className="btn btn-primary" type="button" onClick={startNew} style={{ marginTop: 10 }}>Add Bank Account</button>
+          </div>
+        )}
+        {accounts.map((acct: any) => (
           <div key={acct.id} style={{
             background: 'var(--color-surface)', border: '1px solid var(--color-border)',
             borderRadius: 'var(--radius)', padding: '16px 20px',
@@ -98,38 +406,32 @@ function BankAccountsTab({ settings }: { settings?: AppFormatSettingsSource | nu
               </svg>
             </div>
             <div style={{ flex: 1 }}>
-              <div style={{ fontWeight: 600, color: 'var(--color-text)', marginBottom: 2 }}>{acct.name}</div>
+              <div style={{ fontWeight: 600, color: 'var(--color-text)', marginBottom: 2 }}>{acct.account_title}</div>
               <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-muted)' }}>
-                {acct.bank} · {acct.branch} · {acct.accountNo}
+                {acct.bank_name} · {acct.branch_name || '-'} · {maskAccountNumber(acct.account_number)}
+              </div>
+              <div style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)', marginTop: 2 }}>
+                Linked Account: {acct.ledger_account_code} - {acct.ledger_account_name}
               </div>
             </div>
             <div style={{ textAlign: 'right' }}>
               <div style={{ fontWeight: 700, fontSize: '1.0625rem', color: '#2563eb' }}>
-                {formatMoney(acct.balance, settings)}
+                {formatMoney(Number(acct.current_balance ?? 0), settings)}
               </div>
               <div style={{ fontSize: 'var(--font-size-xs)', color: acct.is_active ? '#16a34a' : '#94a3b8' }}>
                 {acct.is_active ? 'Active' : 'Inactive'}
               </div>
             </div>
-            <button style={{
+            <button onClick={() => startEdit(acct)} style={{
               padding: '6px 14px', borderRadius: 'var(--radius-sm)',
               border: '1px solid var(--color-border)', background: 'var(--color-surface)',
               fontSize: 'var(--font-size-xs)', fontWeight: 600, cursor: 'pointer',
               color: 'var(--color-text-muted)',
             }}>
-              Statement
+              Edit
             </button>
           </div>
         ))}
-      </div>
-
-      <div style={{
-        marginTop: 16, padding: '10px 16px', borderRadius: 'var(--radius-sm)',
-        background: '#fffbeb', border: '1px solid #fde68a',
-        fontSize: 'var(--font-size-xs)', color: '#92400e',
-      }}>
-        Bank accounts are linked to GL accounts in the Chart of Accounts (1110–1113).
-        Live balance shown here is the GL balance. Bank reconciliation is available in the Reconciliation tab.
       </div>
     </div>
   );
@@ -517,9 +819,59 @@ function ReconciliationTab({ settings }: { settings?: AppFormatSettingsSource | 
   );
 }
 
+const formShellStyle: React.CSSProperties = {
+  border: '1px solid var(--color-border)',
+  background: 'var(--color-surface)',
+  boxShadow: 'var(--shadow-sm)',
+};
+
+const formToolbarStyle: React.CSSProperties = {
+  display: 'flex',
+  justifyContent: 'space-between',
+  alignItems: 'center',
+  gap: 12,
+  padding: '12px 14px',
+  borderBottom: '1px solid var(--color-border)',
+};
+
+const formTitleStyle: React.CSSProperties = {
+  margin: 0,
+  fontSize: '1rem',
+  color: 'var(--color-heading)',
+  fontWeight: 900,
+};
+
+const formSubtitleStyle: React.CSSProperties = {
+  margin: '3px 0 0',
+  fontSize: '0.76rem',
+  color: 'var(--color-text-muted)',
+  fontWeight: 700,
+};
+
+const formSectionStyle: React.CSSProperties = {
+  padding: 14,
+  borderBottom: '1px solid var(--color-border-subtle)',
+};
+
+const formGridStyle: React.CSSProperties = {
+  display: 'grid',
+  gridTemplateColumns: 'repeat(4, minmax(180px, 1fr))',
+  gap: 10,
+  alignItems: 'end',
+};
+
+const emptyStateStyle: React.CSSProperties = {
+  border: '1px solid var(--color-border)',
+  background: 'var(--color-surface)',
+  padding: 28,
+  textAlign: 'center',
+  color: 'var(--color-text-muted)',
+};
+
 /* ── Page ─────────────────────────────────────────────────────────────── */
 export default function BankPage() {
   const [activeTab, setActiveTab] = useState<Tab>('accounts');
+  const [bankEntryOpen, setBankEntryOpen] = useState(false);
   const { data: generalSettings } = useGeneralSettings();
 
   const TABS: { id: Tab; label: string; icon: string }[] = [
@@ -545,7 +897,7 @@ export default function BankPage() {
             </button>
           )}
           {activeTab === 'accounts' && (
-            <button className="btn btn-primary">
+            <button className="btn btn-primary" type="button" onClick={() => setBankEntryOpen(true)}>
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <circle cx="12" cy="12" r="10"/><path d="M12 8v8M8 12h8"/>
               </svg>
@@ -585,7 +937,7 @@ export default function BankPage() {
       </div>
 
       {/* Tab content */}
-      {activeTab === 'accounts'       && <BankAccountsTab settings={generalSettings} />}
+      {activeTab === 'accounts'       && <BankAccountsTab settings={generalSettings} entryOpen={bankEntryOpen} onEntryOpenChange={setBankEntryOpen} />}
       {activeTab === 'pdc'            && <PDCTab settings={generalSettings} />}
       {activeTab === 'reconciliation' && <ReconciliationTab settings={generalSettings} />}
     </div>

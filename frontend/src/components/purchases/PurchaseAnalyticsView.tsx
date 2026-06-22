@@ -83,7 +83,7 @@ export function PurchaseAnalyticsView({
   }
 
   return (
-    <main style={{ height: '100%', minHeight: 0, boxSizing: 'border-box', padding: 10, display: 'flex', flexDirection: 'column', gap: 8, overflow: 'hidden' }}>
+    <main style={{ height: '100%', minHeight: 0, boxSizing: 'border-box', padding: 8, display: 'flex', flexDirection: 'column', gap: 6, overflow: 'hidden' }}>
       <PurchaseAnalyticsToolbar
         dateFrom={dateFrom}
         dateTo={dateTo}
@@ -93,7 +93,7 @@ export function PurchaseAnalyticsView({
         onNewPurchase={onNewPurchase}
       />
 
-      <section className="workspace-card" style={{ padding: 10, flex: 1, minHeight: 0, display: 'grid', gridTemplateRows: 'auto auto 1fr', gap: 9, overflow: 'hidden' }}>
+      <section className="workspace-card" style={{ padding: 8, flex: 1, minHeight: 0, display: 'grid', gridTemplateRows: 'auto auto 1fr', gap: 7, overflow: 'hidden' }}>
         <PurchaseAnalyticsFilters
           supplierId={supplierId}
           paymentType={paymentType}
@@ -119,7 +119,7 @@ export function PurchaseAnalyticsView({
           </div>
         )}
 
-        <div style={{ minHeight: 0, overflow: 'auto', display: 'grid', gridTemplateRows: 'auto auto auto', gap: 10, paddingRight: 2 }}>
+        <div style={{ minHeight: 0, overflow: 'auto', display: 'grid', gridTemplateRows: 'auto auto auto', gap: 8, paddingRight: 2 }}>
           <PurchaseAnalyticsSummary
             totalNetAmount={totalNetAmount}
             grossAmount={grossAmount}
@@ -185,15 +185,15 @@ function messageStyle(kind: 'success' | 'error'): CSSProperties {
 }
 
 const compactButtonStyle: CSSProperties = {
-  minHeight: 30,
-  padding: '5px 10px',
+  minHeight: 28,
+  padding: '4px 9px',
   fontSize: '0.76rem',
 };
 
 const analyticsFilterGridStyle: CSSProperties = {
   display: 'grid',
   gridTemplateColumns: 'minmax(230px, 1.5fr) 120px minmax(210px, 1.35fr) 118px 118px auto',
-  gap: 8,
+  gap: 6,
   alignItems: 'end',
   overflow: 'visible',
   position: 'relative',
@@ -202,14 +202,14 @@ const analyticsFilterGridStyle: CSSProperties = {
 
 const analyticsKpiGridStyle: CSSProperties = {
   display: 'grid',
-  gridTemplateColumns: 'repeat(4, minmax(150px, 1fr))',
-  gap: 9,
+  gridTemplateColumns: 'repeat(4, minmax(138px, 1fr))',
+  gap: 7,
 };
 
 const analyticsInsightGridStyle: CSSProperties = {
   display: 'grid',
-  gridTemplateColumns: 'repeat(4, minmax(160px, 1fr))',
-  gap: 9,
+  gridTemplateColumns: 'repeat(4, minmax(145px, 1fr))',
+  gap: 7,
 };
 
 const analyticsEmptyStyle: CSSProperties = {

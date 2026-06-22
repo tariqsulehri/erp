@@ -18,6 +18,7 @@ import { useSaleReturnsList, useSaleReturnSupportData } from '@/lib/api/sale-ret
 import { useWarehouseStockSummary, useWarehousesList } from '@/lib/api/warehouses';
 import { useGeneralSettings } from '@/lib/api/settings';
 import { DateField, NumericField, TextField } from '@/components/ui/FormFields';
+import { PaginationBar as SharedPaginationBar } from '@/components/ui/PaginationBar';
 import { SearchableSelect, type SelectOption } from '@/components/ui/SearchableSelect';
 import { LedgerReportPage } from './LedgerReportPage';
 import { ProfitAndLossReportPage } from './ProfitAndLossReportPage';
@@ -733,23 +734,14 @@ function PaginationBar({
   onChange: (patch: Partial<Pick<FilterState, 'page' | 'limit'>>) => void;
 }) {
   return (
-    <div style={paginationStyle}>
-      <span>Showing Page {page} Of {Math.max(totalPages, 1)} | {total} Records</span>
-      <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-        <select
-          className="form-input"
-          value={limit}
-          onChange={event => onChange({ limit: Number(event.currentTarget.value), page: 1 })}
-          style={{ height: 28, width: 72, fontSize: '0.75rem' }}
-        >
-          {[25, 50, 100, 200].map(size => <option key={size} value={size}>{size}</option>)}
-        </select>
-        <button type="button" className="btn-secondary" style={smallButtonStyle} disabled={page <= 1} onClick={() => onChange({ page: 1 })}>First</button>
-        <button type="button" className="btn-secondary" style={smallButtonStyle} disabled={page <= 1} onClick={() => onChange({ page: page - 1 })}>Previous</button>
-        <button type="button" className="btn-secondary" style={smallButtonStyle} disabled={page >= totalPages} onClick={() => onChange({ page: page + 1 })}>Next</button>
-        <button type="button" className="btn-secondary" style={smallButtonStyle} disabled={page >= totalPages} onClick={() => onChange({ page: totalPages })}>Last</button>
-      </div>
-    </div>
+    <SharedPaginationBar
+      page={page}
+      totalPages={totalPages}
+      totalRecords={total}
+      pageSize={limit}
+      onPageChange={nextPage => onChange({ page: nextPage })}
+      onPageSizeChange={nextLimit => onChange({ limit: nextLimit, page: 1 })}
+    />
   );
 }
 
@@ -843,6 +835,7 @@ const reportPanelStyle: CSSProperties = {
   border: '1px solid var(--color-border)',
   borderRadius: 'var(--radius-md)',
   background: 'var(--color-surface)',
+  display: 'grid',
 };
 
 const smallButtonStyle: CSSProperties = {
@@ -857,7 +850,7 @@ const reportPageStyle: CSSProperties = {
   minHeight: 0,
   padding: 10,
   display: 'grid',
-  gridTemplateRows: 'auto auto auto auto minmax(0, 1fr) auto',
+  gridTemplateRows: 'auto auto auto auto minmax(0, 1fr) 40px',
   gap: 8,
   overflow: 'hidden',
 };
@@ -1014,14 +1007,4 @@ const errorStyle: CSSProperties = {
   color: 'var(--color-danger-text)',
   fontSize: '0.74rem',
   fontWeight: 800,
-};
-
-const paginationStyle: CSSProperties = {
-  display: 'flex',
-  justifyContent: 'space-between',
-  alignItems: 'center',
-  gap: 10,
-  color: 'var(--color-text-muted)',
-  fontSize: '0.74rem',
-  fontWeight: 850,
 };

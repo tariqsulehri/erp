@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react';
 import { formatMoney } from '@/lib/app-settings';
 import { useGeneralSettings } from '@/lib/api/settings';
 import { useProductBrands, useProductCategories, useProductsList } from '@/lib/api/products';
+import { PaginationBar } from '@/components/ui/PaginationBar';
 import {
   fmtQty,
   MoneyCell,
@@ -21,6 +22,7 @@ export function ProductList({ selectedId, onSelect, onNew, onEdit, detailOpen }:
   selectedId: string | null; onSelect: (id: string) => void;
   onNew: () => void; onEdit: (id: string) => void; detailOpen: boolean;
 }) {
+  const [searchText, setSearchText] = useState('');
   const [search,   setSearch]   = useState('');
   const [catFlt,   setCatFlt]   = useState('');
   const [brandFlt, setBrandFlt] = useState('');
@@ -35,7 +37,7 @@ export function ProductList({ selectedId, onSelect, onNew, onEdit, detailOpen }:
   const { data: categories } = useProductCategories();
   const { data: brands }     = useProductBrands();
   const { data: generalSettings } = useGeneralSettings();
-  const { data, isLoading }  = useProductsList({
+  const { data, isLoading, isFetching }  = useProductsList({
     page, limit: LIMIT,
     search:       search    || undefined,
     category_id:  catFlt    || undefined,
@@ -74,6 +76,17 @@ export function ProductList({ selectedId, onSelect, onNew, onEdit, detailOpen }:
 
   const sortIcon = (col: string) => sortBy === col ? (sortDir === 'ASC' ? ' ↑' : ' ↓') : '';
 
+  function applySearch() {
+    setSearch(searchText.trim());
+    setPage(1);
+  }
+
+  function clearSearch() {
+    setSearchText('');
+    setSearch('');
+    setPage(1);
+  }
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
 
@@ -94,9 +107,22 @@ export function ProductList({ selectedId, onSelect, onNew, onEdit, detailOpen }:
 
         {/* Filters */}
         <input className="form-input" placeholder="Search Code, Name, Brand, Barcode…"
-          value={search} onChange={e => { setSearch(e.target.value); setPage(1); }}
+          value={searchText}
+          onChange={e => setSearchText(e.target.value)}
+          onKeyDown={event => {
+            if (event.key === 'Enter') applySearch();
+          }}
           style={{ fontSize: '0.8rem', padding: '4px 10px', height: 32, width: 200 }}
         />
+        <button className="btn btn-secondary btn-sm" type="button" onClick={applySearch} disabled={isFetching} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+          {isFetching && <span className="spinner" style={{ width: 12, height: 12, borderWidth: 2 }} />}
+          {isFetching ? 'Searching...' : 'Search'}
+        </button>
+        {(search || searchText) && (
+          <button className="btn btn-secondary btn-sm" type="button" onClick={clearSearch} disabled={isFetching}>
+            Clear
+          </button>
+        )}
         <SearchableSelect
           value={catFlt}
           options={categoryFilterOptions}
@@ -259,25 +285,15 @@ export function ProductList({ selectedId, onSelect, onNew, onEdit, detailOpen }:
         </table>
       </div>
 
-      {/* ── Pagination ── */}
-      <div style={{
-        display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8,
-        padding: '6px 16px',
-        background: 'var(--color-panel-footer-bg)',
-        borderTop: '1.5px solid var(--color-panel-footer-border)',
-        flexShrink: 0, fontSize: '0.75rem', color: 'var(--color-text-muted)',
-      }}>
-        <span>Page {page} of {pages} · {total} product{total !== 1 ? 's' : ''}</span>
-        <button disabled={page === 1} onClick={() => setPage(p => p-1)} style={PG_BTN}>‹ Prev</button>
-        <button disabled={page >= pages} onClick={() => setPage(p => p+1)} style={PG_BTN}>Next ›</button>
-      </div>
+      <PaginationBar
+        page={page}
+        totalPages={pages}
+        totalRecords={total}
+        recordLabel={total === 1 ? 'Product' : 'Products'}
+        onPageChange={setPage}
+      />
     </div>
   );
 }
 
 const TD: React.CSSProperties  = { padding: '5px 10px', verticalAlign: 'middle' };
-const PG_BTN: React.CSSProperties = {
-  padding: '3px 12px', borderRadius: 'var(--radius-sm)',
-  border: '1.5px solid var(--color-border)', background: 'var(--color-surface)',
-  cursor: 'pointer', fontSize: '0.75rem', fontWeight: 600, color: 'var(--color-text-secondary)',
-};
