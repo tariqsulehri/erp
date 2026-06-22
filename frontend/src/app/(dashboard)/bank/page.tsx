@@ -5,6 +5,7 @@
  *
  * Tabs:
  *  Accounts        — Bank accounts registered in the system
+ *  Cheque Books    — Bank cheque books and cheque leaves
  *  Post-Dated Cheques (PDC) — Received and issued PDCs with status tracking
  *  Reconciliation  — Bank reconciliation statement (match GL vs bank statement)
  */
@@ -24,8 +25,9 @@ import { friendlyErrorMessage, numericValue } from '@/lib/erp-utils';
 import { FieldLabel } from '@/components/ui/FieldLabel';
 import { DateField, NumericField, TextField } from '@/components/ui/FormFields';
 import { SearchableSelect } from '@/components/ui/SearchableSelect';
+import { ChequeBooksTab } from '@/components/bank/ChequeBooksTab';
 
-type Tab = 'accounts' | 'pdc' | 'reconciliation';
+type Tab = 'accounts' | 'cheque-books' | 'pdc' | 'reconciliation';
 type PDCType = 'received' | 'issued';
 type PDCStatus = 'Pending' | 'Deposited' | 'Matured' | 'Returned' | 'Cancelled';
 
@@ -876,6 +878,7 @@ export default function BankPage() {
 
   const TABS: { id: Tab; label: string; icon: string }[] = [
     { id: 'accounts',       label: 'Bank Accounts',      icon: 'M3 9a2 2 0 012-2h14a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9zM8 9V7a4 4 0 018 0v2' },
+    { id: 'cheque-books',   label: 'Cheque Books',       icon: 'M4 7h16a1 1 0 011 1v8a1 1 0 01-1 1H4a1 1 0 01-1-1V8a1 1 0 011-1zm3 4h5m-5 3h9m1-5v6' },
     { id: 'pdc',            label: 'Post-Dated Cheques', icon: 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z' },
     { id: 'reconciliation', label: 'Reconciliation',     icon: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4' },
   ];
@@ -885,7 +888,7 @@ export default function BankPage() {
       <div className="page-header">
         <div>
           <h1 className="page-title">Bank</h1>
-          <p className="page-subtitle">Bank accounts, post-dated cheques, and reconciliation</p>
+          <p className="page-subtitle">Bank accounts, cheque books, post-dated cheques, and reconciliation</p>
         </div>
         <div style={{ display: 'flex', gap: 10 }}>
           {activeTab === 'pdc' && (
@@ -938,6 +941,7 @@ export default function BankPage() {
 
       {/* Tab content */}
       {activeTab === 'accounts'       && <BankAccountsTab settings={generalSettings} entryOpen={bankEntryOpen} onEntryOpenChange={setBankEntryOpen} />}
+      {activeTab === 'cheque-books'   && <ChequeBooksTab settings={generalSettings} />}
       {activeTab === 'pdc'            && <PDCTab settings={generalSettings} />}
       {activeTab === 'reconciliation' && <ReconciliationTab settings={generalSettings} />}
     </div>
