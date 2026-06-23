@@ -3,6 +3,8 @@ import { z } from 'zod';
 import { resolveCompanyId } from '../http/company-context.js';
 import { FiscalYearService } from '../modules/fiscal-years/fiscal-year.service.js';
 import {
+  closingIssuesQuery,
+  closeFiscalYearSchema,
   createFiscalYearSchema,
   fiscalYearIdParams,
   listFiscalYearsQuery,
@@ -55,6 +57,41 @@ fiscalYearsRouter.get('/:id/periods', async (req, res, next) => {
     const { id } = fiscalYearIdParams.parse(req.params);
     const service = new FiscalYearService(companyId);
     res.json(await service.getPeriods(id));
+  } catch (error) {
+    next(error);
+  }
+});
+
+fiscalYearsRouter.get('/:id/pre-close-check', async (req, res, next) => {
+  try {
+    const companyId = resolveCompanyId(req);
+    const { id } = fiscalYearIdParams.parse(req.params);
+    const service = new FiscalYearService(companyId);
+    res.json(await service.preCloseCheck(id));
+  } catch (error) {
+    next(error);
+  }
+});
+
+fiscalYearsRouter.get('/:id/closing-issues', async (req, res, next) => {
+  try {
+    const companyId = resolveCompanyId(req);
+    const { id } = fiscalYearIdParams.parse(req.params);
+    const query = closingIssuesQuery.parse(req.query);
+    const service = new FiscalYearService(companyId);
+    res.json(await service.closingIssues(id, query.check, query.page, query.limit));
+  } catch (error) {
+    next(error);
+  }
+});
+
+fiscalYearsRouter.patch('/:id/close', async (req, res, next) => {
+  try {
+    const companyId = resolveCompanyId(req);
+    const { id } = fiscalYearIdParams.parse(req.params);
+    const body = closeFiscalYearSchema.parse(req.body);
+    const service = new FiscalYearService(companyId);
+    res.json(await service.closeFiscalYear(id, body));
   } catch (error) {
     next(error);
   }
