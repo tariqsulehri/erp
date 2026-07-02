@@ -305,6 +305,7 @@ export class FiscalYearService {
     if (failed.length > 0) {
       throw businessError(`Fiscal Year cannot be closed. ${failed[0].message}`);
     }
+    await this.assertNoOpenFiscalPeriods(fiscalYearId);
 
     const totals = await this.yearVoucherTotals(fiscalYear);
     await prisma.$transaction(async tx => {
@@ -358,6 +359,27 @@ export class FiscalYearService {
       },
     });
     return { success: true, message: 'Fiscal Year locked successfully.' };
+  }
+
+  async unlockFiscalYear(fiscalYearId: string) {
+    const fiscalYear = await this.assertFiscalYearExists(fiscalYearId);
+    if (fiscalYear.status === 'closed') {
+      throw businessError('Closed fiscal years cannot be unlocked. Open the next fiscal year or use an approved reopening workflow.');
+    }
+    if (!fiscalYear.isLocked) {
+      return { success: true, message: 'Fiscal Year is already unlocked.' };
+    }
+
+    await prisma.fiscalYear.update({
+      where: { id: fiscalYearId },
+      data: {
+        isLocked: false,
+        status: fiscalYear.status === 'closing' ? 'open' : fiscalYear.status,
+        lockedAt: null,
+      },
+    });
+
+    return { success: true, message: 'Fiscal Year unlocked successfully. Posting is allowed only in valid open periods.' };
   }
 
   async lockPeriod(periodId: string) {
@@ -435,6 +457,40 @@ export class FiscalYearService {
       throw businessError('Fiscal Year was not found.', 404);
     }
     return fiscalYear;
+  }
+
+  private async openFiscalPeriods(fiscalYearId: string) {
+    return prisma.fiscalPeriod.findMany({
+      where: {
+        companyId: this.companyId,
+        fiscalYearId,
+        isDeleted: false,
+        OR: [
+          { isOpen: true },
+          { status: 'open' },
+        ],
+      },
+      select: {
+        id: true,
+        periodNumber: true,
+        periodName: true,
+      },
+      orderBy: [{ periodNumber: 'asc' }, { startDate: 'asc' }],
+    });
+  }
+
+  private async assertNoOpenFiscalPeriods(fiscalYearId: string) {
+    const openPeriods = await this.openFiscalPeriods(fiscalYearId);
+    if (openPeriods.length === 0) return;
+
+    const periodNames = openPeriods
+      .slice(0, 3)
+      .map(period => period.periodName)
+      .join(', ');
+    const remainingText = openPeriods.length > 3 ? ` and ${openPeriods.length - 3} more` : '';
+    throw businessError(
+      `Fiscal Year cannot be closed. ${openPeriods.length} fiscal period(s) are still open (${periodNames}${remainingText}). Lock or close every open period first.`,
+    );
   }
 
   private async buildPreCloseChecks(fiscalYear: FiscalYear): Promise<ClosingCheck[]> {
@@ -527,7 +583,10 @@ export class FiscalYearService {
           companyId: this.companyId,
           fiscalYearId: fiscalYear.id,
           isDeleted: false,
-          status: { not: 'closed' },
+          OR: [
+            { isOpen: true },
+            { status: 'open' },
+          ],
         },
       }),
       this.countRows(`
@@ -587,13 +646,13 @@ export class FiscalYearService {
       },
       {
         key: 'periods_closed',
-        label: 'Fiscal Periods Ready',
-        status: 'Passed',
+        label: 'No Open Fiscal Periods',
+        status: openPeriods > 0 ? 'Failed' : 'Passed',
         count: openPeriods,
         message: openPeriods > 0
-          ? `${openPeriods} open or locked period(s) will be closed with the Fiscal Year.`
-          : 'All fiscal periods are already closed.',
-        blocking: false,
+          ? `${openPeriods} fiscal period(s) are still open. Lock or close every open period before closing the Fiscal Year.`
+          : 'No fiscal periods are open.',
+        blocking: true,
       },
       {
         key: 'draft_vouchers',

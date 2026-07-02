@@ -169,6 +169,7 @@ export function buildJournalVoucherLines({
   description: string;
 }): VoucherPayloadBuildResult {
   const voucherLines: VoucherLinePayload[] = [];
+  const defaultNarration = description.trim() || 'Journal Voucher';
 
   for (const [index, line] of enteredLines.entries()) {
     const account = findAccount(accountOptions, line.accountId);
@@ -183,7 +184,7 @@ export function buildJournalVoucherLines({
       account_name: account.name,
       dr_amount: amountValue(line.debit),
       cr_amount: amountValue(line.credit),
-      narration: line.description.trim() || description.trim(),
+      narration: line.description.trim() || defaultNarration,
       line_no: index + 1,
     });
   }

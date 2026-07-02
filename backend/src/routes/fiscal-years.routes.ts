@@ -108,6 +108,17 @@ fiscalYearsRouter.patch('/:id/lock', async (req, res, next) => {
   }
 });
 
+fiscalYearsRouter.patch('/:id/unlock', async (req, res, next) => {
+  try {
+    const companyId = resolveCompanyId(req);
+    const { id } = fiscalYearIdParams.parse(req.params);
+    const service = new FiscalYearService(companyId);
+    res.json(await service.unlockFiscalYear(id));
+  } catch (error) {
+    next(error);
+  }
+});
+
 fiscalYearsRouter.patch('/periods/:id/lock', async (req, res, next) => {
   try {
     const companyId = resolveCompanyId(req);

@@ -42,6 +42,8 @@ interface PostedPurchasesViewProps {
   generalSettings: Parameters<typeof formatNumber>[1];
   onNewPurchase: () => void;
   onAnalytics: () => void;
+  newDisabled?: boolean;
+  newDisabledReason?: string;
 }
 
 export function PostedPurchasesView({
@@ -51,6 +53,8 @@ export function PostedPurchasesView({
   generalSettings,
   onNewPurchase,
   onAnalytics,
+  newDisabled = false,
+  newDisabledReason,
 }: PostedPurchasesViewProps) {
   const [searchText, setSearchText] = useState('');
   const [search, setSearch] = useState('');
@@ -140,7 +144,7 @@ export function PostedPurchasesView({
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
             <button className="btn-secondary" type="button" onClick={() => { setPrintError(''); listQuery.refetch(); }} style={compactButtonStyle}><IconRefresh size={15} /> Refresh</button>
             <button className="btn-secondary" type="button" onClick={onAnalytics} style={compactButtonStyle}><IconChartBar size={15} /> Analytics</button>
-            <button className="btn-primary" type="button" onClick={onNewPurchase} style={compactButtonStyle}><IconFilePlus size={15} /> New Purchase</button>
+            <button className="btn-primary" type="button" disabled={newDisabled} title={newDisabledReason} onClick={onNewPurchase} style={compactButtonStyle}><IconFilePlus size={15} /> New Purchase</button>
           </div>
         </div>
       </section>

@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { formatMoney } from '@/lib/app-settings';
 import { useGeneralSettings } from '@/lib/api/settings';
-import { useValidatePostingDate } from '@/lib/api/fiscal-years';
+import { usePostingDateGuard } from '@/lib/api/fiscal-years';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import {
   useCreateAndPostPurchaseReturn,
@@ -11,7 +11,7 @@ import {
   useInvalidatePurchaseReturnQueries,
   usePurchaseReturnSupportData,
 } from '@/lib/api/purchase-returns';
-import { friendlyErrorMessage, isValidDateInput } from '@/lib/erp-utils';
+import { friendlyErrorMessage } from '@/lib/erp-utils';
 import { PostedPurchaseReturnsView } from './PostedPurchaseReturnsView';
 import { PurchaseReturnAnalyticsView } from './PurchaseReturnAnalyticsView';
 import { buildPurchaseReturnDetails, buildPurchaseReturnPayload, validatePurchaseReturnVoucher } from './PurchaseReturnBusiness';
@@ -50,8 +50,8 @@ export default function PurchaseReturnPage() {
   const [processConfirmOpen, setProcessConfirmOpen] = useState(false);
 
   const saving = createDraft.isPending || createAndPost.isPending;
-  const isPurchaseReturnDateValid = isValidDateInput(purchaseReturnDate);
-  const dateValidation = useValidatePostingDate(isPurchaseReturnDateValid ? purchaseReturnDate : today(), isPurchaseReturnDateValid);
+  const postingDateGuard = usePostingDateGuard(purchaseReturnDate, 'Purchase Return Date');
+  const isPurchaseReturnDateValid = postingDateGuard.dateIsValid;
   const money = useMemo(() => (value: number) => formatMoney(value, generalSettings), [generalSettings]);
   const { suppliers, items, warehouses, locations } = usePurchaseSupportOptions(supportQuery.data);
   const selectedWarehouse = warehouses.find(warehouse => warehouse.value === warehouseId);
@@ -81,13 +81,9 @@ export default function PurchaseReturnPage() {
   const totals = usePurchaseTotals(lines, freightAmount, paymentType);
   const generatedVoucherDetails = buildPurchaseReturnDetails(selectedSupplier, supplierReturnNumber, lines.length);
 
-  const dateStatusMessage = !purchaseReturnDate
-    ? ''
-    : !isPurchaseReturnDateValid
-      ? 'Purchase Return Date is not a valid date.'
-      : dateValidation.data && !dateValidation.data.canPost
-        ? `Purchase Return Date: ${dateValidation.data.reason}`
-        : '';
+  const dateStatusMessage = postingDateGuard.isChecking ? 'Checking Purchase Return Date...' : postingDateGuard.statusMessage;
+  const newDisabled = postingDateGuard.disabled;
+  const newDisabledReason = dateStatusMessage || 'Purchase Return Date is being checked.';
 
   useEffect(() => {
     if (!warehouseId && warehouses.length > 0) {
@@ -131,7 +127,7 @@ export default function PurchaseReturnPage() {
     return validatePurchaseReturnVoucher({
       purchaseReturnDate,
       isPurchaseReturnDateValid,
-      postingDateError: dateValidation.data && !dateValidation.data.canPost ? `Purchase Return Date: ${dateValidation.data.reason}` : undefined,
+      postingDateError: postingDateGuard.isBlocked ? dateStatusMessage : undefined,
       supplierId,
       selectedSupplier,
       warehouseId,
@@ -221,7 +217,13 @@ export default function PurchaseReturnPage() {
     setProcessConfirmOpen(true);
   }
 
-  const actionDisabled = saving || supportQuery.isLoading || supportQuery.isError;
+  function openNewReturn() {
+    if (newDisabled) return;
+    resetForm();
+    setViewMode('entry');
+  }
+
+  const actionDisabled = saving || supportQuery.isLoading || supportQuery.isError || postingDateGuard.disabled;
 
   if (viewMode === 'posted') {
     return (
@@ -230,11 +232,10 @@ export default function PurchaseReturnPage() {
         warehouses={warehouses}
         money={money}
         generalSettings={generalSettings}
-        onNewReturn={() => {
-          resetForm();
-          setViewMode('entry');
-        }}
+        onNewReturn={openNewReturn}
         onAnalytics={() => setViewMode('analytics')}
+        newDisabled={newDisabled}
+        newDisabledReason={newDisabledReason}
       />
     );
   }
@@ -243,11 +244,10 @@ export default function PurchaseReturnPage() {
     return (
       <PurchaseReturnAnalyticsView
         settings={generalSettings}
-        onNewReturn={() => {
-          resetForm();
-          setViewMode('entry');
-        }}
+        onNewReturn={openNewReturn}
         onPostedReturns={() => setViewMode('posted')}
+        newDisabled={newDisabled}
+        newDisabledReason={newDisabledReason}
       />
     );
   }
@@ -262,6 +262,8 @@ export default function PurchaseReturnPage() {
         showAnalytics
         actionDisabled={actionDisabled}
         saving={saving}
+        newDisabled={newDisabled}
+        newDisabledReason={newDisabledReason}
         onNew={() => resetForm()}
         onPostedPurchases={() => setViewMode('posted')}
         onAnalytics={() => setViewMode('analytics')}

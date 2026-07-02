@@ -237,7 +237,7 @@ export class SaleReturnPostService {
           ${saleReturn.reference_number},
           ${saleReturn.description || 'Sale Return'},
           'Posted',
-          'Not Required',
+          'Approved',
           CAST(${voucherTotal.toFixed(2)} AS numeric),
           CAST(${voucherTotal.toFixed(2)} AS numeric),
           ${postedBy}::uuid,

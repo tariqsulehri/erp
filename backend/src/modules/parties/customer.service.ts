@@ -9,7 +9,7 @@ function cleanText(value: string | null | undefined) {
   return value?.trim() || null;
 }
 
-function customerToResponse(customer: any) {
+function customerToResponse(customer: any, linkedAccount?: { code: string; name: string } | null) {
   return {
     id: customer.id,
     company_id: customer.companyId,
@@ -32,6 +32,8 @@ function customerToResponse(customer: any) {
     credit_limit: Number(customer.creditLimit ?? 0),
     currency_code: customer.currencyCode,
     ar_account_id: customer.arAccountId,
+    ar_account_code: linkedAccount?.code ?? null,
+    ar_account_name: linkedAccount?.name ?? null,
     advance_account_id: customer.advanceAccountId,
     is_active: customer.isActive,
     notes: customer.notes,
@@ -77,8 +79,25 @@ export class CustomerService {
       }),
       prisma.customer.count({ where }),
     ]);
+    const linkedAccounts = await this.linkedAccounts(companyId, data.map(customer => customer.arAccountId).filter(Boolean) as string[]);
 
-    return { data: data.map(customerToResponse), total, page, limit };
+    return {
+      data: data.map(customer => customerToResponse(customer, customer.arAccountId ? linkedAccounts.get(customer.arAccountId) : null)),
+      total,
+      page,
+      limit,
+    };
+  }
+
+  private async linkedAccounts(companyId: string, accountIds: string[]) {
+    if (accountIds.length === 0) return new Map<string, { code: string; name: string }>();
+
+    const accounts = await prisma.account.findMany({
+      where: { companyId, id: { in: Array.from(new Set(accountIds)) } },
+      select: { id: true, code: true, name: true },
+    });
+
+    return new Map(accounts.map(account => [account.id, { code: account.code, name: account.name }]));
   }
 
   async stats(companyId: string) {

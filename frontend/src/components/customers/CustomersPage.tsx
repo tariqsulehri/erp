@@ -37,6 +37,7 @@ interface CustomerRow {
   city?: string | null; country?: string | null; postal_code?: string | null;
   payment_terms_days: number; credit_limit: number; currency_code: string;
   ar_account_id?: string | null; advance_account_id?: string | null;
+  ar_account_code?: string | null; ar_account_name?: string | null;
   is_active: boolean; notes?: string | null;
 }
 
@@ -251,18 +252,18 @@ export default function CustomersPage() {
       </div>
 
       {/* ── KPI chips ── */}
-      <div style={{ display: showForm ? 'none' : 'grid', gridTemplateColumns: 'repeat(4, minmax(0,1fr))', gap: 10, maxWidth: 580 }}>
+      <div style={{ display: showForm ? 'none' : 'grid', gridTemplateColumns: 'repeat(3, minmax(120px, 1fr)) minmax(190px, 1.45fr)', gap: 10, maxWidth: 820 }}>
         {[
           { label: 'Total',        value: statsData?.total    ?? 0, col: '#1d4ed8', bg: 'rgba(29,78,216,0.08)',  border: 'rgba(29,78,216,0.2)',  icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg> },
           { label: 'Active',       value: statsData?.active   ?? 0, col: '#15803d', bg: 'rgba(21,128,61,0.08)',  border: 'rgba(21,128,61,0.2)',  icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><polyline points="20 6 9 17 4 12"/></svg> },
           { label: 'Inactive',     value: statsData?.inactive ?? 0, col: '#b45309', bg: 'rgba(180,83,9,0.08)',   border: 'rgba(180,83,9,0.2)',   icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><line x1="8" y1="12" x2="16" y2="12"/></svg> },
           { label: 'Credit Limit', value: formatMoney(statsData?.total_credit_limit ?? 0, generalSettings), col: '#7c3aed', bg: 'rgba(124,58,237,0.08)', border: 'rgba(124,58,237,0.2)', icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg> },
         ].map(s => (
-          <div key={s.label} style={{ padding: '11px 14px', background: s.bg, border: `1px solid ${s.border}`, borderRadius: 10, display: 'flex', alignItems: 'center', gap: 10 }}>
-            <div style={{ color: s.col, flexShrink: 0 }}>{s.icon}</div>
-            <div>
-              <div style={{ fontSize: '1.2rem', fontWeight: 800, color: s.col, lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>{s.value}</div>
-              <div style={{ fontSize: '0.64rem', color: s.col, fontWeight: 600, opacity: 0.75, marginTop: 2, letterSpacing: 0 }}>{s.label}</div>
+          <div key={s.label} style={{ padding: '11px 14px', background: s.bg, border: `1px solid ${s.border}`, borderRadius: 10, display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+            <div style={{ color: s.col, flexShrink: 0, display: 'flex' }}>{s.icon}</div>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontSize: '1rem', fontWeight: 800, color: s.col, lineHeight: 1.05, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{s.value}</div>
+              <div style={{ fontSize: '0.6rem', color: s.col, fontWeight: 600, opacity: 0.75, marginTop: 3, letterSpacing: 0 }}>{s.label}</div>
             </div>
           </div>
         ))}
@@ -330,20 +331,20 @@ export default function CustomersPage() {
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
               <tr>
-                {['Code','Name','Party Type','Terms','Contact','Status',''].map((h, i) => (
-                  <th key={h+i} style={{ padding: '10px 12px', textAlign: i >= 5 ? 'center' : 'left', fontSize: '0.68rem', fontWeight: 700, letterSpacing: 0, background: 'var(--color-table-head-bg)', color: 'var(--color-table-head-fg)', borderBottom: '2px solid var(--color-border)', whiteSpace: 'nowrap' }}>{h}</th>
+                {['Code','Name','Linked Account','Credit Limit','Party Type','Terms','Contact','Status',''].map((h, i) => (
+                  <th key={h+i} style={{ padding: '10px 12px', textAlign: i === 3 || i >= 7 ? 'center' : 'left', fontSize: '0.68rem', fontWeight: 700, letterSpacing: 0, background: 'var(--color-table-head-bg)', color: 'var(--color-table-head-fg)', borderBottom: '2px solid var(--color-border)', whiteSpace: 'nowrap' }}>{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {isLoading ? (
-                <tr><td colSpan={7} style={{ padding: 48, textAlign: 'center' }}>
+                <tr><td colSpan={9} style={{ padding: 48, textAlign: 'center' }}>
                   <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 10, color: 'var(--color-text-muted)', fontSize: '0.875rem' }}>
                     <div className="spinner" style={{ width: 16, height: 16, borderWidth: 2 }} /> Loading customers…
                   </div>
                 </td></tr>
               ) : rows.length === 0 ? (
-                <tr><td colSpan={7} style={{ padding: '52px 24px', textAlign: 'center' }}>
+                <tr><td colSpan={9} style={{ padding: '52px 24px', textAlign: 'center' }}>
                   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
                     <div style={{ width: 58, height: 58, borderRadius: 14, background: 'var(--color-surface-alt)', border: '2px dashed var(--color-border)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                       <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--color-text-muted)" strokeWidth="1.5" strokeLinecap="round"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
@@ -368,32 +369,42 @@ export default function CustomersPage() {
                 return (
                   <tr key={c.id} className={`cust-row${isEditing ? ' cust-editing' : ''}`}
                     style={{ borderBottom: '1px solid var(--color-border)', background: idx % 2 === 0 ? 'var(--color-table-row-even)' : 'var(--color-table-row-odd)' }}>
-                    <td style={{ padding: '9px 12px', whiteSpace: 'nowrap' }}>
+                    <td style={{ padding: '2px 12px', whiteSpace: 'nowrap' }}>
                       <span style={{ fontFamily: "'JetBrains Mono',monospace", fontWeight: 700, fontSize: '0.78rem', color: '#1d4ed8', background: 'rgba(29,78,216,0.08)', border: '1px solid rgba(29,78,216,0.2)', padding: '2px 7px', borderRadius: 5 }}>{c.code}</span>
                     </td>
-                    <td style={{ padding: '9px 12px' }}>
+                    <td style={{ padding: '2px 12px' }}>
                       <div style={{ fontSize: '0.84rem', fontWeight: 600, color: 'var(--color-text)' }}>{c.name}</div>
                       {c.trade_name && <div style={{ fontSize: '0.72rem', color: 'var(--color-text-muted)' }}>{c.trade_name}</div>}
                     </td>
-                    <td style={{ padding: '9px 12px' }}>
-                      <span style={{ fontSize: '0.72rem', fontWeight: 700, padding: '3px 9px', borderRadius: 5, background: roleMeta.bg, color: roleMeta.color, border: `1px solid ${roleMeta.border}` }}>{roleMeta.label}</span>
-                      <div style={{ marginTop: 3, fontSize: '0.68rem', color: 'var(--color-text-muted)' }}>
-                        Main Role: Customer
-                      </div>
+                    <td style={{ padding: '2px 12px', minWidth: 180 }}>
+                      {c.ar_account_code ? (
+                        <>
+                          <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: '0.72rem', fontWeight: 800, color: 'var(--color-text)' }}>{c.ar_account_code}</div>
+                          <div style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)', maxWidth: 230, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.ar_account_name}</div>
+                        </>
+                      ) : (
+                        <span style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--color-text-muted)' }}>Not Assigned</span>
+                      )}
                     </td>
-                    <td style={{ padding: '9px 12px', fontSize: '0.8rem', color: 'var(--color-text-muted)', whiteSpace: 'nowrap' }}>
+                    <td style={{ padding: '2px 12px', textAlign: 'right', whiteSpace: 'nowrap', fontFamily: "'JetBrains Mono',monospace", fontSize: '0.78rem', fontWeight: 800, color: 'var(--color-text)' }}>
+                      {formatMoney(c.credit_limit ?? 0, generalSettings)}
+                    </td>
+                    <td style={{ padding: '2px 12px' }}>
+                      <span style={{ fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.05em', padding: '3px 9px', borderRadius: 12, background: roleMeta.bg, color: roleMeta.color, border: `1px solid ${roleMeta.border}`, whiteSpace: 'nowrap' }}>Customer</span>
+                    </td>
+                    <td style={{ padding: '2px 12px', fontSize: '0.8rem', color: 'var(--color-text-muted)', whiteSpace: 'nowrap' }}>
                       Net {c.payment_terms_days}
                     </td>
-                    <td style={{ padding: '9px 12px' }}>
+                    <td style={{ padding: '2px 12px' }}>
                       {c.email && <div style={{ fontSize: '0.78rem', color: 'var(--color-text)' }}>{c.email}</div>}
                       {c.phone && <div style={{ fontSize: '0.72rem', color: 'var(--color-text-muted)' }}>{c.phone}</div>}
                     </td>
-                    <td style={{ padding: '9px 12px', textAlign: 'center' }}>
+                    <td style={{ padding: '2px 12px', textAlign: 'center' }}>
                       <span style={{ fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.05em', padding: '3px 9px', borderRadius: 12, background: c.is_active ? 'rgba(21,128,61,0.1)' : 'rgba(100,116,139,0.1)', color: c.is_active ? '#15803d' : '#64748b', border: `1px solid ${c.is_active ? '#86efac' : '#cbd5e1'}` }}>
                         {c.is_active ? 'Active' : 'Inactive'}
                       </span>
                     </td>
-                    <td style={{ padding: '6px 10px', textAlign: 'right' }}>
+                    <td style={{ padding: '2px 10px', textAlign: 'right' }}>
                       <span className="cust-actions">
                         <button className="cust-ibtn edit" title="Edit" onClick={() => openEdit(c)}>
                           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>

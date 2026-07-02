@@ -440,34 +440,112 @@ function BankAccountsTab({ settings, entryOpen, onEntryOpenChange }: BankAccount
 }
 
 /* ── PDC Tab ─────────────────────────────────────────────────────────── */
-function PDCTab({ settings }: { settings?: AppFormatSettingsSource | null }) {
+function PDCTab({
+  settings,
+  entryOpen,
+  onEntryOpenChange,
+}: {
+  settings?: AppFormatSettingsSource | null;
+  entryOpen: boolean;
+  onEntryOpenChange: (open: boolean) => void;
+}) {
   const [pdcType, setPdcType] = useState<'all' | PDCType>('all');
   const [statusFilter, setStatusFilter] = useState<PDCStatus | 'all'>('all');
+  const [pdcs, setPdcs] = useState(SAMPLE_PDCS);
+  const [message, setMessage] = useState('');
+  const [form, setForm] = useState({
+    type: 'received' as PDCType,
+    chequeNo: '',
+    party: '',
+    bank: '',
+    amount: '',
+    dueDate: new Date().toISOString().slice(0, 10),
+    account: 'Main Operating Account',
+  });
 
-  const filtered = SAMPLE_PDCS.filter(p => {
+  const filtered = pdcs.filter(p => {
     if (pdcType !== 'all' && p.type !== pdcType) return false;
     if (statusFilter !== 'all' && p.status !== statusFilter) return false;
     return true;
   });
 
-  const totalPending  = SAMPLE_PDCS.filter(p => p.status === 'Pending').reduce((s, p) => s + p.amount, 0);
-  const totalMatured  = SAMPLE_PDCS.filter(p => p.status === 'Matured').reduce((s, p) => s + p.amount, 0);
-  const totalReturned = SAMPLE_PDCS.filter(p => p.status === 'Returned').reduce((s, p) => s + p.amount, 0);
+  const totalPending  = pdcs.filter(p => p.status === 'Pending').reduce((s, p) => s + p.amount, 0);
+  const totalMatured  = pdcs.filter(p => p.status === 'Matured').reduce((s, p) => s + p.amount, 0);
+  const totalReturned = pdcs.filter(p => p.status === 'Returned').reduce((s, p) => s + p.amount, 0);
+
+  function updatePdcStatus(id: string, nextStatus: PDCStatus, actionLabel: string) {
+    setPdcs(rows => rows.map(row => row.id === id ? { ...row, status: nextStatus } : row));
+    setMessage(`${actionLabel} completed for cheque.`);
+  }
+
+  function savePdc() {
+    if (!form.chequeNo.trim()) return setMessage('Cheque No. is required.');
+    if (!form.party.trim()) return setMessage('Party is required.');
+    if (!form.bank.trim()) return setMessage('Bank is required.');
+    if (numericValue(form.amount) <= 0) return setMessage('Amount must be greater than zero.');
+    setPdcs(rows => [{
+      id: String(Date.now()),
+      type: form.type,
+      chequeNo: form.chequeNo.trim(),
+      party: form.party.trim(),
+      bank: form.bank.trim(),
+      amount: numericValue(form.amount),
+      dueDate: form.dueDate,
+      status: 'Pending' as PDCStatus,
+      account: form.account.trim() || 'Main Operating Account',
+    }, ...rows]);
+    setForm({
+      type: 'received',
+      chequeNo: '',
+      party: '',
+      bank: '',
+      amount: '',
+      dueDate: new Date().toISOString().slice(0, 10),
+      account: 'Main Operating Account',
+    });
+    onEntryOpenChange(false);
+    setMessage('Post-Dated Cheque added.');
+  }
 
   return (
-    <div>
+    <main style={bankTabShellStyle}>
+      {message && <div style={bankSuccessMessageStyle}>{message}</div>}
+      {entryOpen && (
+        <section style={bankPanelStyle}>
+          <div style={bankPanelHeaderStyle}>
+            <div>
+              <h2 style={bankPanelTitleStyle}>New Post-Dated Cheque</h2>
+              <p style={bankPanelSubtitleStyle}>Record received or issued cheque details for tracking.</p>
+            </div>
+            <button className="btn btn-secondary" type="button" onClick={() => onEntryOpenChange(false)}>Cancel</button>
+          </div>
+          <div style={pdcFormGridStyle}>
+            <label style={{ display: 'grid', gap: 5 }}>
+              <span style={bankFieldLabelStyle}>Type *</span>
+              <select className="form-input" value={form.type} onChange={event => setForm(current => ({ ...current, type: event.currentTarget.value as PDCType }))}>
+                <option value="received">Received</option>
+                <option value="issued">Issued</option>
+              </select>
+            </label>
+            <TextField label="Cheque No." required value={form.chequeNo} onChange={value => setForm(current => ({ ...current, chequeNo: value }))} />
+            <TextField label="Party" required value={form.party} onChange={value => setForm(current => ({ ...current, party: value }))} />
+            <TextField label="Bank" required value={form.bank} onChange={value => setForm(current => ({ ...current, bank: value }))} />
+            <NumericField label="Amount" required value={form.amount} onChange={value => setForm(current => ({ ...current, amount: value }))} />
+            <DateField label="Due Date" required value={form.dueDate} onChange={value => setForm(current => ({ ...current, dueDate: value }))} />
+            <TextField label="Account" value={form.account} onChange={value => setForm(current => ({ ...current, account: value }))} />
+            <button className="btn btn-primary" type="button" onClick={savePdc} style={{ alignSelf: 'end' }}>Save PDC</button>
+          </div>
+        </section>
+      )}
       {/* KPI */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14, marginBottom: 24 }}>
+      <div style={bankSummaryGridStyle}>
         {[
-          { label: 'Pending PDCs',   value: formatMoney(totalPending, settings),  count: SAMPLE_PDCS.filter(p=>p.status==='Pending').length,  color: '#d97706' },
-          { label: 'Matured (Due)',  value: formatMoney(totalMatured, settings),  count: SAMPLE_PDCS.filter(p=>p.status==='Matured').length,  color: '#1d4ed8' },
-          { label: 'Returned',       value: formatMoney(totalReturned, settings), count: SAMPLE_PDCS.filter(p=>p.status==='Returned').length, color: '#b91c1c' },
+          { label: 'Pending PDCs',   value: formatMoney(totalPending, settings),  count: pdcs.filter(p=>p.status==='Pending').length,  color: '#d97706' },
+          { label: 'Matured (Due)',  value: formatMoney(totalMatured, settings),  count: pdcs.filter(p=>p.status==='Matured').length,  color: '#1d4ed8' },
+          { label: 'Returned',       value: formatMoney(totalReturned, settings), count: pdcs.filter(p=>p.status==='Returned').length, color: '#b91c1c' },
         ].map(k => (
-          <div key={k.label} style={{
-            background: 'var(--color-surface)', border: '1px solid var(--color-border)',
-            borderRadius: 'var(--radius)', padding: '16px 20px', boxShadow: 'var(--shadow-sm)',
-          }}>
-            <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-muted)', marginBottom: 4 }}>
+          <div key={k.label} style={bankSummaryTileStyle}>
+            <div style={bankSummaryLabelStyle}>
               {k.label}
               <span style={{ marginLeft: 6, fontSize: '0.6875rem', fontWeight: 700,
                 background: `${k.color}15`, color: k.color, padding: '1px 6px', borderRadius: 10 }}>
@@ -480,7 +558,7 @@ function PDCTab({ settings }: { settings?: AppFormatSettingsSource | null }) {
       </div>
 
       {/* Filters */}
-      <div style={{ display: 'flex', gap: 10, marginBottom: 16 }}>
+      <section style={bankFilterBarStyle}>
         {/* Type toggle */}
         <div style={{ display: 'flex', borderRadius: 'var(--radius-sm)', overflow: 'hidden', border: '1px solid var(--color-border)' }}>
           {(['all', 'received', 'issued'] as const).map(t => (
@@ -509,13 +587,10 @@ function PDCTab({ settings }: { settings?: AppFormatSettingsSource | null }) {
             <option key={s} value={s}>{s}</option>
           ))}
         </select>
-      </div>
+      </section>
 
       {/* Table */}
-      <div style={{
-        background: 'var(--color-surface)', border: '1px solid var(--color-border)',
-        borderRadius: 'var(--radius)', overflow: 'hidden', boxShadow: 'var(--shadow-sm)',
-      }}>
+      <section style={bankPanelStyle}>
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
             <tr style={{ background: '#f8fafc', borderBottom: '1px solid var(--color-border)' }}>
@@ -585,14 +660,14 @@ function PDCTab({ settings }: { settings?: AppFormatSettingsSource | null }) {
                             padding: '3px 10px', fontSize: '0.6875rem', fontWeight: 600,
                             borderRadius: 4, border: '1px solid #16a34a', background: 'transparent',
                             color: '#16a34a', cursor: 'pointer',
-                          }}>
+                          }} onClick={() => updatePdcStatus(pdc.id, 'Deposited', 'Deposit')}>
                             Deposit
                           </button>
                           <button style={{
                             padding: '3px 10px', fontSize: '0.6875rem', fontWeight: 600,
                             borderRadius: 4, border: '1px solid #b91c1c', background: 'transparent',
                             color: '#b91c1c', cursor: 'pointer',
-                          }}>
+                          }} onClick={() => updatePdcStatus(pdc.id, 'Returned', 'Return')}>
                             Return
                           </button>
                         </>
@@ -602,7 +677,7 @@ function PDCTab({ settings }: { settings?: AppFormatSettingsSource | null }) {
                           padding: '3px 10px', fontSize: '0.6875rem', fontWeight: 600,
                           borderRadius: 4, border: '1px solid #1d4ed8', background: 'transparent',
                           color: '#1d4ed8', cursor: 'pointer',
-                        }}>
+                        }} onClick={() => updatePdcStatus(pdc.id, 'Deposited', 'Clear')}>
                           Clear
                         </button>
                       )}
@@ -618,36 +693,45 @@ function PDCTab({ settings }: { settings?: AppFormatSettingsSource | null }) {
             No PDCs match the selected filters.
           </div>
         )}
-      </div>
+      </section>
 
-      <div style={{
-        marginTop: 12, padding: '10px 16px', borderRadius: 'var(--radius-sm)',
-        background: '#eff6ff', border: '1px solid #bfdbfe',
-        fontSize: 'var(--font-size-xs)', color: '#1e40af',
-      }}>
+      <div style={bankInfoStyle}>
         PDC workflow: Received cheque is recorded and held until due date (Pending → Matured → Deposited or Returned).
         Issued cheques are tracked as liabilities until cleared by the bank.
         Full journal entries will post automatically once the voucher module is live.
       </div>
-    </div>
+    </main>
   );
 }
 
 /* ── Reconciliation Tab ──────────────────────────────────────────────── */
 function ReconciliationTab({ settings }: { settings?: AppFormatSettingsSource | null }) {
   const [period, setPeriod] = useState('2026-03');
+  const [rows, setRows] = useState(SAMPLE_RECON);
+  const [message, setMessage] = useState('');
 
-  const cleared   = SAMPLE_RECON.filter(r => r.cleared);
-  const uncleared = SAMPLE_RECON.filter(r => !r.cleared);
+  const cleared   = rows.filter(r => r.cleared);
+  const uncleared = rows.filter(r => !r.cleared);
 
-  const glBalance     = SAMPLE_RECON.reduce((s, r) => s + (r.gl_amount ?? 0), 0);
-  const bankBalance   = SAMPLE_RECON.reduce((s, r) => s + (r.bank_amount ?? 0), 0);
+  const glBalance     = rows.reduce((s, r) => s + (r.gl_amount ?? 0), 0);
+  const bankBalance   = rows.reduce((s, r) => s + (r.bank_amount ?? 0), 0);
   const difference    = glBalance - bankBalance;
 
+  function matchRow(id: string) {
+    setRows(current => current.map(row => row.id === id ? {
+      ...row,
+      cleared: true,
+      bank_amount: row.bank_amount ?? row.gl_amount ?? 0,
+      gl_amount: row.gl_amount ?? row.bank_amount ?? 0,
+    } : row));
+    setMessage('Item matched and moved to Cleared Items.');
+  }
+
   return (
-    <div>
+    <main style={bankTabShellStyle}>
+      {message && <div style={bankSuccessMessageStyle}>{message}</div>}
       {/* Header controls */}
-      <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 20 }}>
+      <section style={bankFilterBarStyle}>
         <div>
           <label style={{ fontSize: 'var(--font-size-xs)', fontWeight: 600, color: 'var(--color-text-muted)', display: 'block', marginBottom: 4 }}>
             Bank Account
@@ -677,24 +761,21 @@ function ReconciliationTab({ settings }: { settings?: AppFormatSettingsSource | 
             padding: '8px 18px', borderRadius: 'var(--radius-sm)',
             border: 'none', background: 'var(--color-primary)', color: 'white',
             fontWeight: 600, fontSize: 'var(--font-size-sm)', cursor: 'pointer',
-          }}>
+          }} onClick={() => setMessage(`Statement loaded for ${period}.`)}>
             Load Statement
           </button>
         </div>
-      </div>
+      </section>
 
       {/* Summary boxes */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14, marginBottom: 24 }}>
+      <div style={bankSummaryGridStyle}>
         {[
           { label: 'GL Book Balance',   value: glBalance,   color: '#2563eb' },
           { label: 'Bank Statement Bal',value: bankBalance, color: '#16a34a' },
           { label: 'Difference',        value: difference,  color: Math.abs(difference) < 0.01 ? '#16a34a' : '#b91c1c' },
         ].map(k => (
-          <div key={k.label} style={{
-            background: 'var(--color-surface)', border: `1px solid ${Math.abs(difference) < 0.01 || k.label !== 'Difference' ? 'var(--color-border)' : '#fca5a5'}`,
-            borderRadius: 'var(--radius)', padding: '16px 20px', boxShadow: 'var(--shadow-sm)',
-          }}>
-            <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-muted)', marginBottom: 4 }}>{k.label}</div>
+          <div key={k.label} style={{ ...bankSummaryTileStyle, borderColor: Math.abs(difference) < 0.01 || k.label !== 'Difference' ? 'var(--color-border)' : '#fca5a5' }}>
+            <div style={bankSummaryLabelStyle}>{k.label}</div>
             <div style={{ fontSize: '1.125rem', fontWeight: 700, color: k.color }}>
               {formatMoney(Math.abs(k.value), settings)}
               {k.value < 0 && <span style={{ fontSize: '0.75rem', marginLeft: 4 }}>(Cr)</span>}
@@ -711,10 +792,7 @@ function ReconciliationTab({ settings }: { settings?: AppFormatSettingsSource | 
           {uncleared.length}
         </span>
       </h3>
-      <div style={{
-        background: 'var(--color-surface)', border: '1px solid var(--color-border)',
-        borderRadius: 'var(--radius)', overflow: 'hidden', marginBottom: 24, boxShadow: 'var(--shadow-sm)',
-      }}>
+      <section style={bankPanelStyle}>
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
             <tr style={{ background: '#f8fafc', borderBottom: '1px solid var(--color-border)' }}>
@@ -747,7 +825,7 @@ function ReconciliationTab({ settings }: { settings?: AppFormatSettingsSource | 
                     padding: '3px 12px', fontSize: '0.6875rem', fontWeight: 600,
                     borderRadius: 4, border: '1px solid #16a34a', background: 'transparent',
                     color: '#16a34a', cursor: 'pointer',
-                  }}>
+                  }} onClick={() => matchRow(row.id)}>
                     Match
                   </button>
                 </td>
@@ -755,7 +833,7 @@ function ReconciliationTab({ settings }: { settings?: AppFormatSettingsSource | 
             ))}
           </tbody>
         </table>
-      </div>
+      </section>
 
       {/* Cleared items */}
       <h3 style={{ fontSize: 'var(--font-size-sm)', fontWeight: 700, color: 'var(--color-text)', marginBottom: 10 }}>
@@ -765,10 +843,7 @@ function ReconciliationTab({ settings }: { settings?: AppFormatSettingsSource | 
           {cleared.length}
         </span>
       </h3>
-      <div style={{
-        background: 'var(--color-surface)', border: '1px solid var(--color-border)',
-        borderRadius: 'var(--radius)', overflow: 'hidden', boxShadow: 'var(--shadow-sm)',
-      }}>
+      <section style={bankPanelStyle}>
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
             <tr style={{ background: '#f8fafc', borderBottom: '1px solid var(--color-border)' }}>
@@ -806,18 +881,14 @@ function ReconciliationTab({ settings }: { settings?: AppFormatSettingsSource | 
             ))}
           </tbody>
         </table>
-      </div>
+      </section>
 
-      <div style={{
-        marginTop: 12, padding: '10px 16px', borderRadius: 'var(--radius-sm)',
-        background: '#eff6ff', border: '1px solid #bfdbfe',
-        fontSize: 'var(--font-size-xs)', color: '#1e40af',
-      }}>
+      <div style={bankInfoStyle}>
         Bank reconciliation matches GL transactions against the imported bank statement.
         Unmatched GL items = outstanding cheques. Unmatched bank items = timing differences or errors.
         Full statement import (CSV/MT940) will be available once the voucher module is complete.
       </div>
-    </div>
+    </main>
   );
 }
 
@@ -825,6 +896,106 @@ const formShellStyle: React.CSSProperties = {
   border: '1px solid var(--color-border)',
   background: 'var(--color-surface)',
   boxShadow: 'var(--shadow-sm)',
+};
+
+const bankTabShellStyle: React.CSSProperties = {
+  minHeight: 0,
+  padding: 10,
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 8,
+};
+
+const bankFilterBarStyle: React.CSSProperties = {
+  border: '1px solid var(--color-border)',
+  background: 'var(--color-surface)',
+  padding: '9px 12px',
+  display: 'flex',
+  alignItems: 'end',
+  gap: 10,
+  flexWrap: 'wrap',
+};
+
+const bankSummaryGridStyle: React.CSSProperties = {
+  display: 'grid',
+  gridTemplateColumns: 'repeat(3, minmax(160px, 1fr))',
+  gap: 8,
+};
+
+const bankSummaryTileStyle: React.CSSProperties = {
+  background: 'var(--color-surface)',
+  border: '1px solid var(--color-border)',
+  padding: '12px 14px',
+  boxShadow: 'var(--shadow-sm)',
+};
+
+const bankSummaryLabelStyle: React.CSSProperties = {
+  fontSize: 'var(--font-size-xs)',
+  color: 'var(--color-text-muted)',
+  marginBottom: 5,
+  fontWeight: 750,
+};
+
+const bankPanelStyle: React.CSSProperties = {
+  background: 'var(--color-surface)',
+  border: '1px solid var(--color-border)',
+  overflow: 'hidden',
+  boxShadow: 'var(--shadow-sm)',
+};
+
+const bankPanelHeaderStyle: React.CSSProperties = {
+  display: 'flex',
+  justifyContent: 'space-between',
+  alignItems: 'center',
+  gap: 10,
+  padding: '10px 12px',
+  borderBottom: '1px solid var(--color-border)',
+};
+
+const bankPanelTitleStyle: React.CSSProperties = {
+  margin: 0,
+  color: 'var(--color-heading)',
+  fontSize: '0.9rem',
+  fontWeight: 900,
+};
+
+const bankPanelSubtitleStyle: React.CSSProperties = {
+  margin: '3px 0 0',
+  color: 'var(--color-text-muted)',
+  fontSize: '0.72rem',
+  fontWeight: 750,
+};
+
+const bankFieldLabelStyle: React.CSSProperties = {
+  color: 'var(--color-text-muted)',
+  fontSize: 'var(--font-size-xs)',
+  fontWeight: 700,
+};
+
+const pdcFormGridStyle: React.CSSProperties = {
+  display: 'grid',
+  gridTemplateColumns: '140px 170px minmax(180px, 1fr) minmax(150px, 1fr) 140px 140px minmax(180px, 1fr) 110px',
+  gap: 10,
+  alignItems: 'end',
+  padding: 12,
+};
+
+const bankInfoStyle: React.CSSProperties = {
+  padding: '10px 16px',
+  background: '#eff6ff',
+  border: '1px solid #bfdbfe',
+  fontSize: 'var(--font-size-xs)',
+  color: '#1e40af',
+  fontWeight: 650,
+};
+
+const bankSuccessMessageStyle: React.CSSProperties = {
+  border: '1px solid var(--color-success-border)',
+  background: 'var(--color-success-bg)',
+  color: 'var(--color-success-text)',
+  padding: '8px 12px',
+  fontSize: '0.76rem',
+  fontWeight: 850,
 };
 
 const formToolbarStyle: React.CSSProperties = {
@@ -874,6 +1045,7 @@ const emptyStateStyle: React.CSSProperties = {
 export default function BankPage() {
   const [activeTab, setActiveTab] = useState<Tab>('accounts');
   const [bankEntryOpen, setBankEntryOpen] = useState(false);
+  const [pdcEntryOpen, setPdcEntryOpen] = useState(false);
   const { data: generalSettings } = useGeneralSettings();
 
   const TABS: { id: Tab; label: string; icon: string }[] = [
@@ -892,7 +1064,7 @@ export default function BankPage() {
         </div>
         <div style={{ display: 'flex', gap: 10 }}>
           {activeTab === 'pdc' && (
-            <button className="btn btn-primary">
+            <button className="btn btn-primary" type="button" onClick={() => setPdcEntryOpen(true)}>
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <circle cx="12" cy="12" r="10"/><path d="M12 8v8M8 12h8"/>
               </svg>
@@ -942,7 +1114,7 @@ export default function BankPage() {
       {/* Tab content */}
       {activeTab === 'accounts'       && <BankAccountsTab settings={generalSettings} entryOpen={bankEntryOpen} onEntryOpenChange={setBankEntryOpen} />}
       {activeTab === 'cheque-books'   && <ChequeBooksTab settings={generalSettings} />}
-      {activeTab === 'pdc'            && <PDCTab settings={generalSettings} />}
+      {activeTab === 'pdc'            && <PDCTab settings={generalSettings} entryOpen={pdcEntryOpen} onEntryOpenChange={setPdcEntryOpen} />}
       {activeTab === 'reconciliation' && <ReconciliationTab settings={generalSettings} />}
     </div>
   );

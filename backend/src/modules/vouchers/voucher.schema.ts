@@ -4,6 +4,7 @@ const accountCodePattern = /^\d{10}$/;
 
 export const voucherTypeSchema = z.enum(['BRV', 'BPV', 'CRV', 'CPV', 'JV', 'CV', 'DN', 'CN', 'PI']);
 export const voucherStatusSchema = z.enum(['Draft', 'Posted', 'Voided']);
+export const voucherApprovalStatusSchema = z.enum(['Not Required', 'Pending', 'Approved', 'Rejected']);
 
 export const voucherLineInputSchema = z.object({
   account_id: z.string().uuid(),
@@ -23,8 +24,8 @@ export const createVoucherInputSchema = z.object({
   voucher_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Use YYYY-MM-DD format.'),
   reference: z.string().trim().max(100).optional(),
   narration: z.string().trim().max(1000).optional(),
-  approval_status: z.enum(['Not Required', 'Pending', 'Approved', 'Rejected']).optional(),
   auto_reverse_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Use YYYY-MM-DD format.').optional(),
+  submit_for_approval: z.boolean().optional().default(false),
   lines: z.array(voucherLineInputSchema).min(2, 'Minimum 2 lines are required.'),
 });
 
@@ -33,6 +34,7 @@ export const listVouchersQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(200).default(20),
   voucher_type: voucherTypeSchema.optional(),
   status: voucherStatusSchema.optional(),
+  approval_status: voucherApprovalStatusSchema.optional(),
   search: z.string().trim().optional(),
   date_from: z.string().optional(),
   date_to: z.string().optional(),
@@ -40,5 +42,15 @@ export const listVouchersQuerySchema = z.object({
   amount_to: z.coerce.number().min(0).optional(),
 });
 
+export const voucherApprovalActionSchema = z.object({
+  note: z.string().trim().max(500).optional(),
+});
+
+export const voucherRejectActionSchema = z.object({
+  reason: z.string().trim().min(1, 'Rejection Reason is required.').max(500),
+});
+
 export type CreateVoucherInput = z.infer<typeof createVoucherInputSchema>;
 export type ListVouchersQuery = z.infer<typeof listVouchersQuerySchema>;
+export type VoucherApprovalActionInput = z.infer<typeof voucherApprovalActionSchema>;
+export type VoucherRejectActionInput = z.infer<typeof voucherRejectActionSchema>;

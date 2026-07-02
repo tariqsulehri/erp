@@ -195,6 +195,14 @@ model Voucher {
   status           String            @default("Draft") @db.VarChar(20)
   totalDebit       Decimal           @default(0) @map("total_debit") @db.Decimal(18, 2)
   totalCredit      Decimal           @default(0) @map("total_credit") @db.Decimal(18, 2)
+  approvalStatus   String            @default("Pending") @map("approval_status") @db.VarChar(20)
+  approvalRequestedBy String?        @map("approval_requested_by") @db.Uuid
+  approvalRequestedAt DateTime?      @map("approval_requested_at") @db.Timestamptz(6)
+  approvedBy       String?           @map("approved_by") @db.Uuid
+  approvedAt       DateTime?         @map("approved_at") @db.Timestamptz(6)
+  rejectedBy       String?           @map("rejected_by") @db.Uuid
+  rejectedAt       DateTime?         @map("rejected_at") @db.Timestamptz(6)
+  rejectionReason  String?           @map("rejection_reason")
   createdBy        String?           @map("created_by") @db.Uuid
   postedBy         String?           @map("posted_by") @db.Uuid
   postedAt         DateTime?         @map("posted_at") @db.Timestamptz(6)
@@ -210,7 +218,24 @@ model Voucher {
   @@unique([companyId, voucherNumber], map: "uq_voucher_number")
   @@index([companyId, voucherDate], map: "idx_vouchers_company_date")
   @@index([companyId, status], map: "idx_vouchers_company_status")
+  @@index([companyId, approvalStatus, voucherDate], map: "idx_vouchers_company_approval_date")
   @@map("vouchers")
+}
+
+model DocumentApproval {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId      String    @map("company_id") @db.Uuid
+  documentType   String    @map("document_type") @db.VarChar(50)
+  documentId     String    @map("document_id") @db.Uuid
+  approvalStatus String    @map("approval_status") @db.VarChar(20)
+  approvedById   String?   @map("approved_by_id") @db.Uuid
+  approvedAt     DateTime? @map("approved_at") @db.Timestamptz(6)
+  remarks        String?
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([companyId, documentType, documentId], map: "idx_document_approvals_company_document")
+  @@index([companyId, approvalStatus, createdAt], map: "idx_document_approvals_company_status_created")
+  @@map("document_approvals")
 }
 
 model VoucherLine {

@@ -9,9 +9,11 @@ interface SaleReturnAnalyticsViewProps {
   settings?: AppFormatSettingsSource | null;
   onNewReturn: () => void;
   onPostedReturns: () => void;
+  newDisabled?: boolean;
+  newDisabledReason?: string;
 }
 
-export function SaleReturnAnalyticsView({ settings, onNewReturn, onPostedReturns }: SaleReturnAnalyticsViewProps) {
+export function SaleReturnAnalyticsView({ settings, onNewReturn, onPostedReturns, newDisabled = false, newDisabledReason }: SaleReturnAnalyticsViewProps) {
   const query = useSaleReturnsList({ page: 1, limit: 200, status: 'Posted' });
   const rows = useMemo<AnalyticsRow[]>(() => (query.data?.data ?? []).map(row => ({
     id: row.id,
@@ -39,6 +41,8 @@ export function SaleReturnAnalyticsView({ settings, onNewReturn, onPostedReturns
       onNew={onNewReturn}
       onPostedList={onPostedReturns}
       onRefresh={() => query.refetch()}
+      newDisabled={newDisabled}
+      newDisabledReason={newDisabledReason}
     />
   );
 }

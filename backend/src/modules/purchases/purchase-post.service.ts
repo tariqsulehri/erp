@@ -231,7 +231,7 @@ export class PurchasePostService {
           ${invoice.reference_number},
           ${invoice.description || 'Purchase Voucher'},
           'Posted',
-          'Not Required',
+          'Approved',
           CAST(${voucherTotal.toFixed(2)} AS numeric),
           CAST(${voucherTotal.toFixed(2)} AS numeric),
           ${postedBy}::uuid,

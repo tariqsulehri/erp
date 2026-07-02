@@ -16,6 +16,7 @@ export interface AccountListItem {
   is_active: boolean;
   sort_order: number | null;
   opening_balance: string | null;
+  current_balance: string | null;
   opening_balance_date: string | null;
   created_at: string;
   updated_at: string;

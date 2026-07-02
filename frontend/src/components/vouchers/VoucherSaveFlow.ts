@@ -11,37 +11,31 @@ export interface VoucherMutation<Input, Result> {
 
 export async function saveVoucherDocument<CreateInput>({
   createVoucher,
-  postVoucher,
+  updateVoucher,
   invalidateVoucherList,
+  editingVoucherId,
   createInput,
-  postAfterSave,
+  submitForApproval,
   resetForm,
   saveErrorFallback,
 }: {
   createVoucher: VoucherMutation<CreateInput, SavedVoucherSummary>;
-  postVoucher: VoucherMutation<{ id: string }, unknown>;
+  updateVoucher?: VoucherMutation<{ id: string; body: CreateInput }, SavedVoucherSummary>;
   invalidateVoucherList: () => Promise<unknown>;
+  editingVoucherId?: string | null;
   createInput: CreateInput;
-  postAfterSave: boolean;
+  submitForApproval: boolean;
   resetForm: (clearMessage?: boolean) => void;
   saveErrorFallback: string;
 }): Promise<{ kind: VoucherMessageKind; text: string }> {
   try {
-    const voucher = await createVoucher.mutateAsync(createInput);
+    const voucher = editingVoucherId && updateVoucher
+      ? await updateVoucher.mutateAsync({ id: editingVoucherId, body: createInput })
+      : await createVoucher.mutateAsync(createInput);
 
-    let successText = `${voucher.voucher_number} saved as Draft.`;
-    if (postAfterSave) {
-      try {
-        await postVoucher.mutateAsync({ id: voucher.id });
-        successText = `${voucher.voucher_number} saved and posted successfully.`;
-      } catch (postError) {
-        resetForm(false);
-        return {
-          kind: 'error',
-          text: `${voucher.voucher_number} was saved as Draft, but could not be posted. ${friendlyErrorMessage(postError, 'Please review the voucher and try Process again.')}`,
-        };
-      }
-    }
+    const successText = submitForApproval
+      ? `${voucher.voucher_number} saved and sent for approval.`
+      : `${voucher.voucher_number} saved as Draft.`;
 
     let refreshWarning = '';
     try {

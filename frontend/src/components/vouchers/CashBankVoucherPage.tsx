@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import {
   IconBuildingBank,
   IconCalendarDollar,
@@ -8,12 +9,15 @@ import {
 } from '@tabler/icons-react';
 import { formatMoney } from '@/lib/app-settings';
 import { useAccountsList } from '@/lib/api/accounts';
-import { useValidatePostingDate } from '@/lib/api/fiscal-years';
+import { useBankAccountsList } from '@/lib/api/bank-accounts';
+import { usePostingDateGuard } from '@/lib/api/fiscal-years';
 import { useGeneralSettings } from '@/lib/api/settings';
-import { useCreateVoucher, usePostVoucher } from '@/lib/api/vouchers';
+import { useCreateVoucher, useUpdateVoucher, useVoucherDetail } from '@/lib/api/vouchers';
 import { FieldLabel, SearchableSelect, SummaryRow, type VoucherSelectOption } from './VoucherControls';
 import { CashBankVoucherLineTable, type CashBankVoucherLine } from './CashBankVoucherLineTable';
 import { VoucherActionButtons, VoucherLineSection, VoucherMessageBanner, VoucherPageHeader, VoucherSummaryFooter } from './VoucherLayout';
+import { useDefaultVoucherDate } from './VoucherFiscalDate';
+import { getBankAccountOptions, getCashAccountOptions, getVoucherLineAccountOptions, type VoucherAccountOption } from './VoucherAccountRules';
 import { buildCashBankVoucherLines } from './VoucherPayload';
 import { saveVoucherDocument } from './VoucherSaveFlow';
 import { validateCashBankVoucher } from './VoucherValidation';
@@ -22,7 +26,6 @@ import {
   compactInputStyle,
   compactNumericInputStyle,
   friendlyErrorMessage,
-  isValidDateInput,
   today,
   type VoucherMessageKind,
 } from './VoucherShared';
@@ -31,14 +34,6 @@ type VoucherKind = 'BPV' | 'CPV' | 'CRV';
 type MessageKind = VoucherMessageKind;
 
 type CashBankLine = CashBankVoucherLine;
-
-type SelectOption = VoucherSelectOption;
-
-interface AccountOption extends SelectOption {
-  code: string;
-  name: string;
-  openingBalance?: string | number | null;
-}
 
 interface VoucherConfig {
   voucherType: VoucherKind;
@@ -51,7 +46,6 @@ interface VoucherConfig {
   linesTitle: string;
   lineAccountLabel: string;
   totalLabel: string;
-  balanceAfterLabel: string;
   successNoun: string;
   icon: 'bank' | 'cash';
   badgeColor: string;
@@ -74,7 +68,6 @@ const voucherConfigs: Record<VoucherKind, VoucherConfig> = {
     linesTitle: 'Payment Lines',
     lineAccountLabel: 'Paid To Account',
     totalLabel: 'Total Payment',
-    balanceAfterLabel: 'Balance After Payment',
     successNoun: 'Bank Payment Voucher',
     icon: 'bank',
     badgeColor: '#1d4ed8',
@@ -95,7 +88,6 @@ const voucherConfigs: Record<VoucherKind, VoucherConfig> = {
     linesTitle: 'Payment Lines',
     lineAccountLabel: 'Paid To Account',
     totalLabel: 'Total Payment',
-    balanceAfterLabel: 'Balance After Payment',
     successNoun: 'Cash Payment Voucher',
     icon: 'cash',
     badgeColor: '#166534',
@@ -116,7 +108,6 @@ const voucherConfigs: Record<VoucherKind, VoucherConfig> = {
     linesTitle: 'Receipt Lines',
     lineAccountLabel: 'Received From Account',
     totalLabel: 'Total Receipt',
-    balanceAfterLabel: 'Balance After Receipt',
     successNoun: 'Cash Receipt Voucher',
     icon: 'cash',
     badgeColor: '#047857',
@@ -142,39 +133,45 @@ const initialLines = () => Array.from({ length: INITIAL_LINE_COUNT }, (_, index)
 
 export default function CashBankVoucherPage({ voucherType }: { voucherType: VoucherKind }) {
   const config = voucherConfigs[voucherType];
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const editingVoucherId = searchParams.get('id');
   const { data: generalSettings } = useGeneralSettings();
-  const [voucherDate, setVoucherDate] = useState(today());
+  const { defaultVoucherDate } = useDefaultVoucherDate();
+  const [voucherDate, setVoucherDate] = useState(defaultVoucherDate);
   const [referenceNumber, setReferenceNumber] = useState('');
   const [description, setDescription] = useState('');
   const [primaryAccountId, setPrimaryAccountId] = useState('');
-  const [approvalStatus, setApprovalStatus] = useState<'Not Required' | 'Pending'>('Not Required');
-  const [autoReverseDate, setAutoReverseDate] = useState('');
   const [lines, setLines] = useState<CashBankLine[]>(initialLines);
   const [nextLineId, setNextLineId] = useState(INITIAL_LINE_COUNT + 1);
   const [message, setMessage] = useState<{ kind: MessageKind; text: string } | null>(null);
-  const isVoucherDateValid = isValidDateInput(voucherDate);
+  const postingDateGuard = usePostingDateGuard(voucherDate, config.dateLabel);
+  const dateValidation = postingDateGuard.dateValidation;
+  const isVoucherDateValid = postingDateGuard.dateIsValid;
 
   const accountsQuery = useAccountsList({
     page: 1,
-    limit: 500,
+    limit: 200,
     is_active: true,
     is_posting: true,
   });
-  const dateValidation = useValidatePostingDate(voucherDate, isVoucherDateValid);
+  const bankAccountsQuery = useBankAccountsList({
+    page: 1,
+    limit: 200,
+    is_active: true,
+  });
   const createVoucher = useCreateVoucher();
-  const postVoucher = usePostVoucher();
+  const updateVoucher = useUpdateVoucher();
+  const detailQuery = useVoucherDetail(editingVoucherId ?? undefined);
 
-  const accountOptions = useMemo<AccountOption[]>(() => {
-    return (accountsQuery.data?.data ?? []).map((account: any) => ({
-      value: account.id,
-      label: `${account.code} - ${account.name}`,
-      searchText: `${account.code} ${account.name}`,
-      code: account.code,
-      name: account.name,
-      openingBalance: account.opening_balance,
-    }));
-  }, [accountsQuery.data]);
-  const selectedPrimaryAccount = accountOptions.find(option => option.value === primaryAccountId);
+  const allAccounts = accountsQuery.data?.data ?? [];
+  const activeBankAccounts = bankAccountsQuery.data?.data ?? [];
+  const cashAccountOptions = useMemo(() => getCashAccountOptions(allAccounts), [allAccounts]);
+  const bankAccountOptions = useMemo(() => getBankAccountOptions(activeBankAccounts), [activeBankAccounts]);
+  const lineAccountOptions = useMemo(() => getVoucherLineAccountOptions(allAccounts, activeBankAccounts), [allAccounts, activeBankAccounts]);
+  const primaryAccountOptions: VoucherAccountOption[] = config.primaryAccountKind === 'Bank' ? bankAccountOptions : cashAccountOptions;
+  const selectedPrimaryAccount = primaryAccountOptions.find(option => option.value === primaryAccountId);
   const enteredLines = lines.filter(line =>
     line.accountId ||
     line.description.trim() ||
@@ -185,32 +182,25 @@ export default function CashBankVoucherPage({ voucherType }: { voucherType: Vouc
   );
   const validLines = enteredLines.filter(line => line.accountId && amountValue(line.amount) > 0);
   const totalAmount = lines.reduce((sum, line) => sum + amountValue(line.amount), 0);
-  const currentBalance = Number(selectedPrimaryAccount?.openingBalance ?? 0);
-  const balanceAfterTransaction = config.direction === 'receipt'
-    ? currentBalance + totalAmount
-    : currentBalance - totalAmount;
+  const currentBalance = Number(selectedPrimaryAccount?.currentBalance ?? selectedPrimaryAccount?.openingBalance ?? 0);
   const difference = 0;
   const money = useMemo(() => (value: number) => formatMoney(value, generalSettings), [generalSettings]);
-  const saving = createVoucher.isPending || postVoucher.isPending;
-  const actionDisabled = saving || accountsQuery.isLoading || dateValidation.isFetching;
-  const dateStatusMessage = !voucherDate
-    ? ''
-    : !isVoucherDateValid
-      ? `${config.dateLabel} is not a valid date.`
-      : dateValidation.error
-        ? friendlyErrorMessage(dateValidation.error, `Unable to check ${config.dateLabel}.`)
-        : dateValidation.data && !dateValidation.data.canPost
-          ? dateValidation.data.reason ?? `${config.dateLabel} is outside the open fiscal period.`
-          : '';
+  const saving = createVoucher.isPending || updateVoucher.isPending;
+  const accountsLoading = accountsQuery.isLoading || bankAccountsQuery.isLoading;
+  const accountsError = accountsQuery.error || bankAccountsQuery.error;
+  const primaryAccountsLoading = config.primaryAccountKind === 'Bank' ? bankAccountsQuery.isLoading : accountsQuery.isLoading;
+  const primaryAccountsError = config.primaryAccountKind === 'Bank' ? bankAccountsQuery.error : accountsError;
+  const actionDisabled = saving || accountsLoading || postingDateGuard.disabled || detailQuery.isLoading;
+  const dateStatusMessage = postingDateGuard.isChecking ? `Checking ${config.dateLabel}...` : postingDateGuard.statusMessage;
 
   useEffect(() => {
-    if (accountsQuery.error) {
+    if (accountsError) {
       setMessage({
         kind: 'error',
-        text: friendlyErrorMessage(accountsQuery.error, 'Unable to load accounts. Please refresh and try again.'),
+        text: friendlyErrorMessage(accountsError, 'Unable to load accounts. Please refresh and try again.'),
       });
     }
-  }, [accountsQuery.error]);
+  }, [accountsError]);
 
   useEffect(() => {
     if (dateValidation.error) {
@@ -220,6 +210,51 @@ export default function CashBankVoucherPage({ voucherType }: { voucherType: Vouc
       });
     }
   }, [config.dateLabel, dateValidation.error]);
+
+  useEffect(() => {
+    setVoucherDate(currentDate => (currentDate === today() ? defaultVoucherDate : currentDate));
+  }, [defaultVoucherDate]);
+
+  useEffect(() => {
+    const voucher = detailQuery.data;
+    if (!voucher || !editingVoucherId) return;
+    if (voucher.voucher_type !== config.voucherType) {
+      setMessage({ kind: 'error', text: `This is not a ${config.title}. Please open it from the correct voucher screen.` });
+      return;
+    }
+    if (voucher.status !== 'Draft') {
+      setMessage({ kind: 'error', text: 'Only Draft vouchers can be edited.' });
+      return;
+    }
+    if (voucher.approval_status === 'Pending' || voucher.approval_status === 'Approved') {
+      setMessage({ kind: 'error', text: 'This voucher is in approval workflow and cannot be edited.' });
+      return;
+    }
+
+    const sortedLines = [...(voucher.lines ?? [])].sort((a: any, b: any) => Number(a.line_no) - Number(b.line_no));
+    const primaryLine = sortedLines[0];
+    const detailLines = sortedLines.slice(1).map((line: any, index: number): CashBankLine => ({
+      id: index + 1,
+      accountId: line.account_id,
+      description: line.narration || '',
+      chequeDetails: '',
+      chequeDate: '',
+      clearingDate: '',
+      amount: config.direction === 'payment' ? String(line.dr_amount ?? '') : String(line.cr_amount ?? ''),
+    }));
+    const paddedLines = [...detailLines];
+    while (paddedLines.length < INITIAL_LINE_COUNT) {
+      paddedLines.push(blankLine(paddedLines.length + 1));
+    }
+
+    setVoucherDate(String(voucher.voucher_date ?? '').slice(0, 10));
+    setReferenceNumber(voucher.reference || '');
+    setDescription(voucher.narration || '');
+    setPrimaryAccountId(primaryLine?.account_id || '');
+    setLines(paddedLines);
+    setNextLineId(paddedLines.length + 1);
+    setMessage(null);
+  }, [config.direction, config.title, config.voucherType, detailQuery.data, editingVoucherId]);
 
   function updateLine(id: number, patch: Partial<CashBankLine>) {
     setLines(current => current.map(line => (line.id === id ? { ...line, ...patch } : line)));
@@ -235,14 +270,13 @@ export default function CashBankVoucherPage({ voucherType }: { voucherType: Vouc
   }
 
   function resetForm(clearMessage = true) {
-    setVoucherDate(today());
+    setVoucherDate(defaultVoucherDate);
     setReferenceNumber('');
     setDescription('');
     setPrimaryAccountId('');
-    setApprovalStatus('Not Required');
-    setAutoReverseDate('');
     setLines(initialLines());
     setNextLineId(INITIAL_LINE_COUNT + 1);
+    if (editingVoucherId) router.push(pathname);
     if (clearMessage) setMessage(null);
   }
 
@@ -251,6 +285,8 @@ export default function CashBankVoucherPage({ voucherType }: { voucherType: Vouc
     try {
       const accountsResult = await accountsQuery.refetch();
       if (accountsResult.error) throw accountsResult.error;
+      const bankAccountsResult = await bankAccountsQuery.refetch();
+      if (bankAccountsResult.error) throw bankAccountsResult.error;
       if (isVoucherDateValid) {
         const dateResult = await dateValidation.refetch();
         if (dateResult.error) throw dateResult.error;
@@ -281,10 +317,9 @@ export default function CashBankVoucherPage({ voucherType }: { voucherType: Vouc
       voucherDate,
       isVoucherDateValid,
       dateValidation,
-      autoReverseDate,
-      accountsLoading: accountsQuery.isLoading,
-      accountsError: accountsQuery.error,
-      accountOptions,
+      accountsLoading,
+      accountsError,
+      accountOptions: lineAccountOptions,
       primaryAccountId,
       selectedPrimaryAccount,
       description,
@@ -294,7 +329,7 @@ export default function CashBankVoucherPage({ voucherType }: { voucherType: Vouc
     });
   }
 
-  async function saveVoucher(postAfterSave: boolean) {
+  async function saveVoucher(submitForApproval: boolean) {
     setMessage(null);
     if (saving) {
       setMessage({ kind: 'error', text: 'Voucher is already being saved. Please wait.' });
@@ -314,7 +349,7 @@ export default function CashBankVoucherPage({ voucherType }: { voucherType: Vouc
       config,
       primaryAccountId,
       selectedPrimaryAccount,
-      accountOptions,
+      accountOptions: lineAccountOptions,
       validLines,
       allLines: lines,
       totalAmount,
@@ -327,18 +362,18 @@ export default function CashBankVoucherPage({ voucherType }: { voucherType: Vouc
 
     const result = await saveVoucherDocument({
       createVoucher,
-      postVoucher,
+      updateVoucher,
       invalidateVoucherList: async () => undefined,
+      editingVoucherId,
       createInput: {
         voucher_type: config.voucherType,
         voucher_date: voucherDate,
         reference: referenceNumber || undefined,
         narration: description.trim(),
-        approval_status: approvalStatus,
-        auto_reverse_date: autoReverseDate || undefined,
+        submit_for_approval: submitForApproval,
         lines: payloadResult.lines,
       },
-      postAfterSave,
+      submitForApproval,
       resetForm,
       saveErrorFallback: `Unable to save ${config.title}.`,
     });
@@ -356,15 +391,19 @@ export default function CashBankVoucherPage({ voucherType }: { voucherType: Vouc
         badgeBackground={config.badgeBackground}
         accent={config.accent}
         icon={<HeaderIcon size={20} stroke={1.8} />}
+        mode={editingVoucherId ? 'Edit' : 'Add'}
         actions={
           <VoucherActionButtons
             saving={saving}
             actionDisabled={actionDisabled}
+            newDisabled={postingDateGuard.disabled}
+            newDisabledReason={dateStatusMessage || `${config.dateLabel} is being checked.`}
             onNew={() => resetForm()}
             onRefresh={refreshVoucherData}
             onPrint={printVoucher}
             onCancel={() => resetForm()}
             onSaveDraft={() => saveVoucher(false)}
+            processLabel="Save For Approval"
             onProcess={() => saveVoucher(true)}
           />
         }
@@ -373,8 +412,8 @@ export default function CashBankVoucherPage({ voucherType }: { voucherType: Vouc
       <VoucherMessageBanner message={message} />
 
       <section className="workspace-card" style={{ padding: 10, flex: 1, minHeight: 0, display: 'grid', gridTemplateRows: 'auto auto auto auto 1fr auto', gap: 8, overflow: 'hidden' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: '120px 145px minmax(160px, 1fr) minmax(270px, 1.45fr) 145px 155px', gap: 8, alignItems: 'end' }}>
-          <FieldLabel label={config.documentLabel}><input className="form-input" value="Auto" disabled style={compactInputStyle} /></FieldLabel>
+        <div style={{ display: 'grid', gridTemplateColumns: '120px 145px minmax(160px, 1fr) minmax(270px, 1.45fr) 145px', gap: 8, alignItems: 'end' }}>
+          <FieldLabel label={config.documentLabel}><input className="form-input" value={detailQuery.data?.voucher_number ?? 'Auto'} disabled style={compactInputStyle} /></FieldLabel>
           <FieldLabel label={config.dateLabel} required>
             <div style={{ position: 'relative' }}>
               <IconCalendarDollar size={15} style={{ position: 'absolute', left: 8, top: 7, color: 'var(--color-text-muted)' }} />
@@ -399,37 +438,16 @@ export default function CashBankVoucherPage({ voucherType }: { voucherType: Vouc
           <FieldLabel label={config.primaryAccountLabel} required>
             <SearchableSelect
               value={primaryAccountId}
-              options={accountOptions}
+              options={primaryAccountOptions}
               onChange={setPrimaryAccountId}
-              placeholder={accountsQuery.isLoading ? 'Loading Accounts' : accountsQuery.error ? 'Accounts Not Loaded' : config.primaryAccountPlaceholder}
-              disabled={accountsQuery.isLoading || accountsQuery.isError}
+              placeholder={primaryAccountsLoading ? 'Loading Accounts' : primaryAccountsError ? 'Accounts Not Loaded' : config.primaryAccountPlaceholder}
+              disabled={primaryAccountsLoading || Boolean(primaryAccountsError)}
             />
           </FieldLabel>
           <FieldLabel label="Current Balance"><input className="form-input" value={money(currentBalance)} disabled style={compactNumericInputStyle} /></FieldLabel>
-          <FieldLabel label={config.balanceAfterLabel}><input className="form-input" value={money(balanceAfterTransaction)} disabled style={compactNumericInputStyle} /></FieldLabel>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '145px 145px 130px minmax(160px, 1fr)', gap: 8, alignItems: 'end' }}>
-          <FieldLabel label="Approval Status">
-            <select
-              className="form-input"
-              value={approvalStatus}
-              onChange={event => setApprovalStatus(event.currentTarget.value as 'Not Required' | 'Pending')}
-              style={compactInputStyle}
-            >
-              <option value="Not Required">Not Required</option>
-              <option value="Pending">Pending</option>
-            </select>
-          </FieldLabel>
-          <FieldLabel label="Auto Reverse Date">
-            <input
-              className="form-input"
-              type="date"
-              value={autoReverseDate}
-              onChange={event => setAutoReverseDate(event.currentTarget.value)}
-              style={compactInputStyle}
-            />
-          </FieldLabel>
+        <div style={{ display: 'grid', gridTemplateColumns: '130px minmax(160px, 1fr)', gap: 8, alignItems: 'end' }}>
           <FieldLabel label="Attachments">
             <input className="form-input" value="0 Files" disabled style={compactInputStyle} />
           </FieldLabel>
@@ -472,9 +490,9 @@ export default function CashBankVoucherPage({ voucherType }: { voucherType: Vouc
           <CashBankVoucherLineTable
             config={config}
             lines={lines}
-            accountOptions={accountOptions}
-            accountsLoading={accountsQuery.isLoading}
-            accountsError={accountsQuery.isError}
+            accountOptions={lineAccountOptions}
+            accountsLoading={accountsLoading}
+            accountsError={Boolean(accountsError)}
             generalSettings={generalSettings}
             onUpdateLine={updateLine}
             onRemoveLine={removeLine}

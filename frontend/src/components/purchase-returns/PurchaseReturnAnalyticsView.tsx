@@ -9,9 +9,11 @@ interface PurchaseReturnAnalyticsViewProps {
   settings?: AppFormatSettingsSource | null;
   onNewReturn: () => void;
   onPostedReturns: () => void;
+  newDisabled?: boolean;
+  newDisabledReason?: string;
 }
 
-export function PurchaseReturnAnalyticsView({ settings, onNewReturn, onPostedReturns }: PurchaseReturnAnalyticsViewProps) {
+export function PurchaseReturnAnalyticsView({ settings, onNewReturn, onPostedReturns, newDisabled = false, newDisabledReason }: PurchaseReturnAnalyticsViewProps) {
   const query = usePurchaseReturnsList({ page: 1, limit: 200, status: 'Posted' });
   const rows = useMemo<AnalyticsRow[]>(() => (query.data?.data ?? []).map(row => ({
     id: row.id,
@@ -39,6 +41,8 @@ export function PurchaseReturnAnalyticsView({ settings, onNewReturn, onPostedRet
       onNew={onNewReturn}
       onPostedList={onPostedReturns}
       onRefresh={() => query.refetch()}
+      newDisabled={newDisabled}
+      newDisabledReason={newDisabledReason}
     />
   );
 }
