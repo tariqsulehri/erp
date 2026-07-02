@@ -9,7 +9,17 @@
  */
 
 import { useState, useEffect, useRef } from 'react';
-import { trpc } from '@/lib/trpc/client';
+import { useAccountsList } from '@/lib/api/accounts';
+import { usePostingDateGuard } from '@/lib/api/fiscal-years';
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
+import { PaginationBar } from '@/components/ui/PaginationBar';
+import {
+  useCreateVoucher,
+  usePostVoucher,
+  useVoidVoucher,
+  useVoucherDetail,
+  useVouchersList,
+} from '@/lib/api/vouchers';
 
 /* ── types ──────────────────────────────────────────────────────────────── */
 type VoucherType   = 'BRV' | 'BPV' | 'CRV' | 'CPV' | 'JV' | 'CV' | 'DN' | 'CN';
@@ -90,9 +100,9 @@ function AccountPicker({ value, label, onSelect, autoFocus }: {
   useEffect(() => { setQ(label); }, [label]);
   useEffect(() => { if (autoFocus) ref.current?.focus(); }, [autoFocus]);
 
-  const { data } = trpc.accounts.list.useQuery(
-    { page: 1, limit: 20, search: q, is_posting: true },
-    { enabled: open && q.length >= 1 },
+  const { data } = useAccountsList(
+    { page: 1, limit: 20, search: q, is_posting: true, is_active: true },
+    open && q.length >= 1,
   );
 
   return (
@@ -185,7 +195,6 @@ export function TypeIcon({ type, size = 16 }: { type: VoucherType; size?: number
 function CreateForm({ voucherType, onSaved, onCancel }: {
   voucherType: VoucherType; onSaved: (id: string) => void; onCancel: () => void;
 }) {
-  const utils = trpc.useUtils();
   const meta  = VOUCHER_META[voucherType];
 
   const [date,      setDate]      = useState(today());
@@ -197,15 +206,12 @@ function CreateForm({ voucherType, onSaved, onCancel }: {
   const nextKey = useRef(4);
 
   /* Fiscal date validation */
-  const dateVal = trpc.fiscalYear.validatePostingDate.useQuery(
-    { date: new Date(date) }, { enabled: date.length === 10, retry: false },
-  );
+  const postingDateGuard = usePostingDateGuard(date, 'Voucher Date', date.length === 10);
   useEffect(() => {
     if (date.length < 10) { setDateErr(''); return; }
-    if (dateVal.isLoading) return;
-    if (dateVal.error) { setDateErr(dateVal.error.message); return; }
-    setDateErr(dateVal.data?.canPost ? '' : (dateVal.data?.reason ?? 'Outside open fiscal period'));
-  }, [date, dateVal.data, dateVal.error, dateVal.isLoading]);
+    if (postingDateGuard.isChecking) return;
+    setDateErr(postingDateGuard.statusMessage);
+  }, [date, postingDateGuard.isChecking, postingDateGuard.statusMessage]);
 
   /* Line helpers */
   const addLine    = () => setLines(ls => [...ls, blank(nextKey.current++)]);
@@ -239,10 +245,7 @@ function CreateForm({ voucherType, onSaved, onCancel }: {
   const balanced = diff < 0.001 && totalDr > 0;
 
   /* Mutation */
-  const createMut = trpc.vouchers.create.useMutation({
-    onSuccess: v => { utils.vouchers.list.invalidate(); onSaved(v.id); },
-    onError:   e => setError(e.message),
-  });
+  const createMut = useCreateVoucher();
 
   function save() {
     setError('');
@@ -258,6 +261,9 @@ function CreateForm({ voucherType, onSaved, onCancel }: {
         dr_amount: parseFloat(l.dr_amount) || 0, cr_amount: parseFloat(l.cr_amount) || 0,
         narration: l.narration || undefined, line_no: i + 1,
       })),
+    }, {
+      onSuccess: voucher => onSaved(voucher.id),
+      onError: error => setError(error.message),
     });
   }
 
@@ -348,8 +354,8 @@ function CreateForm({ voucherType, onSaved, onCancel }: {
                 onChange={e => setDate(e.target.value)}
               />
               {dateErr && <p style={{ fontSize: '0.6rem', color: 'var(--color-danger)', marginTop: 2 }}>⚠ {dateErr}</p>}
-              {!dateErr && dateVal.data?.canPost && (
-                <p style={{ fontSize: '0.6rem', color: 'var(--color-success)', marginTop: 2 }}>✓ {dateVal.data.period?.period_name}</p>
+              {!dateErr && postingDateGuard.dateValidation.data?.canPost && (
+                <p style={{ fontSize: '0.6rem', color: 'var(--color-success)', marginTop: 2 }}>✓ {postingDateGuard.dateValidation.data.period?.period_name}</p>
               )}
             </div>
 
@@ -586,7 +592,7 @@ function CreateForm({ voucherType, onSaved, onCancel }: {
         flexShrink: 0,
       }}>
         <button className="btn btn-primary"
-          disabled={createMut.isPending || !!dateErr || dateVal.isLoading}
+          disabled={createMut.isPending || !!dateErr || postingDateGuard.isChecking}
           onClick={save}
           style={{ background: meta.color, borderColor: meta.color, minWidth: 140 }}
         >
@@ -619,17 +625,13 @@ function CreateForm({ voucherType, onSaved, onCancel }: {
 function DetailPanel({ id, onClose, onPosted, voucherType }: {
   id: string; onClose: () => void; onPosted?: () => void; voucherType: VoucherType;
 }) {
-  const utils = trpc.useUtils();
   const [voidReason, setVoidReason] = useState('');
   const [showVoid,   setShowVoid]   = useState(false);
+  const [postConfirmOpen, setPostConfirmOpen] = useState(false);
 
-  const { data: v, isLoading } = trpc.vouchers.getById.useQuery({ id });
-  const postMut = trpc.vouchers.post.useMutation({
-    onSuccess: () => { utils.vouchers.list.invalidate(); onPosted?.(); },
-  });
-  const voidMut = trpc.vouchers.void.useMutation({
-    onSuccess: () => { utils.vouchers.list.invalidate(); setShowVoid(false); },
-  });
+  const { data: v, isLoading } = useVoucherDetail(id);
+  const postMut = usePostVoucher();
+  const voidMut = useVoidVoucher();
 
   if (isLoading) return (
     <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--color-text-muted)', gap: 8 }}>
@@ -745,7 +747,7 @@ function DetailPanel({ id, onClose, onPosted, voucherType }: {
             <button className="btn btn-primary btn-sm"
               style={{ background: meta.color, borderColor: meta.color }}
               disabled={postMut.isPending}
-              onClick={() => postMut.mutate({ id: v.id })}
+              onClick={() => setPostConfirmOpen(true)}
             >
               {postMut.isPending
                 ? <><div className="spinner" style={{ width: 12, height: 12, borderWidth: 2, borderTopColor: '#fff', borderColor: 'rgba(255,255,255,0.3)' }} /> Posting…</>
@@ -771,7 +773,7 @@ function DetailPanel({ id, onClose, onPosted, voucherType }: {
               />
               <button className="btn btn-danger btn-sm"
                 disabled={!voidReason.trim() || voidMut.isPending}
-                onClick={() => voidMut.mutate({ id: v.id, reason: voidReason })}
+                onClick={() => voidMut.mutate({ id: v.id, reason: voidReason }, { onSuccess: () => setShowVoid(false) })}
               >{voidMut.isPending ? 'Voiding…' : 'Confirm Void'}</button>
               <button className="btn btn-ghost btn-sm" onClick={() => setShowVoid(false)}>Cancel</button>
             </div>
@@ -782,6 +784,26 @@ function DetailPanel({ id, onClose, onPosted, voucherType }: {
           )
         )}
       </div>
+      <ConfirmDialog
+        open={postConfirmOpen}
+        title="Post Voucher?"
+        message={`Post ${v.voucher_number}? Posted vouchers cannot be edited directly.`}
+        confirmLabel="Yes, Post Voucher"
+        cancelLabel="No"
+        variant="warning"
+        loading={postMut.isPending}
+        onConfirm={() => postMut.mutate(
+          { id: v.id },
+          {
+            onSuccess: () => {
+              setPostConfirmOpen(false);
+              onPosted?.();
+            },
+            onError: () => setPostConfirmOpen(false),
+          },
+        )}
+        onCancel={() => setPostConfirmOpen(false)}
+      />
     </div>
   );
 }
@@ -790,15 +812,18 @@ function DetailPanel({ id, onClose, onPosted, voucherType }: {
 /* ══════════════════════════════════════════════════════════════════════════
    VOUCHER LIST — full-width dense table
    ══════════════════════════════════════════════════════════════════════════ */
-function VoucherList({ voucherType, selectedId, onSelect, onNewClick, detailOpen }: {
+function VoucherList({ voucherType, selectedId, onSelect, onNewClick, detailOpen, newDisabled = false, newDisabledReason }: {
   voucherType: VoucherType;
   selectedId:  string | null;
   onSelect:    (id: string) => void;
   onNewClick:  () => void;
   detailOpen:  boolean;
+  newDisabled?: boolean;
+  newDisabledReason?: string;
 }) {
   const meta = VOUCHER_META[voucherType];
 
+  const [searchText,setSearchText]= useState('');
   const [search,    setSearch]    = useState('');
   const [statusFlt, setStatusFlt] = useState<VoucherStatus | ''>('');
   const [dateFrom,  setDateFrom]  = useState('');
@@ -806,17 +831,28 @@ function VoucherList({ voucherType, selectedId, onSelect, onNewClick, detailOpen
   const [page,      setPage]      = useState(1);
   const LIMIT = 60;
 
-  const { data, isLoading } = trpc.vouchers.list.useQuery({
+  const { data, isLoading } = useVouchersList({
     page, limit: LIMIT, voucher_type: voucherType,
     status:    statusFlt || undefined,
     search:    search    || undefined,
     date_from: dateFrom  || undefined,
     date_to:   dateTo    || undefined,
-  }, { placeholderData: prev => prev });
+  });
 
   const rows  = data?.data ?? [];
   const total = data?.pagination?.total ?? 0;
   const pages = data?.pagination?.pages ?? 1;
+
+  function applySearch() {
+    setSearch(searchText.trim());
+    setPage(1);
+  }
+
+  function clearSearch() {
+    setSearchText('');
+    setSearch('');
+    setPage(1);
+  }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', padding: detailOpen ? '12px 12px 12px 16px' : '12px 16px', gap: 10, overflow: 'hidden' }}>
@@ -850,9 +886,22 @@ function VoucherList({ voucherType, selectedId, onSelect, onNewClick, detailOpen
           background: 'var(--color-surface)', overflow: 'hidden',
         }}>
           <input className="form-input" placeholder="Search no. / reference…"
-            value={search} onChange={e => { setSearch(e.target.value); setPage(1); }}
+            value={searchText}
+            onChange={e => setSearchText(e.target.value)}
+            onKeyDown={event => {
+              if (event.key === 'Enter') applySearch();
+            }}
             style={{ fontSize: '0.8rem', padding: '4px 10px', height: 32, width: 190, border: 'none', borderRadius: 0, borderRight: '1.5px solid var(--color-border)' }}
           />
+          <button type="button" className="btn-secondary" onClick={applySearch} disabled={isLoading}
+            style={{ fontSize: '0.75rem', height: 32, padding: '4px 9px', border: 'none', borderRight: '1.5px solid var(--color-border)', borderRadius: 0 }}>
+            {isLoading && <span className="spinner" style={{ width: 12, height: 12, borderWidth: 2, marginRight: 5 }} />}
+            {isLoading ? 'Searching...' : 'Search'}
+          </button>
+          <button type="button" className="btn-secondary" onClick={clearSearch} disabled={isLoading || (!search && !searchText)}
+            style={{ fontSize: '0.75rem', height: 32, padding: '4px 9px', border: 'none', borderRight: '1.5px solid var(--color-border)', borderRadius: 0 }}>
+            Clear
+          </button>
           <select className="form-select" value={statusFlt}
             onChange={e => { setStatusFlt(e.target.value as any); setPage(1); }}
             style={{ fontSize: '0.8rem', padding: '4px 8px', height: 32, width: 110, border: 'none', borderRadius: 0, borderRight: '1.5px solid var(--color-border)' }}
@@ -874,6 +923,8 @@ function VoucherList({ voucherType, selectedId, onSelect, onNewClick, detailOpen
 
         <button className="btn btn-primary btn-sm"
           onClick={onNewClick}
+          disabled={newDisabled}
+          title={newDisabledReason}
           style={{ background: meta.color, borderColor: meta.color, paddingLeft: 14, paddingRight: 16, boxShadow: `0 2px 6px ${meta.color}40` }}
         >
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><circle cx="12" cy="12" r="10"/><path d="M12 8v8M8 12h8"/></svg>
@@ -935,9 +986,9 @@ function VoucherList({ voucherType, selectedId, onSelect, onNewClick, detailOpen
                   No {meta.shortLabel} vouchers yet
                 </p>
                 <p style={{ color: 'var(--color-text-muted)', fontSize: '0.8rem', marginBottom: 16 }}>
-                  Click <strong>New {meta.shortLabel}</strong> to create your first entry.
+                  {newDisabled ? newDisabledReason : <>Click <strong>New {meta.shortLabel}</strong> to create your first entry.</>}
                 </p>
-                <button className="btn btn-primary btn-sm" onClick={onNewClick}
+                <button className="btn btn-primary btn-sm" onClick={onNewClick} disabled={newDisabled} title={newDisabledReason}
                   style={{ background: meta.color, borderColor: meta.color }}
                 >
                   + New {meta.shortLabel}
@@ -992,19 +1043,13 @@ function VoucherList({ voucherType, selectedId, onSelect, onNewClick, detailOpen
         </table>
       </div>
 
-      {/* ── Pagination ── */}
-      <div style={{
-        display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8,
-        padding: '6px 16px',
-        background: 'var(--color-panel-footer-bg)',
-        borderTop: '1.5px solid var(--color-panel-footer-border)',
-        borderRadius: '0 0 var(--radius-md) var(--radius-md)',
-        flexShrink: 0, fontSize: '0.75rem', color: 'var(--color-text-muted)',
-      }}>
-        <span>Page {page} of {pages} · {total} record{total !== 1 ? 's' : ''}</span>
-        <button disabled={page === 1} onClick={() => setPage(p => p - 1)} style={PG_BTN}>‹ Prev</button>
-        <button disabled={page >= pages} onClick={() => setPage(p => p + 1)} style={PG_BTN}>Next ›</button>
-      </div>
+      <PaginationBar
+        page={page}
+        totalPages={pages}
+        totalRecords={total}
+        recordLabel={total === 1 ? 'Voucher' : 'Vouchers'}
+        onPageChange={setPage}
+      />
       </div>
     </div>
   );
@@ -1017,8 +1062,15 @@ function VoucherList({ voucherType, selectedId, onSelect, onNewClick, detailOpen
 export default function VoucherEntryPage({ voucherType }: { voucherType: VoucherType }) {
   const [mode,       setMode]       = useState<PageMode>('list');
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const createDateGuard = usePostingDateGuard(today(), 'Voucher Date');
+  const newDisabledReason = createDateGuard.isChecking ? 'Fiscal period is being checked.' : createDateGuard.statusMessage;
+  const newDisabled = createDateGuard.disabled;
 
-  function openCreate()         { setSelectedId(null); setMode('create'); }
+  function openCreate() {
+    if (newDisabled) return;
+    setSelectedId(null);
+    setMode('create');
+  }
   function openDetail(id: string) { setSelectedId(id); setMode('detail'); }
   function backToList()         { setMode('list'); }
   function handleSaved(id: string) { setSelectedId(id); setMode('detail'); }
@@ -1053,6 +1105,8 @@ export default function VoucherEntryPage({ voucherType }: { voucherType: Voucher
               onSelect={openDetail}
               onNewClick={openCreate}
               detailOpen={mode === 'detail'}
+              newDisabled={newDisabled}
+              newDisabledReason={newDisabledReason}
             />
           </div>
 
@@ -1080,8 +1134,3 @@ const LBL: React.CSSProperties = {
   letterSpacing: 0,
 };
 const TD: React.CSSProperties = { padding: '5px 10px', verticalAlign: 'middle', fontSize: '0.8rem' };
-const PG_BTN: React.CSSProperties = {
-  padding: '3px 12px', borderRadius: 'var(--radius-sm)',
-  border: '1.5px solid var(--color-border)', background: 'var(--color-surface)',
-  cursor: 'pointer', fontSize: '0.75rem', fontWeight: 600, color: 'var(--color-text-secondary)',
-};

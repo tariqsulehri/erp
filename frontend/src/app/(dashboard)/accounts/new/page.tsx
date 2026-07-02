@@ -17,11 +17,11 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { AccountWizard } from '@/components/accounts/AccountWizard';
-import type { Account } from '@/modules/accounts/account.entity';
+import type { AccountListItem } from '@/lib/api/accounts';
 
 export default function NewAccountPage() {
   const router = useRouter();
-  const [created, setCreated] = useState<Account | null>(null);
+  const [created, setCreated] = useState<AccountListItem | null>(null);
 
   if (created) {
     return (
@@ -133,10 +133,10 @@ export default function NewAccountPage() {
             <div className="card-body" style={{ padding: '16px' }}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                 {[
-                  { pos: 'X000', label: 'Category',        example: '1000 = Assets',             color: '#dbeafe' },
-                  { pos: 'XX00', label: 'Group',           example: '1100 = Current Assets',     color: '#e0e7ff' },
-                  { pos: 'XXX0', label: 'Sub-Group',       example: '1110 = Cash & Equivalents', color: '#f3e8ff' },
-                  { pos: 'XXXX', label: 'Posting Account', example: '1111 = Cash in Hand',       color: '#dcfce7' },
+                  { pos: 'MM', label: 'Main Category', example: '0100000000 = Assets', color: '#dbeafe' },
+                  { pos: 'GG', label: 'Group', example: '0101000000 = Current Assets', color: '#e0e7ff' },
+                  { pos: 'SS', label: 'Sub-Group', example: '0101100000 = Cash And Bank', color: '#f3e8ff' },
+                  { pos: 'PPPP', label: 'Posting Account', example: '0101100001 = Cash In Hand', color: '#dcfce7' },
                 ].map((row) => (
                   <div key={row.pos} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                     <span style={{
@@ -162,7 +162,7 @@ export default function NewAccountPage() {
             <div className="card-body" style={{ padding: '16px' }}>
               <ol style={{ margin: 0, paddingLeft: 18, display: 'flex', flexDirection: 'column', gap: 8 }}>
                 {[
-                  'Select the Category (1000–5000)',
+                  'Select the Main Category, such as Assets or Expenses',
                   'Select or create a Group within the category',
                   'Select or create a Sub-Group within the group',
                   'Name your account — the code is assigned automatically',

@@ -14,7 +14,16 @@
  */
 
 import { useState } from 'react';
-import { trpc } from '@/lib/trpc/client';
+import { useGeneralSettings } from '@/lib/api/settings';
+import {
+  useCreateSupplier,
+  useDeleteSupplier,
+  useSupplierAccounts,
+  useSupplierNextCode,
+  useSupplierStats,
+  useSuppliersList,
+  useUpdateSupplier,
+} from '@/lib/api/parties';
 import type { CreateSupplierInput } from '@/modules/suppliers/supplier.schema';
 import { SUPPLIER_TYPES } from '@/modules/suppliers/supplier.schema';
 import { APP_CURRENCY_OPTIONS } from '@/lib/app-settings';
@@ -114,38 +123,28 @@ export default function SuppliersPage() {
   const [formError,    setFormError]    = useState('');
   const [bannerError,  setBannerError]  = useState('');
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
+  const [searchText,   setSearchText]   = useState('');
   const [search,       setSearch]       = useState('');
   const [typeFilter,   setTypeFilter]   = useState('');
   const [showInactive, setShowInactive] = useState(false);
   const [activeTab,    setActiveTab]    = useState<'basic' | 'contact' | 'financial' | 'bank'>('basic');
 
-  const utils = trpc.useUtils();
-
   /* ── Queries ── */
-  const { data: listData, isLoading } = trpc.suppliers.list.useQuery({
+  const { data: listData, isLoading, isFetching } = useSuppliersList({
     search: search || undefined,
-    supplier_type: (typeFilter as 'individual'|'company'|'government') || undefined,
+    type: (typeFilter as 'individual'|'company'|'government') || undefined,
     is_active: showInactive ? undefined : true,
     page: 1, limit: 200,
   });
-  const { data: statsData } = trpc.suppliers.stats.useQuery();
-  const { data: nextCode }  = trpc.suppliers.nextCode.useQuery(undefined, { enabled: !editId && showForm });
-  const { data: accounts = [] } = trpc.suppliers.listAccounts.useQuery();
-  const { data: generalSettings } = trpc.settings.getGeneralSettings.useQuery();
+  const { data: statsData } = useSupplierStats();
+  const { data: nextCode }  = useSupplierNextCode(!editId && showForm);
+  const { data: accounts = [] } = useSupplierAccounts();
+  const { data: generalSettings } = useGeneralSettings();
 
   /* ── Mutations ── */
-  const createMut = trpc.suppliers.create.useMutation({
-    onSuccess: () => { utils.suppliers.list.invalidate(); utils.suppliers.stats.invalidate(); closeForm(); },
-    onError: e => { setFormError(e.message); setSaving(false); },
-  });
-  const updateMut = trpc.suppliers.update.useMutation({
-    onSuccess: () => { utils.suppliers.list.invalidate(); utils.suppliers.stats.invalidate(); closeForm(); },
-    onError: e => { setFormError(e.message); setSaving(false); },
-  });
-  const deleteMut = trpc.suppliers.delete.useMutation({
-    onSuccess: () => { utils.suppliers.list.invalidate(); utils.suppliers.stats.invalidate(); setDeleteTarget(null); },
-    onError: e => { setBannerError(e.message); setDeleteTarget(null); },
-  });
+  const createMut = useCreateSupplier();
+  const updateMut = useUpdateSupplier();
+  const deleteMut = useDeleteSupplier();
 
   /* ── Derived ── */
   const rows = (listData?.data ?? []) as SupplierRow[];
@@ -181,6 +180,15 @@ export default function SuppliersPage() {
   function closeForm() { setShowForm(false); setEditId(null); setForm(EMPTY_FORM); setFormError(''); setSaving(false); }
   function setF(key: keyof CreateSupplierInput, val: unknown) { setForm(f => ({ ...f, [key]: val })); }
 
+  function applySearch() {
+    setSearch(searchText.trim());
+  }
+
+  function clearSearch() {
+    setSearchText('');
+    setSearch('');
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!form.name.trim()) { setFormError('Name is required.'); return; }
@@ -203,8 +211,12 @@ export default function SuppliersPage() {
       bank_iban:       form.bank_iban?.trim()       || undefined,
       notes:       form.notes?.trim()       || undefined,
     };
-    if (editId) updateMut.mutate({ id: editId, ...payload });
-    else        createMut.mutate(payload);
+    const callbacks = {
+      onSuccess: () => closeForm(),
+      onError: (error: Error) => { setFormError(error.message); setSaving(false); },
+    };
+    if (editId) updateMut.mutate({ id: editId, ...payload }, callbacks);
+    else        createMut.mutate(payload, callbacks);
   }
 
   /* ══════════════════════════════════════════════════════════════
@@ -284,8 +296,26 @@ export default function SuppliersPage() {
       <div style={{ display: showForm ? 'none' : 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
         <div style={{ position: 'relative', width: 260 }}>
           <svg style={{ position: 'absolute', left: 9, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }} width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--color-text-muted)" strokeWidth="2.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-          <input className="input" placeholder="Search name, code, email…" value={search} onChange={e => setSearch(e.target.value)} style={{ paddingLeft: 30, width: '100%' }} />
+          <input
+            className="input"
+            placeholder="Search name, code, email…"
+            value={searchText}
+            onChange={e => setSearchText(e.target.value)}
+            onKeyDown={event => {
+              if (event.key === 'Enter') applySearch();
+            }}
+            style={{ paddingLeft: 30, width: '100%' }}
+          />
         </div>
+        <button className="btn-secondary" type="button" onClick={applySearch} disabled={isFetching} style={{ padding: '7px 12px', fontSize: '0.78rem', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+          {isFetching && <span className="spinner" style={{ width: 12, height: 12, borderWidth: 2 }} />}
+          {isFetching ? 'Searching...' : 'Search'}
+        </button>
+        {(search || searchText) && (
+          <button className="btn-secondary" type="button" onClick={clearSearch} disabled={isFetching} style={{ padding: '7px 12px', fontSize: '0.78rem', fontWeight: 700 }}>
+            Clear
+          </button>
+        )}
         {/* Type filter */}
         <div style={{ display: 'flex', gap: 5 }}>
           {(['', ...SUPPLIER_TYPES] as const).map(t => {
@@ -698,8 +728,11 @@ export default function SuppliersPage() {
       {deleteTarget && (
         <ConfirmModal
           title="Delete Supplier?"
-          message={`"${deleteTarget.name}" will be permanently removed. Suppliers with bills or transactions cannot be deleted.`}
-          onConfirm={() => deleteMut.mutate({ id: deleteTarget.id })}
+          message={`"${deleteTarget.name}" will be marked inactive and hidden from new transactions.`}
+          onConfirm={() => deleteMut.mutate(deleteTarget.id, {
+            onSuccess: () => setDeleteTarget(null),
+            onError: (error: Error) => { setBannerError(error.message); setDeleteTarget(null); },
+          })}
           onCancel={() => setDeleteTarget(null)}
         />
       )}

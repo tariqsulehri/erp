@@ -18,17 +18,10 @@ import {
   IconSearch,
   IconX,
 } from '@tabler/icons-react';
-import { trpc } from '@/lib/trpc/client';
+import { useAccountsHierarchy, type AccountTreeNode } from '@/lib/api/accounts';
 import { getAccountLevel, getAccountLevelLabel } from '@/modules/accounts/account-code';
 
-interface TreeNode {
-  id: string;
-  code: string;
-  name: string;
-  accountType: string;
-  isPosting: boolean;
-  children: TreeNode[];
-}
+type TreeNode = AccountTreeNode;
 
 type PostingFilter = 'all' | 'posting' | 'header';
 
@@ -346,7 +339,7 @@ export function AccountTreeView({
   typeFilter = '',
   postingFilter = 'all',
 }: AccountTreeViewProps) {
-  const { data, isLoading, error } = trpc.accounts.getHierarchy.useQuery();
+  const { data, isLoading, error } = useAccountsHierarchy();
   const [search, setSearch] = useState('');
   const [openCodes, setOpenCodes] = useState<Set<string>>(new Set());
 

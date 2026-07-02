@@ -15,14 +15,15 @@
 
 import { useState, useCallback } from 'react';
 import Link from 'next/link';
-import { trpc } from '@/lib/trpc/client';
+import { useQueryClient } from '@tanstack/react-query';
+import { accountsQueryKey, useAccountsList, useBulkSetAccountActive, type AccountListItem } from '@/lib/api/accounts';
+import { useGeneralSettings } from '@/lib/api/settings';
 import { AccountsTable }     from '@/components/tables/AccountsTable';
 import { AccountTreeView }   from '@/components/accounts/AccountTreeView';
 import { AccountGroupView }  from '@/components/accounts/AccountGroupView';
 import { AccountSlideOver }  from '@/components/accounts/AccountSlideOver';
 import { ImportTemplateModal } from '@/components/modals/ImportTemplateModal';
 import { BulkImportModal }   from '@/components/modals/BulkImportModal';
-import type { Account } from '@/modules/accounts/account.entity';
 import { getAccountLevelLabel } from '@/modules/accounts/account-code';
 import { formatNumber } from '@/lib/app-settings';
 
@@ -33,12 +34,12 @@ type PostingFilter = 'all' | 'posting' | 'header';
 const ACCOUNT_TYPES = ['Asset', 'Liability', 'Equity', 'Revenue', 'Expense'];
 
 /* ── KPI stats ──────────────────────────────────────────────────────── */
-function buildStats(accounts: Account[], total: number) {
+function buildStats(accounts: AccountListItem[], total: number) {
   return [
     { label: 'Total Accounts',   value: total },
-    { label: 'Posting Accounts', value: accounts.filter(a => a.is_posting).length },
-    { label: 'Asset Accounts',   value: accounts.filter(a => a.account_type === 'Asset').length },
-    { label: 'Active Accounts',  value: accounts.filter(a => a.is_active).length },
+    { label: 'Posting On Page',  value: accounts.filter(a => a.is_posting).length },
+    { label: 'Assets On Page',   value: accounts.filter(a => a.account_type === 'Asset').length },
+    { label: 'Active On Page',   value: accounts.filter(a => a.is_active).length },
   ];
 }
 
@@ -63,7 +64,7 @@ function ViewBtn({ active, onClick, title, children }: {
 }
 
 /* ── CSV export utility ─────────────────────────────────────────────── */
-function exportCSV(accounts: Account[]) {
+function exportCSV(accounts: AccountListItem[]) {
   const headers = ['Code', 'Name', 'Type', 'Level', 'Normal Balance', 'Posting', 'Active', 'System', 'Description'];
   const rows = accounts.map(a => [
     a.code, `"${a.name.replace(/"/g, '""')}"`,
@@ -87,19 +88,20 @@ function exportCSV(accounts: Account[]) {
 export default function AccountsPage() {
   const [view,        setView]        = useState<ViewMode>('tree');
   const [page,        setPage]        = useState(1);
+  const [searchText,  setSearchText]  = useState('');
   const [search,      setSearch]      = useState('');
   const [typeFilter,  setTypeFilter]  = useState('');
   const [postFilter,  setPostFilter]  = useState<PostingFilter>('all');
   const [showImport,     setShowImport]     = useState(false);
   const [showBulkImport, setShowBulkImport] = useState(false);
-  const [slideOver,   setSlideOver]   = useState<Account | null>(null);
+  const [slideOver,   setSlideOver]   = useState<AccountListItem | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
-  const utils = trpc.useUtils();
-  const { data: generalSettings } = trpc.settings.getGeneralSettings.useQuery();
+  const queryClient = useQueryClient();
+  const { data: generalSettings } = useGeneralSettings();
 
   /* ── Table / stats query ──────────────────────────────────────────── */
-  const { data, isLoading, error } = trpc.accounts.list.useQuery(
+  const { data, isLoading, isFetching, error } = useAccountsList(
     {
       page,
       limit: PAGE_SIZE,
@@ -107,31 +109,38 @@ export default function AccountsPage() {
       type:       typeFilter || undefined,
       is_posting: postFilter === 'posting' ? true : postFilter === 'header' ? false : undefined,
     },
-    { placeholderData: prev => prev },
   );
 
-  /* ── Full list for group view + CSV export ─────────────────────────── */
-  const { data: allData, isLoading: allLoading } = trpc.accounts.list.useQuery(
+  /* ── Larger list only when the grouped view is open ────────────────── */
+  const { data: groupData, isLoading: groupLoading } = useAccountsList(
     {
-      page: 1, limit: 1000,
+      page: 1, limit: 200,
+      search:     search     || undefined,
       type:       typeFilter || undefined,
       is_posting: postFilter === 'posting' ? true : postFilter === 'header' ? false : undefined,
     },
+    view === 'group',
   );
 
   /* ── Bulk mutation ──────────────────────────────────────────────────── */
-  const bulkMutation = trpc.accounts.bulkSetActive.useMutation({
-    onSuccess: () => {
-      utils.accounts.list.invalidate();
-      utils.accounts.getHierarchy.invalidate();
-      setSelectedIds(new Set());
-    },
-  });
+  const bulkMutation = useBulkSetAccountActive();
 
-  const accounts    = (data?.data    ?? []) as Account[];
-  const allAccounts = (allData?.data ?? []) as Account[];
+  const bulkSetActive = (isActive: boolean) => {
+    bulkMutation.mutate(
+      { ids: [...selectedIds], is_active: isActive },
+      {
+        onSuccess: () => {
+          queryClient.invalidateQueries({ queryKey: accountsQueryKey });
+          setSelectedIds(new Set());
+        },
+      },
+    );
+  };
+
+  const accounts    = data?.data    ?? [];
+  const groupAccounts = groupData?.data ?? [];
   const total       = data?.pagination?.total ?? 0;
-  const stats       = buildStats(allAccounts.length > 0 ? allAccounts : accounts, total);
+  const stats       = buildStats(accounts, total);
 
   /* ── Selection helpers ─────────────────────────────────────────────── */
   const toggleSelect = useCallback((id: string) => {
@@ -152,9 +161,20 @@ export default function AccountsPage() {
 
   /* ── Filter reset ──────────────────────────────────────────────────── */
   const resetFilters = () => {
-    setSearch(''); setTypeFilter(''); setPostFilter('all'); setPage(1);
+    setSearchText(''); setSearch(''); setTypeFilter(''); setPostFilter('all'); setPage(1);
   };
   const hasFilters = search || typeFilter || postFilter !== 'all';
+
+  const applySearch = () => {
+    setSearch(searchText.trim());
+    setPage(1);
+  };
+
+  const clearSearch = () => {
+    setSearchText('');
+    setSearch('');
+    setPage(1);
+  };
 
   return (
     <>
@@ -168,14 +188,14 @@ export default function AccountsPage() {
           {/* CSV Export */}
           <button
             className="btn btn-secondary"
-            onClick={() => exportCSV(allAccounts)}
-            disabled={allAccounts.length === 0}
-            title="Export current filter to CSV"
+            onClick={() => exportCSV(accounts)}
+            disabled={accounts.length === 0}
+            title="Export the current page to CSV"
           >
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/>
             </svg>
-            Export CSV
+            Export Page CSV
           </button>
 
           {/* Template import — only when COA is empty */}
@@ -250,11 +270,27 @@ export default function AccountsPage() {
                 <input
                   type="text" className="form-input"
                   placeholder="Search accounts…"
-                  value={search}
-                  onChange={e => { setSearch(e.target.value); setPage(1); }}
+                  value={searchText}
+                  onChange={e => setSearchText(e.target.value)}
+                  onKeyDown={event => {
+                    if (event.key === 'Enter') applySearch();
+                  }}
                   style={{ paddingLeft: 30, width: 200, height: 34 }}
                 />
               </div>
+            )}
+            {view === 'table' && (
+              <>
+                <button className="btn btn-secondary btn-sm" type="button" onClick={applySearch} disabled={isFetching} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                  {isFetching && <span className="spinner" style={{ width: 12, height: 12, borderWidth: 2 }} />}
+                  {isFetching ? 'Searching...' : 'Search'}
+                </button>
+                {(search || searchText) && (
+                  <button className="btn btn-secondary btn-sm" type="button" onClick={clearSearch} disabled={isFetching}>
+                    Clear
+                  </button>
+                )}
+              </>
             )}
 
             {/* View toggle */}
@@ -374,8 +410,8 @@ export default function AccountsPage() {
               selectedIds={selectedIds}
               onToggleSelect={toggleSelect}
               onSelectAll={selectAll}
-              onBulkActivate={() => bulkMutation.mutate({ ids: [...selectedIds], is_active: true })}
-              onBulkDeactivate={() => bulkMutation.mutate({ ids: [...selectedIds], is_active: false })}
+              onBulkActivate={() => bulkSetActive(true)}
+              onBulkDeactivate={() => bulkSetActive(false)}
               bulkLoading={bulkMutation.isPending}
             />
           )
@@ -389,7 +425,7 @@ export default function AccountsPage() {
         )}
 
         {view === 'group' && (
-          allLoading ? (
+          groupLoading ? (
             <div className="loading-overlay" style={{ minHeight: 320 }}>
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
                 <div className="spinner" style={{ width: 28, height: 28, borderWidth: 3 }} />
@@ -399,7 +435,14 @@ export default function AccountsPage() {
               </div>
             </div>
           ) : (
-            <AccountGroupView accounts={allAccounts} />
+            <>
+              {total > groupAccounts.length && (
+                <div className="alert alert-warning" style={{ marginBottom: 12 }}>
+                  Showing the first {groupAccounts.length} accounts in Group view. Use Table search or filters for the full list.
+                </div>
+              )}
+              <AccountGroupView accounts={groupAccounts} />
+            </>
           )
         )}
       </div>
@@ -427,8 +470,7 @@ export default function AccountsPage() {
         open={showBulkImport}
         onClose={() => setShowBulkImport(false)}
         onDone={() => {
-          utils.accounts.list.invalidate();
-          utils.accounts.getHierarchy.invalidate();
+          queryClient.invalidateQueries({ queryKey: accountsQueryKey });
         }}
       />
 
@@ -437,8 +479,7 @@ export default function AccountsPage() {
         open={showImport}
         onClose={() => setShowImport(false)}
         onDone={() => {
-          utils.accounts.list.invalidate();
-          utils.accounts.getHierarchy.invalidate();
+          queryClient.invalidateQueries({ queryKey: accountsQueryKey });
         }}
       />
 
@@ -447,7 +488,7 @@ export default function AccountsPage() {
         account={slideOver}
         onClose={() => setSlideOver(null)}
         onSaved={() => {
-          utils.accounts.list.invalidate();
+          queryClient.invalidateQueries({ queryKey: accountsQueryKey });
           // Update the slide-over with refreshed data after save
         }}
       />

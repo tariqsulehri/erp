@@ -11,7 +11,17 @@
  */
 
 import { useState, useEffect } from 'react';
-import { trpc } from '@/lib/trpc/client';
+import { SearchableSelect, type SelectOption } from '@/components/ui/SearchableSelect';
+import { useAccountsList, type AccountListItem } from '@/lib/api/accounts';
+import {
+  useCompanyProfile,
+  useGeneralSettings,
+  usePostingAccountSettings,
+  useUpdateCompanyProfile,
+  useUpdateGeneralSettings,
+  useUpdatePostingAccountSettings,
+  type PostingAccountSettings,
+} from '@/lib/api/settings';
 import {
   APP_COUNTRY_OPTIONS,
   APP_CURRENCY_POSITION_OPTIONS,
@@ -25,15 +35,56 @@ import {
   formatMoney,
 } from '@/lib/app-settings';
 
-type Tab = 'company' | 'regional' | 'accounting' | 'coa' | 'security';
+type Tab = 'company' | 'regional' | 'accounting' | 'posting-accounts' | 'coa' | 'security';
 
 const TABS: { id: Tab; label: string; icon: string }[] = [
   { id: 'company',    label: 'Company Profile',    icon: 'M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2zM17 21v-8H7v8M7 3v5h8' },
   { id: 'regional',   label: 'Regional Settings',  icon: 'M12 21a9 9 0 100-18 9 9 0 000 18zM3.6 9h16.8M3.6 15h16.8M12 3a14 14 0 010 18M12 3a14 14 0 000 18' },
   { id: 'accounting', label: 'Accounting',         icon: 'M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14H9V8h2v8zm4 0h-2V8h2v8z' },
+  { id: 'posting-accounts', label: 'Posting Accounts', icon: 'M4 6h16M4 12h16M4 18h16M8 4v4M12 10v4M16 16v4' },
   { id: 'coa',        label: 'Chart of Accounts',  icon: 'M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8zM14 2v6h6M16 13H8M16 17H8M10 9H8' },
   { id: 'security',   label: 'Security',           icon: 'M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z' },
 ];
+
+type AccountType = 'Asset' | 'Liability' | 'Equity' | 'Revenue' | 'Expense';
+
+type PostingAccountForm = {
+  purchase: {
+    default_cash_account_id: string;
+    default_inventory_account_id: string;
+    purchase_tax_account_id: string | null;
+    freight_account_id: string | null;
+    purchase_discount_account_id: string | null;
+  };
+  sale: {
+    default_cash_account_id: string;
+    default_inventory_account_id: string;
+    sales_revenue_account_id: string;
+    sales_tax_account_id: string | null;
+    sales_discount_account_id: string | null;
+    freight_income_account_id: string | null;
+    cost_of_goods_sold_account_id: string;
+  };
+  stock_adjustment: {
+    default_inventory_account_id: string;
+    adjustment_gain_account_id: string;
+    adjustment_loss_account_id: string;
+  };
+};
+
+type PostingAccountSectionKey = keyof PostingAccountForm;
+
+type PostingAccountField = {
+  section: PostingAccountSectionKey;
+  idKey: string;
+  codeKey: string;
+  nameKey: string;
+  label: string;
+  hint: string;
+  accountTypes: AccountType[];
+  accountCodePrefixes: string[];
+  required?: boolean;
+};
 
 /* ── Shared input wrapper ───────────────────────────────────────────── */
 function FormRow({
@@ -75,6 +126,234 @@ function formatSampleNumber(decimalPlaces: number, thousandSeparator: string, de
   return fraction ? `${grouped}${decimalSeparator}${fraction}` : grouped;
 }
 
+function postingAccountFormFromSettings(settings: PostingAccountSettings): PostingAccountForm {
+  return {
+    purchase: {
+      default_cash_account_id: settings.purchase?.default_cash_account_id ?? '',
+      default_inventory_account_id: settings.purchase?.default_inventory_account_id ?? '',
+      purchase_tax_account_id: settings.purchase?.purchase_tax_account_id ?? null,
+      freight_account_id: settings.purchase?.freight_account_id ?? null,
+      purchase_discount_account_id: settings.purchase?.purchase_discount_account_id ?? null,
+    },
+    sale: {
+      default_cash_account_id: settings.sale?.default_cash_account_id ?? '',
+      default_inventory_account_id: settings.sale?.default_inventory_account_id ?? '',
+      sales_revenue_account_id: settings.sale?.sales_revenue_account_id ?? '',
+      sales_tax_account_id: settings.sale?.sales_tax_account_id ?? null,
+      sales_discount_account_id: settings.sale?.sales_discount_account_id ?? null,
+      freight_income_account_id: settings.sale?.freight_income_account_id ?? null,
+      cost_of_goods_sold_account_id: settings.sale?.cost_of_goods_sold_account_id ?? '',
+    },
+    stock_adjustment: {
+      default_inventory_account_id: settings.stock_adjustment?.default_inventory_account_id ?? '',
+      adjustment_gain_account_id: settings.stock_adjustment?.adjustment_gain_account_id ?? '',
+      adjustment_loss_account_id: settings.stock_adjustment?.adjustment_loss_account_id ?? '',
+    },
+  };
+}
+
+function accountOption(account: AccountListItem): SelectOption {
+  return {
+    value: account.id,
+    label: `${account.code} - ${account.name}`,
+    searchText: `${account.code} ${account.name} ${account.account_type}`,
+  };
+}
+
+function settingAccountOption(settings: PostingAccountSettings | undefined, field: PostingAccountField): SelectOption | null {
+  const section = settings?.[field.section] as Record<string, string | null> | null | undefined;
+  const value = section?.[field.idKey];
+  const code = section?.[field.codeKey];
+  const name = section?.[field.nameKey];
+  if (!value || !code || !name) return null;
+  return { value, label: `${code} - ${name}`, searchText: `${code} ${name}` };
+}
+
+function postingFieldValue(form: PostingAccountForm, field: PostingAccountField) {
+  return ((form[field.section] as Record<string, string | null>)[field.idKey] ?? '') || '';
+}
+
+function typeHint(types: AccountType[]) {
+  return types.length === 1 ? types[0] : types.join(' Or ');
+}
+
+function categoryHint(prefixes: string[]) {
+  return prefixes.length === 1 ? prefixes[0] : prefixes.join(', ');
+}
+
+function isRelevantPostingAccount(account: AccountListItem, field: PostingAccountField) {
+  return field.accountTypes.includes(account.account_type as AccountType)
+    && field.accountCodePrefixes.some(prefix => account.code.startsWith(prefix));
+}
+
+const PURCHASE_POSTING_FIELDS: PostingAccountField[] = [
+  {
+    section: 'purchase',
+    idKey: 'default_cash_account_id',
+    codeKey: 'default_cash_account_code',
+    nameKey: 'default_cash_account_name',
+    label: 'Cash Account',
+    hint: 'Credited when a purchase is paid by cash',
+    accountTypes: ['Asset'],
+    accountCodePrefixes: ['010110'],
+    required: true,
+  },
+  {
+    section: 'purchase',
+    idKey: 'default_inventory_account_id',
+    codeKey: 'default_inventory_account_code',
+    nameKey: 'default_inventory_account_name',
+    label: 'Inventory Account',
+    hint: 'Debited for purchased stock value',
+    accountTypes: ['Asset'],
+    accountCodePrefixes: ['010130'],
+    required: true,
+  },
+  {
+    section: 'purchase',
+    idKey: 'purchase_tax_account_id',
+    codeKey: 'purchase_tax_account_code',
+    nameKey: 'purchase_tax_account_name',
+    label: 'Purchase Tax Account',
+    hint: 'Debited for recoverable purchase tax',
+    accountTypes: ['Asset'],
+    accountCodePrefixes: ['010140'],
+  },
+  {
+    section: 'purchase',
+    idKey: 'freight_account_id',
+    codeKey: 'freight_account_code',
+    nameKey: 'freight_account_name',
+    label: 'Freight Account',
+    hint: 'Debited for purchase freight and delivery charges',
+    accountTypes: ['Expense'],
+    accountCodePrefixes: ['050210'],
+  },
+  {
+    section: 'purchase',
+    idKey: 'purchase_discount_account_id',
+    codeKey: 'purchase_discount_account_code',
+    nameKey: 'purchase_discount_account_name',
+    label: 'Purchase Discount Account',
+    hint: 'Credited when purchase discount is posted',
+    accountTypes: ['Expense'],
+    accountCodePrefixes: ['050210'],
+  },
+];
+
+const SALES_POSTING_FIELDS: PostingAccountField[] = [
+  {
+    section: 'sale',
+    idKey: 'default_cash_account_id',
+    codeKey: 'default_cash_account_code',
+    nameKey: 'default_cash_account_name',
+    label: 'Cash Account',
+    hint: 'Debited when a sale is paid by cash',
+    accountTypes: ['Asset'],
+    accountCodePrefixes: ['010110'],
+    required: true,
+  },
+  {
+    section: 'sale',
+    idKey: 'default_inventory_account_id',
+    codeKey: 'default_inventory_account_code',
+    nameKey: 'default_inventory_account_name',
+    label: 'Inventory Account',
+    hint: 'Credited when sold stock cost is posted',
+    accountTypes: ['Asset'],
+    accountCodePrefixes: ['010130'],
+    required: true,
+  },
+  {
+    section: 'sale',
+    idKey: 'sales_revenue_account_id',
+    codeKey: 'sales_revenue_account_code',
+    nameKey: 'sales_revenue_account_name',
+    label: 'Sales Revenue Account',
+    hint: 'Credited for product sale value',
+    accountTypes: ['Revenue'],
+    accountCodePrefixes: ['040110'],
+    required: true,
+  },
+  {
+    section: 'sale',
+    idKey: 'sales_tax_account_id',
+    codeKey: 'sales_tax_account_code',
+    nameKey: 'sales_tax_account_name',
+    label: 'Sales Tax Account',
+    hint: 'Credited for payable sales tax',
+    accountTypes: ['Liability'],
+    accountCodePrefixes: ['020130'],
+  },
+  {
+    section: 'sale',
+    idKey: 'sales_discount_account_id',
+    codeKey: 'sales_discount_account_code',
+    nameKey: 'sales_discount_account_name',
+    label: 'Sales Discount Account',
+    hint: 'Debited for discount allowed to customers',
+    accountTypes: ['Expense'],
+    accountCodePrefixes: ['050220'],
+  },
+  {
+    section: 'sale',
+    idKey: 'freight_income_account_id',
+    codeKey: 'freight_income_account_code',
+    nameKey: 'freight_income_account_name',
+    label: 'Freight Income Account',
+    hint: 'Credited for freight charged to customers',
+    accountTypes: ['Revenue'],
+    accountCodePrefixes: ['040120'],
+  },
+  {
+    section: 'sale',
+    idKey: 'cost_of_goods_sold_account_id',
+    codeKey: 'cost_of_goods_sold_account_code',
+    nameKey: 'cost_of_goods_sold_account_name',
+    label: 'Cost Of Goods Sold Account',
+    hint: 'Debited for sold stock cost',
+    accountTypes: ['Expense'],
+    accountCodePrefixes: ['050110'],
+    required: true,
+  },
+];
+
+const STOCK_ADJUSTMENT_POSTING_FIELDS: PostingAccountField[] = [
+  {
+    section: 'stock_adjustment',
+    idKey: 'default_inventory_account_id',
+    codeKey: 'default_inventory_account_code',
+    nameKey: 'default_inventory_account_name',
+    label: 'Inventory Account',
+    hint: 'Debited or credited for inventory value changes',
+    accountTypes: ['Asset'],
+    accountCodePrefixes: ['010130'],
+    required: true,
+  },
+  {
+    section: 'stock_adjustment',
+    idKey: 'adjustment_gain_account_id',
+    codeKey: 'adjustment_gain_account_code',
+    nameKey: 'adjustment_gain_account_name',
+    label: 'Adjustment Gain Account',
+    hint: 'Credited when stock value increases',
+    accountTypes: ['Revenue'],
+    accountCodePrefixes: ['040130'],
+    required: true,
+  },
+  {
+    section: 'stock_adjustment',
+    idKey: 'adjustment_loss_account_id',
+    codeKey: 'adjustment_loss_account_code',
+    nameKey: 'adjustment_loss_account_name',
+    label: 'Adjustment Loss Account',
+    hint: 'Debited when stock value decreases',
+    accountTypes: ['Expense'],
+    accountCodePrefixes: ['050230'],
+    required: true,
+  },
+];
+
 /* ── Regional Settings tab ─────────────────────────────────────────── */
 function RegionalTab({ settings }: { settings: any }) {
   const [form, setForm] = useState({
@@ -113,17 +392,24 @@ function RegionalTab({ settings }: { settings: any }) {
     setError('');
   }, [settings?.id]);
 
-  const utils = trpc.useUtils();
-  const mutation = trpc.settings.updateGeneralSettings.useMutation({
-    onSuccess: () => {
-      utils.settings.getGeneralSettings.invalidate();
+  const mutation = useUpdateGeneralSettings();
+
+  useEffect(() => {
+    if (mutation.isSuccess) {
       setSaved(true);
       setDirty(false);
       setError('');
-      setTimeout(() => setSaved(false), 3000);
-    },
-    onError: err => setError(err.message),
-  });
+      const timeoutId = window.setTimeout(() => setSaved(false), 3000);
+      return () => window.clearTimeout(timeoutId);
+    }
+    return undefined;
+  }, [mutation.isSuccess]);
+
+  useEffect(() => {
+    if (mutation.error) {
+      setError(mutation.error.message);
+    }
+  }, [mutation.error]);
 
   const set = (field: keyof typeof form, value: string | number) => {
     setForm(current => ({ ...current, [field]: value }));
@@ -314,17 +600,24 @@ function CompanyTab({ company }: { company: any }) {
 
   useEffect(() => { setForm({ ...company }); setDirty(false); }, [company?.id]);
 
-  const utils = trpc.useUtils();
-  const mutation = trpc.settings.updateCompany.useMutation({
-    onSuccess: () => {
-      utils.settings.getCompany.invalidate();
+  const mutation = useUpdateCompanyProfile();
+
+  useEffect(() => {
+    if (mutation.isSuccess) {
       setSaved(true);
       setDirty(false);
       setError('');
-      setTimeout(() => setSaved(false), 3000);
-    },
-    onError: err => setError(err.message),
-  });
+      const timeoutId = window.setTimeout(() => setSaved(false), 3000);
+      return () => window.clearTimeout(timeoutId);
+    }
+    return undefined;
+  }, [mutation.isSuccess]);
+
+  useEffect(() => {
+    if (mutation.error) {
+      setError(mutation.error.message);
+    }
+  }, [mutation.error]);
 
   const set = (field: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     setForm((f: any) => ({ ...f, [field]: e.target.value || null }));
@@ -407,15 +700,24 @@ function AccountingTab({ company }: { company: any }) {
     setDirty(false);
   }, [company?.id]);
 
-  const utils = trpc.useUtils();
-  const mutation = trpc.settings.updateCompany.useMutation({
-    onSuccess: () => {
-      utils.settings.getCompany.invalidate();
-      setSaved(true); setDirty(false); setError('');
-      setTimeout(() => setSaved(false), 3000);
-    },
-    onError: err => setError(err.message),
-  });
+  const mutation = useUpdateCompanyProfile();
+
+  useEffect(() => {
+    if (mutation.isSuccess) {
+      setSaved(true);
+      setDirty(false);
+      setError('');
+      const timeoutId = window.setTimeout(() => setSaved(false), 3000);
+      return () => window.clearTimeout(timeoutId);
+    }
+    return undefined;
+  }, [mutation.isSuccess]);
+
+  useEffect(() => {
+    if (mutation.error) {
+      setError(mutation.error.message);
+    }
+  }, [mutation.error]);
 
   const FY_OPTIONS = [
     { value: 'calendar', label: 'Calendar Year (Jan – Dec)' },
@@ -489,16 +791,177 @@ function AccountingTab({ company }: { company: any }) {
   );
 }
 
+/* ── Posting Accounts tab ──────────────────────────────────────────── */
+function PostingAccountsTab() {
+  const settingsQuery = usePostingAccountSettings();
+  const accountsQuery = useAccountsList({ page: 1, limit: 200, is_active: true, is_posting: true });
+  const mutation = useUpdatePostingAccountSettings();
+  const [form, setForm] = useState<PostingAccountForm | null>(null);
+  const [dirty, setDirty] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    if (!settingsQuery.data) return;
+    setForm(postingAccountFormFromSettings(settingsQuery.data));
+    setDirty(false);
+    setError('');
+  }, [settingsQuery.data]);
+
+  useEffect(() => {
+    if (mutation.isSuccess) {
+      setSaved(true);
+      setDirty(false);
+      setError('');
+      const timeoutId = window.setTimeout(() => setSaved(false), 3000);
+      return () => window.clearTimeout(timeoutId);
+    }
+    return undefined;
+  }, [mutation.isSuccess]);
+
+  useEffect(() => {
+    if (mutation.error) setError(mutation.error.message);
+  }, [mutation.error]);
+
+  const accounts = accountsQuery.data?.data ?? [];
+  const allFields = [
+    ...PURCHASE_POSTING_FIELDS,
+    ...SALES_POSTING_FIELDS,
+    ...STOCK_ADJUSTMENT_POSTING_FIELDS,
+  ];
+  const missingRequiredFields = form
+    ? allFields.filter(field => field.required && !postingFieldValue(form, field).trim())
+    : [];
+
+  const setFieldValue = (field: PostingAccountField, value: string) => {
+    setForm(current => {
+      if (!current) return current;
+      const section = { ...(current[field.section] as Record<string, string | null>) };
+      section[field.idKey] = value || null;
+      return { ...current, [field.section]: section } as PostingAccountForm;
+    });
+    setDirty(true);
+    setSaved(false);
+    setError('');
+  };
+
+  const optionsFor = (field: PostingAccountField) => {
+    const options = accounts
+      .filter(account => isRelevantPostingAccount(account, field))
+      .map(accountOption);
+    const currentOption = settingAccountOption(settingsQuery.data, field);
+    if (currentOption && !options.some(option => option.value === currentOption.value)) {
+      return [currentOption, ...options];
+    }
+    return options;
+  };
+
+  const renderSection = (title: string, description: string, fields: PostingAccountField[]) => (
+    <section style={{ borderTop: '1px solid var(--color-border)', paddingTop: 18 }}>
+      <div style={{ marginBottom: 10 }}>
+        <h3 style={{ fontSize: 'var(--font-size-base)', color: 'var(--color-text)', margin: 0 }}>{title}</h3>
+        <p style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-muted)', margin: '3px 0 0' }}>{description}</p>
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column' }}>
+        {fields.map(field => {
+          const value = form ? postingFieldValue(form, field) : '';
+          const selectedOption = settingAccountOption(settingsQuery.data, field);
+          return (
+            <FormRow
+              key={`${field.section}-${field.idKey}`}
+              label={`${field.label}${field.required ? ' *' : ''}`}
+              hint={`${field.hint}. Account Type: ${typeHint(field.accountTypes)}. Account Category: ${categoryHint(field.accountCodePrefixes)}`}
+            >
+              <SearchableSelect
+                value={value}
+                options={optionsFor(field)}
+                onChange={nextValue => setFieldValue(field, nextValue)}
+                placeholder={field.required ? 'Select Account' : 'No Account'}
+                selectedLabel={selectedOption?.label}
+                disabled={settingsQuery.isLoading || accountsQuery.isLoading || mutation.isPending}
+              />
+            </FormRow>
+          );
+        })}
+      </div>
+    </section>
+  );
+
+  if (settingsQuery.error) {
+    return <div className="alert alert-danger">{settingsQuery.error.message}</div>;
+  }
+
+  if (settingsQuery.isLoading || !form) {
+    return (
+      <div style={{ padding: '40px 0', display: 'flex', justifyContent: 'center' }}>
+        <div className="spinner" style={{ width: 28, height: 28, borderWidth: 3 }} />
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 22 }}>
+      <div style={{
+        padding: '12px 16px',
+        background: '#eff6ff',
+        border: '1px solid #bfdbfe',
+        borderRadius: 'var(--radius)',
+        fontSize: 'var(--font-size-xs)',
+        color: '#1e3a8a',
+      }}>
+        These accounts are used automatically when Purchase, Sales, Returns, and Stock Adjustment documents are posted.
+      </div>
+
+      {accountsQuery.error && <div className="alert alert-danger">{accountsQuery.error.message}</div>}
+      {error && <div className="alert alert-danger">{error}</div>}
+
+      {accountsQuery.data && accountsQuery.data.pagination.total > accounts.length && (
+        <div className="alert alert-warning">
+          Showing first {accounts.length} active posting accounts. Narrow the Chart Of Accounts if the account you need is not visible.
+        </div>
+      )}
+
+      {renderSection('Purchase Posting Accounts', 'Default accounts used by purchase invoices and purchase returns.', PURCHASE_POSTING_FIELDS)}
+      {renderSection('Sales Posting Accounts', 'Default accounts used by sale invoices and sale returns.', SALES_POSTING_FIELDS)}
+      {renderSection('Stock Adjustment Posting Accounts', 'Default accounts used when stock value increases or decreases.', STOCK_ADJUSTMENT_POSTING_FIELDS)}
+
+      {missingRequiredFields.length > 0 && (
+        <div className="alert alert-danger">
+          Please select required accounts: {missingRequiredFields.map(field => field.label).join(', ')}.
+        </div>
+      )}
+
+      {saved && (
+        <div style={{ padding: '10px 14px', borderRadius: 'var(--radius)', background: '#f0fdf4', border: '1px solid #bbf7d0', color: '#16a34a', fontWeight: 600, fontSize: 'var(--font-size-sm)' }}>
+          Posting accounts saved
+        </div>
+      )}
+
+      <div>
+        <button
+          className="btn btn-primary"
+          onClick={() => form && mutation.mutate(form)}
+          disabled={!dirty || mutation.isPending || missingRequiredFields.length > 0}
+          style={{ display: 'flex', alignItems: 'center', gap: 6 }}
+        >
+          {mutation.isPending && <div className="spinner" style={{ width: 14, height: 14, borderWidth: 2 }} />}
+          {mutation.isPending ? 'Saving...' : 'Save Posting Accounts'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 /* ── COA tab ────────────────────────────────────────────────────────── */
 function COATab({ generalSettings }: { generalSettings: any }) {
-  const { data } = trpc.accounts.list.useQuery({ page: 1, limit: 1000 });
+  const { data } = useAccountsList({ page: 1, limit: 200 });
   const accounts = data?.data ?? [];
 
   const stats = [
     { label: 'Total Accounts',    value: data?.pagination?.total ?? 0,                   color: '#2563eb' },
-    { label: 'Posting Accounts',  value: accounts.filter((a: any) => a.is_posting).length,  color: '#16a34a' },
-    { label: 'Header Accounts',   value: accounts.filter((a: any) => !a.is_posting).length, color: '#7c3aed' },
-    { label: 'Inactive Accounts', value: accounts.filter((a: any) => !a.is_active).length,  color: '#dc2626' },
+    { label: 'Posting Shown',     value: accounts.filter((a: any) => a.is_posting).length,  color: '#16a34a' },
+    { label: 'Header Shown',      value: accounts.filter((a: any) => !a.is_posting).length, color: '#7c3aed' },
+    { label: 'Inactive Shown',    value: accounts.filter((a: any) => !a.is_active).length,  color: '#dc2626' },
   ];
 
   const byType = ['Asset', 'Liability', 'Equity', 'Revenue', 'Expense'].map(t => ({
@@ -629,12 +1092,12 @@ function SecurityTab() {
 export default function SettingsPage() {
   const [tab, setTab] = useState<Tab>('company');
 
-  const { data: company, isLoading, error } = trpc.settings.getCompany.useQuery();
+  const { data: company, isLoading, error } = useCompanyProfile();
   const {
     data: generalSettings,
     isLoading: isGeneralSettingsLoading,
     error: generalSettingsError,
-  } = trpc.settings.getGeneralSettings.useQuery();
+  } = useGeneralSettings();
 
   return (
     <>
@@ -711,6 +1174,7 @@ export default function SettingsPage() {
                 {tab === 'company'    && company && <CompanyTab    company={company} />}
                 {tab === 'regional'   && generalSettings && <RegionalTab settings={generalSettings} />}
                 {tab === 'accounting' && company && <AccountingTab company={company} />}
+                {tab === 'posting-accounts'       && <PostingAccountsTab />}
                 {tab === 'coa'                   && generalSettings && <COATab generalSettings={generalSettings} />}
                 {tab === 'security'              && <SecurityTab />}
               </>
