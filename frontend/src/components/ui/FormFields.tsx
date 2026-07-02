@@ -126,7 +126,7 @@ export function SelectField({
         value={value}
         disabled={disabled}
         onChange={event => onChange?.(event.currentTarget.value)}
-        style={{ ...fieldStyle(size), ...style }}
+        style={{ ...selectFieldStyle(size), ...style }}
       >
         {placeholder !== undefined && <option value="">{placeholder}</option>}
         {options.map(option => (
@@ -152,6 +152,24 @@ export function numericFieldStyle(size: FieldSize = 'compact'): CSSProperties {
     textAlign: 'right',
     fontFamily: 'var(--font-mono)',
     fontWeight: 800,
+  };
+}
+
+export function selectFieldStyle(size: FieldSize = 'compact'): CSSProperties {
+  return {
+    ...fieldStyle(size),
+    paddingRight: 34,
+    cursor: 'pointer',
+    appearance: 'none',
+    WebkitAppearance: 'none',
+    backgroundColor: 'var(--color-input-bg)',
+    backgroundImage: [
+      'linear-gradient(45deg, transparent 50%, var(--color-text-muted) 50%)',
+      'linear-gradient(135deg, var(--color-text-muted) 50%, transparent 50%)',
+    ].join(', '),
+    backgroundPosition: 'calc(100% - 17px) 50%, calc(100% - 12px) 50%',
+    backgroundSize: '5px 5px, 5px 5px',
+    backgroundRepeat: 'no-repeat',
   };
 }
 

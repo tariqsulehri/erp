@@ -23,8 +23,8 @@ import {
   useStockTransfersList,
   useStockTransferSupportData,
 } from '@/lib/api/stock-transfers';
-import { useValidatePostingDate } from '@/lib/api/fiscal-years';
-import { friendlyErrorMessage, isValidDateInput, numericValue } from '@/lib/erp-utils';
+import { usePostingDateGuard } from '@/lib/api/fiscal-years';
+import { friendlyErrorMessage, numericValue } from '@/lib/erp-utils';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { FieldLabel } from '@/components/ui/FieldLabel';
 import { DateField, NumericField, TextField, fieldStyle, numericFieldStyle } from '@/components/ui/FormFields';
@@ -66,9 +66,12 @@ export default function StockTransferPage() {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [selectedTransferId, setSelectedTransferId] = useState<string | null>(null);
 
-  const isDateValid = isValidDateInput(transferDate);
-  const dateValidation = useValidatePostingDate(isDateValid ? transferDate : today(), isDateValid);
+  const postingDateGuard = usePostingDateGuard(transferDate, 'Transfer Date');
+  const newTransferGuard = usePostingDateGuard(today(), 'Transfer Date');
   const saving = createDraft.isPending || createAndPost.isPending;
+  const actionDisabled = saving || postingDateGuard.disabled;
+  const dateStatusMessage = postingDateGuard.isChecking ? 'Checking Transfer Date...' : postingDateGuard.statusMessage;
+  const newTransferDisabledReason = newTransferGuard.isChecking ? 'Checking Transfer Date...' : newTransferGuard.statusMessage;
   const listQuery = useStockTransfersList({ page: 1, limit: 50, status: 'Posted' });
   const detailQuery = useStockTransferDetail(selectedTransferId);
 
@@ -144,9 +147,17 @@ export default function StockTransferPage() {
     setMessage(null);
   }
 
+  function openNewTransfer() {
+    if (newTransferGuard.disabled) {
+      setMessage({ kind: 'error', text: newTransferDisabledReason || 'Transfer Date cannot be used for posting.' });
+      return;
+    }
+    resetForm();
+    setViewMode('entry');
+  }
+
   function validateForm() {
-    if (!isDateValid) return 'Transfer Date is not valid.';
-    if (dateValidation.data && !dateValidation.data.canPost) return `Transfer Date: ${dateValidation.data.reason}`;
+    if (postingDateGuard.disabled) return dateStatusMessage || 'Transfer Date cannot be used for posting.';
     if (!fromWarehouseId) return 'From Warehouse is required.';
     if (!toWarehouseId) return 'To Warehouse is required.';
     if (selectedFromWarehouse?.useLocations && !fromLocationId) return 'From Location is required because From Warehouse uses Locations.';
@@ -247,7 +258,7 @@ export default function StockTransferPage() {
       <main style={pageShellStyle}>
         <Toolbar title="Stock Transfers" subtitle="Posted warehouse to warehouse stock movements">
           <button className="btn-ghost" type="button" onClick={() => listQuery.refetch()}><IconRefresh size={15} /> Refresh</button>
-          <button className="btn-primary" type="button" onClick={() => { resetForm(); setViewMode('entry'); }}><IconFilePlus size={15} /> New Transfer</button>
+          <button className="btn-primary" type="button" disabled={newTransferGuard.disabled} title={newTransferDisabledReason} onClick={openNewTransfer}><IconFilePlus size={15} /> New Transfer</button>
         </Toolbar>
         {message && <MessageBanner message={message} />}
         <section style={workspaceStyle}>
@@ -291,12 +302,12 @@ export default function StockTransferPage() {
     <main style={pageShellStyle}>
       <Toolbar title="New Stock Transfer" subtitle="Move stock from one Warehouse to another Warehouse">
         <button className="btn-ghost" type="button" onClick={() => setViewMode('list')}>Cancel</button>
-        <button className="btn-ghost" type="button" onClick={() => saveTransfer(false)} disabled={saving}>Save Draft</button>
+        <button className="btn-ghost" type="button" onClick={() => saveTransfer(false)} disabled={actionDisabled} title={dateStatusMessage}>Save Draft</button>
         <button className="btn-primary" type="button" onClick={() => {
           const validationMessage = validateForm();
           if (validationMessage) setMessage({ kind: 'error', text: validationMessage });
           else setConfirmOpen(true);
-        }} disabled={saving}><IconCheck size={15} /> Process</button>
+        }} disabled={actionDisabled} title={dateStatusMessage}><IconCheck size={15} /> Process</button>
       </Toolbar>
       {message && <MessageBanner message={message} />}
       <section style={entryCardStyle}>
@@ -319,7 +330,7 @@ export default function StockTransferPage() {
         <div style={{ marginTop: 8 }}>
           <TextField label="Voucher Details" value={description} onChange={setDescription} placeholder="Short details for this transfer" />
         </div>
-        <div style={dateMessageStyle}>{!transferDate ? '' : !isDateValid ? 'Transfer Date is not valid.' : dateValidation.data && !dateValidation.data.canPost ? `Transfer Date: ${dateValidation.data.reason}` : ''}</div>
+        <div style={dateMessageStyle}>{dateStatusMessage}</div>
       </section>
 
       <section style={lineEntryStyle}>

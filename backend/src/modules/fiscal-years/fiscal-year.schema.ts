@@ -20,7 +20,16 @@ export const fiscalYearIdParams = z.object({
   id: z.string().uuid(),
 });
 
+export const closeFiscalYearSchema = z.object({
+  remarks: z.string().trim().max(1000).optional().or(z.literal('')),
+});
+
+export const closingIssuesQuery = z.object({
+  check: z.enum(['draft_vouchers', 'unposted_documents']),
+  page: z.coerce.number().int().min(1).default(1),
+  limit: z.coerce.number().int().min(1).max(100).default(25),
+});
+
 export const periodIdParams = z.object({
   id: z.string().uuid(),
 });
-

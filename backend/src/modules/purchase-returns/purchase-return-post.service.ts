@@ -231,7 +231,7 @@ export class PurchaseReturnPostService {
           ${purchaseReturn.reference_number},
           ${purchaseReturn.description || 'Purchase Return'},
           'Posted',
-          'Not Required',
+          'Approved',
           CAST(${voucherTotal.toFixed(2)} AS numeric),
           CAST(${voucherTotal.toFixed(2)} AS numeric),
           ${postedBy}::uuid,

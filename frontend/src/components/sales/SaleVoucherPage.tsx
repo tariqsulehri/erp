@@ -3,10 +3,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import { formatMoney } from '@/lib/app-settings';
 import { useGeneralSettings } from '@/lib/api/settings';
-import { useValidatePostingDate } from '@/lib/api/fiscal-years';
+import { usePostingDateGuard } from '@/lib/api/fiscal-years';
 import { useCreateAndPostSale, useCreateSaleDraft, useInvalidateSaleQueries, useSaleSupportData } from '@/lib/api/sales';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
-import { addDays, friendlyErrorMessage, isValidDateInput } from '@/lib/erp-utils';
+import { addDays, friendlyErrorMessage } from '@/lib/erp-utils';
 import { buildSaleDetails, buildSalePayload, validateSaleVoucher } from './SaleVoucherBusiness';
 import { PostedSalesView } from './PostedSalesView';
 import { SaleAnalyticsView } from './SaleAnalyticsView';
@@ -46,8 +46,9 @@ export default function SaleVoucherPage() {
   const [processConfirmOpen, setProcessConfirmOpen] = useState(false);
 
   const saving = createDraft.isPending || createAndPost.isPending;
-  const isSaleDateValid = isValidDateInput(saleDate);
-  const dateValidation = useValidatePostingDate(isSaleDateValid ? saleDate : today(), isSaleDateValid);
+  const postingDateGuard = usePostingDateGuard(saleDate, 'Sale Date');
+  const dateValidation = postingDateGuard.dateValidation;
+  const isSaleDateValid = postingDateGuard.dateIsValid;
   const money = useMemo(() => (value: number) => formatMoney(value, generalSettings), [generalSettings]);
   const { customers, items, warehouses, locations } = useSaleSupportOptions(supportQuery.data);
   const selectedCustomer = customers.find(customer => customer.value === customerId);
@@ -76,13 +77,9 @@ export default function SaleVoucherPage() {
 
   const totals = usePurchaseTotals(lines, freightAmount, paymentType);
   const generatedVoucherDetails = buildSaleDetails(selectedCustomer, customerReferenceNumber, lines.length);
-  const dateStatusMessage = !saleDate
-    ? ''
-    : !isSaleDateValid
-      ? 'Sale Date is not a valid date.'
-      : dateValidation.data && !dateValidation.data.canPost
-        ? `Sale Date: ${dateValidation.data.reason}`
-      : '';
+  const dateStatusMessage = postingDateGuard.isChecking ? 'Checking Sale Date...' : postingDateGuard.statusMessage;
+  const newDisabled = postingDateGuard.disabled;
+  const newDisabledReason = dateStatusMessage || 'Sale Date is being checked.';
 
   useEffect(() => {
     if (!warehouseId && warehouses.length > 0) {
@@ -132,7 +129,7 @@ export default function SaleVoucherPage() {
     return validateSaleVoucher({
       saleDate,
       isSaleDateValid,
-      postingDateError: dateValidation.data && !dateValidation.data.canPost ? `Sale Date: ${dateValidation.data.reason}` : undefined,
+      postingDateError: postingDateGuard.isBlocked ? dateStatusMessage : undefined,
       customerId,
       selectedCustomer,
       warehouseId,
@@ -213,7 +210,13 @@ export default function SaleVoucherPage() {
     setProcessConfirmOpen(true);
   }
 
-  const actionDisabled = saving || supportQuery.isLoading || supportQuery.isError;
+  function openNewSale() {
+    if (newDisabled) return;
+    resetForm();
+    setViewMode('entry');
+  }
+
+  const actionDisabled = saving || supportQuery.isLoading || supportQuery.isError || postingDateGuard.disabled;
 
   if (viewMode === 'posted') {
     return (
@@ -222,11 +225,10 @@ export default function SaleVoucherPage() {
         warehouses={warehouses}
         money={money}
         generalSettings={generalSettings}
-        onNewSale={() => {
-          resetForm();
-          setViewMode('entry');
-        }}
+        onNewSale={openNewSale}
         onAnalytics={() => setViewMode('analytics')}
+        newDisabled={newDisabled}
+        newDisabledReason={newDisabledReason}
       />
     );
   }
@@ -235,11 +237,10 @@ export default function SaleVoucherPage() {
     return (
       <SaleAnalyticsView
         settings={generalSettings}
-        onNewSale={() => {
-          resetForm();
-          setViewMode('entry');
-        }}
+        onNewSale={openNewSale}
         onPostedSales={() => setViewMode('posted')}
+        newDisabled={newDisabled}
+        newDisabledReason={newDisabledReason}
       />
     );
   }
@@ -254,6 +255,8 @@ export default function SaleVoucherPage() {
         showAnalytics
         actionDisabled={actionDisabled}
         saving={saving}
+        newDisabled={newDisabled}
+        newDisabledReason={newDisabledReason}
         onNew={() => resetForm()}
         onPostedPurchases={() => setViewMode('posted')}
         onAnalytics={() => setViewMode('analytics')}

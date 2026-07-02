@@ -639,7 +639,7 @@ export class StockAdjustmentService {
         ${adjustment.reference_number},
         ${adjustment.description || `Stock Adjustment ${adjustment.adjustment_number}`},
         'Posted',
-        'Not Required',
+        'Approved',
         CAST(${voucherTotal.toFixed(2)} AS numeric),
         CAST(${voucherTotal.toFixed(2)} AS numeric),
         ${userId}::uuid,

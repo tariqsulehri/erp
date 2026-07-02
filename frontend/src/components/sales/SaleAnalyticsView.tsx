@@ -9,9 +9,11 @@ interface SaleAnalyticsViewProps {
   settings?: AppFormatSettingsSource | null;
   onNewSale: () => void;
   onPostedSales: () => void;
+  newDisabled?: boolean;
+  newDisabledReason?: string;
 }
 
-export function SaleAnalyticsView({ settings, onNewSale, onPostedSales }: SaleAnalyticsViewProps) {
+export function SaleAnalyticsView({ settings, onNewSale, onPostedSales, newDisabled = false, newDisabledReason }: SaleAnalyticsViewProps) {
   const query = useSaleInvoicesList({ page: 1, limit: 200, status: 'Posted' });
   const rows = useMemo<AnalyticsRow[]>(() => (query.data?.data ?? []).map(row => ({
     id: row.id,
@@ -39,6 +41,8 @@ export function SaleAnalyticsView({ settings, onNewSale, onPostedSales }: SaleAn
       onNew={onNewSale}
       onPostedList={onPostedSales}
       onRefresh={() => query.refetch()}
+      newDisabled={newDisabled}
+      newDisabledReason={newDisabledReason}
     />
   );
 }

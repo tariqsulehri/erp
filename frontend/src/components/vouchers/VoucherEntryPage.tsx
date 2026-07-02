@@ -10,7 +10,8 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useAccountsList } from '@/lib/api/accounts';
-import { useValidatePostingDate } from '@/lib/api/fiscal-years';
+import { usePostingDateGuard } from '@/lib/api/fiscal-years';
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { PaginationBar } from '@/components/ui/PaginationBar';
 import {
   useCreateVoucher,
@@ -205,13 +206,12 @@ function CreateForm({ voucherType, onSaved, onCancel }: {
   const nextKey = useRef(4);
 
   /* Fiscal date validation */
-  const dateVal = useValidatePostingDate(date, date.length === 10);
+  const postingDateGuard = usePostingDateGuard(date, 'Voucher Date', date.length === 10);
   useEffect(() => {
     if (date.length < 10) { setDateErr(''); return; }
-    if (dateVal.isLoading) return;
-    if (dateVal.error) { setDateErr(dateVal.error.message); return; }
-    setDateErr(dateVal.data?.canPost ? '' : (dateVal.data?.reason ?? 'Outside open fiscal period'));
-  }, [date, dateVal.data, dateVal.error, dateVal.isLoading]);
+    if (postingDateGuard.isChecking) return;
+    setDateErr(postingDateGuard.statusMessage);
+  }, [date, postingDateGuard.isChecking, postingDateGuard.statusMessage]);
 
   /* Line helpers */
   const addLine    = () => setLines(ls => [...ls, blank(nextKey.current++)]);
@@ -354,8 +354,8 @@ function CreateForm({ voucherType, onSaved, onCancel }: {
                 onChange={e => setDate(e.target.value)}
               />
               {dateErr && <p style={{ fontSize: '0.6rem', color: 'var(--color-danger)', marginTop: 2 }}>⚠ {dateErr}</p>}
-              {!dateErr && dateVal.data?.canPost && (
-                <p style={{ fontSize: '0.6rem', color: 'var(--color-success)', marginTop: 2 }}>✓ {dateVal.data.period?.period_name}</p>
+              {!dateErr && postingDateGuard.dateValidation.data?.canPost && (
+                <p style={{ fontSize: '0.6rem', color: 'var(--color-success)', marginTop: 2 }}>✓ {postingDateGuard.dateValidation.data.period?.period_name}</p>
               )}
             </div>
 
@@ -592,7 +592,7 @@ function CreateForm({ voucherType, onSaved, onCancel }: {
         flexShrink: 0,
       }}>
         <button className="btn btn-primary"
-          disabled={createMut.isPending || !!dateErr || dateVal.isLoading}
+          disabled={createMut.isPending || !!dateErr || postingDateGuard.isChecking}
           onClick={save}
           style={{ background: meta.color, borderColor: meta.color, minWidth: 140 }}
         >
@@ -627,6 +627,7 @@ function DetailPanel({ id, onClose, onPosted, voucherType }: {
 }) {
   const [voidReason, setVoidReason] = useState('');
   const [showVoid,   setShowVoid]   = useState(false);
+  const [postConfirmOpen, setPostConfirmOpen] = useState(false);
 
   const { data: v, isLoading } = useVoucherDetail(id);
   const postMut = usePostVoucher();
@@ -746,7 +747,7 @@ function DetailPanel({ id, onClose, onPosted, voucherType }: {
             <button className="btn btn-primary btn-sm"
               style={{ background: meta.color, borderColor: meta.color }}
               disabled={postMut.isPending}
-              onClick={() => postMut.mutate({ id: v.id }, { onSuccess: () => onPosted?.() })}
+              onClick={() => setPostConfirmOpen(true)}
             >
               {postMut.isPending
                 ? <><div className="spinner" style={{ width: 12, height: 12, borderWidth: 2, borderTopColor: '#fff', borderColor: 'rgba(255,255,255,0.3)' }} /> Posting…</>
@@ -783,6 +784,26 @@ function DetailPanel({ id, onClose, onPosted, voucherType }: {
           )
         )}
       </div>
+      <ConfirmDialog
+        open={postConfirmOpen}
+        title="Post Voucher?"
+        message={`Post ${v.voucher_number}? Posted vouchers cannot be edited directly.`}
+        confirmLabel="Yes, Post Voucher"
+        cancelLabel="No"
+        variant="warning"
+        loading={postMut.isPending}
+        onConfirm={() => postMut.mutate(
+          { id: v.id },
+          {
+            onSuccess: () => {
+              setPostConfirmOpen(false);
+              onPosted?.();
+            },
+            onError: () => setPostConfirmOpen(false),
+          },
+        )}
+        onCancel={() => setPostConfirmOpen(false)}
+      />
     </div>
   );
 }
@@ -791,12 +812,14 @@ function DetailPanel({ id, onClose, onPosted, voucherType }: {
 /* ══════════════════════════════════════════════════════════════════════════
    VOUCHER LIST — full-width dense table
    ══════════════════════════════════════════════════════════════════════════ */
-function VoucherList({ voucherType, selectedId, onSelect, onNewClick, detailOpen }: {
+function VoucherList({ voucherType, selectedId, onSelect, onNewClick, detailOpen, newDisabled = false, newDisabledReason }: {
   voucherType: VoucherType;
   selectedId:  string | null;
   onSelect:    (id: string) => void;
   onNewClick:  () => void;
   detailOpen:  boolean;
+  newDisabled?: boolean;
+  newDisabledReason?: string;
 }) {
   const meta = VOUCHER_META[voucherType];
 
@@ -900,6 +923,8 @@ function VoucherList({ voucherType, selectedId, onSelect, onNewClick, detailOpen
 
         <button className="btn btn-primary btn-sm"
           onClick={onNewClick}
+          disabled={newDisabled}
+          title={newDisabledReason}
           style={{ background: meta.color, borderColor: meta.color, paddingLeft: 14, paddingRight: 16, boxShadow: `0 2px 6px ${meta.color}40` }}
         >
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><circle cx="12" cy="12" r="10"/><path d="M12 8v8M8 12h8"/></svg>
@@ -961,9 +986,9 @@ function VoucherList({ voucherType, selectedId, onSelect, onNewClick, detailOpen
                   No {meta.shortLabel} vouchers yet
                 </p>
                 <p style={{ color: 'var(--color-text-muted)', fontSize: '0.8rem', marginBottom: 16 }}>
-                  Click <strong>New {meta.shortLabel}</strong> to create your first entry.
+                  {newDisabled ? newDisabledReason : <>Click <strong>New {meta.shortLabel}</strong> to create your first entry.</>}
                 </p>
-                <button className="btn btn-primary btn-sm" onClick={onNewClick}
+                <button className="btn btn-primary btn-sm" onClick={onNewClick} disabled={newDisabled} title={newDisabledReason}
                   style={{ background: meta.color, borderColor: meta.color }}
                 >
                   + New {meta.shortLabel}
@@ -1037,8 +1062,15 @@ function VoucherList({ voucherType, selectedId, onSelect, onNewClick, detailOpen
 export default function VoucherEntryPage({ voucherType }: { voucherType: VoucherType }) {
   const [mode,       setMode]       = useState<PageMode>('list');
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const createDateGuard = usePostingDateGuard(today(), 'Voucher Date');
+  const newDisabledReason = createDateGuard.isChecking ? 'Fiscal period is being checked.' : createDateGuard.statusMessage;
+  const newDisabled = createDateGuard.disabled;
 
-  function openCreate()         { setSelectedId(null); setMode('create'); }
+  function openCreate() {
+    if (newDisabled) return;
+    setSelectedId(null);
+    setMode('create');
+  }
   function openDetail(id: string) { setSelectedId(id); setMode('detail'); }
   function backToList()         { setMode('list'); }
   function handleSaved(id: string) { setSelectedId(id); setMode('detail'); }
@@ -1073,6 +1105,8 @@ export default function VoucherEntryPage({ voucherType }: { voucherType: Voucher
               onSelect={openDetail}
               onNewClick={openCreate}
               detailOpen={mode === 'detail'}
+              newDisabled={newDisabled}
+              newDisabledReason={newDisabledReason}
             />
           </div>
 

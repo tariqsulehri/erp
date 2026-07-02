@@ -46,6 +46,8 @@ interface TransactionAnalyticsViewProps {
   onNew: () => void;
   onPostedList: () => void;
   onRefresh: () => void;
+  newDisabled?: boolean;
+  newDisabledReason?: string;
 }
 
 export function TransactionAnalyticsView({
@@ -60,6 +62,8 @@ export function TransactionAnalyticsView({
   onNew,
   onPostedList,
   onRefresh,
+  newDisabled = false,
+  newDisabledReason,
 }: TransactionAnalyticsViewProps) {
   const model = useMemo(() => buildAnalyticsModel(rows, settings), [rows, settings]);
   const chartEmpty = !loading && rows.length === 0;
@@ -76,7 +80,7 @@ export function TransactionAnalyticsView({
             </div>
           </div>
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-            <button type="button" className="btn-secondary" style={smallButtonStyle} onClick={onNew}><IconFilePlus size={14} /> New</button>
+            <button type="button" className="btn-secondary" style={smallButtonStyle} disabled={newDisabled} title={newDisabledReason} onClick={onNew}><IconFilePlus size={14} /> New</button>
             <button type="button" className="btn-secondary" style={smallButtonStyle} onClick={onPostedList}><IconListSearch size={14} /> {postedListLabel}</button>
             <button type="button" className="btn-secondary" style={smallButtonStyle} onClick={onRefresh}><IconRefresh size={14} /> Refresh</button>
           </div>

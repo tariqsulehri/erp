@@ -3,13 +3,12 @@
 import { useEffect, useMemo, useState } from 'react';
 import { formatMoney } from '@/lib/app-settings';
 import { useGeneralSettings } from '@/lib/api/settings';
-import { useValidatePostingDate } from '@/lib/api/fiscal-years';
+import { usePostingDateGuard } from '@/lib/api/fiscal-years';
 import { useCreateAndPostPurchase, useCreatePurchaseDraft, useInvalidatePurchaseQueries, usePurchaseSupportData } from '@/lib/api/purchases';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import {
   addDays,
   friendlyErrorMessage,
-  isValidDateInput,
 } from '@/lib/erp-utils';
 import { PostedPurchasesView } from './PostedPurchasesView';
 import { PurchaseAnalyticsView } from './PurchaseAnalyticsView';
@@ -53,8 +52,9 @@ export default function PurchaseVoucherPage() {
   const [processConfirmOpen, setProcessConfirmOpen] = useState(false);
 
   const saving = createDraft.isPending || createAndPost.isPending;
-  const isPurchaseDateValid = isValidDateInput(purchaseDate);
-  const dateValidation = useValidatePostingDate(isPurchaseDateValid ? purchaseDate : today(), isPurchaseDateValid);
+  const postingDateGuard = usePostingDateGuard(purchaseDate, 'Purchase Date');
+  const dateValidation = postingDateGuard.dateValidation;
+  const isPurchaseDateValid = postingDateGuard.dateIsValid;
   const money = useMemo(() => (value: number) => formatMoney(value, generalSettings), [generalSettings]);
 
   const { suppliers, items, warehouses, locations } = usePurchaseSupportOptions(supportQuery.data);
@@ -83,13 +83,9 @@ export default function PurchaseVoucherPage() {
   const totals = usePurchaseTotals(lines, freightAmount, paymentType);
   const generatedVoucherDetails = buildPurchaseDetails(selectedSupplier, supplierInvoiceNumber, lines.length);
 
-  const dateStatusMessage = !purchaseDate
-    ? ''
-    : !isPurchaseDateValid
-      ? 'Purchase Date is not a valid date.'
-      : dateValidation.data && !dateValidation.data.canPost
-        ? `Purchase Date: ${dateValidation.data.reason}`
-      : '';
+  const dateStatusMessage = postingDateGuard.isChecking ? 'Checking Purchase Date...' : postingDateGuard.statusMessage;
+  const newDisabled = postingDateGuard.disabled;
+  const newDisabledReason = dateStatusMessage || 'Purchase Date is being checked.';
 
   useEffect(() => {
     if (!warehouseId && warehouses.length > 0) {
@@ -140,7 +136,7 @@ export default function PurchaseVoucherPage() {
     return validatePurchaseVoucher({
       purchaseDate,
       isPurchaseDateValid,
-      postingDateError: dateValidation.data && !dateValidation.data.canPost ? `Purchase Date: ${dateValidation.data.reason}` : undefined,
+      postingDateError: postingDateGuard.isBlocked ? dateStatusMessage : undefined,
       supplierId,
       selectedSupplier,
       warehouseId,
@@ -232,7 +228,13 @@ export default function PurchaseVoucherPage() {
     setProcessConfirmOpen(true);
   }
 
-  const actionDisabled = saving || supportQuery.isLoading || supportQuery.isError;
+  function openNewPurchase() {
+    if (newDisabled) return;
+    resetForm();
+    setViewMode('entry');
+  }
+
+  const actionDisabled = saving || supportQuery.isLoading || supportQuery.isError || postingDateGuard.disabled;
 
   if (viewMode === 'posted') {
     return (
@@ -241,11 +243,10 @@ export default function PurchaseVoucherPage() {
         warehouses={warehouses}
         money={money}
         generalSettings={generalSettings}
-        onNewPurchase={() => {
-          resetForm();
-          setViewMode('entry');
-        }}
+        onNewPurchase={openNewPurchase}
         onAnalytics={() => setViewMode('analytics')}
+        newDisabled={newDisabled}
+        newDisabledReason={newDisabledReason}
       />
     );
   }
@@ -257,11 +258,10 @@ export default function PurchaseVoucherPage() {
         warehouses={warehouses}
         money={money}
         generalSettings={generalSettings}
-        onNewPurchase={() => {
-          resetForm();
-          setViewMode('entry');
-        }}
+        onNewPurchase={openNewPurchase}
         onPostedPurchases={() => setViewMode('posted')}
+        newDisabled={newDisabled}
+        newDisabledReason={newDisabledReason}
       />
     );
   }
@@ -271,6 +271,8 @@ export default function PurchaseVoucherPage() {
       <PurchaseToolbar
         actionDisabled={actionDisabled}
         saving={saving}
+        newDisabled={newDisabled}
+        newDisabledReason={newDisabledReason}
         onNew={() => resetForm()}
         onPostedPurchases={() => setViewMode('posted')}
         onAnalytics={() => setViewMode('analytics')}

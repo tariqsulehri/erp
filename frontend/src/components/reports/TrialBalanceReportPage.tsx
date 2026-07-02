@@ -162,6 +162,11 @@ export function TrialBalanceReportPage({ embedded = false }: TrialBalanceReportP
     setMessage('');
   }
 
+  function updateZeroBalanceFilter(checked: boolean) {
+    setIncludeZeroBalances(checked);
+    setMessage('');
+  }
+
   const report = reportQuery.data;
   const totals = report?.totals;
   const errorMessage = message || friendlyErrorMessage(reportQuery.error, '');
@@ -190,7 +195,7 @@ export function TrialBalanceReportPage({ embedded = false }: TrialBalanceReportP
               <input
                 type="checkbox"
                 checked={includeZeroBalances}
-                onChange={event => updateFilter(() => setIncludeZeroBalances(event.currentTarget.checked))}
+                onChange={event => updateZeroBalanceFilter(event.currentTarget.checked)}
               />
               Show Zero Balances
             </label>
