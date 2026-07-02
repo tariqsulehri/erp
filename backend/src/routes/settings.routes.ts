@@ -3,11 +3,14 @@ import { z } from 'zod';
 import { resolveCompanyId } from '../http/company-context.js';
 import { CompanyProfileService } from '../modules/settings/company-profile.service.js';
 import { GeneralSettingsService } from '../modules/settings/general-settings.service.js';
+import { PostingAccountSettingsService } from '../modules/settings/posting-account-settings.service.js';
 
 export const settingsRouter = Router();
 
 const companyProfileService = new CompanyProfileService();
 const generalSettingsService = new GeneralSettingsService();
+
+const optionalAccountIdSchema = z.string().uuid().nullable();
 
 const updateCompanyProfileSchema = z.object({
   name: z.string().trim().min(1).max(100).optional(),
@@ -40,6 +43,30 @@ const updateGeneralSettingsSchema = z.object({
   value => value.thousand_separator == null || value.decimal_separator == null || value.thousand_separator !== value.decimal_separator,
   { message: 'Thousand Separator and Decimal Separator cannot be the same.' },
 );
+
+const updatePostingAccountSettingsSchema = z.object({
+  purchase: z.object({
+    default_cash_account_id: z.string().uuid().optional(),
+    default_inventory_account_id: z.string().uuid().optional(),
+    purchase_tax_account_id: optionalAccountIdSchema.optional(),
+    freight_account_id: optionalAccountIdSchema.optional(),
+    purchase_discount_account_id: optionalAccountIdSchema.optional(),
+  }).optional(),
+  sale: z.object({
+    default_cash_account_id: z.string().uuid().optional(),
+    default_inventory_account_id: z.string().uuid().optional(),
+    sales_revenue_account_id: z.string().uuid().optional(),
+    sales_tax_account_id: optionalAccountIdSchema.optional(),
+    sales_discount_account_id: optionalAccountIdSchema.optional(),
+    freight_income_account_id: optionalAccountIdSchema.optional(),
+    cost_of_goods_sold_account_id: z.string().uuid().optional(),
+  }).optional(),
+  stock_adjustment: z.object({
+    default_inventory_account_id: z.string().uuid().optional(),
+    adjustment_gain_account_id: z.string().uuid().optional(),
+    adjustment_loss_account_id: z.string().uuid().optional(),
+  }).optional(),
+});
 
 settingsRouter.get('/company', async (req, res, next) => {
   try {
@@ -78,6 +105,27 @@ settingsRouter.patch('/general', async (req, res, next) => {
     const input = updateGeneralSettingsSchema.parse(req.body);
     const settings = await generalSettingsService.updateForCompany(companyId, input);
     res.json(settings);
+  } catch (error) {
+    next(error);
+  }
+});
+
+settingsRouter.get('/posting-accounts', async (req, res, next) => {
+  try {
+    const companyId = resolveCompanyId(req);
+    const service = new PostingAccountSettingsService(companyId);
+    res.json(await service.get());
+  } catch (error) {
+    next(error);
+  }
+});
+
+settingsRouter.patch('/posting-accounts', async (req, res, next) => {
+  try {
+    const companyId = resolveCompanyId(req);
+    const input = updatePostingAccountSettingsSchema.parse(req.body);
+    const service = new PostingAccountSettingsService(companyId);
+    res.json(await service.update(input));
   } catch (error) {
     next(error);
   }

@@ -6,6 +6,7 @@ import { useRouter, usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { ThemeSwitcher } from '@/components/ui/ThemeSwitcher';
+import { useDefaultPostingDate } from '@/lib/api/fiscal-years';
 import {
   IconAdjustmentsHorizontal,
   IconBuildingBank,
@@ -15,6 +16,7 @@ import {
   IconCalendarStats,
   IconCategory2,
   IconChevronDown,
+  IconClipboardCheck,
   IconCube,
   IconDashboard,
   IconFileAnalytics,
@@ -45,16 +47,19 @@ type SidebarChild =
       moduleKey: string;
       featureKey: string;
       permissionKey: string;
+      requiresPosting?: boolean;
     };
+
+type SidebarMenuKey = 'vouchers' | 'inventory' | 'ar' | 'ap' | 'config';
 
 /* ── Voucher sub-menu items ──────────────────────────────────────────────── */
 const VOUCHER_ITEMS = [
-  { label: 'Posted Vouchers', href: '/vouchers/posted',        icon: IconFileAnalytics, color: '#0f766e', code: 'POST', moduleKey: 'finance', featureKey: 'posted-vouchers', permissionKey: 'finance.vouchers.posted.view' },
-  { label: 'Bank Receipt',  href: '/vouchers/bank-receipt',  icon: IconBuildingBank, color: '#15803d', code: 'BRV', moduleKey: 'finance', featureKey: 'bank-receipt', permissionKey: 'finance.vouchers.bank_receipt.view' },
-  { label: 'Bank Payment',  href: '/vouchers/bank-payment',  icon: IconBuildingBank, color: '#b91c1c', code: 'BPV', moduleKey: 'finance', featureKey: 'bank-payment', permissionKey: 'finance.vouchers.bank_payment.view' },
-  { label: 'Cash Receipt',  href: '/vouchers/cash-receipt',  icon: IconWallet,       color: '#0891b2', code: 'CRV', moduleKey: 'finance', featureKey: 'cash-receipt', permissionKey: 'finance.vouchers.cash_receipt.view' },
-  { label: 'Cash Payment',  href: '/vouchers/cash-payment',  icon: IconWallet,       color: '#d97706', code: 'CPV', moduleKey: 'finance', featureKey: 'cash-payment', permissionKey: 'finance.vouchers.cash_payment.view' },
-  { label: 'Journal Entry', href: '/vouchers/journal',       icon: IconFileInvoice,  color: '#1d4ed8', code: 'JV',  moduleKey: 'finance', featureKey: 'journal-entry', permissionKey: 'finance.vouchers.journal_entry.view' },
+  { label: 'Voucher List', href: '/vouchers/posted',        icon: IconFileAnalytics, color: '#0f766e', code: 'LIST', moduleKey: 'finance', featureKey: 'posted-vouchers', permissionKey: 'finance.vouchers.posted.view' },
+  { label: 'Bank Receipt',  href: '/vouchers/bank-receipt',  icon: IconBuildingBank, color: '#15803d', code: 'BRV', moduleKey: 'finance', featureKey: 'bank-receipt', permissionKey: 'finance.vouchers.bank_receipt.view', requiresPosting: true },
+  { label: 'Bank Payment',  href: '/vouchers/bank-payment',  icon: IconBuildingBank, color: '#b91c1c', code: 'BPV', moduleKey: 'finance', featureKey: 'bank-payment', permissionKey: 'finance.vouchers.bank_payment.view', requiresPosting: true },
+  { label: 'Cash Receipt',  href: '/vouchers/cash-receipt',  icon: IconWallet,       color: '#0891b2', code: 'CRV', moduleKey: 'finance', featureKey: 'cash-receipt', permissionKey: 'finance.vouchers.cash_receipt.view', requiresPosting: true },
+  { label: 'Cash Payment',  href: '/vouchers/cash-payment',  icon: IconWallet,       color: '#d97706', code: 'CPV', moduleKey: 'finance', featureKey: 'cash-payment', permissionKey: 'finance.vouchers.cash_payment.view', requiresPosting: true },
+  { label: 'Journal Entry', href: '/vouchers/journal',       icon: IconFileInvoice,  color: '#1d4ed8', code: 'JV',  moduleKey: 'finance', featureKey: 'journal-entry', permissionKey: 'finance.vouchers.journal_entry.view', requiresPosting: true },
 ] satisfies readonly SidebarChild[];
 
 /* ── Inventory sub-menu items ────────────────────────────────────────────── */
@@ -62,8 +67,8 @@ const INVENTORY_ITEMS = [
   { label: 'Master Data', section: true },
   { label: 'Products',          href: '/inventory/products',   icon: IconPackage,     color: '#1d4ed8', code: 'PRD', moduleKey: 'inventory', featureKey: 'products', permissionKey: 'inventory.products.view' },
   { label: 'Transactions', section: true },
-  { label: 'Stock Transfer',    href: '/inventory/stock-transfers', icon: IconArrowsExchange, color: '#b45309', code: 'ST', moduleKey: 'inventory', featureKey: 'stock-transfer', permissionKey: 'inventory.stock_transfer.view' },
-  { label: 'Stock Adjustment',  href: '/inventory/stock-adjustments', icon: IconAdjustmentsHorizontal, color: '#a16207', code: 'SA', moduleKey: 'inventory', featureKey: 'stock-adjustment', permissionKey: 'inventory.stock_adjustment.view' },
+  { label: 'Stock Transfer',    href: '/inventory/stock-transfers', icon: IconArrowsExchange, color: '#b45309', code: 'ST', moduleKey: 'inventory', featureKey: 'stock-transfer', permissionKey: 'inventory.stock_transfer.view', requiresPosting: true },
+  { label: 'Stock Adjustment',  href: '/inventory/stock-adjustments', icon: IconAdjustmentsHorizontal, color: '#a16207', code: 'SA', moduleKey: 'inventory', featureKey: 'stock-adjustment', permissionKey: 'inventory.stock_adjustment.view', requiresPosting: true },
 ] satisfies readonly SidebarChild[];
 
 /* ── Config sub-menu items ──────────────────────────────────────────────── */
@@ -85,8 +90,8 @@ const AR_ITEMS = [
   { label: 'Master Data', section: true },
   { label: 'Customers', href: '/ar/customers', icon: IconUsersGroup, color: '#1d4ed8', code: 'CUS', moduleKey: 'receivables', featureKey: 'customers', permissionKey: 'receivables.customers.view' },
   { label: 'Transactions', section: true },
-  { label: 'Sale Voucher', href: '/ar/sales', icon: IconFileInvoice, color: '#0f766e', code: 'SI', moduleKey: 'receivables', featureKey: 'sale-voucher', permissionKey: 'receivables.sale_voucher.view' },
-  { label: 'Sale Return', href: '/ar/sale-returns', icon: IconFileInvoice, color: '#b45309', code: 'SR', moduleKey: 'receivables', featureKey: 'sale-return', permissionKey: 'receivables.sale_return.view' },
+  { label: 'Sale Voucher', href: '/ar/sales', icon: IconFileInvoice, color: '#0f766e', code: 'SI', moduleKey: 'receivables', featureKey: 'sale-voucher', permissionKey: 'receivables.sale_voucher.view', requiresPosting: true },
+  { label: 'Sale Return', href: '/ar/sale-returns', icon: IconFileInvoice, color: '#b45309', code: 'SR', moduleKey: 'receivables', featureKey: 'sale-return', permissionKey: 'receivables.sale_return.view', requiresPosting: true },
 ] satisfies readonly SidebarChild[];
 
 /* ── AP sub-menu items ───────────────────────────────────────────────────── */
@@ -94,8 +99,8 @@ const AP_ITEMS = [
   { label: 'Master Data', section: true },
   { label: 'Suppliers', href: '/ap/suppliers', icon: IconTruckDelivery, color: '#0891b2', code: 'SUP', moduleKey: 'payables', featureKey: 'suppliers', permissionKey: 'payables.suppliers.view' },
   { label: 'Transactions', section: true },
-  { label: 'Purchase Voucher', href: '/ap/purchases', icon: IconFileInvoice, color: '#1d4ed8', code: 'PI', moduleKey: 'payables', featureKey: 'purchase-voucher', permissionKey: 'payables.purchase_voucher.view' },
-  { label: 'Purchase Return', href: '/ap/purchase-returns', icon: IconFileInvoice, color: '#b45309', code: 'PR', moduleKey: 'payables', featureKey: 'purchase-return', permissionKey: 'payables.purchase_return.view' },
+  { label: 'Purchase Voucher', href: '/ap/purchases', icon: IconFileInvoice, color: '#1d4ed8', code: 'PI', moduleKey: 'payables', featureKey: 'purchase-voucher', permissionKey: 'payables.purchase_voucher.view', requiresPosting: true },
+  { label: 'Purchase Return', href: '/ap/purchase-returns', icon: IconFileInvoice, color: '#b45309', code: 'PR', moduleKey: 'payables', featureKey: 'purchase-return', permissionKey: 'payables.purchase_return.view', requiresPosting: true },
 ] satisfies readonly SidebarChild[];
 
 /* ── NAV definition ──────────────────────────────────────────────────────── */
@@ -104,16 +109,15 @@ const NAV = [
   { label: 'Dashboard',          href: '/dashboard',   icon: IconDashboard },
   { label: 'Finance',            section: true },
   { label: 'Vouchers',           href: '/vouchers',    icon: IconReceipt,  hasChildren: true, childKey: 'vouchers' },
+  { label: 'Approvals',          href: '/approvals',   icon: IconClipboardCheck },
   { label: 'Bank',               href: '/bank',        icon: IconBuildingBank },
-  { label: 'Inventory',          section: true },
+  { label: 'Operations',         section: true },
   { label: 'Inventory',          href: '/inventory',   icon: IconCube, hasChildren: true, childKey: 'inventory' },
-  { label: 'Receivables (AR)',   section: true },
   { label: 'Receivables',        href: '/ar',          icon: IconUsersGroup, hasChildren: true, childKey: 'ar' },
-  { label: 'Payables (AP)',      section: true },
   { label: 'Payables',           href: '/ap',          icon: IconTruckDelivery, hasChildren: true, childKey: 'ap' },
-  { label: 'Reports',            section: true },
+  { label: 'Insights',           section: true },
   { label: 'Reports',            href: '/reports',     icon: IconFileAnalytics },
-  { label: 'Configuration',      section: true },
+  { label: 'Administration',     section: true },
   { label: 'Config',             href: '/config',      icon: IconAdjustmentsHorizontal, hasChildren: true, childKey: 'config' },
 ];
 
@@ -133,12 +137,40 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
   const [arOpen,        setArOpen]        = useState(isARRoute);
   const [apOpen,        setApOpen]        = useState(isAPRoute);
   const [configOpen,    setConfigOpen]    = useState(isConfigRoute);
+  const postingAvailability = useDefaultPostingDate('Posting Date', status === 'authenticated');
+  const postingNavigationDisabled = status === 'authenticated' && postingAvailability.disabled;
+  const postingNavigationReason = postingAvailability.statusMessage || 'Posting is not available.';
 
   useEffect(() => { if (isVoucherRoute)   setVouchersOpen(true);  }, [isVoucherRoute]);
   useEffect(() => { if (isInventoryRoute) setInventoryOpen(true); }, [isInventoryRoute]);
   useEffect(() => { if (isARRoute)        setArOpen(true);        }, [isARRoute]);
   useEffect(() => { if (isAPRoute)        setApOpen(true);        }, [isAPRoute]);
   useEffect(() => { if (isConfigRoute)    setConfigOpen(true);    }, [isConfigRoute]);
+
+  function toggleChildMenu(childKey: SidebarMenuKey) {
+    const isOpen =
+      childKey === 'vouchers' ? vouchersOpen
+      : childKey === 'inventory' ? inventoryOpen
+      : childKey === 'ar' ? arOpen
+      : childKey === 'ap' ? apOpen
+      : configOpen;
+    const shouldOpen = !isOpen;
+
+    if (shouldOpen) {
+      setVouchersOpen(childKey === 'vouchers');
+      setInventoryOpen(childKey === 'inventory');
+      setArOpen(childKey === 'ar');
+      setApOpen(childKey === 'ap');
+      setConfigOpen(childKey === 'config');
+      return;
+    }
+
+    if (childKey === 'vouchers') setVouchersOpen(false);
+    if (childKey === 'inventory') setInventoryOpen(false);
+    if (childKey === 'ar') setArOpen(false);
+    if (childKey === 'ap') setApOpen(false);
+    if (childKey === 'config') setConfigOpen(false);
+  }
 
   useEffect(() => {
     if (status === 'unauthenticated') router.push('/login');
@@ -198,7 +230,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
 
             /* Collapsible sub-menu parents (Vouchers, Inventory, AR, AP, Config) */
             if (item.hasChildren) {
-              const childKey    = item.childKey!;
+              const childKey    = item.childKey! as SidebarMenuKey;
               const isVouchers  = childKey === 'vouchers';
               const isInventory = childKey === 'inventory';
               const isAR        = childKey === 'ar';
@@ -214,13 +246,8 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
                                 : isAR        ? arOpen
                                 : isAP        ? apOpen
                                 :               configOpen;
-              const toggleOpen  = isVouchers  ? () => setVouchersOpen(o => !o)
-                                : isInventory ? () => setInventoryOpen(o => !o)
-                                : isAR        ? () => setArOpen(o => !o)
-                                : isAP        ? () => setApOpen(o => !o)
-                                :               () => setConfigOpen(o => !o);
               const isParentActive = isVouchers  ? pathname.startsWith('/vouchers')
-                                   : isInventory ? pathname.startsWith('/inventory')
+                                   : isInventory ? isInventoryRoute
                                    : isAR        ? pathname.startsWith('/ar')
                                    : isAP        ? pathname.startsWith('/ap')
                                    :               isConfigRoute;
@@ -230,48 +257,62 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
                   {/* Parent row */}
                   <button
                     className={`nav-item${isParentActive ? ' active' : ''}`}
-                    style={{ width: '100%', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left' }}
-                    onClick={toggleOpen}
+                    onClick={() => toggleChildMenu(childKey)}
                   >
                     <span className="nav-item-icon">
                       <item.icon {...iconProps} />
                     </span>
-                    <span style={{ flex: 1 }}>{item.label}</span>
-                    <span style={{
-                      transition: 'transform 0.2s',
-                      transform: isOpen ? 'rotate(0deg)' : 'rotate(-90deg)',
-                      opacity: 0.6, display: 'flex',
-                    }}>
+                    <span className="nav-item-label">{item.label}</span>
+                    <span className={`nav-chevron${isOpen ? ' open' : ''}`}>
                       <IconChevronDown size={13} stroke={2} />
                     </span>
                   </button>
 
                   {/* Sub-menu */}
                   {isOpen && (
-                    <div style={{
-                      marginLeft: 14,
-                      borderLeft: '2px solid var(--color-border)',
-                      paddingLeft: 2,
-                    }}>
+                    <div className="nav-sub-list">
                       {(subItems as readonly SidebarChild[]).map(sub => {
                         if ('section' in sub) {
                           return (
                             <div
                               key={sub.label}
-                              style={{
-                                padding: '7px 10px 3px',
-                                color: 'var(--color-text-light)',
-                                fontSize: '0.62rem',
-                                fontWeight: 900,
-                                letterSpacing: 0,
-                              }}
+                              className="nav-sub-section-label"
                             >
                               {sub.label}
                             </div>
                           );
                         }
                         const subActive = pathname.startsWith(sub.href);
+                        const disabled = Boolean(sub.requiresPosting && postingNavigationDisabled);
                         const SubIcon = sub.icon;
+                        const subContent = (
+                          <>
+                            <span className="nav-item-icon">
+                              <SubIcon {...smallIconProps} />
+                            </span>
+                            <span className="nav-item-label">{sub.label}</span>
+                            <span className="nav-item-code">
+                              {sub.code}
+                            </span>
+                          </>
+                        );
+                        if (disabled) {
+                          return (
+                            <button
+                              key={sub.href}
+                              type="button"
+                              className={`nav-item nav-sub-item nav-disabled${subActive ? ' active' : ''}`}
+                              data-module={sub.moduleKey}
+                              data-feature={sub.featureKey}
+                              data-permission={sub.permissionKey}
+                              disabled
+                              aria-disabled="true"
+                              title={postingNavigationReason}
+                            >
+                              {subContent}
+                            </button>
+                          );
+                        }
                         return (
                           <Link
                             key={sub.href}
@@ -280,24 +321,8 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
                             data-module={sub.moduleKey}
                             data-feature={sub.featureKey}
                             data-permission={sub.permissionKey}
-                            style={{
-                              paddingLeft: 10,
-                              fontSize: '0.8rem',
-                              ...(subActive ? { color: sub.color } : {}),
-                            }}
                           >
-                            <span className="nav-item-icon" style={{ color: subActive ? sub.color : undefined }}>
-                              <SubIcon {...smallIconProps} />
-                            </span>
-                            <span style={{ flex: 1 }}>{sub.label}</span>
-                            <span style={{
-                              fontFamily: 'monospace', fontWeight: 800,
-                              fontSize: '0.6rem', opacity: 0.65,
-                              color: subActive ? sub.color : 'var(--color-text-light)',
-                              marginLeft: 2,
-                            }}>
-                              {sub.code}
-                            </span>
+                            {subContent}
                           </Link>
                         );
                       })}

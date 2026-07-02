@@ -1,7 +1,12 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { resolveCompanyId } from '../http/company-context.js';
-import { createVoucherInputSchema, listVouchersQuerySchema } from '../modules/vouchers/voucher.schema.js';
+import {
+  createVoucherInputSchema,
+  listVouchersQuerySchema,
+  voucherApprovalActionSchema,
+  voucherRejectActionSchema,
+} from '../modules/vouchers/voucher.schema.js';
 import { VoucherService } from '../modules/vouchers/voucher.service.js';
 
 export const vouchersRouter = Router();
@@ -33,6 +38,18 @@ vouchersRouter.post('/', async (req, res, next) => {
   }
 });
 
+vouchersRouter.patch('/:id', async (req, res, next) => {
+  try {
+    const companyId = resolveCompanyId(req);
+    const id = z.string().uuid().parse(req.params.id);
+    const input = createVoucherInputSchema.parse(req.body);
+    const service = new VoucherService(companyId);
+    res.json(await service.update(id, input, resolveUserId(req)));
+  } catch (error) {
+    next(error);
+  }
+});
+
 vouchersRouter.get('/:id', async (req, res, next) => {
   try {
     const companyId = resolveCompanyId(req);
@@ -50,6 +67,42 @@ vouchersRouter.post('/:id/post', async (req, res, next) => {
     const id = z.string().uuid().parse(req.params.id);
     const service = new VoucherService(companyId);
     res.json(await service.post(id, resolveUserId(req)));
+  } catch (error) {
+    next(error);
+  }
+});
+
+vouchersRouter.post('/:id/request-approval', async (req, res, next) => {
+  try {
+    const companyId = resolveCompanyId(req);
+    const id = z.string().uuid().parse(req.params.id);
+    const input = voucherApprovalActionSchema.parse(req.body ?? {});
+    const service = new VoucherService(companyId);
+    res.json(await service.requestApproval(id, input, resolveUserId(req)));
+  } catch (error) {
+    next(error);
+  }
+});
+
+vouchersRouter.post('/:id/approve', async (req, res, next) => {
+  try {
+    const companyId = resolveCompanyId(req);
+    const id = z.string().uuid().parse(req.params.id);
+    const input = voucherApprovalActionSchema.parse(req.body ?? {});
+    const service = new VoucherService(companyId);
+    res.json(await service.approve(id, input, resolveUserId(req)));
+  } catch (error) {
+    next(error);
+  }
+});
+
+vouchersRouter.post('/:id/reject', async (req, res, next) => {
+  try {
+    const companyId = resolveCompanyId(req);
+    const id = z.string().uuid().parse(req.params.id);
+    const input = voucherRejectActionSchema.parse(req.body ?? {});
+    const service = new VoucherService(companyId);
+    res.json(await service.reject(id, input, resolveUserId(req)));
   } catch (error) {
     next(error);
   }

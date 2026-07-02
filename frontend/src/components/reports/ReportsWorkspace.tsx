@@ -7,6 +7,7 @@ import {
   IconPackage,
   IconRefresh,
   IconReportMoney,
+  IconScale,
   IconShoppingCart,
   IconTruckDelivery,
 } from '@tabler/icons-react';
@@ -21,6 +22,7 @@ import { DateField, NumericField, TextField } from '@/components/ui/FormFields';
 import { PaginationBar as SharedPaginationBar } from '@/components/ui/PaginationBar';
 import { SearchableSelect, type SelectOption } from '@/components/ui/SearchableSelect';
 import { LedgerReportPage } from './LedgerReportPage';
+import { BalanceSheetReportPage } from './BalanceSheetReportPage';
 import { ProfitAndLossReportPage } from './ProfitAndLossReportPage';
 import { TrialBalanceReportPage } from './TrialBalanceReportPage';
 import { compactButtonStyle, reportToolbarStyle, reportTitleIconStyle } from './LedgerReportStyles';
@@ -35,6 +37,7 @@ type ReportKey =
   | 'stock-summary'
   | 'ledger'
   | 'trial-balance'
+  | 'balance-sheet'
   | 'profit-and-loss';
 
 interface ReportDefinition {
@@ -111,6 +114,7 @@ const reportGroups: ReportGroup[] = [
     reports: [
       { key: 'ledger', title: 'Ledger Report', Icon: IconReportMoney },
       { key: 'trial-balance', title: 'Trial Balance', Icon: IconFileAnalytics },
+      { key: 'balance-sheet', title: 'Balance Sheet', Icon: IconScale },
       { key: 'profit-and-loss', title: 'Profit And Loss', Icon: IconChartInfographic },
     ],
   },
@@ -210,6 +214,7 @@ function renderReport(reportKey: ReportKey) {
   if (reportKey === 'sale-return-summary') return <SaleReturnSummaryReport />;
   if (reportKey === 'stock-summary') return <StockSummaryReport />;
   if (reportKey === 'trial-balance') return <TrialBalanceReportPage embedded />;
+  if (reportKey === 'balance-sheet') return <BalanceSheetReportPage embedded />;
   if (reportKey === 'profit-and-loss') return <ProfitAndLossReportPage embedded />;
   return <LedgerReportPage embedded />;
 }

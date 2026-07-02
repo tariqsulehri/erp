@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { formatMoney } from '@/lib/app-settings';
 import { useGeneralSettings } from '@/lib/api/settings';
-import { useValidatePostingDate } from '@/lib/api/fiscal-years';
+import { usePostingDateGuard } from '@/lib/api/fiscal-years';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import {
   useCreateAndPostSaleReturn,
@@ -11,7 +11,7 @@ import {
   useInvalidateSaleReturnQueries,
   useSaleReturnSupportData,
 } from '@/lib/api/sale-returns';
-import { friendlyErrorMessage, isValidDateInput } from '@/lib/erp-utils';
+import { friendlyErrorMessage } from '@/lib/erp-utils';
 import { buildSaleReturnDetails, buildSaleReturnPayload, validateSaleReturnVoucher } from './SaleReturnBusiness';
 import { PostedSaleReturnsView } from './PostedSaleReturnsView';
 import { SaleReturnAnalyticsView } from './SaleReturnAnalyticsView';
@@ -50,8 +50,8 @@ export default function SaleReturnPage() {
   const [processConfirmOpen, setProcessConfirmOpen] = useState(false);
 
   const saving = createDraft.isPending || createAndPost.isPending;
-  const isSaleReturnDateValid = isValidDateInput(saleReturnDate);
-  const dateValidation = useValidatePostingDate(isSaleReturnDateValid ? saleReturnDate : today(), isSaleReturnDateValid);
+  const postingDateGuard = usePostingDateGuard(saleReturnDate, 'Sale Return Date');
+  const isSaleReturnDateValid = postingDateGuard.dateIsValid;
   const money = useMemo(() => (value: number) => formatMoney(value, generalSettings), [generalSettings]);
   const { customers, items, warehouses, locations } = useSaleSupportOptions(supportQuery.data);
   const selectedCustomer = customers.find(customer => customer.value === customerId);
@@ -80,13 +80,9 @@ export default function SaleReturnPage() {
 
   const totals = usePurchaseTotals(lines, freightAmount, paymentType);
   const generatedVoucherDetails = buildSaleReturnDetails(selectedCustomer, customerReturnNumber, lines.length);
-  const dateStatusMessage = !saleReturnDate
-    ? ''
-    : !isSaleReturnDateValid
-      ? 'Sale Return Date is not a valid date.'
-      : dateValidation.data && !dateValidation.data.canPost
-        ? `Sale Return Date: ${dateValidation.data.reason}`
-        : '';
+  const dateStatusMessage = postingDateGuard.isChecking ? 'Checking Sale Return Date...' : postingDateGuard.statusMessage;
+  const newDisabled = postingDateGuard.disabled;
+  const newDisabledReason = dateStatusMessage || 'Sale Return Date is being checked.';
 
   useEffect(() => {
     if (!warehouseId && warehouses.length > 0) {
@@ -130,7 +126,7 @@ export default function SaleReturnPage() {
     return validateSaleReturnVoucher({
       saleReturnDate,
       isSaleReturnDateValid,
-      postingDateError: dateValidation.data && !dateValidation.data.canPost ? `Sale Return Date: ${dateValidation.data.reason}` : undefined,
+      postingDateError: postingDateGuard.isBlocked ? dateStatusMessage : undefined,
       customerId,
       selectedCustomer,
       warehouseId,
@@ -208,7 +204,13 @@ export default function SaleReturnPage() {
     setProcessConfirmOpen(true);
   }
 
-  const actionDisabled = saving || supportQuery.isLoading || supportQuery.isError;
+  function openNewReturn() {
+    if (newDisabled) return;
+    resetForm();
+    setViewMode('entry');
+  }
+
+  const actionDisabled = saving || supportQuery.isLoading || supportQuery.isError || postingDateGuard.disabled;
 
   if (viewMode === 'posted') {
     return (
@@ -217,11 +219,10 @@ export default function SaleReturnPage() {
         warehouses={warehouses}
         money={money}
         generalSettings={generalSettings}
-        onNewReturn={() => {
-          resetForm();
-          setViewMode('entry');
-        }}
+        onNewReturn={openNewReturn}
         onAnalytics={() => setViewMode('analytics')}
+        newDisabled={newDisabled}
+        newDisabledReason={newDisabledReason}
       />
     );
   }
@@ -230,11 +231,10 @@ export default function SaleReturnPage() {
     return (
       <SaleReturnAnalyticsView
         settings={generalSettings}
-        onNewReturn={() => {
-          resetForm();
-          setViewMode('entry');
-        }}
+        onNewReturn={openNewReturn}
         onPostedReturns={() => setViewMode('posted')}
+        newDisabled={newDisabled}
+        newDisabledReason={newDisabledReason}
       />
     );
   }
@@ -249,6 +249,8 @@ export default function SaleReturnPage() {
         showAnalytics
         actionDisabled={actionDisabled}
         saving={saving}
+        newDisabled={newDisabled}
+        newDisabledReason={newDisabledReason}
         onNew={() => resetForm()}
         onPostedPurchases={() => setViewMode('posted')}
         onAnalytics={() => setViewMode('analytics')}

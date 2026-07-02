@@ -24,8 +24,8 @@ import {
   useStockAdjustmentsList,
   useStockAdjustmentSupportData,
 } from '@/lib/api/stock-adjustments';
-import { useValidatePostingDate } from '@/lib/api/fiscal-years';
-import { friendlyErrorMessage, isValidDateInput, numericValue } from '@/lib/erp-utils';
+import { usePostingDateGuard } from '@/lib/api/fiscal-years';
+import { friendlyErrorMessage, numericValue } from '@/lib/erp-utils';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { FieldLabel } from '@/components/ui/FieldLabel';
 import { DateField, NumericField, TextField, numericFieldStyle } from '@/components/ui/FormFields';
@@ -74,9 +74,12 @@ export default function StockAdjustmentPage() {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [selectedAdjustmentId, setSelectedAdjustmentId] = useState<string | null>(null);
 
-  const isDateValid = isValidDateInput(adjustmentDate);
-  const dateValidation = useValidatePostingDate(isDateValid ? adjustmentDate : today(), isDateValid);
+  const postingDateGuard = usePostingDateGuard(adjustmentDate, 'Adjustment Date');
+  const newAdjustmentGuard = usePostingDateGuard(today(), 'Adjustment Date');
   const saving = createDraft.isPending || createAndPost.isPending;
+  const actionDisabled = saving || postingDateGuard.disabled;
+  const dateStatusMessage = postingDateGuard.isChecking ? 'Checking Adjustment Date...' : postingDateGuard.statusMessage;
+  const newAdjustmentDisabledReason = newAdjustmentGuard.isChecking ? 'Checking Adjustment Date...' : newAdjustmentGuard.statusMessage;
   const listQuery = useStockAdjustmentsList({ page: 1, limit: 50, status: 'Posted' });
   const detailQuery = useStockAdjustmentDetail(selectedAdjustmentId);
 
@@ -144,9 +147,17 @@ export default function StockAdjustmentPage() {
     setMessage(null);
   }
 
+  function openNewAdjustment() {
+    if (newAdjustmentGuard.disabled) {
+      setMessage({ kind: 'error', text: newAdjustmentDisabledReason || 'Adjustment Date cannot be used for posting.' });
+      return;
+    }
+    resetForm();
+    setViewMode('entry');
+  }
+
   function validateForm() {
-    if (!isDateValid) return 'Adjustment Date is not valid.';
-    if (dateValidation.data && !dateValidation.data.canPost) return `Adjustment Date: ${dateValidation.data.reason}`;
+    if (postingDateGuard.disabled) return dateStatusMessage || 'Adjustment Date cannot be used for posting.';
     if (!warehouseId) return 'Warehouse is required.';
     if (selectedWarehouse?.useLocations && !locationId) return 'Location is required because Warehouse uses Locations.';
     if (lines.length === 0) return 'Add at least one adjustment item.';
@@ -267,7 +278,7 @@ export default function StockAdjustmentPage() {
       <main style={pageShellStyle}>
         <Toolbar title="Stock Adjustments" subtitle="Posted inventory increases and decreases">
           <button className="btn-ghost" type="button" onClick={() => listQuery.refetch()}><IconRefresh size={15} /> Refresh</button>
-          <button className="btn-primary" type="button" onClick={() => { resetForm(); setViewMode('entry'); }}><IconFilePlus size={15} /> New Adjustment</button>
+          <button className="btn-primary" type="button" disabled={newAdjustmentGuard.disabled} title={newAdjustmentDisabledReason} onClick={openNewAdjustment}><IconFilePlus size={15} /> New Adjustment</button>
         </Toolbar>
         {message && <MessageBanner message={message} />}
         <section style={workspaceStyle}>
@@ -313,12 +324,12 @@ export default function StockAdjustmentPage() {
     <main style={pageShellStyle}>
       <Toolbar title="New Stock Adjustment" subtitle="Adjust stock quantity with an auditable posted movement">
         <button className="btn-ghost" type="button" onClick={() => setViewMode('list')}>Cancel</button>
-        <button className="btn-ghost" type="button" onClick={() => saveAdjustment(false)} disabled={saving}>Save Draft</button>
+        <button className="btn-ghost" type="button" onClick={() => saveAdjustment(false)} disabled={actionDisabled} title={dateStatusMessage}>Save Draft</button>
         <button className="btn-primary" type="button" onClick={() => {
           const validationMessage = validateForm();
           if (validationMessage) setMessage({ kind: 'error', text: validationMessage });
           else setConfirmOpen(true);
-        }} disabled={saving}><IconCheck size={15} /> Process</button>
+        }} disabled={actionDisabled} title={dateStatusMessage}><IconCheck size={15} /> Process</button>
       </Toolbar>
       {message && <MessageBanner message={message} />}
       <section style={entryCardStyle}>
@@ -336,7 +347,7 @@ export default function StockAdjustmentPage() {
         <div style={{ marginTop: 8 }}>
           <TextField label="Voucher Details" value={description} onChange={setDescription} placeholder="Short details for this adjustment" />
         </div>
-        <div style={dateMessageStyle}>{!adjustmentDate ? '' : !isDateValid ? 'Adjustment Date is not valid.' : dateValidation.data && !dateValidation.data.canPost ? `Adjustment Date: ${dateValidation.data.reason}` : ''}</div>
+        <div style={dateMessageStyle}>{dateStatusMessage}</div>
       </section>
 
       <section style={lineEntryStyle}>

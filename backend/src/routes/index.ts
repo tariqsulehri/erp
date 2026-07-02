@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { accountsRouter } from './accounts.routes.js';
 import { bankAccountsRouter } from './bank-accounts.routes.js';
+import { bankChequesRouter } from './bank-cheques.routes.js';
 import { branchesRouter } from './branches.routes.js';
 import { fiscalYearsRouter } from './fiscal-years.routes.js';
 import { customersRouter } from './customers.routes.js';
@@ -24,6 +25,7 @@ export const apiRouter = Router();
 apiRouter.use('/health', healthRouter);
 apiRouter.use('/accounts', accountsRouter);
 apiRouter.use('/bank-accounts', bankAccountsRouter);
+apiRouter.use('/bank-cheques', bankChequesRouter);
 apiRouter.use('/branches', branchesRouter);
 apiRouter.use('/customers', customersRouter);
 apiRouter.use('/dashboard', dashboardRouter);

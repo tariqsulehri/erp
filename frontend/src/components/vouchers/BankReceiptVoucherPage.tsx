@@ -1,15 +1,17 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import {
   IconBuildingBank,
   IconCalendarDollar,
 } from '@tabler/icons-react';
 import { formatMoney } from '@/lib/app-settings';
 import { useAccountsList } from '@/lib/api/accounts';
-import { useValidatePostingDate } from '@/lib/api/fiscal-years';
+import { useBankAccountsList } from '@/lib/api/bank-accounts';
+import { usePostingDateGuard } from '@/lib/api/fiscal-years';
 import { useGeneralSettings } from '@/lib/api/settings';
-import { useCreateVoucher, usePostVoucher } from '@/lib/api/vouchers';
+import { useCreateVoucher, useUpdateVoucher, useVoucherDetail } from '@/lib/api/vouchers';
 import { FieldLabel, SearchableSelect, SummaryRow, type VoucherSelectOption } from './VoucherControls';
 import {
   BankReceiptVoucherLineTable,
@@ -17,6 +19,8 @@ import {
   type BankReceiptVoucherLine,
 } from './BankReceiptVoucherLineTable';
 import { VoucherActionButtons, VoucherLineSection, VoucherMessageBanner, VoucherPageHeader, VoucherSummaryFooter } from './VoucherLayout';
+import { useDefaultVoucherDate } from './VoucherFiscalDate';
+import { getBankAccountOptions, getVoucherLineAccountOptions } from './VoucherAccountRules';
 import { buildBankReceiptVoucherLines } from './VoucherPayload';
 import { saveVoucherDocument } from './VoucherSaveFlow';
 import { validateBankReceiptVoucher } from './VoucherValidation';
@@ -25,7 +29,6 @@ import {
   compactInputStyle,
   compactNumericInputStyle,
   friendlyErrorMessage,
-  isValidDateInput,
   today,
   type VoucherMessageKind,
 } from './VoucherShared';
@@ -36,12 +39,6 @@ type MessageKind = VoucherMessageKind;
 type ReceiptLine = BankReceiptVoucherLine;
 
 type SelectOption = VoucherSelectOption;
-
-interface AccountOption extends SelectOption {
-  code: string;
-  name: string;
-  openingBalance?: string | number | null;
-}
 
 const depositTypes: SelectOption[] = [
   { value: 'CASH', label: 'Cash Deposit', searchText: 'cash' },
@@ -66,15 +63,22 @@ const blankLine = (id: number): ReceiptLine => ({
 });
 
 export default function BankReceiptVoucherPage() {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const editingVoucherId = searchParams.get('id');
   const { data: generalSettings } = useGeneralSettings();
-  const [depositDate, setDepositDate] = useState(today());
+  const { defaultVoucherDate } = useDefaultVoucherDate();
+  const [depositDate, setDepositDate] = useState(defaultVoucherDate);
   const [referenceNumber, setReferenceNumber] = useState('');
   const [description, setDescription] = useState('');
   const [bankAccountId, setBankAccountId] = useState('');
   const [lines, setLines] = useState<ReceiptLine[]>(initialLines);
   const [nextLineId, setNextLineId] = useState(INITIAL_LINE_COUNT + 1);
   const [message, setMessage] = useState<{ kind: MessageKind; text: string } | null>(null);
-  const isDepositDateValid = isValidDateInput(depositDate);
+  const postingDateGuard = usePostingDateGuard(depositDate, 'Deposit Date');
+  const dateValidation = postingDateGuard.dateValidation;
+  const isDepositDateValid = postingDateGuard.dateIsValid;
 
   const accountsQuery = useAccountsList({
     page: 1,
@@ -82,22 +86,20 @@ export default function BankReceiptVoucherPage() {
     is_active: true,
     is_posting: true,
   });
-  const dateValidation = useValidatePostingDate(depositDate, isDepositDateValid);
+  const bankAccountsQuery = useBankAccountsList({
+    page: 1,
+    limit: 200,
+    is_active: true,
+  });
   const createVoucher = useCreateVoucher();
-  const postVoucher = usePostVoucher();
+  const updateVoucher = useUpdateVoucher();
+  const detailQuery = useVoucherDetail(editingVoucherId ?? undefined);
 
-  const accountOptions = useMemo<AccountOption[]>(() => {
-    return (accountsQuery.data?.data ?? []).map((account: any) => ({
-      value: account.id,
-      label: `${account.code} - ${account.name}`,
-      searchText: `${account.code} ${account.name}`,
-      code: account.code,
-      name: account.name,
-      openingBalance: account.opening_balance,
-    }));
-  }, [accountsQuery.data]);
-
-  const selectedBankAccount = accountOptions.find(option => option.value === bankAccountId);
+  const allAccounts = accountsQuery.data?.data ?? [];
+  const activeBankAccounts = bankAccountsQuery.data?.data ?? [];
+  const bankAccountOptions = useMemo(() => getBankAccountOptions(activeBankAccounts), [activeBankAccounts]);
+  const lineAccountOptions = useMemo(() => getVoucherLineAccountOptions(allAccounts, activeBankAccounts), [allAccounts, activeBankAccounts]);
+  const selectedBankAccount = bankAccountOptions.find(option => option.value === bankAccountId);
   const enteredLines = lines.filter(line =>
     line.receivedFromAccountId ||
     line.description.trim() ||
@@ -115,28 +117,21 @@ export default function BankReceiptVoucherPage() {
   const transferTotal = lines.filter(line => line.depositKind === 'BANK_TRANSFER').reduce((sum, line) => sum + amountValue(line.amount), 0);
   const otherTotal = lines.filter(line => line.depositKind === 'OTHER').reduce((sum, line) => sum + amountValue(line.amount), 0);
   const currentBalance = Number(selectedBankAccount?.openingBalance ?? 0);
-  const balanceAfterDeposit = currentBalance + totalAmount;
   const money = useMemo(() => (value: number) => formatMoney(value, generalSettings), [generalSettings]);
-  const saving = createVoucher.isPending || postVoucher.isPending;
-  const actionDisabled = saving || accountsQuery.isLoading || dateValidation.isFetching;
-  const dateStatusMessage = !depositDate
-    ? ''
-    : !isDepositDateValid
-      ? 'Deposit Date is not a valid date.'
-      : dateValidation.error
-        ? friendlyErrorMessage(dateValidation.error, 'Unable to check Deposit Date.')
-        : dateValidation.data && !dateValidation.data.canPost
-          ? dateValidation.data.reason ?? 'Deposit Date is outside the open fiscal period.'
-          : '';
+  const saving = createVoucher.isPending || updateVoucher.isPending;
+  const accountsLoading = accountsQuery.isLoading || bankAccountsQuery.isLoading;
+  const accountsError = accountsQuery.error || bankAccountsQuery.error;
+  const actionDisabled = saving || accountsLoading || postingDateGuard.disabled || detailQuery.isLoading;
+  const dateStatusMessage = postingDateGuard.isChecking ? 'Checking Deposit Date...' : postingDateGuard.statusMessage;
 
   useEffect(() => {
-    if (accountsQuery.error) {
+    if (accountsError) {
       setMessage({
         kind: 'error',
-        text: friendlyErrorMessage(accountsQuery.error, 'Unable to load accounts. Please refresh and try again.'),
+        text: friendlyErrorMessage(accountsError, 'Unable to load accounts. Please refresh and try again.'),
       });
     }
-  }, [accountsQuery.error]);
+  }, [accountsError]);
 
   useEffect(() => {
     if (dateValidation.error) {
@@ -146,6 +141,53 @@ export default function BankReceiptVoucherPage() {
       });
     }
   }, [dateValidation.error]);
+
+  useEffect(() => {
+    setDepositDate(currentDate => (currentDate === today() ? defaultVoucherDate : currentDate));
+  }, [defaultVoucherDate]);
+
+  useEffect(() => {
+    const voucher = detailQuery.data;
+    if (!voucher || !editingVoucherId) return;
+    if (voucher.voucher_type !== 'BRV') {
+      setMessage({ kind: 'error', text: 'This is not a Bank Receipt Voucher. Please open it from the correct voucher screen.' });
+      return;
+    }
+    if (voucher.status !== 'Draft') {
+      setMessage({ kind: 'error', text: 'Only Draft vouchers can be edited.' });
+      return;
+    }
+    if (voucher.approval_status === 'Pending' || voucher.approval_status === 'Approved') {
+      setMessage({ kind: 'error', text: 'This voucher is in approval workflow and cannot be edited.' });
+      return;
+    }
+
+    const sortedLines = [...(voucher.lines ?? [])].sort((a: any, b: any) => Number(a.line_no) - Number(b.line_no));
+    const bankLine = sortedLines[0];
+    const receiptLines = sortedLines.slice(1).map((line: any, index: number): ReceiptLine => ({
+      id: index + 1,
+      receivedFromAccountId: line.account_id,
+      description: line.narration || '',
+      depositKind: 'CASH',
+      chequeNumber: '',
+      chequeDate: '',
+      chequeBankName: '',
+      clearingDate: '',
+      amount: String(line.cr_amount ?? ''),
+    }));
+    const paddedLines = [...receiptLines];
+    while (paddedLines.length < INITIAL_LINE_COUNT) {
+      paddedLines.push(blankLine(paddedLines.length + 1));
+    }
+
+    setDepositDate(String(voucher.voucher_date ?? '').slice(0, 10));
+    setReferenceNumber(voucher.reference || '');
+    setDescription(voucher.narration || '');
+    setBankAccountId(bankLine?.account_id || '');
+    setLines(paddedLines);
+    setNextLineId(paddedLines.length + 1);
+    setMessage(null);
+  }, [detailQuery.data, editingVoucherId]);
 
   function updateLine(id: number, patch: Partial<ReceiptLine>) {
     setLines(current => current.map(line => (line.id === id ? { ...line, ...patch } : line)));
@@ -161,12 +203,13 @@ export default function BankReceiptVoucherPage() {
   }
 
   function resetForm(clearMessage = true) {
-    setDepositDate(today());
+    setDepositDate(defaultVoucherDate);
     setReferenceNumber('');
     setDescription('');
     setBankAccountId('');
     setLines(initialLines());
     setNextLineId(INITIAL_LINE_COUNT + 1);
+    if (editingVoucherId) router.push(pathname);
     if (clearMessage) setMessage(null);
   }
 
@@ -175,6 +218,8 @@ export default function BankReceiptVoucherPage() {
     try {
       const accountsResult = await accountsQuery.refetch();
       if (accountsResult.error) throw accountsResult.error;
+      const bankAccountsResult = await bankAccountsQuery.refetch();
+      if (bankAccountsResult.error) throw bankAccountsResult.error;
       if (isDepositDateValid) {
         const dateResult = await dateValidation.refetch();
         if (dateResult.error) throw dateResult.error;
@@ -204,9 +249,9 @@ export default function BankReceiptVoucherPage() {
       depositDate,
       isDepositDateValid,
       dateValidation,
-      accountsLoading: accountsQuery.isLoading,
-      accountsError: accountsQuery.error,
-      accountOptions,
+      accountsLoading,
+      accountsError,
+      accountOptions: lineAccountOptions,
       bankAccountId,
       selectedBankAccount,
       enteredLines,
@@ -216,7 +261,7 @@ export default function BankReceiptVoucherPage() {
     });
   }
 
-  async function saveVoucher(postAfterSave: boolean) {
+  async function saveVoucher(submitForApproval: boolean) {
     setMessage(null);
     if (saving) {
       setMessage({ kind: 'error', text: 'Voucher is already being saved. Please wait.' });
@@ -235,7 +280,7 @@ export default function BankReceiptVoucherPage() {
     const payloadResult = buildBankReceiptVoucherLines({
       bankAccountId,
       selectedBankAccount,
-      accountOptions,
+      accountOptions: lineAccountOptions,
       depositTypes,
       validLines,
       allLines: lines,
@@ -249,16 +294,18 @@ export default function BankReceiptVoucherPage() {
 
     const result = await saveVoucherDocument({
       createVoucher,
-      postVoucher,
+      updateVoucher,
       invalidateVoucherList: async () => undefined,
+      editingVoucherId,
       createInput: {
         voucher_type: 'BRV',
         voucher_date: depositDate,
         reference: referenceNumber || undefined,
         narration: description || 'Bank Receipt Voucher',
+        submit_for_approval: submitForApproval,
         lines: payloadResult.lines,
       },
-      postAfterSave,
+      submitForApproval,
       resetForm,
       saveErrorFallback: 'Unable to save Bank Receipt Voucher.',
     });
@@ -274,15 +321,19 @@ export default function BankReceiptVoucherPage() {
         badgeBackground="#dcfce7"
         accent="linear-gradient(135deg, #15803d, #0f766e)"
         icon={<IconBuildingBank size={20} stroke={1.8} />}
+        mode={editingVoucherId ? 'Edit' : 'Add'}
         actions={
           <VoucherActionButtons
             saving={saving}
             actionDisabled={actionDisabled}
+            newDisabled={postingDateGuard.disabled}
+            newDisabledReason={dateStatusMessage || 'Deposit Date is being checked.'}
             onNew={() => resetForm()}
             onRefresh={refreshVoucherData}
             onPrint={printVoucher}
             onCancel={() => resetForm()}
             onSaveDraft={() => saveVoucher(false)}
+            processLabel="Save For Approval"
             onProcess={() => saveVoucher(true)}
           />
         }
@@ -291,8 +342,8 @@ export default function BankReceiptVoucherPage() {
       <VoucherMessageBanner message={message} />
 
       <section className="workspace-card" style={{ padding: 10, flex: 1, minHeight: 0, display: 'grid', gridTemplateRows: 'auto auto auto 1fr auto', gap: 8, overflow: 'hidden' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '110px 145px minmax(190px, 1fr) minmax(260px, 1.5fr) 145px 155px', gap: 8, alignItems: 'end' }}>
-            <FieldLabel label="Receipt Number"><input className="form-input" value="Auto" disabled style={compactInputStyle} /></FieldLabel>
+          <div style={{ display: 'grid', gridTemplateColumns: '110px 145px minmax(190px, 1fr) minmax(260px, 1.5fr) 145px', gap: 8, alignItems: 'end' }}>
+            <FieldLabel label="Receipt Number"><input className="form-input" value={detailQuery.data?.voucher_number ?? 'Auto'} disabled style={compactInputStyle} /></FieldLabel>
             <FieldLabel label="Deposit Date" required>
               <div style={{ position: 'relative' }}>
                 <IconCalendarDollar size={15} style={{ position: 'absolute', left: 8, top: 7, color: 'var(--color-text-muted)' }} />
@@ -317,14 +368,13 @@ export default function BankReceiptVoucherPage() {
             <FieldLabel label="Bank Account" required>
               <SearchableSelect
                 value={bankAccountId}
-                options={accountOptions}
+                options={bankAccountOptions}
                 onChange={setBankAccountId}
-                placeholder={accountsQuery.isLoading ? 'Loading Accounts' : accountsQuery.error ? 'Accounts Not Loaded' : 'Search Bank Account'}
-                disabled={accountsQuery.isLoading || accountsQuery.isError}
+                placeholder={bankAccountsQuery.isLoading ? 'Loading Accounts' : bankAccountsQuery.error ? 'Accounts Not Loaded' : 'Search Bank Account'}
+                disabled={bankAccountsQuery.isLoading || bankAccountsQuery.isError}
               />
             </FieldLabel>
             <FieldLabel label="Current Balance"><input className="form-input" value={money(currentBalance)} disabled style={compactNumericInputStyle} /></FieldLabel>
-            <FieldLabel label="Balance After Deposit"><input className="form-input" value={money(balanceAfterDeposit)} disabled style={compactNumericInputStyle} /></FieldLabel>
           </div>
 
           <div
@@ -360,10 +410,10 @@ export default function BankReceiptVoucherPage() {
           <VoucherLineSection title="Receipt Lines" onAddLine={addLine}>
             <BankReceiptVoucherLineTable
               lines={lines}
-              accountOptions={accountOptions}
+              accountOptions={lineAccountOptions}
               depositTypes={depositTypes}
-              accountsLoading={accountsQuery.isLoading}
-              accountsError={accountsQuery.isError}
+              accountsLoading={accountsLoading}
+              accountsError={Boolean(accountsError)}
               generalSettings={generalSettings}
               onUpdateLine={updateLine}
               onRemoveLine={removeLine}

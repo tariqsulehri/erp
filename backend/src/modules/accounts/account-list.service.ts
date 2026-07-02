@@ -13,7 +13,7 @@ interface AccountTreeNode {
   children: AccountTreeNode[];
 }
 
-function accountToResponse(account: AccountRow) {
+function accountToResponse(account: AccountRow, currentBalance?: Prisma.Decimal | null) {
   return {
     id: account.id,
     company_id: account.companyId,
@@ -27,6 +27,7 @@ function accountToResponse(account: AccountRow) {
     is_active: account.isActive,
     sort_order: account.sortOrder,
     opening_balance: account.openingBalance?.toString() ?? null,
+    current_balance: currentBalance?.toString() ?? account.openingBalance?.toString() ?? '0',
     opening_balance_date: account.openingBalanceDate,
     created_at: account.createdAt,
     updated_at: account.updatedAt,
@@ -178,9 +179,10 @@ export class AccountListService {
       }),
       prisma.account.count({ where }),
     ]);
+    const currentBalances = await this.currentBalancesForAccounts(companyId, rows);
 
     return {
-      data: rows.map(accountToResponse),
+      data: rows.map(account => accountToResponse(account, currentBalances.get(account.id))),
       pagination: {
         total,
         page: query.page,
@@ -202,7 +204,7 @@ export class AccountListService {
 
     return accounts
       .filter(account => isTopLevelAccountCode(account.code))
-      .map(accountToResponse);
+      .map(account => accountToResponse(account));
   }
 
   async children(companyId: string, parentCode: string) {
@@ -220,7 +222,7 @@ export class AccountListService {
 
     return accounts
       .filter(account => getParentAccountCode(account.code) === parentCode)
-      .map(accountToResponse);
+      .map(account => accountToResponse(account));
   }
 
   async nextCode(companyId: string, parentCode: string, isPosting: boolean) {
@@ -539,6 +541,41 @@ export class AccountListService {
       description: template.description,
       accountCount: template.accountCount,
     }));
+  }
+
+  private async currentBalancesForAccounts(companyId: string, accounts: AccountRow[]) {
+    if (accounts.length === 0) return new Map<string, Prisma.Decimal>();
+
+    const movementRows = await prisma.voucherLine.groupBy({
+      by: ['accountId'],
+      where: {
+        companyId,
+        accountId: { in: accounts.map(account => account.id) },
+        voucher: {
+          companyId,
+          status: 'Posted',
+        },
+      },
+      _sum: {
+        debitAmount: true,
+        creditAmount: true,
+      },
+    });
+
+    const movementByAccount = new Map(
+      movementRows.map(row => [
+        row.accountId,
+        (row._sum.debitAmount ?? new Prisma.Decimal(0)).minus(row._sum.creditAmount ?? new Prisma.Decimal(0)),
+      ]),
+    );
+
+    return new Map(
+      accounts.map(account => {
+        const openingBalance = account.openingBalance ?? new Prisma.Decimal(0);
+        const movementAmount = movementByAccount.get(account.id) ?? new Prisma.Decimal(0);
+        return [account.id, openingBalance.plus(movementAmount)];
+      }),
+    );
   }
 
   async importTemplate(companyId: string, templateCode: string) {

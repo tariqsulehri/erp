@@ -1,18 +1,20 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import {
   IconCalendarDollar,
   IconFileInvoice,
 } from '@tabler/icons-react';
 import { formatMoney } from '@/lib/app-settings';
 import { useAccountsList } from '@/lib/api/accounts';
-import { useValidatePostingDate } from '@/lib/api/fiscal-years';
+import { usePostingDateGuard } from '@/lib/api/fiscal-years';
 import { useGeneralSettings } from '@/lib/api/settings';
-import { useCreateVoucher, usePostVoucher } from '@/lib/api/vouchers';
+import { useCreateVoucher, useUpdateVoucher, useVoucherDetail } from '@/lib/api/vouchers';
 import { FieldLabel, SearchableSelect, SummaryRow, type VoucherSelectOption } from './VoucherControls';
 import { JournalVoucherLineTable, type JournalVoucherLine } from './JournalVoucherLineTable';
 import { VoucherActionButtons, VoucherLineSection, VoucherMessageBanner, VoucherPageHeader, VoucherSummaryFooter } from './VoucherLayout';
+import { useDefaultVoucherDate } from './VoucherFiscalDate';
 import { buildJournalVoucherLines } from './VoucherPayload';
 import { saveVoucherDocument } from './VoucherSaveFlow';
 import { validateJournalVoucher } from './VoucherValidation';
@@ -21,7 +23,6 @@ import {
   compactInputStyle,
   compactNumericInputStyle,
   friendlyErrorMessage,
-  isValidDateInput,
   today,
   type VoucherMessageKind,
 } from './VoucherShared';
@@ -43,26 +44,32 @@ const blankLine = (id: number): JournalLine => ({ id, accountId: '', description
 const initialLines = () => Array.from({ length: INITIAL_LINE_COUNT }, (_, index) => blankLine(index + 1));
 
 export default function JournalVoucherPage() {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const editingVoucherId = searchParams.get('id');
   const { data: generalSettings } = useGeneralSettings();
-  const [voucherDate, setVoucherDate] = useState(today());
+  const { defaultVoucherDate } = useDefaultVoucherDate();
+  const [voucherDate, setVoucherDate] = useState(defaultVoucherDate);
   const [referenceNumber, setReferenceNumber] = useState('');
   const [description, setDescription] = useState('');
-  const [approvalStatus, setApprovalStatus] = useState<'Not Required' | 'Pending'>('Not Required');
-  const [autoReverseDate, setAutoReverseDate] = useState('');
   const [lines, setLines] = useState<JournalLine[]>(initialLines);
   const [nextLineId, setNextLineId] = useState(INITIAL_LINE_COUNT + 1);
   const [message, setMessage] = useState<{ kind: MessageKind; text: string } | null>(null);
-  const isVoucherDateValid = isValidDateInput(voucherDate);
+  const [reviewOpen, setReviewOpen] = useState(false);
+  const postingDateGuard = usePostingDateGuard(voucherDate, 'Voucher Date');
+  const dateValidation = postingDateGuard.dateValidation;
+  const isVoucherDateValid = postingDateGuard.dateIsValid;
 
   const accountsQuery = useAccountsList({
     page: 1,
-    limit: 500,
+    limit: 200,
     is_active: true,
     is_posting: true,
   });
-  const dateValidation = useValidatePostingDate(voucherDate, isVoucherDateValid);
   const createVoucher = useCreateVoucher();
-  const postVoucher = usePostVoucher();
+  const updateVoucher = useUpdateVoucher();
+  const detailQuery = useVoucherDetail(editingVoucherId ?? undefined);
 
   const accountOptions = useMemo<AccountOption[]>(() => {
     return (accountsQuery.data?.data ?? []).map((account: any) => ({
@@ -86,17 +93,9 @@ export default function JournalVoucherPage() {
   const outOfBalance = Math.abs(totalDebit - totalCredit);
   const isBalanced = outOfBalance < 0.001 && totalDebit > 0;
   const money = useMemo(() => (value: number) => formatMoney(value, generalSettings), [generalSettings]);
-  const saving = createVoucher.isPending || postVoucher.isPending;
-  const actionDisabled = saving || accountsQuery.isLoading || dateValidation.isFetching;
-  const dateStatusMessage = !voucherDate
-    ? ''
-    : !isVoucherDateValid
-      ? 'Voucher Date is not a valid date.'
-      : dateValidation.error
-        ? friendlyErrorMessage(dateValidation.error, 'Unable to check Voucher Date.')
-        : dateValidation.data && !dateValidation.data.canPost
-          ? dateValidation.data.reason ?? 'Voucher Date is outside the open fiscal period.'
-          : '';
+  const saving = createVoucher.isPending || updateVoucher.isPending;
+  const actionDisabled = saving || accountsQuery.isLoading || postingDateGuard.disabled || detailQuery.isLoading;
+  const dateStatusMessage = postingDateGuard.isChecking ? 'Checking Voucher Date...' : postingDateGuard.statusMessage;
 
   useEffect(() => {
     if (accountsQuery.error) {
@@ -116,6 +115,47 @@ export default function JournalVoucherPage() {
     }
   }, [dateValidation.error]);
 
+  useEffect(() => {
+    setVoucherDate(currentDate => (currentDate === today() ? defaultVoucherDate : currentDate));
+  }, [defaultVoucherDate]);
+
+  useEffect(() => {
+    const voucher = detailQuery.data;
+    if (!voucher || !editingVoucherId) return;
+    if (voucher.voucher_type !== 'JV') {
+      setMessage({ kind: 'error', text: 'This is not a Journal Voucher. Please open it from the correct voucher screen.' });
+      return;
+    }
+    if (voucher.status !== 'Draft') {
+      setMessage({ kind: 'error', text: 'Only Draft vouchers can be edited.' });
+      return;
+    }
+    if (voucher.approval_status === 'Pending' || voucher.approval_status === 'Approved') {
+      setMessage({ kind: 'error', text: 'This voucher is in approval workflow and cannot be edited.' });
+      return;
+    }
+
+    const sortedLines = [...(voucher.lines ?? [])].sort((a: any, b: any) => Number(a.line_no) - Number(b.line_no));
+    const journalLines = sortedLines.map((line: any, index: number): JournalLine => ({
+      id: index + 1,
+      accountId: line.account_id,
+      description: line.narration || '',
+      debit: String(line.dr_amount ?? ''),
+      credit: String(line.cr_amount ?? ''),
+    }));
+    const paddedLines = [...journalLines];
+    while (paddedLines.length < INITIAL_LINE_COUNT) {
+      paddedLines.push(blankLine(paddedLines.length + 1));
+    }
+
+    setVoucherDate(String(voucher.voucher_date ?? '').slice(0, 10));
+    setReferenceNumber(voucher.reference || '');
+    setDescription(voucher.narration || '');
+    setLines(paddedLines);
+    setNextLineId(paddedLines.length + 1);
+    setMessage(null);
+  }, [detailQuery.data, editingVoucherId]);
+
   function updateLine(id: number, patch: Partial<JournalLine>) {
     setLines(current => current.map(line => (line.id === id ? { ...line, ...patch } : line)));
   }
@@ -130,13 +170,12 @@ export default function JournalVoucherPage() {
   }
 
   function resetForm(clearMessage = true) {
-    setVoucherDate(today());
+    setVoucherDate(defaultVoucherDate);
     setReferenceNumber('');
     setDescription('');
-    setApprovalStatus('Not Required');
-    setAutoReverseDate('');
     setLines(initialLines());
     setNextLineId(INITIAL_LINE_COUNT + 1);
+    if (editingVoucherId) router.push(pathname);
     if (clearMessage) setMessage(null);
   }
 
@@ -174,7 +213,6 @@ export default function JournalVoucherPage() {
       voucherDate,
       isVoucherDateValid,
       dateValidation,
-      autoReverseDate,
       accountsLoading: accountsQuery.isLoading,
       accountsError: accountsQuery.error,
       accountOptions,
@@ -188,7 +226,8 @@ export default function JournalVoucherPage() {
     });
   }
 
-  async function saveVoucher(postAfterSave: boolean) {
+  async function saveVoucher(submitForApproval: boolean) {
+    setReviewOpen(false);
     setMessage(null);
     if (saving) {
       setMessage({ kind: 'error', text: 'Voucher is already being saved. Please wait.' });
@@ -213,22 +252,36 @@ export default function JournalVoucherPage() {
 
     const result = await saveVoucherDocument({
       createVoucher,
-      postVoucher,
+      updateVoucher,
       invalidateVoucherList: async () => undefined,
+      editingVoucherId,
       createInput: {
         voucher_type: 'JV',
         voucher_date: voucherDate,
         reference: referenceNumber || undefined,
-        narration: description.trim(),
-        approval_status: approvalStatus,
-        auto_reverse_date: autoReverseDate || undefined,
+        narration: description.trim() || 'Journal Voucher',
+        submit_for_approval: submitForApproval,
         lines: payloadResult.lines,
       },
-      postAfterSave,
+      submitForApproval,
       resetForm,
       saveErrorFallback: 'Unable to save Journal Voucher.',
     });
     setMessage(result);
+  }
+
+  function reviewVoucher() {
+    setMessage(null);
+    if (saving) {
+      setMessage({ kind: 'error', text: 'Voucher is already being saved. Please wait.' });
+      return;
+    }
+    const error = validateForm();
+    if (error) {
+      setMessage({ kind: 'error', text: error });
+      return;
+    }
+    setReviewOpen(true);
   }
 
   return (
@@ -240,15 +293,19 @@ export default function JournalVoucherPage() {
         badgeBackground="#dbeafe"
         accent="linear-gradient(135deg, #1d4ed8, #0891b2)"
         icon={<IconFileInvoice size={20} stroke={1.8} />}
+        mode={editingVoucherId ? 'Edit' : 'Add'}
         actions={
           <VoucherActionButtons
             saving={saving}
             actionDisabled={actionDisabled}
+            newDisabled={postingDateGuard.disabled}
+            newDisabledReason={dateStatusMessage || 'Voucher Date is being checked.'}
             onNew={() => resetForm()}
             onRefresh={refreshVoucherData}
             onPrint={printVoucher}
             onCancel={() => resetForm()}
             onSaveDraft={() => saveVoucher(false)}
+            processLabel="Save For Approval"
             onProcess={() => saveVoucher(true)}
           />
         }
@@ -258,7 +315,7 @@ export default function JournalVoucherPage() {
 
       <section className="workspace-card" style={{ padding: 10, flex: 1, minHeight: 0, display: 'grid', gridTemplateRows: 'auto auto auto auto 1fr auto', gap: 8, overflow: 'hidden' }}>
         <div style={{ display: 'grid', gridTemplateColumns: '120px 145px minmax(190px, 1fr)', gap: 8, alignItems: 'end' }}>
-          <FieldLabel label="Voucher Number"><input className="form-input" value="Auto" disabled style={compactInputStyle} /></FieldLabel>
+          <FieldLabel label="Voucher Number"><input className="form-input" value={detailQuery.data?.voucher_number ?? 'Auto'} disabled style={compactInputStyle} /></FieldLabel>
           <FieldLabel label="Voucher Date" required>
             <div style={{ position: 'relative' }}>
               <IconCalendarDollar size={15} style={{ position: 'absolute', left: 8, top: 7, color: 'var(--color-text-muted)' }} />
@@ -282,27 +339,7 @@ export default function JournalVoucherPage() {
           </FieldLabel>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '145px 145px 130px minmax(160px, 1fr)', gap: 8, alignItems: 'end' }}>
-          <FieldLabel label="Approval Status">
-            <select
-              className="form-input"
-              value={approvalStatus}
-              onChange={event => setApprovalStatus(event.currentTarget.value as 'Not Required' | 'Pending')}
-              style={compactInputStyle}
-            >
-              <option value="Not Required">Not Required</option>
-              <option value="Pending">Pending</option>
-            </select>
-          </FieldLabel>
-          <FieldLabel label="Auto Reverse Date">
-            <input
-              className="form-input"
-              type="date"
-              value={autoReverseDate}
-              onChange={event => setAutoReverseDate(event.currentTarget.value)}
-              style={compactInputStyle}
-            />
-          </FieldLabel>
+        <div style={{ display: 'grid', gridTemplateColumns: '130px minmax(160px, 1fr)', gap: 8, alignItems: 'end' }}>
           <FieldLabel label="Attachments">
             <input className="form-input" value="0 Files" disabled style={compactInputStyle} />
           </FieldLabel>
@@ -330,12 +367,12 @@ export default function JournalVoucherPage() {
         </div>
 
         <div>
-          <FieldLabel label="Voucher Details" required>
+          <FieldLabel label="Voucher Details">
             <input
               className="form-input"
               value={description}
               onChange={event => setDescription(event.currentTarget.value)}
-              placeholder="Short Description For This Journal Voucher"
+              placeholder="Optional Description For This Journal Voucher"
               style={compactInputStyle}
             />
           </FieldLabel>
@@ -359,6 +396,221 @@ export default function JournalVoucherPage() {
           <SummaryRow label="Out Of Balance" value={outOfBalance} danger={!isBalanced && outOfBalance > 0} formatMoneyValue={money} />
         </VoucherSummaryFooter>
       </section>
+
+      {reviewOpen && (
+        <JournalVoucherReviewDialog
+          voucherDate={voucherDate}
+          referenceNumber={referenceNumber}
+          description={description}
+          lines={enteredLines}
+          accountOptions={accountOptions}
+          totalDebit={totalDebit}
+          totalCredit={totalCredit}
+          generalSettings={generalSettings}
+          saving={saving}
+          onClose={() => setReviewOpen(false)}
+          onPost={() => saveVoucher(true)}
+        />
+      )}
     </main>
   );
 }
+
+function JournalVoucherReviewDialog({
+  voucherDate,
+  referenceNumber,
+  description,
+  lines,
+  accountOptions,
+  totalDebit,
+  totalCredit,
+  generalSettings,
+  saving,
+  onClose,
+  onPost,
+}: {
+  voucherDate: string;
+  referenceNumber: string;
+  description: string;
+  lines: JournalLine[];
+  accountOptions: AccountOption[];
+  totalDebit: number;
+  totalCredit: number;
+  generalSettings: Parameters<typeof formatMoney>[1];
+  saving: boolean;
+  onClose: () => void;
+  onPost: () => void;
+}) {
+  const accountName = (accountId: string) => accountOptions.find(account => account.value === accountId)?.label ?? 'Account not found';
+  return (
+    <div style={reviewOverlayStyle} role="dialog" aria-modal="true" aria-label="Review Journal Voucher">
+      <button type="button" aria-label="Close Review" style={reviewBackdropStyle} onClick={onClose} />
+      <section style={reviewDialogStyle}>
+        <div style={reviewHeaderStyle}>
+          <div>
+            <h2 style={reviewTitleStyle}>Review Journal Voucher</h2>
+            <p style={reviewSubtitleStyle}>Confirm the accounting entry before posting.</p>
+          </div>
+          <button type="button" className="btn-secondary" onClick={onClose} disabled={saving} style={compactInputStyle}>Close</button>
+        </div>
+
+        <div style={reviewMetaGridStyle}>
+          <ReviewMeta label="Voucher Date" value={voucherDate} />
+          <ReviewMeta label="Reference Number" value={referenceNumber || '-'} />
+          <ReviewMeta label="Voucher Details" value={description} wide />
+        </div>
+
+        <div style={reviewTableWrapStyle}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 760 }}>
+            <thead>
+              <tr>
+                {['No.', 'Account', 'Description', 'Debit', 'Credit'].map(header => (
+                  <th key={header} style={header === 'Debit' || header === 'Credit' ? { ...reviewHeadStyle, textAlign: 'right' } : reviewHeadStyle}>{header}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {lines.map((line, index) => (
+                <tr key={line.id}>
+                  <td style={reviewCellStyle}>{index + 1}</td>
+                  <td style={reviewCellStyle}>{accountName(line.accountId)}</td>
+                  <td style={reviewCellStyle}>{line.description || description}</td>
+                  <td style={{ ...reviewCellStyle, textAlign: 'right', fontFamily: 'var(--font-mono)', fontWeight: 850 }}>{amountValue(line.debit) ? formatMoney(amountValue(line.debit), generalSettings) : '-'}</td>
+                  <td style={{ ...reviewCellStyle, textAlign: 'right', fontFamily: 'var(--font-mono)', fontWeight: 850 }}>{amountValue(line.credit) ? formatMoney(amountValue(line.credit), generalSettings) : '-'}</td>
+                </tr>
+              ))}
+            </tbody>
+            <tfoot>
+              <tr>
+                <td colSpan={3} style={reviewTotalCellStyle}>Totals</td>
+                <td style={reviewTotalAmountStyle}>{formatMoney(totalDebit, generalSettings)}</td>
+                <td style={reviewTotalAmountStyle}>{formatMoney(totalCredit, generalSettings)}</td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+
+        <div style={reviewFooterStyle}>
+          <button type="button" className="btn-secondary" onClick={onClose} disabled={saving} style={compactInputStyle}>Back To Edit</button>
+          <button type="button" className="btn-primary" onClick={onPost} disabled={saving} style={compactInputStyle}>
+            {saving ? 'Saving...' : 'Save For Approval'}
+          </button>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function ReviewMeta({ label, value, wide = false }: { label: string; value: string; wide?: boolean }) {
+  return (
+    <div style={wide ? { ...reviewMetaItemStyle, gridColumn: '1 / -1' } : reviewMetaItemStyle}>
+      <span style={reviewMetaLabelStyle}>{label}</span>
+      <strong style={reviewMetaValueStyle}>{value}</strong>
+    </div>
+  );
+}
+
+const reviewOverlayStyle: React.CSSProperties = {
+  position: 'fixed',
+  inset: 0,
+  zIndex: 90,
+};
+const reviewBackdropStyle: React.CSSProperties = {
+  position: 'absolute',
+  inset: 0,
+  border: 'none',
+  background: 'rgba(15, 23, 42, 0.30)',
+};
+const reviewDialogStyle: React.CSSProperties = {
+  position: 'absolute',
+  top: '50%',
+  left: '50%',
+  transform: 'translate(-50%, -50%)',
+  width: 'min(980px, 94vw)',
+  maxHeight: '88vh',
+  background: 'var(--color-surface)',
+  border: '1px solid var(--color-border)',
+  boxShadow: '0 24px 70px rgba(15, 23, 42, 0.28)',
+  display: 'grid',
+  gridTemplateRows: 'auto auto 1fr auto',
+  overflow: 'hidden',
+};
+const reviewHeaderStyle: React.CSSProperties = {
+  display: 'flex',
+  justifyContent: 'space-between',
+  gap: 10,
+  alignItems: 'center',
+  padding: '12px 14px',
+  borderBottom: '1px solid var(--color-border)',
+};
+const reviewTitleStyle: React.CSSProperties = {
+  margin: 0,
+  color: 'var(--color-heading)',
+  fontSize: '0.98rem',
+  fontWeight: 900,
+};
+const reviewSubtitleStyle: React.CSSProperties = {
+  margin: '3px 0 0',
+  color: 'var(--color-text-muted)',
+  fontSize: '0.72rem',
+  fontWeight: 750,
+};
+const reviewMetaGridStyle: React.CSSProperties = {
+  display: 'grid',
+  gridTemplateColumns: '140px minmax(180px, 1fr)',
+  gap: 8,
+  padding: 12,
+  borderBottom: '1px solid var(--color-border-subtle)',
+};
+const reviewMetaItemStyle: React.CSSProperties = {
+  display: 'grid',
+  gap: 3,
+};
+const reviewMetaLabelStyle: React.CSSProperties = {
+  color: 'var(--color-text-muted)',
+  fontSize: '0.66rem',
+  fontWeight: 850,
+};
+const reviewMetaValueStyle: React.CSSProperties = {
+  color: 'var(--color-heading)',
+  fontSize: '0.78rem',
+  fontWeight: 850,
+};
+const reviewTableWrapStyle: React.CSSProperties = {
+  minHeight: 0,
+  overflow: 'auto',
+  padding: 12,
+};
+const reviewHeadStyle: React.CSSProperties = {
+  background: 'var(--color-table-head-bg)',
+  color: 'var(--color-table-head-text)',
+  border: '1px solid var(--color-border)',
+  padding: '7px 8px',
+  textAlign: 'left',
+  fontSize: '0.7rem',
+  fontWeight: 900,
+};
+const reviewCellStyle: React.CSSProperties = {
+  border: '1px solid var(--color-border)',
+  padding: '7px 8px',
+  fontSize: '0.72rem',
+  color: 'var(--color-text)',
+};
+const reviewTotalCellStyle: React.CSSProperties = {
+  ...reviewCellStyle,
+  textAlign: 'right',
+  color: 'var(--color-heading)',
+  fontWeight: 900,
+  background: 'var(--color-surface-alt)',
+};
+const reviewTotalAmountStyle: React.CSSProperties = {
+  ...reviewTotalCellStyle,
+  fontFamily: 'var(--font-mono)',
+};
+const reviewFooterStyle: React.CSSProperties = {
+  display: 'flex',
+  justifyContent: 'flex-end',
+  gap: 8,
+  padding: 12,
+  borderTop: '1px solid var(--color-border)',
+};

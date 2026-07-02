@@ -20,6 +20,7 @@ export function VoucherPageHeader({
   badgeBackground,
   accent,
   icon,
+  mode = 'Add',
   status = 'Draft',
   actions,
 }: {
@@ -29,6 +30,7 @@ export function VoucherPageHeader({
   badgeBackground: string;
   accent: string;
   icon: ReactNode;
+  mode?: 'Add' | 'Edit' | 'View';
   status?: string;
   actions: ReactNode;
 }) {
@@ -61,6 +63,25 @@ export function VoucherPageHeader({
           <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
             <h1 style={{ margin: 0, fontSize: '1.05rem', lineHeight: 1.1, color: 'var(--color-heading)' }}>{title}</h1>
             <span style={badgeStyle(badgeColor, badgeBackground)}>{badgeText}</span>
+            <span
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 5,
+                minHeight: 22,
+                padding: '2px 8px',
+                borderRadius: 'var(--radius-full)',
+                border: '1px solid var(--color-primary)',
+                background: 'var(--color-primary-soft, rgba(37, 99, 235, 0.12))',
+                color: 'var(--color-primary)',
+                fontSize: '0.68rem',
+                fontWeight: 800,
+                whiteSpace: 'nowrap',
+              }}
+            >
+              <span style={{ color: 'var(--color-text-muted)', fontWeight: 700 }}>Mode</span>
+              {mode}
+            </span>
             <span
               style={{
                 display: 'inline-flex',
@@ -102,13 +123,16 @@ export function VoucherMessageBanner({ message }: { message: { kind: VoucherMess
         color: message.kind === 'success' ? 'var(--color-success-text)' : 'var(--color-danger-text)',
         fontWeight: 700,
         display: 'flex',
-        alignItems: 'center',
+        alignItems: 'flex-start',
         gap: 8,
         fontSize: '0.78rem',
+        lineHeight: 1.35,
       }}
     >
-      {message.kind === 'success' ? <IconCircleCheck size={18} /> : <IconReceipt size={18} />}
-      {message.text}
+      <span style={{ display: 'inline-flex', flexShrink: 0, paddingTop: 1 }}>
+        {message.kind === 'success' ? <IconCircleCheck size={18} /> : <IconReceipt size={18} />}
+      </span>
+      <span style={{ minWidth: 0, overflowWrap: 'anywhere' }}>{message.text}</span>
     </div>
   );
 }
@@ -116,6 +140,9 @@ export function VoucherMessageBanner({ message }: { message: { kind: VoucherMess
 export function VoucherActionButtons({
   saving,
   actionDisabled,
+  newDisabled = false,
+  newDisabledReason,
+  processLabel = 'Review & Post',
   onNew,
   onRefresh,
   onPrint,
@@ -125,6 +152,9 @@ export function VoucherActionButtons({
 }: {
   saving: boolean;
   actionDisabled: boolean;
+  newDisabled?: boolean;
+  newDisabledReason?: string;
+  processLabel?: string;
   onNew: () => void;
   onRefresh: () => void;
   onPrint: () => void;
@@ -134,7 +164,14 @@ export function VoucherActionButtons({
 }) {
   return (
     <>
-      <button className="btn-secondary" type="button" onClick={onNew} style={compactButtonStyle}>
+      <button
+        className="btn-secondary"
+        type="button"
+        disabled={saving || newDisabled}
+        onClick={onNew}
+        title={newDisabledReason}
+        style={compactButtonStyle}
+      >
         <IconFilePlus size={15} /> New
       </button>
       <button className="btn-secondary" type="button" disabled={saving} onClick={onRefresh} style={compactButtonStyle}>
@@ -150,7 +187,7 @@ export function VoucherActionButtons({
         <IconDeviceFloppy size={15} /> Save Draft
       </button>
       <button type="button" className="btn-primary" disabled={actionDisabled} onClick={onProcess} style={compactButtonStyle}>
-        <IconCircleCheck size={15} /> Process
+        <IconCircleCheck size={15} /> {processLabel}
       </button>
     </>
   );

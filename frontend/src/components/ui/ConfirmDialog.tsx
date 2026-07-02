@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import { IconAlertTriangle, IconInfoCircle } from '@tabler/icons-react';
 
 /**
@@ -26,6 +27,8 @@ interface ConfirmDialogProps {
   cancelLabel?:  string;
   variant?:      'danger' | 'warning' | 'primary';
   loading?:      boolean;
+  requiredText?: string;
+  requiredTextLabel?: string;
   onConfirm:     () => void;
   onCancel:      () => void;
 }
@@ -42,12 +45,16 @@ export function ConfirmDialog({
   cancelLabel  = 'Cancel',
   variant      = 'danger',
   loading      = false,
+  requiredText,
+  requiredTextLabel = 'Confirmation Text',
   onConfirm, onCancel,
 }: ConfirmDialogProps) {
+  const [typedText, setTypedText] = useState('');
   if (!open) return null;
 
   const v = VARIANT_STYLE[variant];
   const Icon = v.Icon;
+  const canConfirm = !requiredText || typedText.trim() === requiredText;
 
   return (
     <>
@@ -97,6 +104,21 @@ export function ConfirmDialog({
               }}>
                 {message}
               </p>
+              {requiredText ? (
+                <label style={{ display: 'grid', gap: 6, marginTop: 14 }}>
+                  <span style={{ fontSize: '0.72rem', fontWeight: 800, color: 'var(--color-text)' }}>
+                    {requiredTextLabel}: type <span style={{ fontFamily: 'var(--font-mono)', color: v.color }}>{requiredText}</span>
+                  </span>
+                  <input
+                    className="form-input"
+                    value={typedText}
+                    onChange={event => setTypedText(event.currentTarget.value)}
+                    disabled={loading}
+                    autoFocus
+                    style={{ height: 32, minHeight: 32, fontSize: '0.78rem' }}
+                  />
+                </label>
+              ) : null}
             </div>
           </div>
 
@@ -117,7 +139,7 @@ export function ConfirmDialog({
             <button
               className={`btn ${variant === 'danger' ? '' : ''}`}
               onClick={onConfirm}
-              disabled={loading}
+              disabled={loading || !canConfirm}
               style={{
                 background: variant === 'danger' ? 'var(--color-danger)' : variant === 'warning' ? 'var(--color-warning, #d97706)' : 'var(--color-primary)',
                 color: 'white', border: 'none',

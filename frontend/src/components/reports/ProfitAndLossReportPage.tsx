@@ -150,6 +150,11 @@ export function ProfitAndLossReportPage({ embedded = false }: ProfitAndLossRepor
     setMessage('');
   }
 
+  function updateZeroBalanceFilter(checked: boolean) {
+    setIncludeZeroBalances(checked);
+    setMessage('');
+  }
+
   const report = reportQuery.data;
   const errorMessage = message || friendlyErrorMessage(reportQuery.error, '');
   const displayRows = buildGroupedRows(report?.lines ?? [], includeZeroBalances);
@@ -174,7 +179,7 @@ export function ProfitAndLossReportPage({ embedded = false }: ProfitAndLossRepor
               <input
                 type="checkbox"
                 checked={includeZeroBalances}
-                onChange={event => updateFilter(() => setIncludeZeroBalances(event.currentTarget.checked))}
+                onChange={event => updateZeroBalanceFilter(event.currentTarget.checked)}
               />
               Show Zero Balances
             </label>

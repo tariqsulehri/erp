@@ -123,6 +123,52 @@ export interface ProfitAndLossReportQuery {
   include_zero_balances?: boolean;
 }
 
+export interface BalanceSheetLine {
+  account_id: string;
+  account_code: string;
+  account_name: string;
+  account_type: string;
+  normal_balance: string;
+  section: 'Assets' | 'Liabilities' | 'Equity';
+  main_code: string;
+  main_name: string;
+  group_code: string;
+  group_name: string;
+  sub_group_code: string;
+  sub_group_name: string;
+  debit_balance: string;
+  credit_balance: string;
+  amount: string;
+  is_system_line: boolean;
+}
+
+export interface BalanceSheetReportResponse {
+  as_of_date: string;
+  fiscal_year: {
+    id: string;
+    fiscal_year: string;
+    start_date: string;
+    end_date: string;
+  } | null;
+  include_zero_balances: boolean;
+  totals: {
+    assets: string;
+    liabilities: string;
+    equity: string;
+    liabilities_and_equity: string;
+    difference: string;
+    current_year_profit: string;
+    current_year_loss: string;
+    result: 'Profit' | 'Loss' | 'Break Even';
+  };
+  lines: BalanceSheetLine[];
+}
+
+export interface BalanceSheetReportQuery {
+  as_of_date?: string;
+  include_zero_balances?: boolean;
+}
+
 function buildQueryString<T extends object>(query: T) {
   const params = new URLSearchParams();
   Object.entries(query as Record<string, string | number | boolean | undefined>).forEach(([key, value]) => {
@@ -154,6 +200,15 @@ export function useProfitAndLossReport(query: ProfitAndLossReportQuery, enabled:
   return useQuery<ProfitAndLossReportResponse>({
     queryKey: ['backend', 'reports', 'profit-and-loss', query],
     queryFn: () => backendGet<ProfitAndLossReportResponse>(`/reports/profit-and-loss?${buildQueryString(query)}`),
+    enabled,
+    retry: false,
+  });
+}
+
+export function useBalanceSheetReport(query: BalanceSheetReportQuery, enabled: boolean) {
+  return useQuery<BalanceSheetReportResponse>({
+    queryKey: ['backend', 'reports', 'balance-sheet', query],
+    queryFn: () => backendGet<BalanceSheetReportResponse>(`/reports/balance-sheet?${buildQueryString(query)}`),
     enabled,
     retry: false,
   });

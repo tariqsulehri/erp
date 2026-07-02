@@ -19,6 +19,8 @@ interface PurchaseAnalyticsToolbarProps {
   onRefresh: () => void;
   onPostedPurchases: () => void;
   onNewPurchase: () => void;
+  newDisabled?: boolean;
+  newDisabledReason?: string;
 }
 
 export function PurchaseAnalyticsToolbar({
@@ -28,6 +30,8 @@ export function PurchaseAnalyticsToolbar({
   onRefresh,
   onPostedPurchases,
   onNewPurchase,
+  newDisabled = false,
+  newDisabledReason,
 }: PurchaseAnalyticsToolbarProps) {
   return (
     <section style={toolbarStyle}>
@@ -45,7 +49,7 @@ export function PurchaseAnalyticsToolbar({
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
           <button className="btn-secondary" type="button" onClick={onRefresh} style={compactButtonStyle}><IconRefresh size={15} /> Refresh</button>
           <button className="btn-secondary" type="button" onClick={onPostedPurchases} style={compactButtonStyle}><IconListSearch size={15} /> Posted Purchases</button>
-          <button className="btn-primary" type="button" onClick={onNewPurchase} style={compactButtonStyle}><IconFilePlus size={15} /> New Purchase</button>
+          <button className="btn-primary" type="button" disabled={newDisabled} title={newDisabledReason} onClick={onNewPurchase} style={compactButtonStyle}><IconFilePlus size={15} /> New Purchase</button>
         </div>
       </div>
     </section>

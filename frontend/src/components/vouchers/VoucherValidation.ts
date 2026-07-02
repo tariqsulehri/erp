@@ -1,4 +1,4 @@
-import { amountValue, cleanAmount, friendlyErrorMessage, isValidDateInput, validAmountPattern } from './VoucherShared';
+import { amountValue, cleanAmount, friendlyErrorMessage, validAmountPattern } from './VoucherShared';
 import type { CashBankVoucherLine } from './CashBankVoucherLineTable';
 import type { BankReceiptVoucherLine } from './BankReceiptVoucherLineTable';
 import type { JournalVoucherLine } from './JournalVoucherLineTable';
@@ -57,13 +57,6 @@ function validatePostingDate({
   return null;
 }
 
-function validateAutoReverseDate(autoReverseDate: string, voucherDate: string) {
-  if (!autoReverseDate) return null;
-  if (!isValidDateInput(autoReverseDate)) return 'Auto Reverse Date is not a valid date.';
-  if (autoReverseDate <= voucherDate) return 'Auto Reverse Date must be after Voucher Date.';
-  return null;
-}
-
 function validateAccountsReady({
   isLoading,
   error,
@@ -104,7 +97,6 @@ export function validateCashBankVoucher({
   voucherDate,
   isVoucherDateValid,
   dateValidation,
-  autoReverseDate,
   accountsLoading,
   accountsError,
   accountOptions,
@@ -119,7 +111,6 @@ export function validateCashBankVoucher({
   voucherDate: string;
   isVoucherDateValid: boolean;
   dateValidation: PostingDateValidationState;
-  autoReverseDate: string;
   accountsLoading: boolean;
   accountsError?: unknown;
   accountOptions: VoucherAccountOption[];
@@ -137,9 +128,6 @@ export function validateCashBankVoucher({
     dateValidation,
   });
   if (dateError) return dateError;
-
-  const autoReverseError = validateAutoReverseDate(autoReverseDate, voucherDate);
-  if (autoReverseError) return autoReverseError;
 
   const accountsErrorMessage = validateAccountsReady({
     isLoading: accountsLoading,
@@ -276,7 +264,6 @@ export function validateJournalVoucher({
   voucherDate,
   isVoucherDateValid,
   dateValidation,
-  autoReverseDate,
   accountsLoading,
   accountsError,
   accountOptions,
@@ -291,7 +278,6 @@ export function validateJournalVoucher({
   voucherDate: string;
   isVoucherDateValid: boolean;
   dateValidation: PostingDateValidationState;
-  autoReverseDate: string;
   accountsLoading: boolean;
   accountsError?: unknown;
   accountOptions: VoucherAccountOption[];
@@ -311,9 +297,6 @@ export function validateJournalVoucher({
   });
   if (dateError) return dateError;
 
-  const autoReverseError = validateAutoReverseDate(autoReverseDate, voucherDate);
-  if (autoReverseError) return autoReverseError;
-
   const accountsErrorMessage = validateAccountsReady({
     isLoading: accountsLoading,
     error: accountsError,
@@ -321,7 +304,6 @@ export function validateJournalVoucher({
   });
   if (accountsErrorMessage) return accountsErrorMessage;
 
-  if (!description.trim()) return 'Voucher Details is required.';
   if (enteredLines.length < 2) return 'Add at least two journal lines.';
 
   for (const [index, line] of enteredLines.entries()) {

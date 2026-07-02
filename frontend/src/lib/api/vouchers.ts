@@ -1,7 +1,7 @@
 'use client';
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { backendGet, backendPost } from './backend-client';
+import { backendGet, backendPatch, backendPost } from './backend-client';
 
 export const vouchersQueryKey = ['backend', 'vouchers'] as const;
 
@@ -10,6 +10,7 @@ interface VoucherListParams {
   limit?: number;
   voucher_type?: string;
   status?: string;
+  approval_status?: string;
   search?: string;
   date_from?: string;
   date_to?: string;
@@ -49,10 +50,46 @@ export function useCreateVoucher() {
   });
 }
 
+export function useUpdateVoucher() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, body }: { id: string; body: Record<string, unknown> }) =>
+      backendPatch<any, typeof body>(`/vouchers/${id}`, body),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: vouchersQueryKey }),
+  });
+}
+
 export function usePostVoucher() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: ({ id }: { id: string }) => backendPost<any, Record<string, never>>(`/vouchers/${id}/post`, {}),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: vouchersQueryKey }),
+  });
+}
+
+export function useRequestVoucherApproval() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, note }: { id: string; note?: string }) =>
+      backendPost<any, { note?: string }>(`/vouchers/${id}/request-approval`, { note }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: vouchersQueryKey }),
+  });
+}
+
+export function useApproveVoucher() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, note }: { id: string; note?: string }) =>
+      backendPost<any, { note?: string }>(`/vouchers/${id}/approve`, { note }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: vouchersQueryKey }),
+  });
+}
+
+export function useRejectVoucher() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, reason }: { id: string; reason: string }) =>
+      backendPost<any, { reason: string }>(`/vouchers/${id}/reject`, { reason }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: vouchersQueryKey }),
   });
 }

@@ -37,6 +37,8 @@ interface PostedSaleReturnsViewProps {
   generalSettings: Parameters<typeof formatNumber>[1];
   onNewReturn: () => void;
   onAnalytics: () => void;
+  newDisabled?: boolean;
+  newDisabledReason?: string;
 }
 
 export function PostedSaleReturnsView({
@@ -46,6 +48,8 @@ export function PostedSaleReturnsView({
   generalSettings,
   onNewReturn,
   onAnalytics,
+  newDisabled = false,
+  newDisabledReason,
 }: PostedSaleReturnsViewProps) {
   const [searchText, setSearchText] = useState('');
   const [search, setSearch] = useState('');
@@ -126,7 +130,7 @@ export function PostedSaleReturnsView({
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
             <button className="btn-secondary" type="button" onClick={() => listQuery.refetch()} style={compactButtonStyle}><IconRefresh size={15} /> Refresh</button>
             <button className="btn-secondary" type="button" onClick={onAnalytics} style={compactButtonStyle}><IconChartBar size={15} /> Analytics</button>
-            <button className="btn-primary" type="button" onClick={onNewReturn} style={compactButtonStyle}><IconFilePlus size={15} /> New Return</button>
+            <button className="btn-primary" type="button" disabled={newDisabled} title={newDisabledReason} onClick={onNewReturn} style={compactButtonStyle}><IconFilePlus size={15} /> New Return</button>
           </div>
         </div>
       </section>

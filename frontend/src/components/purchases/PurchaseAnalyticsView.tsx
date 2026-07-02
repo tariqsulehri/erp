@@ -28,6 +28,8 @@ interface PurchaseAnalyticsViewProps {
   generalSettings: GeneralSettings;
   onNewPurchase: () => void;
   onPostedPurchases: () => void;
+  newDisabled?: boolean;
+  newDisabledReason?: string;
 }
 
 export function PurchaseAnalyticsView({
@@ -37,6 +39,8 @@ export function PurchaseAnalyticsView({
   generalSettings,
   onNewPurchase,
   onPostedPurchases,
+  newDisabled = false,
+  newDisabledReason,
 }: PurchaseAnalyticsViewProps) {
   const currentYear = new Date().getFullYear();
   const [supplierId, setSupplierId] = useState('');
@@ -91,6 +95,8 @@ export function PurchaseAnalyticsView({
         onRefresh={() => analyticsQuery.refetch()}
         onPostedPurchases={onPostedPurchases}
         onNewPurchase={onNewPurchase}
+        newDisabled={newDisabled}
+        newDisabledReason={newDisabledReason}
       />
 
       <section className="workspace-card" style={{ padding: 8, flex: 1, minHeight: 0, display: 'grid', gridTemplateRows: 'auto auto 1fr', gap: 7, overflow: 'hidden' }}>

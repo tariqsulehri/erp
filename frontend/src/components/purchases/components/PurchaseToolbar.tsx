@@ -27,6 +27,8 @@ interface PurchaseToolbarProps {
   postedListLabel?: string;
   analyticsLabel?: string;
   showAnalytics?: boolean;
+  newDisabled?: boolean;
+  newDisabledReason?: string;
   onNew: () => void;
   onPostedPurchases: () => void;
   onAnalytics?: () => void;
@@ -45,6 +47,8 @@ export function PurchaseToolbar({
   postedListLabel = 'Posted Purchases',
   analyticsLabel = 'Analytics',
   showAnalytics = true,
+  newDisabled = false,
+  newDisabledReason,
   onNew,
   onPostedPurchases,
   onAnalytics,
@@ -66,7 +70,7 @@ export function PurchaseToolbar({
           </div>
         </div>
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-          <button className="btn-secondary" type="button" onClick={onNew} style={compactButtonStyle}><IconFilePlus size={15} /> New</button>
+          <button className="btn-secondary" type="button" disabled={saving || newDisabled} title={newDisabledReason} onClick={onNew} style={compactButtonStyle}><IconFilePlus size={15} /> New</button>
           <button className="btn-secondary" type="button" onClick={onPostedPurchases} style={compactButtonStyle}><IconListSearch size={15} /> {postedListLabel}</button>
           {showAnalytics && onAnalytics && (
             <button className="btn-secondary" type="button" onClick={onAnalytics} style={compactButtonStyle}><IconChartBar size={15} /> {analyticsLabel}</button>
