@@ -9,173 +9,116 @@
  *   Step 3  Select Sub-Group (XXX0)
  *   Step 4  Enter details — code auto-assigned, posts to accounts.create
  *
- * On success, shows a confirmation banner and offers to create another
+ * On success, shows a confirmation and offers to create another
  * account or navigate to the Chart of Accounts list.
  */
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import Link from 'next/link';
+import { IconArrowLeft, IconPlus } from '@tabler/icons-react';
 import { AccountWizard } from '@/components/accounts/AccountWizard';
-import type { Account } from '@/modules/accounts/account.entity';
+import type { AccountListItem } from '@/lib/api/accounts';
+import { Button } from '@/components/ui/Button';
+import { InlineAlert } from '@/components/ui/InlineAlert';
+import { PageHeader } from '@/components/ui/PageHeader';
+
+const CODE_STRUCTURE = [
+  { part: 'MM',   label: 'Main Category',   example: '0100000000', exampleName: 'Assets' },
+  { part: 'GG',   label: 'Group',           example: '0101000000', exampleName: 'Current Assets' },
+  { part: 'SS',   label: 'Sub-Group',       example: '0101100000', exampleName: 'Cash And Bank' },
+  { part: 'PPPP', label: 'Posting Account', example: '0101100001', exampleName: 'Cash In Hand' },
+];
+
+const HOW_IT_WORKS = [
+  'Select the Main Category, such as Assets or Expenses.',
+  'Select or create a Group within the category.',
+  'Select or create a Sub-Group within the group.',
+  'Name your account. The code is assigned automatically.',
+];
 
 export default function NewAccountPage() {
   const router = useRouter();
-  const [created, setCreated] = useState<Account | null>(null);
+  const [created, setCreated] = useState<AccountListItem | null>(null);
+  const backToList = () => router.push('/accounts');
 
   if (created) {
     return (
-      <>
-        {/* ── Page Header ──────────────────────────────────────────── */}
-        <div className="page-header">
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-              <Link
-                href="/accounts"
-                style={{ color: 'var(--color-text-muted)', fontSize: 'var(--font-size-sm)', display: 'flex', alignItems: 'center', gap: 4 }}
-              >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <polyline points="15 18 9 12 15 6"/>
-                </svg>
-                Chart of Accounts
-              </Link>
-            </div>
-            <h1 className="page-title">Account Created</h1>
-          </div>
-        </div>
-
-        {/* ── Success banner ───────────────────────────────────────── */}
-        <div style={{
-          padding: '24px', borderRadius: 'var(--radius)',
-          background: '#f0fdf4', border: '1px solid #bbf7d0',
-          marginBottom: 24,
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
-            <div style={{
-              width: 40, height: 40, borderRadius: '50%',
-              background: '#16a34a', color: 'white',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontSize: 20,
-            }}>✓</div>
-            <div>
-              <div style={{ fontWeight: 700, fontSize: 'var(--font-size-base)', color: '#15803d' }}>
-                Account created successfully
-              </div>
-              <div style={{ fontSize: 'var(--font-size-sm)', color: '#16a34a', marginTop: 2 }}>
-                <span style={{
-                  fontFamily: 'monospace', fontWeight: 700,
-                  background: '#dcfce7', padding: '1px 6px', borderRadius: 4,
-                }}>{created.code}</span>
-                {' — '}{created.name}
-              </div>
-            </div>
-          </div>
-
-          <div style={{ display: 'flex', gap: 10 }}>
-            <button
-              className="btn btn-primary"
-              onClick={() => setCreated(null)}
-            >
-              Create Another Account
-            </button>
-            <button
-              className="btn btn-secondary"
-              onClick={() => router.push('/accounts')}
-            >
-              Go to Chart of Accounts
-            </button>
-          </div>
-        </div>
-      </>
+      <main className="page-shell">
+        <PageHeader
+          title="Account Created"
+          description="The new account is ready to use on vouchers."
+          actions={(
+            <>
+              <Button icon={<IconArrowLeft size={16} stroke={1.8} />} onClick={backToList}>Back To Chart Of Accounts</Button>
+              <Button variant="primary" icon={<IconPlus size={16} stroke={1.8} />} onClick={() => setCreated(null)}>Create Another Account</Button>
+            </>
+          )}
+        />
+        <InlineAlert tone="success">
+          Account <span style={{ fontVariantNumeric: 'tabular-nums' }}>{created.code}</span> — {created.name} was created.
+        </InlineAlert>
+      </main>
     );
   }
 
   return (
-    <>
-      {/* ── Page Header ──────────────────────────────────────────────── */}
-      <div className="page-header">
-        <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-            <Link
-              href="/accounts"
-              style={{ color: 'var(--color-text-muted)', fontSize: 'var(--font-size-sm)', display: 'flex', alignItems: 'center', gap: 4 }}
-            >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <polyline points="15 18 9 12 15 6"/>
-              </svg>
-              Chart of Accounts
-            </Link>
-          </div>
-          <h1 className="page-title">New Account</h1>
-          <p className="page-subtitle">Follow the steps to place the account in the correct hierarchy</p>
-        </div>
-      </div>
+    <main className="page-shell">
+      <PageHeader
+        title="New Account"
+        description="Follow the steps to place the account in the correct place in the hierarchy."
+        actions={<Button icon={<IconArrowLeft size={16} stroke={1.8} />} onClick={backToList}>Back To Chart Of Accounts</Button>}
+      />
 
-      {/* ── Main layout ──────────────────────────────────────────────── */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 300px', gap: 24, alignItems: 'start' }}>
-
-        {/* ── Wizard card ──────────────────────────────────────────── */}
-        <div className="card">
-          <div className="card-header">
-            <h2 className="card-title">Create Account</h2>
+      <div style={{ flex: 1, minHeight: 0, display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 300px', gap: 12, alignItems: 'start' }}>
+        {/* ── Wizard ───────────────────────────────────────────────── */}
+        <section className="panel" style={{ maxHeight: '100%' }}>
+          <div className="panel-header">
+            <h2 className="panel-title">Create Account</h2>
           </div>
-          <div className="card-body" style={{ padding: '24px' }}>
+          <div className="panel-body">
             <AccountWizard onSuccess={setCreated} />
           </div>
-        </div>
+        </section>
 
-        {/* ── Reference sidebar ────────────────────────────────────── */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          <div className="card">
-            <div className="card-header">
-              <h3 className="card-title" style={{ fontSize: 'var(--font-size-sm)' }}>Code Structure</h3>
+        {/* ── Reference column ─────────────────────────────────────── */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12, maxHeight: '100%', overflow: 'auto' }}>
+          <section className="panel" style={{ flexShrink: 0 }}>
+            <div className="panel-header">
+              <h2 className="panel-title">Code Structure</h2>
             </div>
-            <div className="card-body" style={{ padding: '16px' }}>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                {[
-                  { pos: 'X000', label: 'Category',        example: '1000 = Assets',             color: '#dbeafe' },
-                  { pos: 'XX00', label: 'Group',           example: '1100 = Current Assets',     color: '#e0e7ff' },
-                  { pos: 'XXX0', label: 'Sub-Group',       example: '1110 = Cash & Equivalents', color: '#f3e8ff' },
-                  { pos: 'XXXX', label: 'Posting Account', example: '1111 = Cash in Hand',       color: '#dcfce7' },
-                ].map((row) => (
-                  <div key={row.pos} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <span style={{
-                      padding: '2px 8px', background: row.color,
-                      borderRadius: 'var(--radius-sm)', fontFamily: 'monospace',
-                      fontSize: '0.75rem', fontWeight: 700, flexShrink: 0,
-                      minWidth: 40, textAlign: 'center',
-                    }}>{row.pos}</span>
-                    <div>
-                      <div style={{ fontSize: 'var(--font-size-xs)', fontWeight: 600 }}>{row.label}</div>
-                      <div style={{ fontSize: '0.6875rem', color: 'var(--color-text-muted)' }}>{row.example}</div>
-                    </div>
+            <div className="panel-body">
+              <dl className="detail-list" style={{ margin: 0, gap: 10 }}>
+                {CODE_STRUCTURE.map(row => (
+                  <div key={row.part} className="detail-row" style={{ gridTemplateColumns: '44px minmax(0, 1fr)' }}>
+                    <dt style={{ fontVariantNumeric: 'tabular-nums' }}>{row.part}</dt>
+                    <dd>
+                      <span style={{ display: 'block', fontWeight: 600, color: 'var(--color-heading)' }}>{row.label}</span>
+                      <span style={{ display: 'block', fontSize: 'var(--font-size-xs)', color: 'var(--color-text-muted)' }}>
+                        <span style={{ fontVariantNumeric: 'tabular-nums' }}>{row.example}</span> = {row.exampleName}
+                      </span>
+                    </dd>
                   </div>
                 ))}
-              </div>
+              </dl>
             </div>
-          </div>
+          </section>
 
-          <div className="card">
-            <div className="card-header">
-              <h3 className="card-title" style={{ fontSize: 'var(--font-size-sm)' }}>How it works</h3>
+          <section className="panel" style={{ flexShrink: 0 }}>
+            <div className="panel-header">
+              <h2 className="panel-title">How It Works</h2>
             </div>
-            <div className="card-body" style={{ padding: '16px' }}>
-              <ol style={{ margin: 0, paddingLeft: 18, display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {[
-                  'Select the Category (1000–5000)',
-                  'Select or create a Group within the category',
-                  'Select or create a Sub-Group within the group',
-                  'Name your account — the code is assigned automatically',
-                ].map((step, i) => (
-                  <li key={i} style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-muted)', lineHeight: 1.5 }}>
+            <div className="panel-body">
+              <ol style={{ margin: 0, paddingLeft: 18, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {HOW_IT_WORKS.map(step => (
+                  <li key={step} style={{ fontSize: 'var(--font-size-sm)', color: 'var(--color-text-muted)', lineHeight: 1.5 }}>
                     {step}
                   </li>
                 ))}
               </ol>
             </div>
-          </div>
+          </section>
         </div>
       </div>
-    </>
+    </main>
   );
 }

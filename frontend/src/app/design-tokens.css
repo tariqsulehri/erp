@@ -1,0 +1,312 @@
+/* ================================================================
+   CALM LEDGER — DESIGN TOKENS
+   The single source of truth for color, type, shape, and density.
+   Rules for using them live in /DESIGN.md. Do not hardcode values
+   in components; add or change a token here instead.
+
+   Themes: light (default) and dark. Nothing else.
+   Token names are shared by both themes; only values change.
+   ================================================================ */
+
+:root, [data-theme="light"] {
+  color-scheme: light;
+
+  /* Brand — Ledger Blue. Actions, selection, focus. Never decoration. */
+  --color-primary:        #1f56c7;
+  --color-primary-hover:  #1a4aad;
+  --color-primary-dark:   #173f94;
+  --color-primary-light:  #edf2fc;   /* selected rows, active filter, soft tint */
+  --color-primary-text:   #1f56c7;   /* primary used as text on light surfaces */
+  --color-on-primary:     #ffffff;
+  --color-accent-bar:     #1f56c7;
+
+  /* Ground and surfaces */
+  --color-bg:             #f5f6f8;   /* workspace ground behind panels */
+  --color-surface:        #ffffff;   /* panels, tables, forms */
+  --color-surface-raised: #ffffff;   /* dropdowns, dialogs */
+  --color-surface-alt:    #f7f9fb;   /* table headers, footers, read-only fields */
+  --color-border:         #d5dce5;   /* panel and table outlines */
+  --color-border-subtle:  #e6ebf1;   /* row dividers, inner separators */
+  --color-border-focus:   #1f56c7;
+
+  /* Navigation — the only navy region */
+  --color-sidebar-bg:          #182130;
+  --color-sidebar-hover:       #222d40;
+  --color-sidebar-active:      #7ea3ee;
+  --color-sidebar-active-bg:   rgba(126,163,238,.16);
+  --color-sidebar-glow:        rgba(31,86,199,.22);
+  --color-sidebar-text:        #b9c3d1;
+  --color-sidebar-text-active: #ffffff;
+  --color-sidebar-border:      rgba(255,255,255,.08);
+  --color-sidebar-logo-bg:     #1f56c7;
+  --color-sidebar-section:     #8a95a6;
+
+  --color-topbar-bg:     #ffffff;
+  --color-topbar-border: #e3e8ee;
+  --color-topbar-accent: #1f56c7;
+
+  --color-workspace-bg:     #ffffff;
+  --color-workspace-border: #e3e8ee;
+  --color-workspace-shadow: none;
+
+  /* List panes (voucher lists, pick lists) — light, like every other surface */
+  --color-panel-list:             #ffffff;
+  --color-panel-list-fg:          #1e2a3b;
+  --color-panel-list-fg-muted:    #556274;
+  --color-panel-list-fg-num:      #0f1b2d;
+  --color-panel-list-hover:       #f3f6fa;
+  --color-panel-list-selected:    #edf2fc;
+  --color-panel-list-sel-fg:      #1f56c7;
+  --color-panel-list-sel-border:  #1f56c7;
+  --color-panel-list-divider:     #e6ebf1;
+  --color-panel-list-head-bg:     #f7f9fb;
+  --color-panel-list-head-border: #e3e8ee;
+  --color-panel-list-input-bg:    #ffffff;
+  --color-panel-list-input-border:#8592a2;
+
+  /* Panel headers and footers — quiet, not colored bars */
+  --color-panel-detail-bg:     #ffffff;
+  --color-panel-header-bg:     #f7f9fb;
+  --color-panel-header-border: #e3e8ee;
+  --color-panel-header-text:   #0f1b2d;
+  --color-panel-footer-bg:     #f7f9fb;
+  --color-panel-footer-border: #e3e8ee;
+
+  /* Tables */
+  --color-table-head-bg:      #f7f9fb;
+  --color-table-head-text:    #3b4859;
+  --color-table-row-odd:      #ffffff;
+  --color-table-row-even:     #fbfcfd;
+  --color-table-row-hover:    #f3f6fa;
+  --color-table-row-selected: #edf2fc;
+  --color-table-foot-bg:      #f7f9fb;
+
+  /* Inputs */
+  --color-input-bg:           #ffffff;
+  --color-input-border:       #8592a2;   /* 3:1 on white — visible control edge */
+  --color-input-border-hover: #5f6c7d;
+  --color-input-placeholder:  #6b7787;
+  --color-input-readonly-bg:  #f7f9fb;
+
+  /* Ink */
+  --color-heading:          #0f1b2d;
+  --color-text:             #1e2a3b;
+  --color-text-secondary:   #3b4859;
+  --color-text-muted:       #556274;
+  --color-text-light:       #6b7787;
+  --color-text-placeholder: #6b7787;
+
+  /* Status */
+  --color-success: #15803d; --color-success-bg: #edf7f0; --color-success-border: #b7dfc4; --color-success-text: #14532d;
+  --color-warning: #b45309; --color-warning-bg: #fdf6e9; --color-warning-border: #f1d29a; --color-warning-text: #78350f;
+  --color-danger:  #c62828; --color-danger-bg:  #fdf0f0; --color-danger-border:  #f2b8b8; --color-danger-text:  #7f1d1d;
+  --color-info:    #1f56c7; --color-info-bg:    #edf2fc; --color-info-border:    #c2d3f4; --color-info-text:    #173f94;
+  --color-danger-solid: #c62828;
+  --color-neutral-bg:   #eef1f5; --color-neutral-text: #3b4859; --color-neutral-border: #d5dce5;
+
+  /* Accounting */
+  --color-debit:    var(--color-amount);
+  --color-credit:   var(--color-amount);
+  --color-amount:   #0f1b2d;
+  --color-negative: #c62828;
+
+  --color-login-panel: #182130;
+
+  --focus-ring: 0 0 0 3px rgba(31,86,199,.28);
+  --shadow-overlay: 0 12px 32px rgba(15,27,45,.14), 0 2px 6px rgba(15,27,45,.08);
+  --color-selection: #cfdbf5;
+  --color-scrim: rgba(10, 16, 27, 0.48);
+  /* Same line chevron as the searchable select (Tabler chevron-down) */
+  --select-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23556274' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6l6 -6'/%3E%3C/svg%3E");
+}
+
+[data-theme="dark"] {
+  color-scheme: dark;
+
+  --color-primary:        #3b6fe0;
+  --color-primary-hover:  #5584ea;
+  --color-primary-dark:   #2f5cc4;
+  --color-primary-light:  #1a2944;
+  --color-primary-text:   #9dbcff;
+  --color-on-primary:     #ffffff;
+  --color-accent-bar:     #3b6fe0;
+
+  --color-bg:             #0d1420;
+  --color-surface:        #141c2a;
+  --color-surface-raised: #1a2433;
+  --color-surface-alt:    #172030;
+  --color-border:         #2a3547;
+  --color-border-subtle:  #212b3b;
+  --color-border-focus:   #6b9bff;
+
+  --color-sidebar-bg:          #0a101b;
+  --color-sidebar-hover:       #141d2c;
+  --color-sidebar-active:      #6b9bff;
+  --color-sidebar-active-bg:   rgba(107,155,255,.14);
+  --color-sidebar-glow:        rgba(59,111,224,.22);
+  --color-sidebar-text:        #a3b0c2;
+  --color-sidebar-text-active: #ffffff;
+  --color-sidebar-border:      rgba(255,255,255,.06);
+  --color-sidebar-logo-bg:     #3b6fe0;
+  --color-sidebar-section:     #7b889c;
+
+  --color-topbar-bg:     #141c2a;
+  --color-topbar-border: #2a3547;
+  --color-topbar-accent: #6b9bff;
+
+  --color-workspace-bg:     #141c2a;
+  --color-workspace-border: #2a3547;
+  --color-workspace-shadow: none;
+
+  --color-panel-list:             #141c2a;
+  --color-panel-list-fg:          #dbe2ec;
+  --color-panel-list-fg-muted:    #9aa7b9;
+  --color-panel-list-fg-num:      #eef2f7;
+  --color-panel-list-hover:       #1b2638;
+  --color-panel-list-selected:    #1e3052;
+  --color-panel-list-sel-fg:      #c7d8ff;
+  --color-panel-list-sel-border:  #6b9bff;
+  --color-panel-list-divider:     #212b3b;
+  --color-panel-list-head-bg:     #172030;
+  --color-panel-list-head-border: #2a3547;
+  --color-panel-list-input-bg:    #111927;
+  --color-panel-list-input-border:#5b6a85;
+
+  --color-panel-detail-bg:     #141c2a;
+  --color-panel-header-bg:     #172030;
+  --color-panel-header-border: #2a3547;
+  --color-panel-header-text:   #eef2f7;
+  --color-panel-footer-bg:     #172030;
+  --color-panel-footer-border: #2a3547;
+
+  --color-table-head-bg:      #172030;
+  --color-table-head-text:    #b8c3d2;
+  --color-table-row-odd:      #141c2a;
+  --color-table-row-even:     #161f2d;
+  --color-table-row-hover:    #1b2638;
+  --color-table-row-selected: #1e3052;
+  --color-table-foot-bg:      #172030;
+
+  --color-input-bg:           #111927;
+  --color-input-border:       #5b6a85;
+  --color-input-border-hover: #7a89a3;
+  --color-input-placeholder:  #8592a5;
+  --color-input-readonly-bg:  #172030;
+
+  --color-heading:          #eef2f7;
+  --color-text:             #dbe2ec;
+  --color-text-secondary:   #b8c3d2;
+  --color-text-muted:       #9aa7b9;
+  --color-text-light:       #8592a5;
+  --color-text-placeholder: #8592a5;
+
+  --color-success: #5fcf8a; --color-success-bg: #10261b; --color-success-border: #1f5236; --color-success-text: #b6ecc9;
+  --color-warning: #f0b35a; --color-warning-bg: #2a1f0e; --color-warning-border: #5c4216; --color-warning-text: #f7d9a6;
+  --color-danger:  #f38b8b; --color-danger-bg:  #2c1416; --color-danger-border:  #6a2a2e; --color-danger-text:  #f8c4c4;
+  --color-info:    #9dbcff; --color-info-bg:    #16233d; --color-info-border:    #2c4474; --color-info-text:    #c7d8ff;
+  --color-danger-solid: #c62828;
+  --color-neutral-bg:   #1d2636; --color-neutral-text: #b8c3d2; --color-neutral-border: #2a3547;
+
+  --color-debit:    var(--color-amount);
+  --color-credit:   var(--color-amount);
+  --color-amount:   #eef2f7;
+  --color-negative: #f38b8b;
+
+  --color-login-panel: #0a101b;
+
+  --focus-ring: 0 0 0 3px rgba(107,155,255,.35);
+  --shadow-overlay: 0 12px 32px rgba(0,0,0,.45), 0 2px 6px rgba(0,0,0,.3);
+  --color-selection: #2c4474;
+  --color-scrim: rgba(0, 0, 0, 0.6);
+  --select-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%239aa7b9' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6l6 -6'/%3E%3C/svg%3E");
+}
+
+/* ================================================================
+   SHARED (theme-independent)
+   ================================================================ */
+:root {
+  /* One UI face for everything, with tabular figures so numbers align. */
+  --font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  /* Historic name: amounts and codes use the UI face, not a monospace costume. */
+  --font-mono:   var(--font-family);
+  /* Real monospace, only for code, JSON, or import previews. */
+  --font-code:   'SF Mono', 'Consolas', 'Menlo', monospace;
+
+  /* Type scale — 12px is the floor for anything a user must read. */
+  --font-size-2xs:  0.75rem;    /* 12px  captions, badges, table meta */
+  --font-size-xs:   0.75rem;    /* 12px  field labels, table headers */
+  --font-size-sm:   0.8125rem;  /* 13px  controls, table cells, body in dense areas */
+  --font-size-md:   0.875rem;   /* 14px  body text */
+  --font-size-base: 0.875rem;   /* 14px  document default */
+  --font-size-lg:   1rem;       /* 16px  panel and section titles */
+  --font-size-xl:   1.25rem;    /* 20px  page titles */
+  --font-size-2xl:  1.5rem;     /* 24px  dashboard figures only */
+  --font-size-3xl:  1.875rem;   /* 30px  login only */
+
+  --font-weight-regular:  400;
+  --font-weight-medium:   500;
+  --font-weight-semibold: 600;
+  --font-weight-bold:     700;
+
+  /* Density — Compact. One control height across the product. */
+  --control-h:    32px;
+  --control-h-sm: 28px;
+  --control-h-lg: 36px;
+  --row-h:        36px;   /* table body rows */
+
+  /* Spacing — 4px grid */
+  --sp-1: .25rem; --sp-2: .5rem;  --sp-3: .75rem; --sp-4: 1rem;
+  --sp-5: 1.25rem; --sp-6: 1.5rem; --sp-8: 2rem;  --sp-10: 2.5rem;
+
+  /* Shape — gently squared. Controls 6px, containers 8px. */
+  --radius-xs:     2px;
+  --radius-sm:     4px;
+  --radius:        6px;
+  --radius-md:     6px;
+  --radius-lg:     8px;
+  --radius-xl:     10px;
+  --button-radius: 6px;
+  --radius-full:   9999px;
+
+  /* Depth — flat at rest. Shadows only for things that float. */
+  --shadow-xs: none;
+  --shadow-sm: 0 1px 2px rgba(15,27,45,.06);
+  --shadow:    0 1px 2px rgba(15,27,45,.06);
+  --shadow-md: var(--shadow-overlay);
+  --shadow-lg: var(--shadow-overlay);
+
+  /* Motion — state changes only */
+  --ease-out:        cubic-bezier(0.22, 1, 0.36, 1);
+  --transition:      140ms var(--ease-out);
+  --transition-slow: 220ms var(--ease-out);
+
+  /* Layout */
+  --sidebar-width:      248px;
+  --sidebar-rail-width: 64px;
+  --header-height:      56px;
+  --page-padding:       16px;
+
+  /* Layers — one scale so overlays never fight */
+  --z-header:   50;
+  --z-dropdown: 80;
+  --z-sidebar:  100;
+  --z-popover:  120;
+  --z-modal:    200;
+  --z-toast:    300;
+}
+
+/* ================================================================
+   ALIASES — names that screens already reference. Keep until the
+   screens are migrated; never introduce new uses of these.
+   ================================================================ */
+:root, [data-theme="light"], [data-theme="dark"] {
+  --color-bg-alt:            var(--color-surface-alt);
+  --color-surface-muted:     var(--color-surface-alt);
+  --color-panel:             var(--color-surface);
+  --color-primary-soft:      var(--color-primary-light);
+  --color-table-head-fg:     var(--color-table-head-text);
+  --color-table-header:      var(--color-table-head-bg);
+  --color-table-header-bg:   var(--color-table-head-bg);
+  --color-table-header-text: var(--color-table-head-text);
+  --radius-pill:             var(--radius-full);
+}

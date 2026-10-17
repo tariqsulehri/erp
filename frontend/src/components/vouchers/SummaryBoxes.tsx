@@ -53,8 +53,8 @@ export function SummaryInputBox({
 const summaryLabelStyle: CSSProperties = {
   display: 'block',
   color: 'var(--color-text-muted)',
-  fontSize: '0.66rem',
-  fontWeight: 800,
+  fontSize: 'var(--font-size-xs)',
+  fontWeight: 600,
   lineHeight: 1.1,
 };
 
@@ -82,8 +82,8 @@ const summaryInputStyle: CSSProperties = {
   marginTop: 4,
   width: '100%',
   padding: '6px 8px',
-  fontSize: '0.78rem',
+  fontSize: 'var(--font-size-sm)',
   textAlign: 'right',
   fontFamily: 'var(--font-mono)',
-  fontWeight: 800,
+  fontWeight: 600,
 };

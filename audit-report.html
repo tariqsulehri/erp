@@ -1,0 +1,764 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Software Audit Report - ERP Platform</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --bg: #0b1120;
+            --card: #131d33;
+            --card-hover: #192542;
+            --border: #233252;
+            --text: #f8fafc;
+            --muted: #94a3b8;
+            --critical: #ef4444;
+            --high: #f97316;
+            --medium: #eab308;
+            --low: #3b82f6;
+            --pass: #10b981;
+            --accent: #6366f1;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+        }
+
+        body {
+            background-color: var(--bg);
+            color: var(--text);
+            padding: 2.5rem 1.5rem;
+            line-height: 1.5;
+        }
+
+        .container {
+            max-width: 1280px;
+            margin: 0 auto;
+        }
+
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 2rem;
+            padding-bottom: 1.5rem;
+            border-bottom: 1px solid var(--border);
+            gap: 1.5rem;
+            flex-wrap: wrap;
+        }
+
+        .header-title h1 {
+            font-size: 2rem;
+            font-weight: 700;
+            letter-spacing: -0.025em;
+            margin-bottom: 0.35rem;
+        }
+
+        .header-title p {
+            color: var(--muted);
+            font-size: 0.95rem;
+        }
+
+        .score-box {
+            display: flex;
+            align-items: center;
+            gap: 1.25rem;
+            background: var(--card);
+            border: 1px solid var(--border);
+            padding: 0.85rem 1.5rem;
+            border-radius: 14px;
+        }
+
+        .score-badge {
+            font-size: 2.4rem;
+            font-weight: 800;
+            padding: 0.35rem 1.25rem;
+            border-radius: 10px;
+            background: rgba(239, 68, 68, 0.15);
+            color: var(--critical);
+            border: 2px solid var(--critical);
+            line-height: 1;
+        }
+
+        .score-info {
+            text-align: right;
+        }
+
+        .score-info .status {
+            font-weight: 700;
+            font-size: 0.95rem;
+            color: var(--critical);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .score-info .subtext {
+            font-size: 0.8rem;
+            color: var(--muted);
+            margin-top: 0.2rem;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+            gap: 1.25rem;
+            margin-bottom: 2rem;
+        }
+
+        .card {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 1.4rem;
+            transition: border-color 0.2s, background-color 0.2s;
+        }
+
+        .card:hover {
+            border-color: #3b507d;
+        }
+
+        .card-title {
+            font-size: 0.85rem;
+            color: var(--muted);
+            margin-bottom: 0.6rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .card-value {
+            font-size: 1.9rem;
+            font-weight: 800;
+            line-height: 1.1;
+        }
+
+        .card-subtext {
+            color: var(--muted);
+            margin-top: 0.45rem;
+            font-size: 0.85rem;
+        }
+
+        .charts-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        @media (max-width: 880px) {
+            .charts-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .chart-card {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 1.5rem;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+
+        .chart-header {
+            font-size: 1.05rem;
+            color: var(--text);
+            font-weight: 600;
+            margin-bottom: 1.2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .chart-container {
+            position: relative;
+            min-height: 310px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        /* Filter Controls */
+        .filter-bar {
+            display: flex;
+            gap: 0.75rem;
+            margin-bottom: 1rem;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        .filter-btn {
+            background: var(--card);
+            border: 1px solid var(--border);
+            color: var(--muted);
+            padding: 0.45rem 0.9rem;
+            border-radius: 8px;
+            font-size: 0.825rem;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.2s;
+        }
+
+        .filter-btn:hover {
+            border-color: #475569;
+            color: var(--text);
+        }
+
+        .filter-btn.active {
+            background: rgba(99, 102, 241, 0.15);
+            border-color: var(--accent);
+            color: #818cf8;
+        }
+
+        .search-input {
+            flex: 1;
+            min-width: 220px;
+            background: var(--card);
+            border: 1px solid var(--border);
+            color: var(--text);
+            padding: 0.45rem 0.9rem;
+            border-radius: 8px;
+            font-size: 0.85rem;
+            outline: none;
+        }
+
+        .search-input:focus {
+            border-color: var(--accent);
+        }
+
+        /* Findings Table */
+        .table-card {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 1.5rem;
+            overflow-x: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 0.5rem;
+            font-size: 0.9rem;
+        }
+
+        th,
+        td {
+            text-align: left;
+            padding: 1rem 0.85rem;
+            border-bottom: 1px solid var(--border);
+            vertical-align: top;
+        }
+
+        th {
+            color: var(--muted);
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            font-weight: 700;
+            background: rgba(11, 17, 32, 0.4);
+        }
+
+        tr:hover td {
+            background: rgba(255, 255, 255, 0.02);
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 0.25rem 0.65rem;
+            border-radius: 9999px;
+            font-size: 0.72rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            white-space: nowrap;
+        }
+
+        .badge.critical {
+            background: rgba(239, 68, 68, 0.18);
+            color: var(--critical);
+            border: 1px solid var(--critical);
+        }
+
+        .badge.high {
+            background: rgba(249, 115, 22, 0.18);
+            color: var(--high);
+            border: 1px solid var(--high);
+        }
+
+        .badge.medium {
+            background: rgba(234, 179, 8, 0.18);
+            color: var(--medium);
+            border: 1px solid var(--medium);
+        }
+
+        .badge.low {
+            background: rgba(59, 130, 246, 0.18);
+            color: var(--low);
+            border: 1px solid var(--low);
+        }
+
+        code {
+            background: rgba(0, 0, 0, 0.35);
+            padding: 0.2rem 0.45rem;
+            border-radius: 5px;
+            font-size: 0.8rem;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+            color: #38bdf8;
+            border: 1px solid rgba(56, 189, 248, 0.2);
+            word-break: break-all;
+            display: inline-block;
+        }
+
+        .rec-box {
+            color: #cbd5e1;
+            font-size: 0.85rem;
+            line-height: 1.45;
+        }
+
+        .rec-box strong {
+            color: var(--pass);
+        }
+
+        footer {
+            margin-top: 3rem;
+            padding-top: 1.5rem;
+            border-top: 1px solid var(--border);
+            text-align: center;
+            color: var(--muted);
+            font-size: 0.85rem;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <header>
+            <div class="header-title">
+                <h1 id="proj-name">Project Health Audit</h1>
+                <p id="audit-meta">Loading audit metadata...</p>
+            </div>
+            <div class="score-box">
+                <div class="score-info">
+                    <div class="status" id="score-status">CRITICAL RISKS</div>
+                    <div class="subtext">Overall Health Score</div>
+                </div>
+                <div id="overall-score" class="score-badge">--</div>
+            </div>
+        </header>
+
+        <!-- Key Metrics Cards -->
+        <div class="grid" id="metrics-cards"></div>
+
+        <!-- Interactive Charts -->
+        <div class="charts-grid">
+            <div class="chart-card">
+                <div class="chart-header">
+                    <span>Category Health Radar</span>
+                    <span style="font-size: 0.8rem; color: var(--muted);">Target >= 80</span>
+                </div>
+                <div class="chart-container">
+                    <canvas id="radarChart"></canvas>
+                </div>
+            </div>
+            <div class="chart-card">
+                <div class="chart-header">
+                    <span>Discovered Issues by Severity</span>
+                    <span style="font-size: 0.8rem; color: var(--muted);" id="total-issues-count">Total: 18</span>
+                </div>
+                <div class="chart-container">
+                    <canvas id="doughnutChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- Findings Table -->
+        <div class="table-card">
+            <div class="chart-header" style="margin-bottom: 0.75rem;">
+                <span>Detailed Audit Findings & Remediation Plan</span>
+                <span style="font-size: 0.85rem; color: var(--muted);">Sorted by Severity</span>
+            </div>
+
+            <!-- Filter and Search Toolbar -->
+            <div class="filter-bar">
+                <button class="filter-btn active" onclick="filterSeverity('all', this)">All (18)</button>
+                <button class="filter-btn" onclick="filterSeverity('critical', this)">Critical (4)</button>
+                <button class="filter-btn" onclick="filterSeverity('high', this)">High (6)</button>
+                <button class="filter-btn" onclick="filterSeverity('medium', this)">Medium (6)</button>
+                <button class="filter-btn" onclick="filterSeverity('low', this)">Low (2)</button>
+                <input type="text" class="search-input" id="table-search" placeholder="Search findings, files, or recommendations..." oninput="handleSearch()">
+            </div>
+
+            <table>
+                <thead>
+                    <tr>
+                        <th style="width: 105px;">Severity</th>
+                        <th style="width: 130px;">Category</th>
+                        <th style="width: 27%;">Description</th>
+                        <th style="width: 22%;">Location</th>
+                        <th>Actionable Recommendation</th>
+                    </tr>
+                </thead>
+                <tbody id="findings-table-body"></tbody>
+            </table>
+        </div>
+
+        <footer>
+            Automated & Architectural Codebase Audit • ERP Monorepo (Next.js 15 App Router & Express / Prisma) • Generated on October 17, 2026
+        </footer>
+    </div>
+
+    <!-- Agent Injected Data -->
+    <script id="audit-data">
+        const auditData = {
+            projectName: "ERP Platform Monorepo",
+            date: "October 17, 2026",
+            techStack: "Next.js 15, React 19, Express 4, Prisma 6, PostgreSQL 16, TypeScript 5.8",
+            overallScore: 54,
+            metrics: [
+                {
+                    label: "Overall Health Score",
+                    value: "54 / 100",
+                    color: "var(--critical)",
+                    subtext: "Needs Urgent Remediation"
+                },
+                {
+                    label: "Critical Security Flaws",
+                    value: "4 Issues",
+                    color: "var(--critical)",
+                    subtext: "Plaintext DB credentials & unauth API"
+                },
+                {
+                    label: "Automated Test Coverage",
+                    value: "0.0%",
+                    color: "var(--critical)",
+                    subtext: "Zero tests across monorepo"
+                },
+                {
+                    label: "Supply Chain CVEs",
+                    value: "83 Alerts",
+                    color: "var(--high)",
+                    subtext: "75 frontend, 8 backend (4 Critical)"
+                }
+            ],
+            dimensions: {
+                labels: ["Architecture", "Security", "Quality", "Testing", "Dependencies", "Performance"],
+                scores: [68, 38, 74, 25, 52, 65]
+            },
+            severityCounts: { critical: 4, high: 6, medium: 6, low: 2 },
+            findings: [
+                {
+                    severity: "critical",
+                    category: "Security",
+                    description: "Plaintext Remote Production Database Credentials Stored in Deployment Files",
+                    location: "deployment/.env.backend:2, deployment/.env.frontend:7",
+                    recommendation: "Immediately revoke and rotate the PostgreSQL password on host 161.97.110.121. Remove plaintext files from workspace staging and add 'deployment/.env*' to .gitignore."
+                },
+                {
+                    severity: "critical",
+                    category: "Security",
+                    description: "Completely Unauthenticated Express Backend API with Spoofable Tenant Context",
+                    location: "backend/src/routes/index.ts:28-50, backend/src/http/company-context.ts:8",
+                    recommendation: "Implement centralized JWT/Bearer token authentication middleware on all '/api/v1/*' routes. Cryptographically verify tenant membership before honoring 'x-company-id'."
+                },
+                {
+                    severity: "critical",
+                    category: "Security",
+                    description: "Hardcoded Fallback JWT Secret & Encryption Keys in Source Code",
+                    location: "frontend/src/lib/auth/auth.options.ts:64, deployment/.env.backend:7",
+                    recommendation: "Remove fallback secret strings. Enforce strict environment validation that aborts startup if NEXTAUTH_SECRET or JWT_SECRET is missing."
+                },
+                {
+                    severity: "critical",
+                    category: "Dependencies",
+                    description: "4 Critical CVEs in Core Dependencies (Next.js RCE, Auth.js Bypass, Proxy-addr Spoofing)",
+                    location: "package.json (next GHSA-p293-qw3h-jr36, next-auth GHSA-7rqj-j65f-68wh, proxy-addr GHSA-jqcg-44mw-7w3h)",
+                    recommendation: "Upgrade Next.js to >=15.5.24, next-auth to >=4.24.15, and run 'npm audit fix' on backend to remediate proxy-addr (CVSS 9.1)."
+                },
+                {
+                    severity: "high",
+                    category: "Testing",
+                    description: "0% Automated Test Coverage across Entire Monorepo",
+                    location: "frontend/tests/ (empty), backend/package.json",
+                    recommendation: "Implement automated unit tests for core double-entry accounting rules (voucher balancing, fiscal period restrictions) and integration tests for document posting workflows. Install Vitest or Jest on backend."
+                },
+                {
+                    severity: "high",
+                    category: "Architecture",
+                    description: "Prisma Schema Drift: Core Sales & Purchase Models Missing from schema.prisma",
+                    location: "backend/prisma/schema.prisma vs backend/prisma/migrations/",
+                    recommendation: "Update 'schema.prisma' to include models for sale_invoices, purchase_invoices, and returns. Restore type-safe Prisma client methods and eliminate brittle raw SQL queries."
+                },
+                {
+                    severity: "high",
+                    category: "Concurrency",
+                    description: "Race Condition & Lexicographical Sorting Bug in Document Sequence Generation",
+                    location: "backend/src/modules/sales/sale-draft.service.ts:24-38, purchases/purchase-draft.service.ts:26-39",
+                    recommendation: "Replace 'ORDER BY sale_number DESC LIMIT 1' with native PostgreSQL sequences (CREATE SEQUENCE) or atomic row locking with numeric parsing to prevent duplicate key crashes."
+                },
+                {
+                    severity: "high",
+                    category: "Security",
+                    description: "Client-Side-Only Route Protection & Lack of Edge Server Middleware",
+                    location: "frontend/src/app/(dashboard)/layout.tsx:41, frontend/middleware.ts (missing)",
+                    recommendation: "Add Next.js 'middleware.ts' using NextAuth 'withAuth' to enforce server-side session checks before rendering or serving static dashboard page assets."
+                },
+                {
+                    severity: "high",
+                    category: "Security",
+                    description: "Hardcoded Mock Credentials & Pre-filled Login Form in Production Codebase",
+                    location: "frontend/src/lib/auth/auth.options.ts:46-60, frontend/src/app/(auth)/login/page.tsx:19-20",
+                    recommendation: "Remove hardcoded mock credentials ('admin@example.com' / 'admin123'). Connect authentication to the database user table using bcrypt password hashing."
+                },
+                {
+                    severity: "high",
+                    category: "Dependencies",
+                    description: "Heavy Unused Dependencies & Attack Surface Bloat in Frontend",
+                    location: "frontend/package.json:28,34,36,44,45,50",
+                    recommendation: "Remove unreferenced packages (puppeteer, bullmq, redis, pg, @aws-sdk/client-s3). Reduces node_modules size and eliminates 40+ transitive vulnerabilities."
+                },
+                {
+                    severity: "medium",
+                    category: "Performance",
+                    description: "Missing Composite Database Indexes for General Ledger & Financial Reporting",
+                    location: "backend/prisma/schema.prisma, documents/DATABASE_QUERY_OPTIMIZATION_PLAN.md",
+                    recommendation: "Create composite indexes: 'vouchers(company_id, status, voucher_date, id)' and 'voucher_lines(company_id, account_id, voucher_id)' to prevent full table scans during report generation."
+                },
+                {
+                    severity: "medium",
+                    category: "Performance",
+                    description: "Unbounded Company-Wide Line Count Subqueries in Document List Endpoints",
+                    location: "backend/src/modules/sales/sale-list.service.ts:77-87",
+                    recommendation: "Refactor list queries with Common Table Expressions (WITH page_rows AS ...) to calculate line counts only for the current 50 paged records rather than the whole company dataset."
+                },
+                {
+                    severity: "medium",
+                    category: "Architecture",
+                    description: "Multi-Company Tenant ID Hardcoded in Client API Service",
+                    location: "frontend/src/lib/api/backend-client.ts:5,112,129",
+                    recommendation: "Dynamically bind the 'x-company-id' header to the active company selected in the user's React context/session rather than a static default UUID."
+                },
+                {
+                    severity: "medium",
+                    category: "Architecture",
+                    description: "Monolithic Large Files Exceeding 1,000 Lines (Violates Modular Guidelines)",
+                    location: "frontend/src/app/(dashboard)/settings/page.tsx (1,148 lines), backend/.../fiscal-year.service.ts (1,087 lines)",
+                    recommendation: "Deconstruct monolithic files into focused sub-components and service helpers following the Purchase module pattern defined in AGENTS.md."
+                },
+                {
+                    severity: "medium",
+                    category: "Reliability",
+                    description: "Absence of Automated CI/CD Testing Pipeline",
+                    location: "Repository Root (.github/workflows/ missing)",
+                    recommendation: "Add GitHub Actions workflow to run 'npm run type-check', 'npm run lint', security audits, and tests automatically on push and pull requests."
+                },
+                {
+                    severity: "medium",
+                    category: "Quality",
+                    description: "28 React Hook Exhaustive-Deps Warnings with Stale Closure Risks",
+                    location: "frontend/src/app/(dashboard)/settings/page.tsx:448, components/bank/ChequeBooksTab.tsx:104",
+                    recommendation: "Fix ESLint exhaustive-deps warnings by wrapping callbacks in useCallback, memoizing dependencies, or switching complex forms to useReducer."
+                },
+                {
+                    severity: "low",
+                    category: "Quality",
+                    description: "Broken npm Script Referencing Non-Existent File",
+                    location: "frontend/package.json:20 ('worker:dev': 'tsx watch src/worker/worker.ts')",
+                    recommendation: "Remove or correct the broken 'worker:dev' npm script in frontend/package.json."
+                },
+                {
+                    severity: "low",
+                    category: "Quality",
+                    description: "Orphaned Empty Directory Artifact from Unescaped Shell Brace Expansion",
+                    location: "frontend/src/{app/",
+                    recommendation: "Remove the orphaned 'frontend/src/{app' folder structure created accidentally by unescaped shell brace commands."
+                }
+            ]
+        };
+    </script>
+
+    <!-- Script to Render Charts, Metrics & Tables -->
+    <script>
+        document.getElementById("proj-name").innerText = `${auditData.projectName} - Health Audit`;
+        document.getElementById("audit-meta").innerText = `Audit Date: ${auditData.date} | Tech Stack: ${auditData.techStack}`;
+
+        const scoreEl = document.getElementById("overall-score");
+        scoreEl.innerText = `${auditData.overallScore}/100`;
+        const statusEl = document.getElementById("score-status");
+
+        if (auditData.overallScore < 60) {
+            scoreEl.style.color = "var(--critical)";
+            scoreEl.style.borderColor = "var(--critical)";
+            scoreEl.style.background = "rgba(239, 68, 68, 0.15)";
+            statusEl.innerText = "CRITICAL RISKS DETECTED";
+            statusEl.style.color = "var(--critical)";
+        } else if (auditData.overallScore < 80) {
+            scoreEl.style.color = "var(--high)";
+            scoreEl.style.borderColor = "var(--high)";
+            scoreEl.style.background = "rgba(249, 115, 22, 0.15)";
+            statusEl.innerText = "NEEDS ATTENTION";
+            statusEl.style.color = "var(--high)";
+        } else {
+            scoreEl.style.color = "var(--pass)";
+            scoreEl.style.borderColor = "var(--pass)";
+            scoreEl.style.background = "rgba(16, 185, 129, 0.15)";
+            statusEl.innerText = "HEALTHY STATUS";
+            statusEl.style.color = "var(--pass)";
+        }
+
+        // Render Metric Cards
+        const metricsContainer = document.getElementById('metrics-cards');
+        if (metricsContainer && auditData.metrics) {
+            auditData.metrics.forEach(m => {
+                const card = document.createElement('div');
+                card.className = 'card';
+                card.innerHTML = `
+                    <div class="card-title">${m.label}</div>
+                    <div class="card-value" style="color: ${m.color || 'var(--text)'};">${m.value}</div>
+                    <div class="card-subtext">${m.subtext}</div>
+                `;
+                metricsContainer.appendChild(card);
+            });
+        }
+
+        // Render Radar Chart
+        new Chart(document.getElementById('radarChart'), {
+            type: 'radar',
+            data: {
+                labels: auditData.dimensions.labels,
+                datasets: [{
+                    label: 'Health Score (0-100)',
+                    data: auditData.dimensions.scores,
+                    backgroundColor: 'rgba(99, 102, 241, 0.25)',
+                    borderColor: '#818cf8',
+                    pointBackgroundColor: '#c7d2fe',
+                    pointBorderColor: '#fff',
+                    pointHoverBackgroundColor: '#fff',
+                    pointHoverBorderColor: '#818cf8',
+                    borderWidth: 2
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    r: {
+                        min: 0,
+                        max: 100,
+                        ticks: {
+                            stepSize: 20,
+                            display: false,
+                            backdropColor: 'transparent'
+                        },
+                        grid: { color: 'rgba(255, 255, 255, 0.08)' },
+                        angleLines: { color: 'rgba(255, 255, 255, 0.08)' },
+                        pointLabels: {
+                            color: '#cbd5e1',
+                            font: { size: 12, weight: '600' }
+                        }
+                    }
+                },
+                plugins: {
+                    legend: { display: false }
+                }
+            }
+        });
+
+        // Render Doughnut Chart
+        new Chart(document.getElementById('doughnutChart'), {
+            type: 'doughnut',
+            data: {
+                labels: ['Critical', 'High', 'Medium', 'Low'],
+                datasets: [{
+                    data: [
+                        auditData.severityCounts.critical,
+                        auditData.severityCounts.high,
+                        auditData.severityCounts.medium,
+                        auditData.severityCounts.low
+                    ],
+                    backgroundColor: ['#ef4444', '#f97316', '#eab308', '#3b82f6'],
+                    borderWidth: 2,
+                    borderColor: '#131d33'
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                cutout: '68%',
+                plugins: {
+                    legend: {
+                        position: 'bottom',
+                        labels: {
+                            color: '#cbd5e1',
+                            font: { size: 12, weight: '600' },
+                            padding: 18,
+                            usePointStyle: true,
+                            pointStyle: 'circle'
+                        }
+                    }
+                }
+            }
+        });
+
+        // Findings Table & Filtering
+        let currentFilter = 'all';
+        let searchQuery = '';
+
+        function renderFindings() {
+            const tbody = document.getElementById('findings-table-body');
+            tbody.innerHTML = '';
+
+            const filtered = auditData.findings.filter(f => {
+                const matchesSeverity = currentFilter === 'all' || f.severity.toLowerCase() === currentFilter;
+                const matchesSearch = !searchQuery ||
+                    f.description.toLowerCase().includes(searchQuery) ||
+                    f.category.toLowerCase().includes(searchQuery) ||
+                    f.location.toLowerCase().includes(searchQuery) ||
+                    f.recommendation.toLowerCase().includes(searchQuery);
+                return matchesSeverity && matchesSearch;
+            });
+
+            if (filtered.length === 0) {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `<td colspan="5" style="text-align: center; color: var(--muted); padding: 2.5rem;">No matching findings discovered.</td>`;
+                tbody.appendChild(tr);
+                return;
+            }
+
+            filtered.forEach(f => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td><span class="badge ${f.severity.toLowerCase()}">${f.severity}</span></td>
+                    <td><strong style="color: var(--text);">${f.category}</strong></td>
+                    <td style="color: #e2e8f0; font-weight: 500;">${f.description}</td>
+                    <td><code>${f.location}</code></td>
+                    <td class="rec-box">${f.recommendation}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function filterSeverity(sev, btn) {
+            currentFilter = sev;
+            document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            renderFindings();
+        }
+
+        function handleSearch() {
+            searchQuery = document.getElementById('table-search').value.toLowerCase().trim();
+            renderFindings();
+        }
+
+        // Initial render
+        renderFindings();
+    </script>
+</body>
+
+</html>

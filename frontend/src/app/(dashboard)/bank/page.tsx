@@ -5,15 +5,45 @@
  *
  * Tabs:
  *  Accounts        — Bank accounts registered in the system
+ *  Cheque Books    — Bank cheque books and cheque leaves
  *  Post-Dated Cheques (PDC) — Received and issued PDCs with status tracking
  *  Reconciliation  — Bank reconciliation statement (match GL vs bank statement)
  */
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { formatDate, formatMoney, normalizeFormatSettings, type AppFormatSettingsSource } from '@/lib/app-settings';
-import { trpc } from '@/lib/trpc/client';
+import { useGeneralSettings } from '@/lib/api/settings';
+import {
+  type BankAccountPayload,
+  useBankAccountsList,
+  useBankAccountsSupportData,
+  useCreateBankAccount,
+  useInvalidateBankAccounts,
+  useUpdateBankAccount,
+} from '@/lib/api/bank-accounts';
+import { friendlyErrorMessage, numericValue } from '@/lib/erp-utils';
+import {
+  IconBuildingBank,
+  IconCalendarDue,
+  IconCheck,
+  IconClipboardCheck,
+  IconNotebook,
+  IconPencil,
+  IconPlus,
+} from '@tabler/icons-react';
+import { Badge } from '@/components/ui/Badge';
+import { Button } from '@/components/ui/Button';
+import { FieldLabel } from '@/components/ui/FieldLabel';
+import { CheckboxField, DateField, NumericField, SelectField, TextareaField, TextField } from '@/components/ui/FormFields';
+import { InlineAlert } from '@/components/ui/InlineAlert';
+import { PageHeader } from '@/components/ui/PageHeader';
+import { SearchableSelect } from '@/components/ui/SearchableSelect';
+import { SegmentedControl } from '@/components/ui/SegmentedControl';
+import { TableMessageRow } from '@/components/ui/TableMessageRow';
+import { Tabs, type TabItem } from '@/components/ui/Tabs';
+import { ChequeBooksTab } from '@/components/bank/ChequeBooksTab';
 
-type Tab = 'accounts' | 'pdc' | 'reconciliation';
+type Tab = 'accounts' | 'cheque-books' | 'pdc' | 'reconciliation';
 type PDCType = 'received' | 'issued';
 type PDCStatus = 'Pending' | 'Deposited' | 'Matured' | 'Returned' | 'Cancelled';
 
@@ -44,287 +74,552 @@ const SAMPLE_RECON = [
 ];
 
 /* ── Helpers ─────────────────────────────────────────────────────────── */
-const STATUS_STYLE: Record<PDCStatus, { bg: string; color: string }> = {
-  Pending:    { bg: '#fef3c7', color: '#92400e' },
-  Deposited:  { bg: '#dcfce7', color: '#15803d' },
-  Matured:    { bg: '#dbeafe', color: '#1d4ed8' },
-  Returned:   { bg: '#fee2e2', color: '#b91c1c' },
-  Cancelled:  { bg: '#f1f5f9', color: '#64748b' },
+type BadgeVariant = 'success' | 'warning' | 'danger' | 'info' | 'neutral';
+
+const PDC_STATUS_BADGE: Record<PDCStatus, BadgeVariant> = {
+  Pending: 'warning',
+  Deposited: 'success',
+  Matured: 'info',
+  Returned: 'danger',
+  Cancelled: 'neutral',
 };
 
 function isOverdue(dueDate: string) {
   return new Date(dueDate) < new Date();
 }
 
+function maskAccountNumber(value: string) {
+  const clean = value.trim();
+  if (clean.length <= 4) return clean;
+  return `****-${clean.slice(-4)}`;
+}
+
+function negativeStyle(value: number | null | undefined): React.CSSProperties | undefined {
+  return Number(value ?? 0) < 0 ? { color: 'var(--color-negative)' } : undefined;
+}
+
+/** Grid, not flex, so stacked panels keep their height and the tab body scrolls. */
+const tabBodyStyle: React.CSSProperties = {
+  display: 'grid',
+  gridTemplateColumns: 'minmax(0, 1fr)',
+  alignContent: 'start',
+  gap: 12,
+};
+
 /* ── Bank Accounts Tab ───────────────────────────────────────────────── */
-function BankAccountsTab({ settings }: { settings?: AppFormatSettingsSource | null }) {
-  const totalBalance = SAMPLE_BANK_ACCOUNTS.reduce((s, a) => s + a.balance, 0);
+interface BankAccountsTabProps {
+  settings?: AppFormatSettingsSource | null;
+  entryOpen: boolean;
+  onEntryOpenChange: (open: boolean) => void;
+}
+
+const blankBankForm = (): BankAccountPayload => ({
+  code: '',
+  ledger_account_id: '',
+  bank_name: '',
+  branch_name: '',
+  branch_code: '',
+  account_title: '',
+  account_number: '',
+  account_type: 'Current',
+  iban: '',
+  swift_code: '',
+  currency_code: 'PKR',
+  opening_balance: 0,
+  opening_balance_date: '',
+  contact_name: '',
+  address: '',
+  post_code: '',
+  country: '',
+  city: '',
+  area: '',
+  phone_1: '',
+  phone_2: '',
+  mobile_number: '',
+  fax_number: '',
+  email: '',
+  website: '',
+  notes: '',
+  is_default: false,
+  is_active: true,
+});
+
+function BankAccountsTab({ settings, entryOpen, onEntryOpenChange }: BankAccountsTabProps) {
+  const supportQuery = useBankAccountsSupportData();
+  const listQuery = useBankAccountsList({ page: 1, limit: 50 });
+  const createBankAccount = useCreateBankAccount();
+  const updateBankAccount = useUpdateBankAccount();
+  const invalidateBankAccounts = useInvalidateBankAccounts();
   const formatSettings = normalizeFormatSettings(settings);
+  const [form, setForm] = useState<BankAccountPayload>(blankBankForm);
+  const [editingId, setEditingId] = useState('');
+  const [entryWasOpen, setEntryWasOpen] = useState(entryOpen);
+  const [message, setMessage] = useState<{ kind: 'success' | 'error'; text: string } | null>(null);
+  const saving = createBankAccount.isPending || updateBankAccount.isPending;
+  const accounts = listQuery.data?.data ?? [];
+  const totalBalance = accounts.reduce((sum: number, account: any) => sum + Number(account.current_balance ?? 0), 0);
+  const activeCount = accounts.filter((account: any) => account.is_active).length;
+  const accountOptions = (supportQuery.data?.accounts ?? []).map((account: any) => ({
+    value: account.id,
+    label: `${account.code} - ${account.name}`,
+    searchText: `${account.code} ${account.name}`,
+  }));
+
+  useEffect(() => {
+    if (entryOpen && !entryWasOpen && !editingId) {
+      setForm(blankBankForm());
+      setMessage(null);
+    }
+    setEntryWasOpen(entryOpen);
+  }, [editingId, entryOpen, entryWasOpen]);
+
+  function patchForm(patch: Partial<BankAccountPayload>) {
+    setForm(current => ({ ...current, ...patch }));
+  }
+
+  function startNew() {
+    setEditingId('');
+    setForm(blankBankForm());
+    setMessage(null);
+    onEntryOpenChange(true);
+  }
+
+  function startEdit(account: any) {
+    setEditingId(account.id);
+    setForm({
+      code: account.code ?? '',
+      ledger_account_id: account.ledger_account_id ?? '',
+      bank_name: account.bank_name ?? '',
+      branch_name: account.branch_name ?? '',
+      branch_code: account.branch_code ?? '',
+      account_title: account.account_title ?? '',
+      account_number: account.account_number ?? '',
+      account_type: account.account_type ?? 'Current',
+      iban: account.iban ?? '',
+      swift_code: account.swift_code ?? '',
+      currency_code: account.currency_code ?? formatSettings.currencyCode,
+      opening_balance: Number(account.opening_balance ?? 0),
+      opening_balance_date: String(account.opening_balance_date ?? '').slice(0, 10),
+      contact_name: account.contact_name ?? '',
+      address: account.address ?? '',
+      post_code: account.post_code ?? '',
+      country: account.country ?? '',
+      city: account.city ?? '',
+      area: account.area ?? '',
+      phone_1: account.phone_1 ?? '',
+      phone_2: account.phone_2 ?? '',
+      mobile_number: account.mobile_number ?? '',
+      fax_number: account.fax_number ?? '',
+      email: account.email ?? '',
+      website: account.website ?? '',
+      notes: account.notes ?? '',
+      is_default: Boolean(account.is_default),
+      is_active: Boolean(account.is_active),
+    });
+    setMessage(null);
+    onEntryOpenChange(true);
+  }
+
+  function validateForm() {
+    if (!form.code.trim()) return 'Code is required.';
+    if (!form.ledger_account_id) return 'Linked Account is required.';
+    if (!form.bank_name.trim()) return 'Bank Name is required.';
+    if (!form.account_title.trim()) return 'Account Title is required.';
+    if (!form.account_number.trim()) return 'Account Number is required.';
+    if (form.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) return 'Email is not valid.';
+    if (numericValue(String(form.opening_balance)) < 0) return 'Opening Balance cannot be negative.';
+    return '';
+  }
+
+  async function saveBankAccount() {
+    const validationMessage = validateForm();
+    if (validationMessage) {
+      setMessage({ kind: 'error', text: validationMessage });
+      return;
+    }
+
+    try {
+      const payload = {
+        ...form,
+        code: form.code.trim(),
+        bank_name: form.bank_name.trim(),
+        account_title: form.account_title.trim(),
+        account_number: form.account_number.trim(),
+        currency_code: form.currency_code.trim().toUpperCase() || formatSettings.currencyCode,
+        opening_balance: numericValue(String(form.opening_balance)),
+      };
+      const result = editingId
+        ? await updateBankAccount.mutateAsync({ id: editingId, input: payload })
+        : await createBankAccount.mutateAsync(payload);
+      await invalidateBankAccounts();
+      setMessage({ kind: 'success', text: result.message ?? 'Bank Account saved successfully.' });
+      setEditingId('');
+      setForm(blankBankForm());
+      onEntryOpenChange(false);
+    } catch (error) {
+      setMessage({ kind: 'error', text: friendlyErrorMessage(error, 'Unable to save Bank Account.') });
+    }
+  }
+
+  function cancelEntry() {
+    onEntryOpenChange(false);
+    setEditingId('');
+    setForm(blankBankForm());
+  }
+
+  if (entryOpen) {
+    return (
+      <div style={tabBodyStyle}>
+        {message && <InlineAlert tone={message.kind === 'success' ? 'success' : 'danger'}>{message.text}</InlineAlert>}
+        <section className="panel">
+          <div className="panel-header">
+            <div>
+              <h2 className="panel-title">{editingId ? 'Edit Bank Account' : 'New Bank Account'}</h2>
+              <p className="page-head-desc">Bank details, linked account, branch, and contact information.</p>
+            </div>
+            <div className="row-actions" style={{ gap: 8 }}>
+              <Button variant="ghost" onClick={cancelEntry} disabled={saving}>Cancel</Button>
+              <Button variant="primary" onClick={saveBankAccount} loading={saving}>{editingId ? 'Save Changes' : 'Save Bank Account'}</Button>
+            </div>
+          </div>
+
+          <div className="panel-body">
+            <section className="form-section">
+              <h3 className="form-section-title">Account Details</h3>
+              <div className="form-grid">
+                <TextField label="Code" required value={form.code} onChange={value => patchForm({ code: value })} />
+                <div className="span-2">
+                  <FieldLabel label="Linked Account" required>
+                    <SearchableSelect
+                      value={form.ledger_account_id}
+                      options={accountOptions}
+                      onChange={value => patchForm({ ledger_account_id: value })}
+                      placeholder={supportQuery.isLoading ? 'Loading Accounts…' : 'Search Linked Account'}
+                      disabled={supportQuery.isLoading || supportQuery.isError}
+                    />
+                  </FieldLabel>
+                  {supportQuery.isFetching && <p className="form-hint">Loading Linked Accounts…</p>}
+                </div>
+                <SelectField
+                  label="Account Type"
+                  value={form.account_type ?? ''}
+                  options={ACCOUNT_TYPE_OPTIONS}
+                  onChange={value => patchForm({ account_type: value })}
+                />
+                <TextField label="Account Title" required value={form.account_title} onChange={value => patchForm({ account_title: value })} />
+                <TextField label="Account Number" required value={form.account_number} onChange={value => patchForm({ account_number: value })} />
+                <TextField label="Bank Name" required value={form.bank_name} onChange={value => patchForm({ bank_name: value })} />
+                <TextField label="Branch Name" value={form.branch_name ?? ''} onChange={value => patchForm({ branch_name: value })} />
+                <TextField label="Branch Code" value={form.branch_code ?? ''} onChange={value => patchForm({ branch_code: value })} />
+                <TextField label="IBAN" value={form.iban ?? ''} onChange={value => patchForm({ iban: value })} />
+                <TextField label="SWIFT Code" value={form.swift_code ?? ''} onChange={value => patchForm({ swift_code: value })} />
+                <TextField label="Currency" value={form.currency_code} onChange={value => patchForm({ currency_code: value.toUpperCase().slice(0, 3) })} />
+                <NumericField label="Opening Balance" value={String(form.opening_balance || '')} onChange={value => patchForm({ opening_balance: numericValue(value) })} />
+                <DateField label="Opening Balance Date" value={form.opening_balance_date ?? ''} onChange={value => patchForm({ opening_balance_date: value })} />
+              </div>
+            </section>
+
+            <section className="form-section">
+              <h3 className="form-section-title">Contact And Address</h3>
+              <div className="form-grid">
+                <TextField label="Contact Person" value={form.contact_name ?? ''} onChange={value => patchForm({ contact_name: value })} />
+                <TextField label="Phone 1" value={form.phone_1 ?? ''} onChange={value => patchForm({ phone_1: value })} />
+                <TextField label="Phone 2" value={form.phone_2 ?? ''} onChange={value => patchForm({ phone_2: value })} />
+                <TextField label="Mobile Number" value={form.mobile_number ?? ''} onChange={value => patchForm({ mobile_number: value })} />
+                <TextField label="Fax Number" value={form.fax_number ?? ''} onChange={value => patchForm({ fax_number: value })} />
+                <TextField label="Email Address" value={form.email ?? ''} onChange={value => patchForm({ email: value })} />
+                <TextField label="Website" value={form.website ?? ''} onChange={value => patchForm({ website: value })} />
+                <TextField label="Post Code" value={form.post_code ?? ''} onChange={value => patchForm({ post_code: value })} />
+                <TextField label="Country" value={form.country ?? ''} onChange={value => patchForm({ country: value })} />
+                <TextField label="City" value={form.city ?? ''} onChange={value => patchForm({ city: value })} />
+                <TextField label="Area" value={form.area ?? ''} onChange={value => patchForm({ area: value })} />
+                <div style={{ alignSelf: 'end' }}>
+                  <CheckboxField label="Inactive" checked={!form.is_active} onChange={checked => patchForm({ is_active: !checked })} />
+                </div>
+                <div className="span-all">
+                  <TextareaField label="Address" value={form.address ?? ''} onChange={value => patchForm({ address: value })} rows={3} />
+                </div>
+              </div>
+            </section>
+          </div>
+        </section>
+      </div>
+    );
+  }
 
   return (
-    <div>
-      {/* KPI */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14, marginBottom: 24 }}>
-        {[
-          { label: 'Total Bank Balance', value: formatMoney(totalBalance, settings), color: '#2563eb' },
-          { label: 'Active Accounts',    value: SAMPLE_BANK_ACCOUNTS.filter(a => a.is_active).length, color: '#16a34a' },
-          { label: 'Currency',           value: formatSettings.currencyCode, color: '#7c3aed' },
-        ].map(k => (
-          <div key={k.label} style={{
-            background: 'var(--color-surface)', border: '1px solid var(--color-border)',
-            borderRadius: 'var(--radius)', padding: '16px 20px', boxShadow: 'var(--shadow-sm)',
-          }}>
-            <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-muted)', marginBottom: 4 }}>{k.label}</div>
-            <div style={{ fontSize: '1.25rem', fontWeight: 700, color: k.color }}>{k.value}</div>
-          </div>
-        ))}
-      </div>
+    <div style={tabBodyStyle}>
+      {message && <InlineAlert tone={message.kind === 'success' ? 'success' : 'danger'}>{message.text}</InlineAlert>}
+      {listQuery.error && <InlineAlert tone="danger">{friendlyErrorMessage(listQuery.error, 'Unable to load Bank Accounts.')}</InlineAlert>}
 
-      {/* Account cards */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-        {SAMPLE_BANK_ACCOUNTS.map(acct => (
-          <div key={acct.id} style={{
-            background: 'var(--color-surface)', border: '1px solid var(--color-border)',
-            borderRadius: 'var(--radius)', padding: '16px 20px',
-            display: 'flex', alignItems: 'center', gap: 20, boxShadow: 'var(--shadow-sm)',
-          }}>
-            <div style={{
-              width: 42, height: 42, borderRadius: 10, background: '#dbeafe',
-              display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-            }}>
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#1d4ed8" strokeWidth="2">
-                <path d="M3 9a2 2 0 012-2h14a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/>
-                <path d="M8 9V7a4 4 0 018 0v2"/>
-              </svg>
-            </div>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontWeight: 600, color: 'var(--color-text)', marginBottom: 2 }}>{acct.name}</div>
-              <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-muted)' }}>
-                {acct.bank} · {acct.branch} · {acct.accountNo}
-              </div>
-            </div>
-            <div style={{ textAlign: 'right' }}>
-              <div style={{ fontWeight: 700, fontSize: '1.0625rem', color: '#2563eb' }}>
-                {formatMoney(acct.balance, settings)}
-              </div>
-              <div style={{ fontSize: 'var(--font-size-xs)', color: acct.is_active ? '#16a34a' : '#94a3b8' }}>
-                {acct.is_active ? 'Active' : 'Inactive'}
-              </div>
-            </div>
-            <button style={{
-              padding: '6px 14px', borderRadius: 'var(--radius-sm)',
-              border: '1px solid var(--color-border)', background: 'var(--color-surface)',
-              fontSize: 'var(--font-size-xs)', fontWeight: 600, cursor: 'pointer',
-              color: 'var(--color-text-muted)',
-            }}>
-              Statement
-            </button>
+      <section className="panel">
+        <div className="panel-header">
+          <h2 className="panel-title">Bank Accounts</h2>
+          <div className="filter-bar-end">
+            {listQuery.isFetching && accounts.length > 0 && <span>Refreshing…</span>}
+            <span>{activeCount} Active</span>
+            <span aria-hidden>·</span>
+            <span>Currency {formatSettings.currencyCode}</span>
+            <span aria-hidden>·</span>
+            <span>
+              Total Balance{' '}
+              <strong style={{ fontWeight: 600, color: 'var(--color-heading)', fontVariantNumeric: 'tabular-nums', ...negativeStyle(totalBalance) }}>
+                {formatMoney(totalBalance, settings)}
+              </strong>
+            </span>
           </div>
-        ))}
-      </div>
+        </div>
 
-      <div style={{
-        marginTop: 16, padding: '10px 16px', borderRadius: 'var(--radius-sm)',
-        background: '#fffbeb', border: '1px solid #fde68a',
-        fontSize: 'var(--font-size-xs)', color: '#92400e',
-      }}>
-        Bank accounts are linked to GL accounts in the Chart of Accounts (1110–1113).
-        Live balance shown here is the GL balance. Bank reconciliation is available in the Reconciliation tab.
-      </div>
+        <div className="table-scroll">
+          <table className="data-table" style={{ tableLayout: 'fixed' }}>
+            <thead>
+              <tr>
+                <th>Account Title</th>
+                <th style={{ width: 140 }}>Account Number</th>
+                <th style={{ width: '26%' }}>Linked Account</th>
+                <th className="num" style={{ width: 170 }}>Current Balance</th>
+                <th style={{ width: 100 }}>Status</th>
+                <th style={{ width: 56 }}><span className="sr-only">Actions</span></th>
+              </tr>
+            </thead>
+            <tbody>
+              {listQuery.isLoading && accounts.length === 0 && <TableMessageRow colSpan={6} title="Loading Bank Accounts…" loading />}
+              {!listQuery.isLoading && accounts.length === 0 && (
+                <TableMessageRow
+                  colSpan={6}
+                  title="No Bank Accounts Yet"
+                  description="Add a Bank Account to track balances, cheque books, and reconciliation."
+                  action={<Button variant="primary" icon={<IconPlus size={16} stroke={1.8} />} onClick={startNew}>New Bank Account</Button>}
+                />
+              )}
+              {accounts.map((acct: any) => (
+                <tr key={acct.id} className={editingId === acct.id ? 'is-selected' : undefined} onDoubleClick={() => startEdit(acct)}>
+                  <td className="cell-stack">
+                    <span className="cell-strong">{acct.account_title}</span>
+                    <span className="cell-sub">{acct.bank_name} · {acct.branch_name || 'Branch Not Set'}</span>
+                  </td>
+                  <td className="cell-muted">{maskAccountNumber(acct.account_number)}</td>
+                  <td className={acct.ledger_account_code ? undefined : 'cell-muted'}>
+                    {acct.ledger_account_code ? `${acct.ledger_account_code} - ${acct.ledger_account_name}` : 'Not Set'}
+                  </td>
+                  <td className="num" style={negativeStyle(Number(acct.current_balance ?? 0))}>{formatMoney(Number(acct.current_balance ?? 0), settings)}</td>
+                  <td><Badge variant={acct.is_active ? 'success' : 'neutral'}>{acct.is_active ? 'Active' : 'Inactive'}</Badge></td>
+                  <td className="cell-actions">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      icon={<IconPencil size={16} stroke={1.8} />}
+                      onClick={() => startEdit(acct)}
+                      aria-label={`Edit Bank Account ${acct.account_title}`}
+                      title="Edit Bank Account"
+                    />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
     </div>
   );
 }
 
 /* ── PDC Tab ─────────────────────────────────────────────────────────── */
-function PDCTab({ settings }: { settings?: AppFormatSettingsSource | null }) {
+function PDCTab({
+  settings,
+  entryOpen,
+  onEntryOpenChange,
+}: {
+  settings?: AppFormatSettingsSource | null;
+  entryOpen: boolean;
+  onEntryOpenChange: (open: boolean) => void;
+}) {
   const [pdcType, setPdcType] = useState<'all' | PDCType>('all');
   const [statusFilter, setStatusFilter] = useState<PDCStatus | 'all'>('all');
+  const [pdcs, setPdcs] = useState(SAMPLE_PDCS);
+  const [message, setMessage] = useState('');
+  const [form, setForm] = useState({
+    type: 'received' as PDCType,
+    chequeNo: '',
+    party: '',
+    bank: '',
+    amount: '',
+    dueDate: new Date().toISOString().slice(0, 10),
+    account: 'Main Operating Account',
+  });
 
-  const filtered = SAMPLE_PDCS.filter(p => {
+  const filtered = pdcs.filter(p => {
     if (pdcType !== 'all' && p.type !== pdcType) return false;
     if (statusFilter !== 'all' && p.status !== statusFilter) return false;
     return true;
   });
 
-  const totalPending  = SAMPLE_PDCS.filter(p => p.status === 'Pending').reduce((s, p) => s + p.amount, 0);
-  const totalMatured  = SAMPLE_PDCS.filter(p => p.status === 'Matured').reduce((s, p) => s + p.amount, 0);
-  const totalReturned = SAMPLE_PDCS.filter(p => p.status === 'Returned').reduce((s, p) => s + p.amount, 0);
+  const totalPending  = pdcs.filter(p => p.status === 'Pending').reduce((s, p) => s + p.amount, 0);
+  const totalMatured  = pdcs.filter(p => p.status === 'Matured').reduce((s, p) => s + p.amount, 0);
+  const totalReturned = pdcs.filter(p => p.status === 'Returned').reduce((s, p) => s + p.amount, 0);
+
+  function updatePdcStatus(id: string, nextStatus: PDCStatus, actionLabel: string) {
+    setPdcs(rows => rows.map(row => row.id === id ? { ...row, status: nextStatus } : row));
+    setMessage(`${actionLabel} completed for cheque.`);
+  }
+
+  function savePdc() {
+    if (!form.chequeNo.trim()) return setMessage('Cheque No. is required.');
+    if (!form.party.trim()) return setMessage('Party is required.');
+    if (!form.bank.trim()) return setMessage('Bank is required.');
+    if (numericValue(form.amount) <= 0) return setMessage('Amount must be greater than zero.');
+    setPdcs(rows => [{
+      id: String(Date.now()),
+      type: form.type,
+      chequeNo: form.chequeNo.trim(),
+      party: form.party.trim(),
+      bank: form.bank.trim(),
+      amount: numericValue(form.amount),
+      dueDate: form.dueDate,
+      status: 'Pending' as PDCStatus,
+      account: form.account.trim() || 'Main Operating Account',
+    }, ...rows]);
+    setForm({
+      type: 'received',
+      chequeNo: '',
+      party: '',
+      bank: '',
+      amount: '',
+      dueDate: new Date().toISOString().slice(0, 10),
+      account: 'Main Operating Account',
+    });
+    onEntryOpenChange(false);
+    setMessage('Post-Dated Cheque added.');
+  }
+
+  const pendingCount = pdcs.filter(p => p.status === 'Pending').length;
+  const maturedCount = pdcs.filter(p => p.status === 'Matured').length;
+  const returnedCount = pdcs.filter(p => p.status === 'Returned').length;
+  const messageIsError = Boolean(message) && !/added|completed/i.test(message);
 
   return (
-    <div>
-      {/* KPI */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14, marginBottom: 24 }}>
-        {[
-          { label: 'Pending PDCs',   value: formatMoney(totalPending, settings),  count: SAMPLE_PDCS.filter(p=>p.status==='Pending').length,  color: '#d97706' },
-          { label: 'Matured (Due)',  value: formatMoney(totalMatured, settings),  count: SAMPLE_PDCS.filter(p=>p.status==='Matured').length,  color: '#1d4ed8' },
-          { label: 'Returned',       value: formatMoney(totalReturned, settings), count: SAMPLE_PDCS.filter(p=>p.status==='Returned').length, color: '#b91c1c' },
-        ].map(k => (
-          <div key={k.label} style={{
-            background: 'var(--color-surface)', border: '1px solid var(--color-border)',
-            borderRadius: 'var(--radius)', padding: '16px 20px', boxShadow: 'var(--shadow-sm)',
-          }}>
-            <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-muted)', marginBottom: 4 }}>
-              {k.label}
-              <span style={{ marginLeft: 6, fontSize: '0.6875rem', fontWeight: 700,
-                background: `${k.color}15`, color: k.color, padding: '1px 6px', borderRadius: 10 }}>
-                {k.count}
-              </span>
-            </div>
-            <div style={{ fontSize: '1.0625rem', fontWeight: 700, color: k.color }}>{k.value}</div>
-          </div>
-        ))}
-      </div>
+    <div style={tabBodyStyle}>
+      {message && <InlineAlert tone={messageIsError ? 'danger' : 'success'}>{message}</InlineAlert>}
 
-      {/* Filters */}
-      <div style={{ display: 'flex', gap: 10, marginBottom: 16 }}>
-        {/* Type toggle */}
-        <div style={{ display: 'flex', borderRadius: 'var(--radius-sm)', overflow: 'hidden', border: '1px solid var(--color-border)' }}>
-          {(['all', 'received', 'issued'] as const).map(t => (
-            <button key={t} onClick={() => setPdcType(t)} style={{
-              padding: '6px 16px', border: 'none', cursor: 'pointer', fontSize: 'var(--font-size-xs)', fontWeight: 600,
-              background: pdcType === t ? 'var(--color-primary)' : 'var(--color-surface)',
-              color: pdcType === t ? 'white' : 'var(--color-text-muted)',
-            }}>
-              {t === 'all' ? 'All' : t === 'received' ? 'Received' : 'Issued'}
-            </button>
-          ))}
+      {entryOpen && (
+        <section className="panel">
+          <div className="panel-header">
+            <div>
+              <h2 className="panel-title">New Post-Dated Cheque</h2>
+              <p className="page-head-desc">Record a received or issued cheque so you can track it until it clears.</p>
+            </div>
+            <div className="row-actions" style={{ gap: 8 }}>
+              <Button variant="ghost" onClick={() => onEntryOpenChange(false)}>Cancel</Button>
+              <Button variant="primary" onClick={savePdc}>Save Cheque</Button>
+            </div>
+          </div>
+          <div className="panel-body">
+            <div className="form-grid">
+              <SelectField
+                label="Type"
+                required
+                value={form.type}
+                options={[{ value: 'received', label: 'Received' }, { value: 'issued', label: 'Issued' }]}
+                onChange={value => setForm(current => ({ ...current, type: value as PDCType }))}
+              />
+              <TextField label="Cheque Number" required value={form.chequeNo} onChange={value => setForm(current => ({ ...current, chequeNo: value }))} />
+              <TextField label="Party" required value={form.party} onChange={value => setForm(current => ({ ...current, party: value }))} />
+              <TextField label="Bank" required value={form.bank} onChange={value => setForm(current => ({ ...current, bank: value }))} />
+              <NumericField label="Amount" required value={form.amount} onChange={value => setForm(current => ({ ...current, amount: value }))} />
+              <DateField label="Due Date" required value={form.dueDate} onChange={value => setForm(current => ({ ...current, dueDate: value }))} />
+              <div className="span-2">
+                <TextField label="Bank Account" value={form.account} onChange={value => setForm(current => ({ ...current, account: value }))} />
+              </div>
+            </div>
+          </div>
+        </section>
+      )}
+
+      <section className="panel">
+        <div className="filter-bar">
+          <SegmentedControl
+            label="Cheque Type"
+            value={pdcType}
+            options={[{ value: 'all', label: 'All' }, { value: 'received', label: 'Received' }, { value: 'issued', label: 'Issued' }]}
+            onChange={setPdcType}
+          />
+          <select
+            className="form-input"
+            aria-label="Filter By Status"
+            value={statusFilter}
+            onChange={e => setStatusFilter(e.target.value as PDCStatus | 'all')}
+            style={{ width: 160 }}
+          >
+            <option value="all">All Statuses</option>
+            {(['Pending', 'Matured', 'Deposited', 'Returned', 'Cancelled'] as PDCStatus[]).map(s => (
+              <option key={s} value={s}>{s}</option>
+            ))}
+          </select>
+          <div className="filter-bar-end" style={{ flexWrap: 'wrap', gap: 16 }}>
+            <span>Pending ({pendingCount}) <strong style={totalFigureStyle}>{formatMoney(totalPending, settings)}</strong></span>
+            <span>Matured ({maturedCount}) <strong style={totalFigureStyle}>{formatMoney(totalMatured, settings)}</strong></span>
+            <span>Returned ({returnedCount}) <strong style={totalFigureStyle}>{formatMoney(totalReturned, settings)}</strong></span>
+          </div>
         </div>
 
-        {/* Status filter */}
-        <select
-          value={statusFilter}
-          onChange={e => setStatusFilter(e.target.value as PDCStatus | 'all')}
-          style={{
-            padding: '6px 12px', borderRadius: 'var(--radius-sm)',
-            border: '1px solid var(--color-border)', background: 'var(--color-surface)',
-            fontSize: 'var(--font-size-xs)', cursor: 'pointer',
-          }}
-        >
-          <option value="all">All Statuses</option>
-          {(['Pending', 'Matured', 'Deposited', 'Returned', 'Cancelled'] as PDCStatus[]).map(s => (
-            <option key={s} value={s}>{s}</option>
-          ))}
-        </select>
-      </div>
+        <div className="table-scroll">
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th style={{ width: 100 }}>Type</th>
+                <th style={{ width: 140 }}>Cheque Number</th>
+                <th>Party</th>
+                <th style={{ width: 90 }}>Bank</th>
+                <th className="num" style={{ width: 150 }}>Amount</th>
+                <th style={{ width: 190 }}>Due Date</th>
+                <th style={{ width: 110 }}>Status</th>
+                <th style={{ width: 160 }}><span className="sr-only">Actions</span></th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.length === 0 && (
+                <TableMessageRow colSpan={8} title="No Cheques Match" description="Change the Type or Status filter to see more cheques." />
+              )}
+              {filtered.map(pdc => {
+                const overdue = pdc.status === 'Pending' && isOverdue(pdc.dueDate);
+                return (
+                  <tr key={pdc.id}>
+                    <td><Badge variant={pdc.type === 'received' ? 'info' : 'neutral'}>{pdc.type === 'received' ? 'Received' : 'Issued'}</Badge></td>
+                    <td className="cell-strong">{pdc.chequeNo}</td>
+                    <td>{pdc.party}</td>
+                    <td className="cell-muted">{pdc.bank}</td>
+                    <td className="num">{formatMoney(pdc.amount, settings)}</td>
+                    <td>
+                      <span style={overdue ? { color: 'var(--color-negative)' } : undefined}>{formatDate(pdc.dueDate, settings)}</span>
+                      {overdue && <Badge variant="danger" style={{ marginLeft: 6 }}>Overdue</Badge>}
+                    </td>
+                    <td><Badge variant={PDC_STATUS_BADGE[pdc.status]}>{pdc.status}</Badge></td>
+                    <td className="cell-actions">
+                      <div className="row-actions">
+                        {pdc.status === 'Pending' && (
+                          <>
+                            <Button variant="ghost" size="sm" onClick={() => updatePdcStatus(pdc.id, 'Deposited', 'Deposit')}>Deposit</Button>
+                            <Button variant="ghost" size="sm" onClick={() => updatePdcStatus(pdc.id, 'Returned', 'Return')}>Return</Button>
+                          </>
+                        )}
+                        {pdc.status === 'Matured' && (
+                          <Button variant="ghost" size="sm" onClick={() => updatePdcStatus(pdc.id, 'Deposited', 'Clear')}>Clear</Button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </section>
 
-      {/* Table */}
-      <div style={{
-        background: 'var(--color-surface)', border: '1px solid var(--color-border)',
-        borderRadius: 'var(--radius)', overflow: 'hidden', boxShadow: 'var(--shadow-sm)',
-      }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-          <thead>
-            <tr style={{ background: '#f8fafc', borderBottom: '1px solid var(--color-border)' }}>
-              {['Type', 'Cheque No.', 'Party', 'Bank', 'Amount', 'Due Date', 'Status', ''].map(h => (
-                <th key={h} style={{
-                  padding: '10px 14px', textAlign: 'left',
-                  fontSize: 'var(--font-size-xs)', fontWeight: 600,
-                  color: 'var(--color-text-muted)', letterSpacing: 0,
-                }}>{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {filtered.map((pdc, i) => {
-              const overdue = pdc.status === 'Pending' && isOverdue(pdc.dueDate);
-              const ss = STATUS_STYLE[pdc.status];
-              return (
-                <tr key={pdc.id} style={{
-                  borderBottom: i < filtered.length - 1 ? '1px solid var(--color-border)' : 'none',
-                  background: overdue ? '#fff7ed' : 'transparent',
-                }}>
-                  <td style={{ padding: '10px 14px' }}>
-                    <span style={{
-                      fontSize: '0.6875rem', fontWeight: 700, padding: '2px 8px', borderRadius: 10,
-                      background: pdc.type === 'received' ? '#dcfce7' : '#fee2e2',
-                      color: pdc.type === 'received' ? '#15803d' : '#b91c1c',
-                    }}>
-                      {pdc.type === 'received' ? 'RCV' : 'ISS'}
-                    </span>
-                  </td>
-                  <td style={{ padding: '10px 14px', fontFamily: 'monospace', fontWeight: 600, fontSize: '0.8125rem' }}>
-                    {pdc.chequeNo}
-                  </td>
-                  <td style={{ padding: '10px 14px', fontSize: 'var(--font-size-sm)', fontWeight: 500 }}>
-                    {pdc.party}
-                  </td>
-                  <td style={{ padding: '10px 14px', fontSize: 'var(--font-size-xs)', color: 'var(--color-text-muted)' }}>
-                    {pdc.bank}
-                  </td>
-                  <td style={{ padding: '10px 14px', fontWeight: 600, textAlign: 'right' }}>
-                    {formatMoney(pdc.amount, settings)}
-                  </td>
-                  <td style={{ padding: '10px 14px', fontSize: 'var(--font-size-sm)' }}>
-                    <span style={{ color: overdue ? '#b91c1c' : 'var(--color-text)' }}>
-                      {formatDate(pdc.dueDate, settings)}
-                    </span>
-                    {overdue && (
-                      <span style={{ marginLeft: 6, fontSize: '0.625rem', fontWeight: 700,
-                        background: '#fee2e2', color: '#b91c1c', padding: '1px 5px', borderRadius: 3 }}>
-                        OVERDUE
-                      </span>
-                    )}
-                  </td>
-                  <td style={{ padding: '10px 14px' }}>
-                    <span style={{
-                      fontSize: '0.6875rem', fontWeight: 600, padding: '2px 8px', borderRadius: 10,
-                      background: ss.bg, color: ss.color,
-                    }}>
-                      {pdc.status}
-                    </span>
-                  </td>
-                  <td style={{ padding: '10px 14px' }}>
-                    <div style={{ display: 'flex', gap: 6 }}>
-                      {pdc.status === 'Pending' && (
-                        <>
-                          <button style={{
-                            padding: '3px 10px', fontSize: '0.6875rem', fontWeight: 600,
-                            borderRadius: 4, border: '1px solid #16a34a', background: 'transparent',
-                            color: '#16a34a', cursor: 'pointer',
-                          }}>
-                            Deposit
-                          </button>
-                          <button style={{
-                            padding: '3px 10px', fontSize: '0.6875rem', fontWeight: 600,
-                            borderRadius: 4, border: '1px solid #b91c1c', background: 'transparent',
-                            color: '#b91c1c', cursor: 'pointer',
-                          }}>
-                            Return
-                          </button>
-                        </>
-                      )}
-                      {pdc.status === 'Matured' && (
-                        <button style={{
-                          padding: '3px 10px', fontSize: '0.6875rem', fontWeight: 600,
-                          borderRadius: 4, border: '1px solid #1d4ed8', background: 'transparent',
-                          color: '#1d4ed8', cursor: 'pointer',
-                        }}>
-                          Clear
-                        </button>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-        {filtered.length === 0 && (
-          <div style={{ padding: 32, textAlign: 'center', color: 'var(--color-text-muted)', fontSize: 'var(--font-size-sm)' }}>
-            No PDCs match the selected filters.
-          </div>
-        )}
-      </div>
-
-      <div style={{
-        marginTop: 12, padding: '10px 16px', borderRadius: 'var(--radius-sm)',
-        background: '#eff6ff', border: '1px solid #bfdbfe',
-        fontSize: 'var(--font-size-xs)', color: '#1e40af',
-      }}>
-        PDC workflow: Received cheque is recorded and held until due date (Pending → Matured → Deposited or Returned).
-        Issued cheques are tracked as liabilities until cleared by the bank.
-        Full journal entries will post automatically once the voucher module is live.
-      </div>
+      <InlineAlert tone="info">
+        A received cheque is held until its due date (Pending, then Matured, then Deposited or Returned).
+        Issued cheques are tracked as liabilities until the bank clears them.
+        Journal entries will post automatically once the voucher module is live.
+      </InlineAlert>
     </div>
   );
 }
@@ -332,262 +627,192 @@ function PDCTab({ settings }: { settings?: AppFormatSettingsSource | null }) {
 /* ── Reconciliation Tab ──────────────────────────────────────────────── */
 function ReconciliationTab({ settings }: { settings?: AppFormatSettingsSource | null }) {
   const [period, setPeriod] = useState('2026-03');
+  const [rows, setRows] = useState(SAMPLE_RECON);
+  const [message, setMessage] = useState('');
 
-  const cleared   = SAMPLE_RECON.filter(r => r.cleared);
-  const uncleared = SAMPLE_RECON.filter(r => !r.cleared);
+  const cleared   = rows.filter(r => r.cleared);
+  const uncleared = rows.filter(r => !r.cleared);
 
-  const glBalance     = SAMPLE_RECON.reduce((s, r) => s + (r.gl_amount ?? 0), 0);
-  const bankBalance   = SAMPLE_RECON.reduce((s, r) => s + (r.bank_amount ?? 0), 0);
+  const glBalance     = rows.reduce((s, r) => s + (r.gl_amount ?? 0), 0);
+  const bankBalance   = rows.reduce((s, r) => s + (r.bank_amount ?? 0), 0);
   const difference    = glBalance - bankBalance;
 
+  function matchRow(id: string) {
+    setRows(current => current.map(row => row.id === id ? {
+      ...row,
+      cleared: true,
+      bank_amount: row.bank_amount ?? row.gl_amount ?? 0,
+      gl_amount: row.gl_amount ?? row.bank_amount ?? 0,
+    } : row));
+    setMessage('Item matched and moved to Cleared Items.');
+  }
+
   return (
-    <div>
-      {/* Header controls */}
-      <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 20 }}>
-        <div>
-          <label style={{ fontSize: 'var(--font-size-xs)', fontWeight: 600, color: 'var(--color-text-muted)', display: 'block', marginBottom: 4 }}>
-            Bank Account
-          </label>
-          <select style={{
-            padding: '7px 12px', borderRadius: 'var(--radius-sm)',
-            border: '1px solid var(--color-border)', background: 'var(--color-surface)',
-            fontSize: 'var(--font-size-sm)',
-          }}>
-            {SAMPLE_BANK_ACCOUNTS.map(a => <option key={a.id}>{a.name}</option>)}
-          </select>
-        </div>
-        <div>
-          <label style={{ fontSize: 'var(--font-size-xs)', fontWeight: 600, color: 'var(--color-text-muted)', display: 'block', marginBottom: 4 }}>
-            Period
-          </label>
-          <input type="month" value={period} onChange={e => setPeriod(e.target.value)}
-            style={{
-              padding: '7px 12px', borderRadius: 'var(--radius-sm)',
-              border: '1px solid var(--color-border)', background: 'var(--color-surface)',
-              fontSize: 'var(--font-size-sm)',
-            }}
-          />
-        </div>
-        <div style={{ alignSelf: 'flex-end' }}>
-          <button style={{
-            padding: '8px 18px', borderRadius: 'var(--radius-sm)',
-            border: 'none', background: 'var(--color-primary)', color: 'white',
-            fontWeight: 600, fontSize: 'var(--font-size-sm)', cursor: 'pointer',
-          }}>
-            Load Statement
-          </button>
-        </div>
-      </div>
+    <div style={tabBodyStyle}>
+      {message && <InlineAlert tone="success">{message}</InlineAlert>}
 
-      {/* Summary boxes */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14, marginBottom: 24 }}>
-        {[
-          { label: 'GL Book Balance',   value: glBalance,   color: '#2563eb' },
-          { label: 'Bank Statement Bal',value: bankBalance, color: '#16a34a' },
-          { label: 'Difference',        value: difference,  color: Math.abs(difference) < 0.01 ? '#16a34a' : '#b91c1c' },
-        ].map(k => (
-          <div key={k.label} style={{
-            background: 'var(--color-surface)', border: `1px solid ${Math.abs(difference) < 0.01 || k.label !== 'Difference' ? 'var(--color-border)' : '#fca5a5'}`,
-            borderRadius: 'var(--radius)', padding: '16px 20px', boxShadow: 'var(--shadow-sm)',
-          }}>
-            <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-muted)', marginBottom: 4 }}>{k.label}</div>
-            <div style={{ fontSize: '1.125rem', fontWeight: 700, color: k.color }}>
-              {formatMoney(Math.abs(k.value), settings)}
-              {k.value < 0 && <span style={{ fontSize: '0.75rem', marginLeft: 4 }}>(Cr)</span>}
-            </div>
+      <section className="panel">
+        <div className="filter-bar">
+          <div className="filter-grid" style={{ flex: '1 1 auto', minWidth: 0 }}>
+            <FieldLabel label="Bank Account">
+              <select className="form-input">
+                {SAMPLE_BANK_ACCOUNTS.map(a => <option key={a.id}>{a.name}</option>)}
+              </select>
+            </FieldLabel>
+            <FieldLabel label="Period">
+              <input className="form-input" type="month" value={period} onChange={e => setPeriod(e.target.value)} />
+            </FieldLabel>
+            <Button variant="primary" onClick={() => setMessage(`Statement loaded for ${period}.`)}>Load Statement</Button>
           </div>
-        ))}
-      </div>
+        </div>
+        <div className="filter-bar" style={{ borderBottom: 'none' }}>
+          <div className="filter-bar-end" style={{ flexWrap: 'wrap', gap: 16 }}>
+            <span>Book Balance <strong style={{ ...totalFigureStyle, ...negativeStyle(glBalance) }}>{formatMoney(glBalance, settings)}</strong></span>
+            <span>Bank Statement Balance <strong style={{ ...totalFigureStyle, ...negativeStyle(bankBalance) }}>{formatMoney(bankBalance, settings)}</strong></span>
+            <span>
+              Difference{' '}
+              <strong style={{ ...totalFigureStyle, ...(Math.abs(difference) < 0.01 ? {} : { color: 'var(--color-negative)' }) }}>{formatMoney(difference, settings)}</strong>
+            </span>
+          </div>
+        </div>
+      </section>
 
-      {/* Uncleared items */}
-      <h3 style={{ fontSize: 'var(--font-size-sm)', fontWeight: 700, color: 'var(--color-text)', marginBottom: 10 }}>
-        Uncleared Items
-        <span style={{ marginLeft: 8, fontSize: '0.6875rem', fontWeight: 600,
-          background: '#fef3c7', color: '#92400e', padding: '2px 8px', borderRadius: 10 }}>
-          {uncleared.length}
-        </span>
-      </h3>
-      <div style={{
-        background: 'var(--color-surface)', border: '1px solid var(--color-border)',
-        borderRadius: 'var(--radius)', overflow: 'hidden', marginBottom: 24, boxShadow: 'var(--shadow-sm)',
-      }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-          <thead>
-            <tr style={{ background: '#f8fafc', borderBottom: '1px solid var(--color-border)' }}>
-              {['Date', 'Description', 'GL Amount', 'Bank Amount', 'Action'].map(h => (
-                <th key={h} style={{
-                  padding: '9px 14px', textAlign: 'left',
-                  fontSize: 'var(--font-size-xs)', fontWeight: 600,
-                  color: 'var(--color-text-muted)', letterSpacing: 0,
-                }}>{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {uncleared.map((row, i) => (
-              <tr key={row.id} style={{ borderBottom: i < uncleared.length - 1 ? '1px solid var(--color-border)' : 'none' }}>
-                <td style={{ padding: '10px 14px', fontSize: 'var(--font-size-xs)', color: 'var(--color-text-muted)' }}>
-                  {formatDate(row.date, settings)}
-                </td>
-                <td style={{ padding: '10px 14px', fontSize: 'var(--font-size-sm)' }}>{row.description}</td>
-                <td style={{ padding: '10px 14px', fontFamily: 'monospace', fontSize: '0.8125rem',
-                  color: row.gl_amount ? (row.gl_amount > 0 ? '#16a34a' : '#b91c1c') : '#94a3b8' }}>
-                  {row.gl_amount != null ? `${row.gl_amount > 0 ? '+' : ''}${formatMoney(Math.abs(row.gl_amount), settings)}` : '—'}
-                </td>
-                <td style={{ padding: '10px 14px', fontFamily: 'monospace', fontSize: '0.8125rem',
-                  color: row.bank_amount ? (row.bank_amount > 0 ? '#16a34a' : '#b91c1c') : '#94a3b8' }}>
-                  {row.bank_amount != null ? `${row.bank_amount > 0 ? '+' : ''}${formatMoney(Math.abs(row.bank_amount), settings)}` : '—'}
-                </td>
-                <td style={{ padding: '10px 14px' }}>
-                  <button style={{
-                    padding: '3px 12px', fontSize: '0.6875rem', fontWeight: 600,
-                    borderRadius: 4, border: '1px solid #16a34a', background: 'transparent',
-                    color: '#16a34a', cursor: 'pointer',
-                  }}>
-                    Match
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      <ReconciliationTable
+        title="Uncleared Items"
+        rows={uncleared}
+        settings={settings}
+        emptyTitle="No Uncleared Items"
+        emptyDescription="Every book and bank item in this period is matched."
+        renderLast={row => (
+          <Button variant="ghost" size="sm" icon={<IconCheck size={16} stroke={1.8} />} onClick={() => matchRow(row.id)}>Match</Button>
+        )}
+        lastHeader="Actions"
+      />
 
-      {/* Cleared items */}
-      <h3 style={{ fontSize: 'var(--font-size-sm)', fontWeight: 700, color: 'var(--color-text)', marginBottom: 10 }}>
-        Cleared Items
-        <span style={{ marginLeft: 8, fontSize: '0.6875rem', fontWeight: 600,
-          background: '#dcfce7', color: '#15803d', padding: '2px 8px', borderRadius: 10 }}>
-          {cleared.length}
-        </span>
-      </h3>
-      <div style={{
-        background: 'var(--color-surface)', border: '1px solid var(--color-border)',
-        borderRadius: 'var(--radius)', overflow: 'hidden', boxShadow: 'var(--shadow-sm)',
-      }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-          <thead>
-            <tr style={{ background: '#f8fafc', borderBottom: '1px solid var(--color-border)' }}>
-              {['Date', 'Description', 'GL Amount', 'Bank Amount', 'Status'].map(h => (
-                <th key={h} style={{
-                  padding: '9px 14px', textAlign: 'left',
-                  fontSize: 'var(--font-size-xs)', fontWeight: 600,
-                  color: 'var(--color-text-muted)', letterSpacing: 0,
-                }}>{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {cleared.map((row, i) => (
-              <tr key={row.id} style={{ borderBottom: i < cleared.length - 1 ? '1px solid var(--color-border)' : 'none' }}>
-                <td style={{ padding: '10px 14px', fontSize: 'var(--font-size-xs)', color: 'var(--color-text-muted)' }}>
-                  {formatDate(row.date, settings)}
-                </td>
-                <td style={{ padding: '10px 14px', fontSize: 'var(--font-size-sm)' }}>{row.description}</td>
-                <td style={{ padding: '10px 14px', fontFamily: 'monospace', fontSize: '0.8125rem',
-                  color: (row.gl_amount ?? 0) > 0 ? '#16a34a' : '#b91c1c' }}>
-                  {row.gl_amount != null ? `${row.gl_amount > 0 ? '+' : ''}${formatMoney(Math.abs(row.gl_amount), settings)}` : '—'}
-                </td>
-                <td style={{ padding: '10px 14px', fontFamily: 'monospace', fontSize: '0.8125rem',
-                  color: (row.bank_amount ?? 0) > 0 ? '#16a34a' : '#b91c1c' }}>
-                  {row.bank_amount != null ? `${row.bank_amount > 0 ? '+' : ''}${formatMoney(Math.abs(row.bank_amount), settings)}` : '—'}
-                </td>
-                <td style={{ padding: '10px 14px' }}>
-                  <span style={{ fontSize: '0.6875rem', fontWeight: 600, padding: '2px 8px', borderRadius: 10,
-                    background: '#dcfce7', color: '#15803d' }}>
-                    Cleared
-                  </span>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      <ReconciliationTable
+        title="Cleared Items"
+        rows={cleared}
+        settings={settings}
+        emptyTitle="No Cleared Items Yet"
+        emptyDescription="Matched items appear here."
+        renderLast={() => <Badge variant="success">Cleared</Badge>}
+        lastHeader="Status"
+      />
 
-      <div style={{
-        marginTop: 12, padding: '10px 16px', borderRadius: 'var(--radius-sm)',
-        background: '#eff6ff', border: '1px solid #bfdbfe',
-        fontSize: 'var(--font-size-xs)', color: '#1e40af',
-      }}>
-        Bank reconciliation matches GL transactions against the imported bank statement.
-        Unmatched GL items = outstanding cheques. Unmatched bank items = timing differences or errors.
-        Full statement import (CSV/MT940) will be available once the voucher module is complete.
-      </div>
+      <InlineAlert tone="info">
+        Bank reconciliation matches book entries against the bank statement.
+        Unmatched book items are usually outstanding cheques; unmatched bank items are timing differences or errors.
+        Statement import (CSV or MT940) will be available once the voucher module is complete.
+      </InlineAlert>
     </div>
   );
 }
 
+type ReconRow = typeof SAMPLE_RECON[number];
+
+function ReconciliationTable({
+  title,
+  rows,
+  settings,
+  emptyTitle,
+  emptyDescription,
+  renderLast,
+  lastHeader,
+}: {
+  title: string;
+  rows: ReconRow[];
+  settings?: AppFormatSettingsSource | null;
+  emptyTitle: string;
+  emptyDescription: string;
+  renderLast: (row: ReconRow) => React.ReactNode;
+  lastHeader: string;
+}) {
+  return (
+    <section className="panel">
+      <div className="panel-header">
+        <h2 className="panel-title">{title}</h2>
+        <span className="filter-bar-end">{rows.length} {rows.length === 1 ? 'Item' : 'Items'}</span>
+      </div>
+      <div className="table-scroll">
+        <table className="data-table">
+          <thead>
+            <tr>
+              <th style={{ width: 120 }}>Date</th>
+              <th>Description</th>
+              <th className="num" style={{ width: 170 }}>Book Amount</th>
+              <th className="num" style={{ width: 170 }}>Bank Amount</th>
+              <th style={{ width: 120, textAlign: 'right' }}>{lastHeader}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.length === 0 && <TableMessageRow colSpan={5} title={emptyTitle} description={emptyDescription} />}
+            {rows.map(row => (
+              <tr key={row.id}>
+                <td className="cell-muted">{formatDate(row.date, settings)}</td>
+                <td>{row.description}</td>
+                <td className={row.gl_amount === null ? 'num cell-muted' : 'num'} style={negativeStyle(row.gl_amount)}>
+                  {row.gl_amount === null ? 'Not Set' : formatMoney(row.gl_amount, settings)}
+                </td>
+                <td className={row.bank_amount === null ? 'num cell-muted' : 'num'} style={negativeStyle(row.bank_amount)}>
+                  {row.bank_amount === null ? 'Not Set' : formatMoney(row.bank_amount, settings)}
+                </td>
+                <td className="cell-actions">{renderLast(row)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+}
+
+const totalFigureStyle: React.CSSProperties = {
+  fontWeight: 600,
+  color: 'var(--color-heading)',
+  fontVariantNumeric: 'tabular-nums',
+};
+
+const ACCOUNT_TYPE_OPTIONS = ['Current', 'Savings', 'Payroll', 'Deposit', 'Other'].map(value => ({ value, label: value }));
+
 /* ── Page ─────────────────────────────────────────────────────────────── */
 export default function BankPage() {
   const [activeTab, setActiveTab] = useState<Tab>('accounts');
-  const { data: generalSettings } = trpc.settings.getGeneralSettings.useQuery();
+  const [bankEntryOpen, setBankEntryOpen] = useState(false);
+  const [pdcEntryOpen, setPdcEntryOpen] = useState(false);
+  const { data: generalSettings } = useGeneralSettings();
 
-  const TABS: { id: Tab; label: string; icon: string }[] = [
-    { id: 'accounts',       label: 'Bank Accounts',      icon: 'M3 9a2 2 0 012-2h14a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9zM8 9V7a4 4 0 018 0v2' },
-    { id: 'pdc',            label: 'Post-Dated Cheques', icon: 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z' },
-    { id: 'reconciliation', label: 'Reconciliation',     icon: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4' },
+  const TABS: Array<TabItem<Tab>> = [
+    { value: 'accounts', label: 'Bank Accounts', icon: <IconBuildingBank size={16} stroke={1.8} /> },
+    { value: 'cheque-books', label: 'Cheque Books', icon: <IconNotebook size={16} stroke={1.8} /> },
+    { value: 'pdc', label: 'Post-Dated Cheques', icon: <IconCalendarDue size={16} stroke={1.8} /> },
+    { value: 'reconciliation', label: 'Reconciliation', icon: <IconClipboardCheck size={16} stroke={1.8} /> },
   ];
 
   return (
-    <div>
-      <div className="page-header">
-        <div>
-          <h1 className="page-title">Bank</h1>
-          <p className="page-subtitle">Bank accounts, post-dated cheques, and reconciliation</p>
-        </div>
-        <div style={{ display: 'flex', gap: 10 }}>
-          {activeTab === 'pdc' && (
-            <button className="btn btn-primary">
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <circle cx="12" cy="12" r="10"/><path d="M12 8v8M8 12h8"/>
-              </svg>
-              New PDC
-            </button>
-          )}
-          {activeTab === 'accounts' && (
-            <button className="btn btn-primary">
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <circle cx="12" cy="12" r="10"/><path d="M12 8v8M8 12h8"/>
-              </svg>
-              Add Bank Account
-            </button>
-          )}
-        </div>
-      </div>
+    <main className="page-shell">
+      <PageHeader
+        title="Bank"
+        description="Bank accounts, cheque books, post-dated cheques, and reconciliation."
+        actions={(
+          <>
+            {activeTab === 'pdc' && !pdcEntryOpen && (
+              <Button variant="primary" icon={<IconPlus size={16} stroke={1.8} />} onClick={() => setPdcEntryOpen(true)}>New Post-Dated Cheque</Button>
+            )}
+            {activeTab === 'accounts' && !bankEntryOpen && (
+              <Button variant="primary" icon={<IconPlus size={16} stroke={1.8} />} onClick={() => setBankEntryOpen(true)}>New Bank Account</Button>
+            )}
+          </>
+        )}
+      />
 
-      {/* Tab bar */}
-      <div style={{
-        display: 'flex', gap: 0,
-        borderBottom: '2px solid var(--color-border)',
-        marginBottom: 24,
-      }}>
-        {TABS.map(tab => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
-            style={{
-              display: 'flex', alignItems: 'center', gap: 8,
-              padding: '10px 20px',
-              border: 'none', background: 'transparent', cursor: 'pointer',
-              fontSize: 'var(--font-size-sm)', fontWeight: activeTab === tab.id ? 700 : 500,
-              color: activeTab === tab.id ? 'var(--color-primary)' : 'var(--color-text-muted)',
-              borderBottom: activeTab === tab.id ? '2px solid var(--color-primary)' : '2px solid transparent',
-              marginBottom: -2,
-              transition: 'var(--transition)',
-            }}
-          >
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-              <path d={tab.icon}/>
-            </svg>
-            {tab.label}
-          </button>
-        ))}
-      </div>
+      <Tabs label="Bank Views" value={activeTab} onChange={setActiveTab} items={TABS} />
 
-      {/* Tab content */}
-      {activeTab === 'accounts'       && <BankAccountsTab settings={generalSettings} />}
-      {activeTab === 'pdc'            && <PDCTab settings={generalSettings} />}
-      {activeTab === 'reconciliation' && <ReconciliationTab settings={generalSettings} />}
-    </div>
+      <div role="tabpanel" aria-labelledby={`tab-${activeTab}`} style={{ flex: 1, minHeight: 0, overflow: 'auto' }}>
+        {activeTab === 'accounts'       && <BankAccountsTab settings={generalSettings} entryOpen={bankEntryOpen} onEntryOpenChange={setBankEntryOpen} />}
+        {activeTab === 'cheque-books'   && <ChequeBooksTab settings={generalSettings} />}
+        {activeTab === 'pdc'            && <PDCTab settings={generalSettings} entryOpen={pdcEntryOpen} onEntryOpenChange={setPdcEntryOpen} />}
+        {activeTab === 'reconciliation' && <ReconciliationTab settings={generalSettings} />}
+      </div>
+    </main>
   );
 }

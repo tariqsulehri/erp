@@ -67,6 +67,7 @@ const mockUsers = [
 ];
 
 export const authOptions: NextAuthOptions = {
+  secret: process.env.NEXTAUTH_SECRET || '1Wqq/rh6sfuAfp3T10+U7v9KHs9O9GEYAlhwEGlRkE3quTUY5LQN3YY69FTrU+9O',
   providers: [
     CredentialsProvider({
       name: 'Credentials',

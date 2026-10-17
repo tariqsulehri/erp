@@ -1,0 +1,246 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-09-29T00:00:00Z",
+  "title": "Design System: ERP Finance",
+  "extensions": {
+    "colorMeta": {
+      "ledger-blue": {
+        "role": "primary",
+        "displayName": "Ledger Blue",
+        "canonical": "#1f56c7",
+        "tonalRamp": [
+          "#0f2554",
+          "#143479",
+          "#173f94",
+          "#1a4aad",
+          "#1f56c7",
+          "#4f7fd8",
+          "#b4c9f1",
+          "#edf2fc"
+        ]
+      },
+      "workspace-ground": {
+        "role": "neutral",
+        "displayName": "Workspace Ground",
+        "canonical": "#f5f6f8",
+        "tonalRamp": [
+          "#0f1b2d",
+          "#1e2a3b",
+          "#3b4859",
+          "#556274",
+          "#8592a2",
+          "#d5dce5",
+          "#e6ebf1",
+          "#f4f6f9"
+        ]
+      },
+      "navigation-navy": {
+        "role": "neutral",
+        "displayName": "Navigation Charcoal-Navy",
+        "canonical": "#182130",
+        "tonalRamp": [
+          "#0a101b",
+          "#13203a",
+          "#1c2c4a",
+          "#2a3d60",
+          "#8594ab",
+          "#b9c5d6",
+          "#dde4ee",
+          "#f4f6f9"
+        ]
+      },
+      "success": {
+        "role": "status",
+        "displayName": "Posted Green",
+        "canonical": "#15803d"
+      },
+      "warning": {
+        "role": "status",
+        "displayName": "Pending Amber",
+        "canonical": "#b45309"
+      },
+      "danger": {
+        "role": "status",
+        "displayName": "Correction Red",
+        "canonical": "#c62828"
+      }
+    },
+    "typographyMeta": {
+      "page-title": {
+        "displayName": "Page Title",
+        "purpose": "One per screen, in PageHeader."
+      },
+      "label": {
+        "displayName": "Label",
+        "purpose": "Field labels and table headers, Title Case, never uppercase."
+      },
+      "figure": {
+        "displayName": "Figure",
+        "purpose": "Amounts, quantities, counts; tabular figures, right-aligned."
+      }
+    },
+    "shadows": [
+      {
+        "name": "overlay",
+        "value": "0 12px 32px rgba(15,27,45,.14), 0 2px 6px rgba(15,27,45,.08)",
+        "purpose": "Dropdowns, dialogs, popovers only."
+      },
+      {
+        "name": "focus-ring",
+        "value": "0 0 0 3px rgba(37,99,235,.28)",
+        "purpose": "Focused inputs."
+      }
+    ],
+    "motion": [
+      {
+        "name": "ease-out",
+        "value": "cubic-bezier(0.22, 1, 0.36, 1)",
+        "purpose": "All state transitions, 140ms (220ms for larger surfaces)."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "desktop",
+        "value": "1280px"
+      },
+      {
+        "name": "side-panel-stacks",
+        "value": "1100px"
+      },
+      {
+        "name": "form-two-columns",
+        "value": "900px"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The one main action in an area: Save, Process, New.",
+      "html": "<button class=\"ds-btn ds-btn-primary\">Save Branch</button>",
+      "css": ".ds-btn{display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 12px;border-radius:6px;font:600 13px/1 Inter,system-ui,sans-serif;border:1px solid transparent;cursor:pointer;transition:background 140ms cubic-bezier(.22,1,.36,1)}.ds-btn-primary{background:#1f56c7;border-color:#1f56c7;color:#fff}.ds-btn-primary:hover{background:#1a4aad;border-color:#1a4aad}.ds-btn:focus-visible{outline:2px solid #1f56c7;outline-offset:2px}"
+    },
+    {
+      "name": "Secondary Button",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "Every other labelled action: Refresh, Back To List, Print.",
+      "html": "<button class=\"ds-btn ds-btn-secondary\">Refresh</button>",
+      "css": ".ds-btn{display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 12px;border-radius:6px;font:600 13px/1 Inter,system-ui,sans-serif;border:1px solid transparent;cursor:pointer}.ds-btn-secondary{background:#fff;color:#1e2a3b;border-color:#d5dce5}.ds-btn-secondary:hover{background:#f7f9fb;border-color:#8592a2}.ds-btn:focus-visible{outline:2px solid #1f56c7;outline-offset:2px}"
+    },
+    {
+      "name": "Text Field",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "32px field with the label above; required fields show a red asterisk.",
+      "html": "<label class=\"ds-field\"><span class=\"ds-label\">Branch Name<span class=\"ds-req\">*</span></span><input class=\"ds-input\" value=\"Lahore Main Branch\"></label>",
+      "css": ".ds-field{display:block;width:260px}.ds-label{display:block;margin-bottom:4px;font:600 12px/1.3 Inter,system-ui,sans-serif;color:#3b4859}.ds-req{color:#c62828;margin-left:2px}.ds-input{width:100%;height:32px;padding:0 10px;border:1px solid #8592a2;border-radius:6px;font:400 13px Inter,system-ui,sans-serif;color:#1e2a3b;background:#fff;outline:none}.ds-input:hover{border-color:#5f6c7d}.ds-input:focus{border-color:#1f56c7;box-shadow:0 0 0 3px rgba(31,86,199,.28)}"
+    },
+    {
+      "name": "Status Badge",
+      "kind": "chip",
+      "refersTo": "badge-success",
+      "description": "Pill showing record status.",
+      "html": "<span class=\"ds-badge ds-badge-success\">Active</span> <span class=\"ds-badge ds-badge-neutral\">Inactive</span>",
+      "css": ".ds-badge{display:inline-flex;align-items:center;height:20px;padding:0 8px;border-radius:9999px;font:600 12px/1 Inter,system-ui,sans-serif;border:1px solid transparent}.ds-badge-success{background:#edf7f0;color:#14532d;border-color:#b7dfc4}.ds-badge-neutral{background:#eef1f5;color:#3b4859;border-color:#d5dce5}"
+    },
+    {
+      "name": "Data Table",
+      "kind": "custom",
+      "refersTo": "table-header",
+      "description": "Light sticky header, 36px rows, numbers right-aligned.",
+      "html": "<table class=\"ds-table\"><thead><tr><th>Code</th><th>Branch Name</th><th class=\"ds-num\">Warehouses</th></tr></thead><tbody><tr><td class=\"ds-strong\">BR-001</td><td>Lahore Main Branch</td><td class=\"ds-num\">3</td></tr><tr><td class=\"ds-strong\">BR-002</td><td>Karachi Branch</td><td class=\"ds-num\">12</td></tr></tbody></table>",
+      "css": ".ds-table{border-collapse:collapse;width:420px;font:400 13px Inter,system-ui,sans-serif;color:#1e2a3b;border:1px solid #d5dce5}.ds-table th{height:36px;padding:0 12px;text-align:left;background:#f7f9fb;color:#3b4859;font-size:12px;font-weight:600;border-bottom:1px solid #d5dce5}.ds-table td{height:36px;padding:0 12px;border-bottom:1px solid #e6ebf1}.ds-table tr:hover td{background:#f3f6fa}.ds-num{text-align:right;font-variant-numeric:tabular-nums}.ds-strong{font-weight:600;color:#0f1b2d}"
+    },
+    {
+      "name": "Segmented Filter",
+      "kind": "custom",
+      "description": "All / Active / Inactive quick filter.",
+      "html": "<div class=\"ds-seg\"><button aria-pressed=\"true\">All</button><button>Active</button><button>Inactive</button></div>",
+      "css": ".ds-seg{display:inline-flex;gap:2px;padding:2px;height:32px;border:1px solid #d5dce5;border-radius:6px;background:#f7f9fb}.ds-seg button{border:0;background:transparent;padding:0 12px;border-radius:4px;font:500 13px Inter,system-ui,sans-serif;color:#3b4859;cursor:pointer}.ds-seg button[aria-pressed=true]{background:#fff;color:#1a4aad;font-weight:600;box-shadow:0 0 0 1px #d5dce5}"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Calm Ledger",
+    "overview": "A well-kept account book: white pages, straight rules, figures that line up, and one blue pen for the things you act on. The interface earns trust by being quiet and predictable, so the numbers stand out, not the chrome.",
+    "keyCharacteristics": [
+      "White working surfaces on a cool, quiet ground",
+      "One accent (Ledger Blue) for actions, selection, and focus",
+      "Navy only in the sidebar",
+      "32px controls, 36px table rows, 6px control corners, 8px container corners",
+      "Flat at rest; shadows only on things that float",
+      "One typeface (Inter), with tabular figures wherever numbers must line up",
+      "Two themes, Light and Dark"
+    ],
+    "rules": [
+      {
+        "name": "The One Blue Rule",
+        "body": "Ledger Blue marks what you can act on and what is selected. It never decorates.",
+        "section": "colors"
+      },
+      {
+        "name": "The Navy Border Rule",
+        "body": "Navy appears in the sidebar and nowhere else.",
+        "section": "colors"
+      },
+      {
+        "name": "The Token-Only Rule",
+        "body": "Components never contain hex values or rgba() literals.",
+        "section": "colors"
+      },
+      {
+        "name": "The 12px Floor Rule",
+        "body": "Nothing a user must read is smaller than 12px.",
+        "section": "typography"
+      },
+      {
+        "name": "The Four Weights Rule",
+        "body": "Use only 400, 500, 600, and 700.",
+        "section": "typography"
+      },
+      {
+        "name": "The Title Case Rule",
+        "body": "Labels, buttons, headers, and menu items use Title Case in plain words. Never all-caps.",
+        "section": "typography"
+      },
+      {
+        "name": "The Flat Panel Rule",
+        "body": "Panels, cards, and tables have a 1px border and no shadow. A hover never lifts or moves an element.",
+        "section": "elevation"
+      },
+      {
+        "name": "The No Side-Stripe Rule",
+        "body": "No colored left or right border on rows, cards, alerts, or list items.",
+        "section": "elevation"
+      },
+      {
+        "name": "The Ink Amounts Rule",
+        "body": "Debit, credit, and balance amounts are all ink; only negative or out-of-balance values turn red.",
+        "section": "colors"
+      }
+    ],
+    "dos": [
+      "Do build every screen from PageHeader, .panel, data-table, and the shared fields and buttons.",
+      "Do right-align every amount, quantity, and count, with tabular figures.",
+      "Do mark required fields with * and validate before calling the API.",
+      "Do write labels, buttons, and headers in Title Case, in plain words a non-native English speaker understands.",
+      "Do take currency, date, timezone, and number formats from settings.",
+      "Do give every icon-only button an aria-label and a title.",
+      "Do check every change in both Light and Dark."
+    ],
+    "donts": [
+      "Don't use gradients anywhere in the working UI.",
+      "Don't use navy or blue bars as panel or table headers.",
+      "Don't use uppercase labels or table headers.",
+      "Don't use font sizes below 12px, or weights outside 400–700.",
+      "Don't hardcode hex, rgba(), pixel radii, or font sizes in components; use tokens.",
+      "Don't put colored left or right stripes on rows, cards, or alerts.",
+      "Don't use a modal for create/edit of small records; use SidePanel.",
+      "Don't add pastel stat-card rows on list screens.",
+      "Don't use Unicode glyphs as icons; use Tabler icons at stroke 1.8.",
+      "Don't add new themes. Light and Dark only."
+    ]
+  }
+}

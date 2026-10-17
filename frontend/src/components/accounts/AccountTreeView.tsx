@@ -8,27 +8,19 @@
  * compact analysis totals and clear branch indentation.
  */
 
-import { useEffect, useMemo, useState, type Dispatch, type SetStateAction } from 'react';
-import {
-  IconChevronDown,
-  IconChevronRight,
-  IconFolder,
-  IconFolderOpen,
-  IconListTree,
-  IconSearch,
-  IconX,
-} from '@tabler/icons-react';
-import { trpc } from '@/lib/trpc/client';
+import { Fragment, useEffect, useMemo, useState, type Dispatch, type SetStateAction } from 'react';
+import { IconChevronDown, IconChevronRight, IconFoldDown, IconFoldUp } from '@tabler/icons-react';
+import { useAccountsHierarchy, type AccountTreeNode } from '@/lib/api/accounts';
 import { getAccountLevel, getAccountLevelLabel } from '@/modules/accounts/account-code';
+import { ACCOUNT_CATEGORY_META, accountTypeBadge } from '@/lib/ui/account-category-colors';
+import { friendlyErrorMessage } from '@/lib/erp-utils';
+import { Badge } from '@/components/ui/Badge';
+import { Button } from '@/components/ui/Button';
+import { InlineAlert } from '@/components/ui/InlineAlert';
+import { SearchField } from '@/components/ui/SearchField';
+import { TableMessageRow } from '@/components/ui/TableMessageRow';
 
-interface TreeNode {
-  id: string;
-  code: string;
-  name: string;
-  accountType: string;
-  isPosting: boolean;
-  children: TreeNode[];
-}
+type TreeNode = AccountTreeNode;
 
 type PostingFilter = 'all' | 'posting' | 'header';
 
@@ -37,20 +29,14 @@ interface AccountTreeViewProps {
   postingFilter?: PostingFilter;
 }
 
-const TYPE_META: Record<string, { label: string; color: string; bg: string }> = {
-  Asset: { label: 'Assets', color: '#2563eb', bg: '#eff6ff' },
-  Liability: { label: 'Liabilities', color: '#dc2626', bg: '#fef2f2' },
-  Equity: { label: 'Equity', color: '#7c3aed', bg: '#f5f3ff' },
-  Revenue: { label: 'Revenue', color: '#16a34a', bg: '#f0fdf4' },
-  Expense: { label: 'Expenses', color: '#d97706', bg: '#fffbeb' },
-};
+const TYPE_META = ACCOUNT_CATEGORY_META;
 
-const LEVEL_META: Record<number, { label: string; codeWidth: number; rowBg: string; weight: number }> = {
-  1: { label: 'Main Category', codeWidth: 78, rowBg: 'var(--color-surface-alt)', weight: 800 },
-  2: { label: 'Group', codeWidth: 92, rowBg: '#f8fafc', weight: 700 },
-  3: { label: 'Sub-Group', codeWidth: 112, rowBg: 'var(--color-surface)', weight: 650 },
-  4: { label: 'Posting Account', codeWidth: 132, rowBg: 'var(--color-surface)', weight: 550 },
-};
+/** Name weight per hierarchy level: headers read heavier than posting accounts. */
+const LEVEL_WEIGHT: Record<number, number> = { 1: 600, 2: 600, 3: 500, 4: 400 };
+
+/** Indent per tree depth, in px. Guide lines run under the parent's expand button. */
+const INDENT = 20;
+const COLUMN_COUNT = 5;
 
 function displayCode(code: string): string {
   const level = getAccountLevel(code);
@@ -116,37 +102,6 @@ function collectOpenCodes(nodes: TreeNode[]): string[] {
   ]);
 }
 
-function AccountSummary({ label, value }: { label: string; value: number | string }) {
-  return (
-    <div style={{
-      display: 'grid',
-      gap: 2,
-      padding: '10px 12px',
-      border: '1px solid var(--color-border-subtle)',
-      background: 'var(--color-surface)',
-      borderRadius: 'var(--radius-sm)',
-      minWidth: 118,
-    }}>
-      <span style={{
-        fontSize: 'var(--font-size-xs)',
-        color: 'var(--color-text-muted)',
-        fontWeight: 650,
-      }}>
-        {label}
-      </span>
-      <span style={{
-        fontSize: '1.15rem',
-        color: 'var(--color-heading)',
-        fontWeight: 800,
-        lineHeight: 1.1,
-        fontVariantNumeric: 'tabular-nums',
-      }}>
-        {typeof value === 'number' ? value.toLocaleString() : value}
-      </span>
-    </div>
-  );
-}
-
 interface TreeRowProps {
   node: TreeNode;
   depth: number;
@@ -156,8 +111,6 @@ interface TreeRowProps {
 
 function TreeRow({ node, depth, openCodes, setOpenCodes }: TreeRowProps) {
   const level = getAccountLevel(node.code);
-  const meta = LEVEL_META[level] ?? LEVEL_META[4];
-  const type = TYPE_META[node.accountType] ?? { label: node.accountType, color: '#64748b', bg: '#f1f5f9' };
   const hasChildren = node.children.length > 0;
   const isOpen = openCodes.has(node.code);
 
@@ -172,162 +125,84 @@ function TreeRow({ node, depth, openCodes, setOpenCodes }: TreeRowProps) {
   };
 
   return (
-    <div>
-      <div
+    <Fragment>
+      <tr
         onClick={toggle}
-        style={{
-          display: 'grid',
-          gridTemplateColumns: `${Math.max(38, depth * 26 + 38)}px 150px 1fr 128px 104px 92px`,
-          minHeight: 44,
-          alignItems: 'center',
-          borderBottom: '1px solid var(--color-border-subtle)',
-          background: meta.rowBg,
-          cursor: hasChildren ? 'pointer' : 'default',
-        }}
+        aria-level={depth + 1}
+        aria-expanded={hasChildren ? isOpen : undefined}
+        style={{ cursor: hasChildren ? 'pointer' : undefined }}
       >
-        <div style={{
-          height: '100%',
-          display: 'flex',
-          alignItems: 'center',
-          paddingLeft: 14,
-          position: 'relative',
-        }}>
+        {/* Code with indentation, 1px guide lines and the expand button */}
+        <td style={{ position: 'relative', paddingLeft: 8 + depth * INDENT }}>
           {Array.from({ length: depth }).map((_, index) => (
             <span
               key={index}
               aria-hidden="true"
               style={{
                 position: 'absolute',
-                left: 24 + index * 26,
+                left: 8 + index * INDENT + 14,
                 top: 0,
                 bottom: 0,
                 borderLeft: '1px solid var(--color-border-subtle)',
               }}
             />
           ))}
-          {depth > 0 && (
-            <span
-              aria-hidden="true"
-              style={{
-                position: 'absolute',
-                left: 24 + (depth - 1) * 26,
-                width: 18,
-                borderTop: '1px solid var(--color-border-subtle)',
-              }}
-            />
-          )}
-          <button
-            type="button"
-            aria-label={hasChildren ? (isOpen ? 'Collapse Account' : 'Expand Account') : 'No Child Accounts'}
-            onClick={event => {
-              event.stopPropagation();
-              toggle();
-            }}
-            style={{
-              marginLeft: depth * 26,
-              width: 24,
-              height: 24,
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              border: '1px solid var(--color-border-subtle)',
-              borderRadius: 'var(--button-radius)',
-              background: hasChildren ? 'var(--color-surface)' : 'transparent',
-              color: hasChildren ? 'var(--color-text-muted)' : 'transparent',
-              cursor: hasChildren ? 'pointer' : 'default',
-              position: 'relative',
-              zIndex: 1,
-            }}
-          >
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, position: 'relative' }}>
             {hasChildren ? (
-              isOpen ? <IconChevronDown size={15} stroke={2.2} /> : <IconChevronRight size={15} stroke={2.2} />
+              <Button
+                variant="ghost"
+                size="sm"
+                icon={isOpen ? <IconChevronDown size={16} stroke={1.8} /> : <IconChevronRight size={16} stroke={1.8} />}
+                onClick={event => {
+                  event.stopPropagation();
+                  toggle();
+                }}
+                aria-label={`${isOpen ? 'Collapse' : 'Expand'} ${node.name}`}
+                title={isOpen ? 'Collapse' : 'Expand'}
+              />
             ) : (
-              <span />
+              <span aria-hidden="true" style={{ display: 'inline-block', width: 'var(--control-h-sm)' }} />
             )}
-          </button>
-        </div>
-
-        <div style={{
-          display: 'inline-flex',
-          alignItems: 'center',
-          gap: 8,
-          minWidth: 0,
-        }}>
-          {hasChildren ? (
-            isOpen ? <IconFolderOpen size={18} color={type.color} stroke={2} /> : <IconFolder size={18} color={type.color} stroke={2} />
-          ) : (
-            <span style={{ width: 18, height: 18, borderRadius: 5, border: `2px solid ${type.color}`, background: type.bg }} />
-          )}
-          <span style={{
-            width: meta.codeWidth,
-            fontFamily: 'JetBrains Mono, monospace',
-            fontSize: '0.82rem',
-            fontWeight: 800,
-            color: type.color,
-            fontVariantNumeric: 'tabular-nums',
-          }}>
-            {displayCode(node.code)}
+            <span style={{
+              fontVariantNumeric: 'tabular-nums',
+              fontWeight: level === 4 ? 400 : 500,
+              color: 'var(--color-heading)',
+            }}>
+              {displayCode(node.code)}
+            </span>
           </span>
-        </div>
+        </td>
 
-        <div style={{ minWidth: 0, paddingRight: 12 }}>
-          <div style={{
-            color: 'var(--color-text)',
-            fontSize: 'var(--font-size-sm)',
-            fontWeight: meta.weight,
+        <td className={level === 4 ? 'cell-stack' : undefined}>
+          <span style={{
+            display: 'block',
+            color: 'var(--color-heading)',
+            fontWeight: LEVEL_WEIGHT[level] ?? 400,
             whiteSpace: 'nowrap',
             overflow: 'hidden',
             textOverflow: 'ellipsis',
           }}>
             {node.name}
-          </div>
+          </span>
           {level === 4 && (
-            <div style={{
-              color: 'var(--color-text-muted)',
-              fontFamily: 'JetBrains Mono, monospace',
-              fontSize: '0.68rem',
-              marginTop: 1,
-              fontVariantNumeric: 'tabular-nums',
-            }}>
+            <span className="cell-sub" style={{ fontVariantNumeric: 'tabular-nums' }}>
               {spacedCode(node.code)}
-            </div>
+            </span>
           )}
-        </div>
+        </td>
 
-        <span style={{
-          color: 'var(--color-text-muted)',
-          fontSize: 'var(--font-size-xs)',
-          fontWeight: 650,
-        }}>
-          {getAccountLevelLabel(node.code)}
-        </span>
+        <td className="cell-muted">{getAccountLevelLabel(node.code)}</td>
 
-        <span style={{
-          justifySelf: 'start',
-          color: type.color,
-          background: type.bg,
-          border: `1px solid ${type.color}28`,
-          borderRadius: 'var(--button-radius)',
-          padding: '3px 9px',
-          fontSize: 'var(--font-size-xs)',
-          fontWeight: 700,
-        }}>
-          {type.label}
-        </span>
+        <td>
+          <Badge variant={accountTypeBadge(node.accountType)}>
+            {TYPE_META[node.accountType]?.label ?? node.accountType}
+          </Badge>
+        </td>
 
-        <span style={{
-          justifySelf: 'start',
-          color: node.isPosting ? 'var(--color-success-text)' : 'var(--color-text-muted)',
-          background: node.isPosting ? 'var(--color-success-bg)' : 'var(--color-surface-alt)',
-          border: `1px solid ${node.isPosting ? 'var(--color-success-border)' : 'var(--color-border-subtle)'}`,
-          borderRadius: 'var(--button-radius)',
-          padding: '3px 9px',
-          fontSize: 'var(--font-size-xs)',
-          fontWeight: 700,
-        }}>
+        <td className="cell-muted">
           {node.isPosting ? 'Posting' : `${node.children.length} ${node.children.length === 1 ? 'Child' : 'Children'}`}
-        </span>
-      </div>
+        </td>
+      </tr>
 
       {isOpen && node.children.map(child => (
         <TreeRow
@@ -338,15 +213,26 @@ function TreeRow({ node, depth, openCodes, setOpenCodes }: TreeRowProps) {
           setOpenCodes={setOpenCodes}
         />
       ))}
-    </div>
+    </Fragment>
   );
 }
 
+const CODE_FORMAT_ROWS = [
+  { code: '01',         label: 'Main Category' },
+  { code: '0101',       label: 'Group' },
+  { code: '010110',     label: 'Sub-Group' },
+  { code: '0101100001', label: 'Posting Account' },
+];
+
+/**
+ * Renders as a fragment (tree filter bar, then the tree table beside the analysis column)
+ * so it fills the parent `.panel`.
+ */
 export function AccountTreeView({
   typeFilter = '',
   postingFilter = 'all',
 }: AccountTreeViewProps) {
-  const { data, isLoading, error } = trpc.accounts.getHierarchy.useQuery();
+  const { data, isLoading, error } = useAccountsHierarchy();
   const [search, setSearch] = useState('');
   const [openCodes, setOpenCodes] = useState<Set<string>>(new Set());
 
@@ -360,7 +246,6 @@ export function AccountTreeView({
     return tree.map(node => ({
       code: displayCode(node.code),
       name: TYPE_META[node.accountType]?.label ?? node.name,
-      color: TYPE_META[node.accountType]?.color ?? '#64748b',
       count: flattenNodes([node]).length,
     }));
   }, [tree]);
@@ -373,223 +258,97 @@ export function AccountTreeView({
     setOpenCodes(new Set(nextCodes));
   }, [data, search, tree]);
 
-  if (isLoading) {
-    return (
-      <div className="loading-overlay" style={{ minHeight: 320 }}>
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
-          <div className="spinner" style={{ width: 28, height: 28, borderWidth: 3 }} />
-          <span style={{ fontSize: 'var(--font-size-sm)', color: 'var(--color-text-muted)' }}>
-            Building Account Tree...
-          </span>
-        </div>
-      </div>
-    );
-  }
-
   if (error) {
-    return <div className="alert alert-danger" style={{ margin: 16 }}>{error.message}</div>;
-  }
-
-  if (!data || data.length === 0) {
     return (
-      <div style={{ padding: 48, textAlign: 'center', color: 'var(--color-text-muted)' }}>
-        <IconListTree size={42} stroke={1.5} style={{ marginBottom: 12, opacity: 0.55 }} />
-        <p style={{ fontWeight: 700, marginBottom: 4, color: 'var(--color-text)' }}>No Accounts Yet</p>
-        <p style={{ fontSize: 'var(--font-size-sm)' }}>Import a template or create accounts manually.</p>
+      <div className="panel-body">
+        <InlineAlert tone="danger">{friendlyErrorMessage(error, 'Unable to load the Account Tree.')}</InlineAlert>
       </div>
     );
   }
+
+  const hasAccounts = Boolean(data && data.length > 0);
 
   return (
-    <div>
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: 'minmax(260px, 1fr) auto',
-        gap: 14,
-        padding: '14px 16px',
-        background: 'var(--color-surface-alt)',
-        borderBottom: '1px solid var(--color-border)',
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
-          <div style={{ position: 'relative', width: 360, maxWidth: '100%' }}>
-            <IconSearch
-              size={16}
-              stroke={2}
-              color="var(--color-text-muted)"
-              style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }}
-            />
-            <input
-              type="text"
-              className="form-input"
-              placeholder="Search Account Code Or Name"
-              value={search}
-              onChange={event => setSearch(event.target.value)}
-              style={{ paddingLeft: 34, paddingRight: 34, height: 36, fontSize: 'var(--font-size-sm)' }}
-            />
-            {search && (
-              <button
-                type="button"
-                aria-label="Clear Search"
-                onClick={() => setSearch('')}
-                style={{
-                  position: 'absolute',
-                  right: 8,
-                  top: '50%',
-                  transform: 'translateY(-50%)',
-                  width: 22,
-                  height: 22,
-                  border: 'none',
-                  background: 'transparent',
-                  color: 'var(--color-text-muted)',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  cursor: 'pointer',
-                }}
-              >
-                <IconX size={15} stroke={2} />
-              </button>
-            )}
-          </div>
-
-          <button className="btn btn-secondary btn-sm" onClick={() => setOpenCodes(new Set(collectOpenCodes(tree)))}>
-            Expand All
-          </button>
-          <button className="btn btn-secondary btn-sm" onClick={() => setOpenCodes(new Set())}>
-            Collapse All
-          </button>
+    <>
+      <div className="filter-bar">
+        <div className="filter-bar-grow" style={{ maxWidth: 360 }}>
+          <SearchField label="Search Account Tree" value={search} onChange={setSearch} placeholder="Search by Account Code Or Name" />
         </div>
-
-        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
-          <AccountSummary label="Visible" value={allVisible.length} />
-          <AccountSummary label="Headers" value={countHeaders(tree)} />
-          <AccountSummary label="Posting" value={countPosting(tree)} />
+        <Button size="sm" icon={<IconFoldDown size={16} stroke={1.8} />} onClick={() => setOpenCodes(new Set(collectOpenCodes(tree)))} disabled={!hasAccounts}>
+          Expand All
+        </Button>
+        <Button size="sm" icon={<IconFoldUp size={16} stroke={1.8} />} onClick={() => setOpenCodes(new Set())} disabled={!hasAccounts}>
+          Collapse All
+        </Button>
+        <div className="filter-bar-end" style={{ fontVariantNumeric: 'tabular-nums' }}>
+          {isLoading ? 'Loading…' : `${allVisible.length.toLocaleString()} Visible · ${countHeaders(tree).toLocaleString()} Headers · ${countPosting(tree).toLocaleString()} Posting`}
         </div>
       </div>
 
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: 'minmax(0, 1fr) 260px',
-        minHeight: 420,
-      }}>
-        <div style={{ minWidth: 0, borderRight: '1px solid var(--color-border)' }}>
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: '38px 150px 1fr 128px 104px 92px',
-            alignItems: 'center',
-            minHeight: 38,
-            paddingRight: 0,
-            background: 'var(--color-table-head-bg)',
-            color: 'var(--color-table-head-text)',
-            borderBottom: '1px solid var(--color-table-head-bg)',
-            fontSize: 'var(--font-size-xs)',
-            fontWeight: 750,
-          }}>
-            <span />
-            <span>Account Code</span>
-            <span>Account Name</span>
-            <span>Level</span>
-            <span>Type</span>
-            <span>Status</span>
-          </div>
-
-          {tree.length === 0 ? (
-            <div style={{ padding: 40, textAlign: 'center', color: 'var(--color-text-muted)' }}>
-              No Accounts Match The Selected Filters.
-            </div>
-          ) : (
-            tree.map(node => (
-              <TreeRow
-                key={node.id}
-                node={node}
-                depth={0}
-                openCodes={openCodes}
-                setOpenCodes={setOpenCodes}
-              />
-            ))
-          )}
+      <div className="layout-main-aside" style={{ flex: 1, minHeight: 0, gap: 0, ['--aside-width' as string]: '260px' }}>
+        <div className="table-scroll" style={{ borderRight: '1px solid var(--color-border-subtle)' }}>
+          <table className="data-table" role="treegrid" aria-label="Chart Of Accounts Tree">
+            <thead>
+              <tr>
+                <th style={{ width: 230 }}>Account Code</th>
+                <th>Account Name</th>
+                <th style={{ width: 140 }}>Level</th>
+                <th style={{ width: 120 }}>Type</th>
+                <th style={{ width: 110 }}>Account Kind</th>
+              </tr>
+            </thead>
+            <tbody>
+              {isLoading && <TableMessageRow colSpan={COLUMN_COUNT} title="Building Account Tree…" loading />}
+              {!isLoading && !hasAccounts && (
+                <TableMessageRow colSpan={COLUMN_COUNT} title="No Accounts Yet" description="Import a template or create accounts with New Account." />
+              )}
+              {!isLoading && hasAccounts && tree.length === 0 && (
+                <TableMessageRow colSpan={COLUMN_COUNT} title="No Accounts Match" description="Change the search text or clear the filters to see more accounts." />
+              )}
+              {!isLoading && tree.map(node => (
+                <TreeRow
+                  key={node.id}
+                  node={node}
+                  depth={0}
+                  openCodes={openCodes}
+                  setOpenCodes={setOpenCodes}
+                />
+              ))}
+            </tbody>
+          </table>
         </div>
 
-        <aside style={{
-          background: 'var(--color-surface)',
-          padding: 16,
-        }}>
-          <h3 style={{
-            fontSize: 'var(--font-size-sm)',
-            fontWeight: 800,
-            marginBottom: 10,
-            color: 'var(--color-heading)',
-          }}>
-            Account Analysis
-          </h3>
+        <aside aria-label="Account Analysis" style={{ padding: 16, overflow: 'auto', minHeight: 0 }}>
+          <h3 className="form-section-title">Account Analysis</h3>
+          {categoryCounts.length === 0 ? (
+            <p className="form-hint" style={{ marginTop: 0 }}>No accounts to count.</p>
+          ) : (
+            <dl className="detail-list">
+              {categoryCounts.map(item => (
+                <div key={item.code} className="detail-row" style={{ gridTemplateColumns: '28px minmax(0, 1fr) auto' }}>
+                  <dt style={{ fontVariantNumeric: 'tabular-nums' }}>{item.code}</dt>
+                  <dd>{item.name}</dd>
+                  <dd style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums', fontWeight: 600, color: 'var(--color-heading)' }}>
+                    {item.count.toLocaleString()}
+                  </dd>
+                </div>
+              ))}
+            </dl>
+          )}
 
-          <div style={{
-            display: 'grid',
-            gap: 9,
-          }}>
-            {categoryCounts.map(item => (
-              <div
-                key={item.code}
-                style={{
-                  display: 'grid',
-                  gridTemplateColumns: '44px 1fr auto',
-                  gap: 8,
-                  alignItems: 'center',
-                  padding: '9px 10px',
-                  border: '1px solid var(--color-border-subtle)',
-                  borderRadius: 'var(--radius-sm)',
-                  background: 'var(--color-surface-alt)',
-                }}
-              >
-                <span style={{
-                  fontFamily: 'JetBrains Mono, monospace',
-                  color: item.color,
-                  fontWeight: 800,
-                  fontSize: '0.78rem',
-                }}>
-                  {item.code}
-                </span>
-                <span style={{
-                  color: 'var(--color-text)',
-                  fontWeight: 700,
-                  fontSize: 'var(--font-size-xs)',
-                }}>
-                  {item.name}
-                </span>
-                <span style={{
-                  justifySelf: 'end',
-                  minWidth: 28,
-                  textAlign: 'right',
-                  color: 'var(--color-heading)',
-                  fontWeight: 800,
-                  fontVariantNumeric: 'tabular-nums',
-                }}>
-                  {item.count}
-                </span>
-              </div>
-            ))}
-          </div>
-
-          <div style={{
-            marginTop: 16,
-            padding: 12,
-            border: '1px solid var(--color-info-border)',
-            background: 'var(--color-info-bg)',
-            color: 'var(--color-info-text)',
-            borderRadius: 'var(--radius-sm)',
-            fontSize: 'var(--font-size-xs)',
-            lineHeight: 1.55,
-          }}>
-            <strong>Account Code Format</strong>
-            <div style={{ marginTop: 5 }}>
-              01 = Main Category<br />
-              0101 = Group<br />
-              010110 = Sub-Group<br />
-              0101100001 = Posting Account
-            </div>
+          <div style={{ marginTop: 20 }}>
+            <h3 className="form-section-title">Account Code Format</h3>
+            <dl className="detail-list">
+              {CODE_FORMAT_ROWS.map(row => (
+                <div key={row.code} className="detail-row" style={{ gridTemplateColumns: '92px minmax(0, 1fr)' }}>
+                  <dt style={{ fontVariantNumeric: 'tabular-nums' }}>{row.code}</dt>
+                  <dd>{row.label}</dd>
+                </div>
+              ))}
+            </dl>
           </div>
         </aside>
       </div>
-    </div>
+    </>
   );
 }
