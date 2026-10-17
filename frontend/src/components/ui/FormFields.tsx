@@ -14,6 +14,8 @@ interface BaseFieldProps {
   placeholder?: string;
   style?: CSSProperties;
   size?: FieldSize;
+  /** Short help text shown under the field. */
+  hint?: string;
 }
 
 interface TextFieldProps extends BaseFieldProps {
@@ -30,7 +32,7 @@ interface NumericFieldProps extends BaseFieldProps {
 }
 
 interface SelectFieldProps extends BaseFieldProps {
-  options: Array<{ value: string; label: string }>;
+  options: Array<{ value: string; label: string; disabled?: boolean }>;
   onChange?: (value: string) => void;
   selectProps?: Omit<SelectHTMLAttributes<HTMLSelectElement>, 'value' | 'onChange' | 'disabled'>;
 }
@@ -45,6 +47,7 @@ export function TextField({
   style,
   size = 'compact',
   inputProps,
+  hint,
 }: TextFieldProps) {
   return (
     <FieldLabel label={label} required={required}>
@@ -57,6 +60,7 @@ export function TextField({
         onChange={event => onChange?.(event.currentTarget.value)}
         style={{ ...fieldStyle(size), ...style }}
       />
+      {hint && <span className="form-hint" style={{ display: 'block' }}>{hint}</span>}
     </FieldLabel>
   );
 }
@@ -84,6 +88,7 @@ export function NumericField({
   style,
   size = 'compact',
   inputProps,
+  hint,
 }: NumericFieldProps) {
   return (
     <FieldLabel label={label} required={required}>
@@ -102,6 +107,7 @@ export function NumericField({
         onChange={event => onChange?.(sanitizeMoneyInput(event.currentTarget.value, decimalPlaces))}
         style={{ ...numericFieldStyle(size), ...style }}
       />
+      {hint && <span className="form-hint" style={{ display: 'block' }}>{hint}</span>}
     </FieldLabel>
   );
 }
@@ -130,7 +136,7 @@ export function SelectField({
       >
         {placeholder !== undefined && <option value="">{placeholder}</option>}
         {options.map(option => (
-          <option key={option.value} value={option.value}>{option.label}</option>
+          <option key={option.value} value={option.value} disabled={option.disabled}>{option.label}</option>
         ))}
       </select>
     </FieldLabel>
@@ -138,11 +144,12 @@ export function SelectField({
 }
 
 export function fieldStyle(size: FieldSize = 'compact'): CSSProperties {
+  const height = size === 'compact' ? 'var(--control-h)' : 'var(--control-h-lg)';
   return {
-    height: size === 'compact' ? 28 : 34,
-    minHeight: size === 'compact' ? 28 : 34,
-    padding: size === 'compact' ? '3px 8px' : '5px 10px',
-    fontSize: size === 'compact' ? '0.76rem' : '0.84rem',
+    height,
+    minHeight: height,
+    padding: '0 10px',
+    fontSize: size === 'compact' ? 'var(--font-size-sm)' : 'var(--font-size-md)',
   };
 }
 
@@ -150,33 +157,55 @@ export function numericFieldStyle(size: FieldSize = 'compact'): CSSProperties {
   return {
     ...fieldStyle(size),
     textAlign: 'right',
-    fontFamily: 'var(--font-mono)',
-    fontWeight: 800,
+    fontVariantNumeric: 'tabular-nums',
+    fontWeight: 500,
   };
 }
 
+// Chevron comes from the shared select.form-input rule in globals.css.
 export function selectFieldStyle(size: FieldSize = 'compact'): CSSProperties {
   return {
     ...fieldStyle(size),
-    paddingRight: 34,
-    cursor: 'pointer',
-    appearance: 'none',
-    WebkitAppearance: 'none',
-    backgroundColor: 'var(--color-input-bg)',
-    backgroundImage: [
-      'linear-gradient(45deg, transparent 50%, var(--color-text-muted) 50%)',
-      'linear-gradient(135deg, var(--color-text-muted) 50%, transparent 50%)',
-    ].join(', '),
-    backgroundPosition: 'calc(100% - 17px) 50%, calc(100% - 12px) 50%',
-    backgroundSize: '5px 5px, 5px 5px',
-    backgroundRepeat: 'no-repeat',
+    paddingRight: 32,
   };
 }
 
 export function dateFieldStyle(size: FieldSize = 'compact'): CSSProperties {
   return {
     ...fieldStyle(size),
-    padding: size === 'compact' ? '3px 2px 3px 5px' : '5px 4px 5px 8px',
-    fontSize: size === 'compact' ? '0.72rem' : '0.8rem',
+    padding: '0 6px 0 10px',
   };
+}
+
+interface TextareaFieldProps extends BaseFieldProps {
+  rows?: number;
+  maxLength?: number;
+  onChange?: (value: string) => void;
+}
+
+export function TextareaField({ label, value, onChange, required = false, disabled = false, placeholder, style, rows = 3, maxLength }: TextareaFieldProps) {
+  return (
+    <FieldLabel label={label} required={required}>
+      <textarea
+        className="form-input"
+        value={value}
+        rows={rows}
+        maxLength={maxLength}
+        disabled={disabled}
+        placeholder={placeholder}
+        onChange={event => onChange?.(event.currentTarget.value)}
+        style={style}
+      />
+    </FieldLabel>
+  );
+}
+
+/** Yes/No field for forms. Use a checkbox, not a toggle switch, so it saves with the form. */
+export function CheckboxField({ label, checked, onChange, disabled = false }: { label: string; checked: boolean; onChange: (value: boolean) => void; disabled?: boolean }) {
+  return (
+    <label className="check-field">
+      <input type="checkbox" checked={checked} disabled={disabled} onChange={event => onChange(event.currentTarget.checked)} />
+      {label}
+    </label>
+  );
 }

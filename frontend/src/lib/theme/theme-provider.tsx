@@ -9,7 +9,7 @@ import {
   type MantineThemeOverride,
 } from '@mantine/core';
 
-export type Theme = 'light' | 'dark' | 'slate' | 'warm';
+export type Theme = 'light' | 'dark';
 
 export interface ThemeConfig {
   value:   Theme;
@@ -20,91 +20,37 @@ export interface ThemeConfig {
   accent:  string;   /* primary accent colour */
 }
 
+// Preview swatches mirror src/app/design-tokens.css.
 export const THEMES: ThemeConfig[] = [
   {
     value:   'light',
-    label:   'Clarity',
-    desc:    'Clean light workspace',
-    sidebar: '#172033',
-    bg:      '#f6f8fb',
-    accent:  '#2563eb',
+    label:   'Light',
+    desc:    'Bright workspace for daytime use',
+    sidebar: '#182130',
+    bg:      '#f5f6f8',
+    accent:  '#1f56c7',
   },
   {
     value:   'dark',
-    label:   'Midnight',
-    desc:    'Low-glare dark workspace',
-    sidebar: '#111827',
-    bg:      '#0f172a',
-    accent:  '#38bdf8',
-  },
-  {
-    value:   'slate',
-    label:   'Harbor',
-    desc:    'Calm teal workspace',
-    sidebar: '#17313a',
-    bg:      '#f5f8fa',
-    accent:  '#0f766e',
-  },
-  {
-    value:   'warm',
-    label:   'Sage',
-    desc:    'Soft green workspace',
-    sidebar: '#1f2a24',
-    bg:      '#f8faf4',
-    accent:  '#4f772d',
+    label:   'Dark',
+    desc:    'Low-glare workspace for dim rooms',
+    sidebar: '#0a101b',
+    bg:      '#0d1420',
+    accent:  '#3b6fe0',
   },
 ];
 
-const clarity: MantineColorsTuple = [
-  '#eff6ff',
-  '#dbeafe',
-  '#bfdbfe',
-  '#93c5fd',
-  '#60a5fa',
-  '#2563eb',
-  '#1d4ed8',
-  '#1e40af',
+const ledgerBlue: MantineColorsTuple = [
+  '#edf2fc',
+  '#d8e3f8',
+  '#b4c9f1',
+  '#86a8e6',
+  '#4f7fd8',
+  '#1f56c7',
+  '#1a4aad',
+  '#173f94',
   '#1e3a8a',
   '#172554',
-];
-
-const graphite: MantineColorsTuple = [
-  '#ecfeff',
-  '#cffafe',
-  '#a5f3fc',
-  '#67e8f9',
-  '#38bdf8',
-  '#0ea5e9',
-  '#0284c7',
-  '#0369a1',
-  '#075985',
-  '#0c4a6e',
-];
-
-const aurora: MantineColorsTuple = [
-  '#f0fdfa',
-  '#ccfbf1',
-  '#99f6e4',
-  '#5eead4',
-  '#2dd4bf',
-  '#0f766e',
-  '#0d625d',
-  '#134e4a',
-  '#115e59',
-  '#042f2e',
-];
-
-const citrus: MantineColorsTuple = [
-  '#f7fbeF',
-  '#edf6df',
-  '#dcebc5',
-  '#c4d7a4',
-  '#a7bd7c',
-  '#4f772d',
-  '#3f5f25',
-  '#2f461d',
-  '#243816',
-  '#17250d',
 ];
 
 function makeMantineTheme(primaryColor: string, primaryShade: MantineColorShade): MantineThemeOverride {
@@ -118,10 +64,7 @@ function makeMantineTheme(primaryColor: string, primaryShade: MantineColorShade)
     fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif',
     fontFamilyMonospace: '"JetBrains Mono", "SF Mono", Consolas, monospace',
     colors: {
-      clarity,
-      graphite,
-      aurora,
-      citrus,
+      ledgerBlue,
     },
     fontSizes: {
       xs: '0.6875rem',
@@ -139,7 +82,7 @@ function makeMantineTheme(primaryColor: string, primaryShade: MantineColorShade)
     },
     radius: {
       xs: '2px',
-      sm: '4px',
+      sm: '6px',
       md: '6px',
       lg: '8px',
       xl: '10px',
@@ -153,7 +96,7 @@ function makeMantineTheme(primaryColor: string, primaryShade: MantineColorShade)
     },
     headings: {
       fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif',
-      fontWeight: '700',
+      fontWeight: '600',
       sizes: {
         h1: { fontSize: '1.5rem', lineHeight: '1.25' },
         h2: { fontSize: '1.25rem', lineHeight: '1.3' },
@@ -167,10 +110,8 @@ function makeMantineTheme(primaryColor: string, primaryShade: MantineColorShade)
 }
 
 const MANTINE_THEME_BY_NAME: Record<Theme, MantineThemeOverride> = {
-  light: makeMantineTheme('clarity', 5),
-  dark: makeMantineTheme('graphite', 4),
-  slate: makeMantineTheme('aurora', 5),
-  warm: makeMantineTheme('citrus', 5),
+  light: makeMantineTheme('ledgerBlue', 5),
+  dark: makeMantineTheme('ledgerBlue', 5),
 };
 
 const STORAGE_KEY = 'erp-theme';

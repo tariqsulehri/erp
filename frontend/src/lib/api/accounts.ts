@@ -139,6 +139,20 @@ export function useAccountsList(params: AccountsListParams, enabled = true) {
   });
 }
 
+export async function fetchAllAccountsForExport() {
+  const limit = 200;
+  const firstPage = await backendGet<AccountsListResponse>(`/accounts${buildAccountsQuery({ page: 1, limit })}`);
+  const allAccounts = [...firstPage.data];
+  const totalPages = firstPage.pagination.pages;
+
+  for (let page = 2; page <= totalPages; page += 1) {
+    const nextPage = await backendGet<AccountsListResponse>(`/accounts${buildAccountsQuery({ page, limit })}`);
+    allAccounts.push(...nextPage.data);
+  }
+
+  return allAccounts;
+}
+
 export function useAccountsHierarchy() {
   return useQuery<AccountTreeNode[]>({
     queryKey: [...accountsQueryKey, 'hierarchy'],

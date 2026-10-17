@@ -19,6 +19,9 @@ import { stockTransfersRouter } from './stock-transfers.routes.js';
 import { suppliersRouter } from './suppliers.routes.js';
 import { vouchersRouter } from './vouchers.routes.js';
 import { warehousesRouter } from './warehouses.routes.js';
+import { statesRouter } from './states.routes.js';
+import { citiesRouter } from './cities.routes.js';
+import { areasRouter } from './areas.routes.js';
 
 export const apiRouter = Router();
 
@@ -42,3 +45,6 @@ apiRouter.use('/stock-transfers', stockTransfersRouter);
 apiRouter.use('/suppliers', suppliersRouter);
 apiRouter.use('/vouchers', vouchersRouter);
 apiRouter.use('/warehouses', warehousesRouter);
+apiRouter.use('/states', statesRouter);
+apiRouter.use('/cities', citiesRouter);
+apiRouter.use('/areas', areasRouter);

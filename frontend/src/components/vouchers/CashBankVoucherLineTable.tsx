@@ -32,23 +32,23 @@ interface CashBankLineConfig {
 function getCashBankLineColumns(config: CashBankLineConfig) {
   if (config.showChequeFields) {
     return [
-      { label: 'No.', width: 32 },
-      { label: config.lineAccountLabel, width: 275 },
-      { label: 'Description', width: 300 },
+      { label: 'No.', width: 44 },
+      { label: config.lineAccountLabel, width: '28%' },
+      { label: 'Description', width: undefined },
       { label: 'Cheque Details', width: 140 },
-      { label: 'Cheque Date', width: 96 },
-      { label: 'Clearing Date', width: 96 },
-      { label: 'Amount', width: 112, right: true },
-      { label: '', width: 30 },
+      { label: 'Cheque Date', width: 128 },
+      { label: 'Clearing Date', width: 128 },
+      { label: 'Amount', width: 140, right: true },
+      { label: '', width: 44 },
     ] as const;
   }
 
   return [
-    { label: 'No.', width: 32 },
-    { label: config.lineAccountLabel, width: 520 },
-    { label: 'Description', width: 520 },
-    { label: 'Amount', width: 118, right: true },
-    { label: '', width: 30 },
+    { label: 'No.', width: 44 },
+    { label: config.lineAccountLabel, width: '45%' },
+    { label: 'Description', width: undefined },
+    { label: 'Amount', width: 150, right: true },
+    { label: '', width: 44 },
   ] as const;
 }
 
@@ -74,8 +74,8 @@ export function CashBankVoucherLineTable({
   const lineColumns = getCashBankLineColumns(config);
 
   return (
-    <div style={{ minHeight: 0, overflowY: 'auto', overflowX: 'hidden', border: '1px solid var(--color-border)', borderRadius: 'var(--radius)' }}>
-      <table style={{ width: '100%', minWidth: '100%', borderCollapse: 'collapse', fontSize: '0.76rem', tableLayout: 'fixed' }}>
+    <div style={{ minHeight: 0, overflowY: 'auto', overflowX: 'auto', border: '1px solid var(--color-border)', borderRadius: 'var(--radius)' }}>
+      <table style={{ width: '100%', minWidth: 960, borderCollapse: 'collapse', fontSize: 'var(--font-size-sm)', tableLayout: 'fixed' }}>
         <colgroup>
           {lineColumns.map(column => (
             <col key={column.label || 'action'} style={{ width: column.width }} />
@@ -162,7 +162,7 @@ export function CashBankVoucherLineTable({
                   onClick={() => onRemoveLine(line.id)}
                   disabled={lines.length === 1}
                   title="Remove Line"
-                  style={{ padding: 4, color: 'var(--color-danger)', minHeight: 28 }}
+                  style={{ width: 'var(--control-h)', padding: 0 }}
                 >
                   <IconTrash size={16} />
                 </button>

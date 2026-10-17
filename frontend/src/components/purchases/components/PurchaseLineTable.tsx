@@ -31,7 +31,7 @@ export function PurchaseLineTable({
 }: PurchaseLineTableProps) {
   return (
     <div style={{ minHeight: 0, overflowY: 'auto', overflowX: 'hidden', border: '1px solid var(--color-border)', borderRadius: 'var(--radius)' }}>
-      <table style={{ width: '100%', minWidth: '100%', borderCollapse: 'collapse', fontSize: '0.76rem', tableLayout: 'fixed' }}>
+      <table style={{ width: '100%', minWidth: '100%', borderCollapse: 'collapse', fontSize: 'var(--font-size-sm)', tableLayout: 'fixed' }}>
         <colgroup>
           <col style={{ width: 34 }} />
           <col style={{ width: 110 }} />

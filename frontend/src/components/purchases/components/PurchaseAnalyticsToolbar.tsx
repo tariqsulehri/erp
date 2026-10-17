@@ -1,12 +1,11 @@
 'use client';
 
-import { IconChartBar, IconFilePlus, IconListSearch, IconRefresh } from '@tabler/icons-react';
+import { IconFilePlus, IconListSearch, IconRefresh } from '@tabler/icons-react';
 import { formatDate, formatNumber } from '@/lib/app-settings';
 import {
   badgeStyle,
   compactButtonStyle,
   statusBadgeStyle,
-  titleIconStyle,
   toolbarStyle,
 } from '../PurchaseVoucherStyles';
 
@@ -37,11 +36,10 @@ export function PurchaseAnalyticsToolbar({
     <section style={toolbarStyle}>
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
         <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-          <div style={titleIconStyle}><IconChartBar size={20} stroke={1.8} /></div>
           <div>
             <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-              <h1 style={{ margin: 0, fontSize: '1.05rem', lineHeight: 1.1, color: 'var(--color-heading)' }}>Purchase Analytics</h1>
-              <span style={badgeStyle('#1d4ed8', '#dbeafe')}>Decision View</span>
+              <h1 className="page-head-title">Purchase Analytics</h1>
+              <span style={badgeStyle('var(--color-info-text)', 'var(--color-info-bg)')}>Decision View</span>
               <span style={statusBadgeStyle}>{dateFrom ? formatDate(dateFrom, generalSettings) : 'Start'} To {dateTo ? formatDate(dateTo, generalSettings) : 'Today'}</span>
             </div>
           </div>

@@ -22,12 +22,12 @@ export interface JournalVoucherLine {
 }
 
 const journalLineColumns = [
-  { label: 'No.', width: 32 },
-  { label: 'Account', width: 430 },
-  { label: 'Description', width: 475 },
-  { label: 'Debit', width: 112, right: true },
-  { label: 'Credit', width: 112, right: true },
-  { label: '', width: 30 },
+  { label: 'No.', width: 44 },
+  { label: 'Account', width: '42%' },
+  { label: 'Description', width: undefined },
+  { label: 'Debit', width: 150, right: true },
+  { label: 'Credit', width: 150, right: true },
+  { label: '', width: 44 },
 ] as const;
 
 export function JournalVoucherLineTable({
@@ -48,8 +48,8 @@ export function JournalVoucherLineTable({
   onRemoveLine: (id: number) => void;
 }) {
   return (
-    <div style={{ minHeight: 0, overflowY: 'auto', overflowX: 'hidden', border: '1px solid var(--color-border)', borderRadius: 'var(--radius)' }}>
-      <table style={{ width: '100%', minWidth: '100%', borderCollapse: 'collapse', fontSize: '0.76rem', tableLayout: 'fixed' }}>
+    <div style={{ minHeight: 0, overflowY: 'auto', overflowX: 'auto', border: '1px solid var(--color-border)', borderRadius: 'var(--radius)' }}>
+      <table style={{ width: '100%', minWidth: 860, borderCollapse: 'collapse', fontSize: 'var(--font-size-sm)', tableLayout: 'fixed' }}>
         <colgroup>
           {journalLineColumns.map(column => (
             <col key={column.label || 'action'} style={{ width: column.width }} />
@@ -123,7 +123,8 @@ export function JournalVoucherLineTable({
                   onClick={() => onRemoveLine(line.id)}
                   disabled={lines.length <= 2}
                   title="Remove Line"
-                  style={{ padding: 4, color: 'var(--color-danger)', minHeight: 28 }}
+                  aria-label={`Remove Line ${index + 1}`}
+                  style={{ width: 'var(--control-h)', padding: 0 }}
                 >
                   <IconTrash size={16} />
                 </button>

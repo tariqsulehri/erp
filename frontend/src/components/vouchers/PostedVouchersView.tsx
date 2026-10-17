@@ -15,7 +15,7 @@ import {
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { DateField, NumericField, SelectField, TextField } from '@/components/ui/FormFields';
 import { PaginationBar } from '@/components/ui/PaginationBar';
-import { formatDate, formatMoney, formatNumber } from '@/lib/app-settings';
+import { formatDate, formatMoney } from '@/lib/app-settings';
 import { useCompanyProfile, useGeneralSettings } from '@/lib/api/settings';
 import { usePostingDateGuard } from '@/lib/api/fiscal-years';
 import { usePostVoucher, useVoucherDetail, useVouchersList } from '@/lib/api/vouchers';
@@ -29,11 +29,9 @@ import {
   lineActionButtonStyle,
   messageStyle,
   purchaseDetailPanelStyle,
-  purchaseListFooterStyle,
   statusBadgeStyle,
   tableCellStyle,
   tableHeadStyle,
-  titleIconStyle,
   toolbarStyle,
 } from '@/components/purchases/PurchaseVoucherStyles';
 
@@ -92,14 +90,14 @@ function voucherTypeLabel(type: string) {
 
 function statusBadge(status: string) {
   const colors = status === 'Posted' || status === 'Approved'
-    ? ['#166534', '#dcfce7']
+    ? ['var(--color-success-text)', 'var(--color-success-bg)']
     : status === 'Voided' || status === 'Rejected'
-      ? ['#991b1b', '#fee2e2']
+      ? ['var(--color-danger-text)', 'var(--color-danger-bg)']
       : status === 'Pending Approval'
-        ? ['#92400e', '#fef3c7']
+        ? ['var(--color-warning-text)', 'var(--color-warning-bg)']
         : status === 'All'
-          ? ['#1d4ed8', '#dbeafe']
-          : ['#475569', '#f1f5f9'];
+          ? ['var(--color-info-text)', 'var(--color-info-bg)']
+          : ['var(--color-neutral-text)', 'var(--color-neutral-bg)'];
   return badgeStyle(colors[0], colors[1]);
 }
 
@@ -200,8 +198,6 @@ export function PostedVouchersView({ initialStatus = 'Draft' }: { initialStatus?
   const rows = (listQuery.data?.data ?? []) as VoucherListRow[];
   const total = listQuery.data?.pagination?.total ?? 0;
   const pages = listQuery.data?.pagination?.pages ?? Math.max(1, Math.ceil(total / pageSize));
-  const fromRecord = total === 0 ? 0 : (page - 1) * pageSize + 1;
-  const toRecord = Math.min(page * pageSize, total);
 
   function resetFilters() {
     setSearchText('');
@@ -301,9 +297,8 @@ export function PostedVouchersView({ initialStatus = 'Draft' }: { initialStatus?
       <section style={toolbarStyle}>
         <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
           <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-            <div style={titleIconStyle}><IconFileInvoice size={20} stroke={1.8} /></div>
             <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-              <h1 style={{ margin: 0, fontSize: '1.05rem', lineHeight: 1.1, color: 'var(--color-heading)' }}>{listTitle}</h1>
+              <h1 className="page-head-title">{listTitle}</h1>
               <span style={statusBadge(voucherLifecycle)}>{voucherLifecycle}</span>
               <span style={statusBadgeStyle}>{total} Record{total === 1 ? '' : 's'}</span>
             </div>
@@ -342,7 +337,7 @@ export function PostedVouchersView({ initialStatus = 'Draft' }: { initialStatus?
       )}
 
       <section className="workspace-card" style={{ padding: 10, flex: 1, minHeight: 0, display: 'grid', gridTemplateRows: 'auto 1fr auto', gap: 8, overflow: 'hidden' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(220px, 1.4fr) 84px 76px 145px 112px 118px 118px 112px 112px auto', gap: 7, alignItems: 'end' }}>
+        <div className="filter-grid">
           <TextField label="Search" value={searchText} onChange={setSearchText} placeholder="Voucher No., Reference, Description" inputProps={{ onKeyDown: event => { if (event.key === 'Enter') applySearch(); } }} />
           <button type="button" className="btn-secondary" onClick={applySearch} disabled={listQuery.isFetching} style={{ ...compactButtonStyle, alignSelf: 'end' }}>
             {listQuery.isFetching && <span className="spinner" style={{ width: 12, height: 12, borderWidth: 2 }} />}
@@ -375,7 +370,7 @@ export function PostedVouchersView({ initialStatus = 'Draft' }: { initialStatus?
 
         <div style={{ minHeight: 0, display: 'grid', gridTemplateColumns: selectedId ? 'minmax(0, 1fr) 420px' : '1fr', gap: 8, overflow: 'hidden' }}>
           <div style={{ minHeight: 0, overflow: 'auto', border: '1px solid var(--color-border)', borderRadius: 'var(--radius)' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.74rem', tableLayout: 'fixed' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 'var(--font-size-xs)', tableLayout: 'fixed' }}>
               <colgroup>
                 <col style={{ width: 130 }} />
                 <col style={{ width: 92 }} />
@@ -384,8 +379,8 @@ export function PostedVouchersView({ initialStatus = 'Draft' }: { initialStatus?
                 <col />
                 <col style={{ width: 118 }} />
                 <col style={{ width: 118 }} />
-                <col style={{ width: 86 }} />
-                <col style={{ width: 78 }} />
+                <col style={{ width: 132 }} />
+                <col style={{ width: 60 }} />
               </colgroup>
               <thead>
                 <tr>
@@ -451,7 +446,7 @@ export function PostedVouchersView({ initialStatus = 'Draft' }: { initialStatus?
           {selectedId && (
             <aside style={purchaseDetailPanelStyle}>
               <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'center', borderBottom: '1px solid var(--color-border)', paddingBottom: 8 }}>
-                <strong style={{ fontSize: '0.86rem', color: 'var(--color-heading)' }}>Voucher Detail</strong>
+                <strong style={{ fontSize: 'var(--font-size-md)', color: 'var(--color-heading)' }}>Voucher Detail</strong>
                 <div style={{ display: 'flex', gap: 4 }}>
                   {detailQuery.data && (
                     <>
@@ -502,19 +497,19 @@ export function PostedVouchersView({ initialStatus = 'Draft' }: { initialStatus?
                       ['Posted At', detailQuery.data.posted_at ? formatDate(detailQuery.data.posted_at, generalSettings) : '-'],
                     ].map(([label, value]) => (
                       <div key={label} style={{ border: '1px solid var(--color-border-subtle)', borderRadius: 'var(--radius-sm)', padding: '6px 7px', minWidth: 0 }}>
-                        <div style={{ color: 'var(--color-text-muted)', fontSize: '0.62rem', fontWeight: 800 }}>{label}</div>
-                        <div style={{ color: 'var(--color-text)', fontSize: '0.73rem', fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{value}</div>
+                        <div style={{ color: 'var(--color-text-muted)', fontSize: 'var(--font-size-xs)', fontWeight: 600 }}>{label}</div>
+                        <div style={{ color: 'var(--color-text)', fontSize: 'var(--font-size-xs)', fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{value}</div>
                       </div>
                     ))}
                   </div>
 
                   <div style={{ border: '1px solid var(--color-border-subtle)', borderRadius: 'var(--radius-sm)', padding: '6px 7px' }}>
-                    <div style={{ color: 'var(--color-text-muted)', fontSize: '0.62rem', fontWeight: 800 }}>Description</div>
-                    <div style={{ color: 'var(--color-text)', fontSize: '0.73rem', fontWeight: 700 }}>{detailQuery.data.narration || '-'}</div>
+                    <div style={{ color: 'var(--color-text-muted)', fontSize: 'var(--font-size-xs)', fontWeight: 600 }}>Description</div>
+                    <div style={{ color: 'var(--color-text)', fontSize: 'var(--font-size-xs)', fontWeight: 700 }}>{detailQuery.data.narration || '-'}</div>
                   </div>
 
                   <div style={{ minHeight: 0, overflowY: 'auto', border: '1px solid var(--color-border)', borderRadius: 'var(--radius)' }}>
-                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.68rem', tableLayout: 'fixed' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 'var(--font-size-xs)', tableLayout: 'fixed' }}>
                       <colgroup>
                         <col style={{ width: 34 }} />
                         <col />
@@ -546,7 +541,7 @@ export function PostedVouchersView({ initialStatus = 'Draft' }: { initialStatus?
                       ['Total Debit', detailQuery.data.total_debit],
                       ['Total Credit', detailQuery.data.total_credit],
                     ].map(([label, value]) => (
-                      <div key={label} style={{ display: 'flex', justifyContent: 'space-between', gap: 8, color: 'var(--color-text-secondary)', fontSize: '0.76rem', fontWeight: 800 }}>
+                      <div key={label} style={{ display: 'flex', justifyContent: 'space-between', gap: 8, color: 'var(--color-text-secondary)', fontSize: 'var(--font-size-sm)', fontWeight: 600 }}>
                         <span>{label}</span>
                         <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--color-text)' }}>{money(String(value))}</span>
                       </div>
@@ -555,7 +550,7 @@ export function PostedVouchersView({ initialStatus = 'Draft' }: { initialStatus?
 
                   {selectedVoucherNextStep && (
                     <div style={{ border: '1px solid var(--color-border-subtle)', borderRadius: 'var(--radius-sm)', padding: '7px 8px', display: 'grid', gap: 7 }}>
-                      <div style={{ color: 'var(--color-text-secondary)', fontSize: '0.72rem', fontWeight: 800, lineHeight: 1.35 }}>
+                      <div style={{ color: 'var(--color-text-secondary)', fontSize: 'var(--font-size-xs)', fontWeight: 600, lineHeight: 1.35 }}>
                         {selectedVoucherNextStep}
                       </div>
                       {selectedVoucherLifecycle === 'Pending Approval' && (
@@ -580,7 +575,7 @@ export function PostedVouchersView({ initialStatus = 'Draft' }: { initialStatus?
                     >
                       {postVoucher.isPending ? (
                         <>
-                          <span className="spinner" style={{ width: 14, height: 14, borderWidth: 2, borderTopColor: '#fff', borderColor: 'rgba(255,255,255,0.35)' }} />
+                          <span className="spinner" style={{ width: 14, height: 14, borderTopColor: 'currentColor' }} />
                           Posting...
                         </>
                       ) : (

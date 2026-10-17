@@ -3,9 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import {
-  IconBuildingBank,
   IconCalendarDollar,
-  IconCash,
 } from '@tabler/icons-react';
 import { formatMoney } from '@/lib/app-settings';
 import { useAccountsList } from '@/lib/api/accounts';
@@ -13,7 +11,7 @@ import { useBankAccountsList } from '@/lib/api/bank-accounts';
 import { usePostingDateGuard } from '@/lib/api/fiscal-years';
 import { useGeneralSettings } from '@/lib/api/settings';
 import { useCreateVoucher, useUpdateVoucher, useVoucherDetail } from '@/lib/api/vouchers';
-import { FieldLabel, SearchableSelect, SummaryRow, type VoucherSelectOption } from './VoucherControls';
+import { FieldLabel, SearchableSelect, SummaryRow } from './VoucherControls';
 import { CashBankVoucherLineTable, type CashBankVoucherLine } from './CashBankVoucherLineTable';
 import { VoucherActionButtons, VoucherLineSection, VoucherMessageBanner, VoucherPageHeader, VoucherSummaryFooter } from './VoucherLayout';
 import { useDefaultVoucherDate } from './VoucherFiscalDate';
@@ -48,9 +46,6 @@ interface VoucherConfig {
   totalLabel: string;
   successNoun: string;
   icon: 'bank' | 'cash';
-  badgeColor: string;
-  badgeBackground: string;
-  accent: string;
   direction: 'payment' | 'receipt';
   primaryAccountKind: 'Bank' | 'Cash';
   showChequeFields: boolean;
@@ -70,9 +65,6 @@ const voucherConfigs: Record<VoucherKind, VoucherConfig> = {
     totalLabel: 'Total Payment',
     successNoun: 'Bank Payment Voucher',
     icon: 'bank',
-    badgeColor: '#1d4ed8',
-    badgeBackground: '#dbeafe',
-    accent: 'linear-gradient(135deg, #1d4ed8, #0891b2)',
     direction: 'payment',
     primaryAccountKind: 'Bank',
     showChequeFields: true,
@@ -90,9 +82,6 @@ const voucherConfigs: Record<VoucherKind, VoucherConfig> = {
     totalLabel: 'Total Payment',
     successNoun: 'Cash Payment Voucher',
     icon: 'cash',
-    badgeColor: '#166534',
-    badgeBackground: '#dcfce7',
-    accent: 'linear-gradient(135deg, #15803d, #0f766e)',
     direction: 'payment',
     primaryAccountKind: 'Cash',
     showChequeFields: false,
@@ -110,9 +99,6 @@ const voucherConfigs: Record<VoucherKind, VoucherConfig> = {
     totalLabel: 'Total Receipt',
     successNoun: 'Cash Receipt Voucher',
     icon: 'cash',
-    badgeColor: '#047857',
-    badgeBackground: '#d1fae5',
-    accent: 'linear-gradient(135deg, #047857, #0ea5e9)',
     direction: 'receipt',
     primaryAccountKind: 'Cash',
     showChequeFields: false,
@@ -380,17 +366,12 @@ export default function CashBankVoucherPage({ voucherType }: { voucherType: Vouc
     setMessage(result);
   }
 
-  const HeaderIcon = config.icon === 'bank' ? IconBuildingBank : IconCash;
 
   return (
     <main style={{ height: '100%', minHeight: 0, boxSizing: 'border-box', padding: 10, display: 'flex', flexDirection: 'column', gap: 8, overflow: 'hidden' }}>
       <VoucherPageHeader
         title={config.title}
         badgeText={config.voucherType}
-        badgeColor={config.badgeColor}
-        badgeBackground={config.badgeBackground}
-        accent={config.accent}
-        icon={<HeaderIcon size={20} stroke={1.8} />}
         mode={editingVoucherId ? 'Edit' : 'Add'}
         actions={
           <VoucherActionButtons
@@ -451,7 +432,7 @@ export default function CashBankVoucherPage({ voucherType }: { voucherType: Vouc
           <FieldLabel label="Attachments">
             <input className="form-input" value="0 Files" disabled style={compactInputStyle} />
           </FieldLabel>
-          <div style={{ color: 'var(--color-text-muted)', fontSize: '0.68rem', lineHeight: 1.2, alignSelf: 'center' }}>
+          <div style={{ color: 'var(--color-text-muted)', fontSize: 'var(--font-size-xs)', lineHeight: 1.2, alignSelf: 'center' }}>
             Attachments and approval history will use the shared transaction workflow area.
           </div>
         </div>
@@ -465,7 +446,7 @@ export default function CashBankVoucherPage({ voucherType }: { voucherType: Vouc
             background: 'transparent',
             color: 'var(--color-danger-text)',
             fontWeight: 500,
-            fontSize: '0.66rem',
+            fontSize: 'var(--font-size-xs)',
             lineHeight: 1.2,
             padding: 0,
             overflow: 'hidden',

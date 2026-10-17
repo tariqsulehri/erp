@@ -9,13 +9,11 @@ import {
   IconListSearch,
   IconPrinter,
   IconRefresh,
-  IconShoppingCart,
 } from '@tabler/icons-react';
 import {
   badgeStyle,
   compactButtonStyle,
   statusBadgeStyle,
-  titleIconStyle,
   toolbarStyle,
 } from '../PurchaseVoucherStyles';
 
@@ -62,10 +60,9 @@ export function PurchaseToolbar({
     <section style={toolbarStyle}>
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
         <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-          <div style={titleIconStyle}><IconShoppingCart size={20} stroke={1.8} /></div>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-            <h1 style={{ margin: 0, fontSize: '1.05rem', lineHeight: 1.1, color: 'var(--color-heading)' }}>{title}</h1>
-            <span style={badgeStyle('#1d4ed8', '#dbeafe')}>{documentCode}</span>
+            <h1 className="page-head-title">{title}</h1>
+            <span style={badgeStyle('var(--color-info-text)', 'var(--color-info-bg)')}>{documentCode}</span>
             <span style={statusBadgeStyle}><span style={{ color: 'var(--color-text-muted)' }}>Status</span> Draft</span>
           </div>
         </div>

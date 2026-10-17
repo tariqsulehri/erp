@@ -1,7 +1,17 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
+import {
+  IconChevronDown,
+  IconChevronRight,
+  IconExternalLink,
+  IconLock,
+  IconLockOpen,
+  IconPlus,
+  IconRefresh,
+  IconX,
+} from '@tabler/icons-react';
 import {
   type FiscalYearClosingIssue,
   type FiscalYearClosingIssueCheck,
@@ -22,31 +32,69 @@ import {
   type FiscalYearItem,
 } from '@/lib/api/fiscal-years';
 import { useGeneralSettings } from '@/lib/api/settings';
-import { formatDate, type AppFormatSettingsSource } from '@/lib/app-settings';
+import { formatDate, formatNumber, type AppFormatSettingsSource } from '@/lib/app-settings';
+import { friendlyErrorMessage } from '@/lib/erp-utils';
+import { Badge } from '@/components/ui/Badge';
+import { Button } from '@/components/ui/Button';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
+import { DateField, SelectField, TextField, TextareaField } from '@/components/ui/FormFields';
+import { InlineAlert } from '@/components/ui/InlineAlert';
+import { PageHeader } from '@/components/ui/PageHeader';
 import { PaginationBar } from '@/components/ui/PaginationBar';
+import { TableMessageRow } from '@/components/ui/TableMessageRow';
+import { Tabs } from '@/components/ui/Tabs';
 
 type FiscalYear   = FiscalYearItem;
 type FiscalPeriod = FiscalPeriodItem;
 type FiscalYearTab = 'years' | 'closing';
 type ClosingIssueState = { check: FiscalYearClosingIssueCheck; title: string } | null;
+type YearBasis = 'calendar' | 'july' | 'april';
+type BadgeTone = 'success' | 'warning' | 'danger' | 'info' | 'neutral';
+
+const FISCAL_YEAR_TABS: Array<{ value: FiscalYearTab; label: string }> = [
+  { value: 'years',   label: 'Fiscal Years' },
+  { value: 'closing', label: 'Year Closing' },
+];
+
+const YEAR_BASIS_OPTIONS: Array<{ value: YearBasis; label: string }> = [
+  { value: 'calendar', label: 'Calendar Year (Jan 1 – Dec 31)' },
+  { value: 'july',     label: 'July Basis (Jul 1 – Jun 30)' },
+  { value: 'april',    label: 'April Basis (Apr 1 – Mar 31)' },
+];
+
+const PERIOD_COUNT_OPTIONS = [
+  { value: '12', label: '12 — Monthly' },
+  { value: '4',  label: '4 — Quarterly' },
+  { value: '13', label: '13 — 4-Week Periods' },
+];
 
 /* ── helpers ─────────────────────────────────────────────────────────── */
 function fmt(d: string | Date, settings?: AppFormatSettingsSource | null) {
   return formatDate(d, settings);
 }
 
-const STATUS_STYLE: Record<string, { bg: string; color: string }> = {
-  open:     { bg: '#dcfce7', color: '#15803d' },
-  closing:  { bg: '#fef3c7', color: '#92400e' },
-  closed:   { bg: '#fee2e2', color: '#b91c1c' },
-  archived: { bg: '#f1f5f9', color: '#64748b' },
+/** "open" → "Open" for display; the stored value is unchanged. */
+function statusLabel(status: string) {
+  return status ? status.charAt(0).toUpperCase() + status.slice(1) : 'Not Set';
+}
+
+const YEAR_STATUS_TONE: Record<string, BadgeTone> = {
+  open:     'success',
+  closing:  'warning',
+  closed:   'neutral',
+  archived: 'neutral',
 };
 
-const PERIOD_STATUS_STYLE: Record<string, { bg: string; color: string }> = {
-  open:   { bg: '#dcfce7', color: '#15803d' },
-  locked: { bg: '#fef3c7', color: '#92400e' },
-  closed: { bg: '#fee2e2', color: '#b91c1c' },
+const PERIOD_STATUS_TONE: Record<string, BadgeTone> = {
+  open:   'success',
+  locked: 'warning',
+  closed: 'neutral',
+};
+
+const CHECK_STATUS_TONE: Record<FiscalYearClosingCheck['status'], BadgeTone> = {
+  Passed:  'success',
+  Warning: 'warning',
+  Failed:  'danger',
 };
 
 /* ── Create Fiscal Year form ─────────────────────────────────────────── */
@@ -55,7 +103,7 @@ function CreateFYForm({ onCreated }: { onCreated: () => void }) {
 
   const [form, setForm] = useState({
     fiscal_year:         '',
-    year_basis:          'calendar' as 'calendar' | 'july' | 'april',
+    year_basis:          'calendar' as YearBasis,
     start_date:          '',
     end_date:            '',
     number_of_periods:   12,
@@ -78,7 +126,7 @@ function CreateFYForm({ onCreated }: { onCreated: () => void }) {
   // The backend owns fiscal-year overlap and period validation.
 
   /* Auto-fill dates when year_basis or fiscal_year changes */
-  function applyBasis(basis: typeof form.year_basis, fy: string) {
+  function applyBasis(basis: YearBasis, fy: string) {
     const year = parseInt(fy, 10);
     if (!year || year < 2000 || year > 2100) return;
     if (basis === 'calendar') {
@@ -90,7 +138,7 @@ function CreateFYForm({ onCreated }: { onCreated: () => void }) {
     }
   }
 
-  function handleBasis(basis: typeof form.year_basis) {
+  function handleBasis(basis: YearBasis) {
     setForm(f => ({ ...f, year_basis: basis }));
     applyBasis(basis, form.fiscal_year);
   }
@@ -103,8 +151,8 @@ function CreateFYForm({ onCreated }: { onCreated: () => void }) {
   function submit(e: React.FormEvent) {
     e.preventDefault();
     setError('');
-    if (!form.fiscal_year) return setError('Fiscal year identifier is required');
-    if (!form.start_date || !form.end_date) return setError('Start and end dates are required');
+    if (!form.fiscal_year) return setError('Enter a Fiscal Year Name.');
+    if (!form.start_date || !form.end_date) return setError('Enter a Start Date and an End Date.');
     createFiscalYear({
       fiscal_year:         form.fiscal_year,
       year_basis:          form.year_basis,
@@ -116,96 +164,66 @@ function CreateFYForm({ onCreated }: { onCreated: () => void }) {
   }
 
   return (
-    <form onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-        {/* Fiscal Year Name */}
+    <form onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      {error && <InlineAlert tone="danger">{error}</InlineAlert>}
+
+      <div className="form-grid">
         <div>
-          <label style={labelStyle}>Fiscal Year Identifier *</label>
-          <input
-            className="form-input"
-            placeholder="e.g. 2026 or 2026-2027"
+          <TextField
+            label="Fiscal Year Name"
+            required
             value={form.fiscal_year}
-            onChange={e => handleFY(e.target.value)}
-            required
+            onChange={handleFY}
+            placeholder="For example 2026 or 2026-2027"
           />
-          <p style={hintStyle}>Human-readable label used in reports</p>
+          <p className="form-hint">Shown on reports.</p>
         </div>
 
-        {/* Year Basis */}
-        <div>
-          <label style={labelStyle}>Year Basis *</label>
-          <select
-            className="form-input"
-            value={form.year_basis}
-            onChange={e => handleBasis(e.target.value as any)}
-          >
-            <option value="calendar">Calendar Year  (Jan 1 – Dec 31)</option>
-            <option value="july">July Basis  (Jul 1 – Jun 30)</option>
-            <option value="april">April Basis  (Apr 1 – Mar 31)</option>
-          </select>
-        </div>
+        <SelectField
+          label="Year Basis"
+          required
+          value={form.year_basis}
+          options={YEAR_BASIS_OPTIONS}
+          onChange={value => handleBasis(value as YearBasis)}
+        />
 
-        {/* Start Date */}
+        <DateField
+          label="Start Date"
+          required
+          value={form.start_date}
+          onChange={value => setForm(f => ({ ...f, start_date: value }))}
+        />
+
+        <DateField
+          label="End Date"
+          required
+          value={form.end_date}
+          onChange={value => setForm(f => ({ ...f, end_date: value }))}
+        />
+
+        <SelectField
+          label="Number Of Periods"
+          value={String(form.number_of_periods)}
+          options={PERIOD_COUNT_OPTIONS}
+          onChange={value => setForm(f => ({ ...f, number_of_periods: parseInt(value) }))}
+        />
+
         <div>
-          <label style={labelStyle}>Start Date *</label>
-          <input
-            type="date" className="form-input"
-            value={form.start_date}
-            onChange={e => setForm(f => ({ ...f, start_date: e.target.value }))}
-            required
+          <TextField
+            label="Posting Cutoff Days"
+            value={String(form.posting_cutoff_days)}
+            onChange={value => setForm(f => ({ ...f, posting_cutoff_days: parseInt(value) || 0 }))}
+            inputProps={{ type: 'number', min: 0, max: 60, inputMode: 'numeric' }}
+            style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}
           />
-        </div>
-
-        {/* End Date */}
-        <div>
-          <label style={labelStyle}>End Date *</label>
-          <input
-            type="date" className="form-input"
-            value={form.end_date}
-            onChange={e => setForm(f => ({ ...f, end_date: e.target.value }))}
-            required
-          />
-        </div>
-
-        {/* Number of Periods */}
-        <div>
-          <label style={labelStyle}>Number of Periods</label>
-          <select
-            className="form-input"
-            value={form.number_of_periods}
-            onChange={e => setForm(f => ({ ...f, number_of_periods: parseInt(e.target.value) }))}
-          >
-            <option value={12}>12 — Monthly</option>
-            <option value={4}>4 — Quarterly</option>
-            <option value={13}>13 — 4-week periods</option>
-          </select>
-        </div>
-
-        {/* Posting Cutoff Days */}
-        <div>
-          <label style={labelStyle}>Posting Cutoff Days</label>
-          <input
-            type="number" className="form-input" min={0} max={60}
-            value={form.posting_cutoff_days}
-            onChange={e => setForm(f => ({ ...f, posting_cutoff_days: parseInt(e.target.value) || 0 }))}
-          />
-          <p style={hintStyle}>Days after period end to allow late entries</p>
+          <p className="form-hint">Days after a period ends when late entries are still allowed.</p>
         </div>
       </div>
 
-      {error && (
-        <div style={{ padding: '10px 14px', background: '#fee2e2', borderRadius: 6,
-          color: '#b91c1c', fontSize: 'var(--font-size-sm)' }}>
-          {error}
-        </div>
-      )}
-
-      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
-        <button type="submit" className="btn btn-primary" disabled={createMutation.isPending}>
-          {createMutation.isPending
-            ? <><div className="spinner" style={{ width: 14, height: 14, borderWidth: 2 }} /> Creating…</>
-            : 'Create Fiscal Year'}
-        </button>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+        <Button type="submit" variant="primary" icon={<IconPlus size={16} stroke={1.8} />} loading={createMutation.isPending}>
+          Create Fiscal Year
+        </Button>
       </div>
     </form>
   );
@@ -230,53 +248,41 @@ function PeriodsPanel({ fyId, fyStatus, settings }: { fyId: string; fyStatus: st
     queryClient.invalidateQueries({ queryKey: fiscalYearsQueryKey });
   }
 
-  if (isLoading) return <div style={{ padding: 20, color: 'var(--color-text-muted)' }}>Loading periods…</div>;
-  if (!periods?.length) return <div style={{ padding: 20, color: 'var(--color-text-muted)' }}>No periods found.</div>;
-
   return (
     <div style={{ overflowX: 'auto' }}>
-      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 'var(--font-size-sm)' }}>
+      <table className="data-table">
         <thead>
-          <tr style={{ background: '#f8fafc', borderBottom: '1px solid var(--color-border)' }}>
-            {['#', 'Period', 'Start', 'End', 'Status', 'Transactions', 'Actions'].map(h => (
-              <th key={h} style={{
-                padding: '8px 12px', textAlign: 'left',
-                fontSize: 'var(--font-size-xs)', fontWeight: 700,
-                color: 'var(--color-text-muted)', letterSpacing: 0,
-              }}>{h}</th>
-            ))}
+          <tr>
+            <th className="num" style={{ width: 56 }}>No.</th>
+            <th>Period</th>
+            <th style={{ width: 130 }}>Start Date</th>
+            <th style={{ width: 130 }}>End Date</th>
+            <th style={{ width: 110 }}>Status</th>
+            <th className="num" style={{ width: 120 }}>Transactions</th>
+            <th style={{ width: 120 }}><span className="sr-only">Actions</span></th>
           </tr>
         </thead>
         <tbody>
-          {periods.map((p: FiscalPeriod, i: number) => {
-            const ss = PERIOD_STATUS_STYLE[p.status] ?? PERIOD_STATUS_STYLE.open;
-            const isLast = i === periods.length - 1;
+          {isLoading && <TableMessageRow colSpan={7} title="Loading Periods…" loading />}
+          {!isLoading && !periods?.length && (
+            <TableMessageRow colSpan={7} title="No Periods Found" description="Periods are created with the Fiscal Year." />
+          )}
+          {!isLoading && periods?.map((p: FiscalPeriod) => {
             const busy = periodActionBusy;
             return (
-              <tr key={p.id} style={{ borderBottom: isLast ? 'none' : '1px solid var(--color-border)' }}>
-                <td style={{ padding: '8px 12px', color: 'var(--color-text-muted)', fontWeight: 600 }}>
-                  {p.period_number}
-                </td>
-                <td style={{ padding: '8px 12px', fontWeight: 500 }}>{p.period_name}</td>
-                <td style={{ padding: '8px 12px', fontFamily: 'monospace', fontSize: '0.8125rem' }}>
-                  {fmt(p.start_date, settings)}
-                </td>
-                <td style={{ padding: '8px 12px', fontFamily: 'monospace', fontSize: '0.8125rem' }}>
-                  {fmt(p.end_date, settings)}
-                </td>
-                <td style={{ padding: '8px 12px' }}>
-                  <span style={{
-                    fontSize: '0.6875rem', fontWeight: 600, padding: '2px 8px', borderRadius: 10,
-                    background: ss.bg, color: ss.color,
-                  }}>{p.status}</span>
-                </td>
-                <td style={{ padding: '8px 12px', color: 'var(--color-text-muted)' }}>
-                  {p.transaction_count ?? 0}
-                </td>
-                <td style={{ padding: '8px 12px' }}>
-                  <div style={{ display: 'flex', gap: 6 }}>
+              <tr key={p.id}>
+                <td className="num cell-muted">{p.period_number}</td>
+                <td className="cell-strong">{p.period_name}</td>
+                <td style={{ fontVariantNumeric: 'tabular-nums' }}>{fmt(p.start_date, settings)}</td>
+                <td style={{ fontVariantNumeric: 'tabular-nums' }}>{fmt(p.end_date, settings)}</td>
+                <td><Badge variant={PERIOD_STATUS_TONE[p.status] ?? 'neutral'}>{statusLabel(p.status)}</Badge></td>
+                <td className="num">{p.transaction_count ?? 0}</td>
+                <td className="cell-actions">
+                  <div className="row-actions">
                     {p.status === 'open' && fyStatus !== 'closed' && (
-                      <button
+                      <Button
+                        size="sm"
+                        icon={<IconLock size={16} stroke={1.8} />}
                         disabled={busy}
                         onClick={() => setConfirmAction({
                           title: 'Lock Fiscal Period?',
@@ -293,11 +299,14 @@ function PeriodsPanel({ fyId, fyStatus, settings }: { fyId: string; fyStatus: st
                             },
                           ),
                         })}
-                        style={actionBtnStyle('#92400e', '#fef3c7')}
-                      >Lock</button>
+                      >
+                        Lock
+                      </Button>
                     )}
                     {p.status === 'locked' && fyStatus !== 'closed' && (
-                      <button
+                      <Button
+                        size="sm"
+                        icon={<IconX size={16} stroke={1.8} />}
                         disabled={busy}
                         onClick={() => setConfirmAction({
                           title: 'Close Fiscal Period?',
@@ -314,8 +323,9 @@ function PeriodsPanel({ fyId, fyStatus, settings }: { fyId: string; fyStatus: st
                             },
                           ),
                         })}
-                        style={actionBtnStyle('#b91c1c', '#fee2e2')}
-                      >Close</button>
+                      >
+                        Close
+                      </Button>
                     )}
                   </div>
                 </td>
@@ -339,106 +349,60 @@ function PeriodsPanel({ fyId, fyStatus, settings }: { fyId: string; fyStatus: st
   );
 }
 
-/* ── Fiscal Year card ────────────────────────────────────────────────── */
+/* ── Fiscal Year panel ───────────────────────────────────────────────── */
 function FYCard({ fy, onRefresh, settings }: { fy: FiscalYear; onRefresh: () => void; settings?: AppFormatSettingsSource | null }) {
   const [expanded, setExpanded] = useState(false);
   const [confirmLockOpen, setConfirmLockOpen] = useState(false);
   const [confirmUnlockOpen, setConfirmUnlockOpen] = useState(false);
   const lockMut = useLockFiscalYear();
   const unlockMut = useUnlockFiscalYear();
-
-  const ss = STATUS_STYLE[fy.status] ?? STATUS_STYLE.open;
+  const periodsId = `fiscal-periods-${fy.id}`;
 
   return (
-    <div style={{
-      background: 'var(--color-surface)',
-      border: `1px solid ${fy.is_active ? 'var(--color-primary)' : 'var(--color-border)'}`,
-      borderRadius: 'var(--radius)',
-      overflow: 'hidden',
-      boxShadow: fy.is_active ? '0 0 0 2px var(--color-primary)20' : 'var(--shadow-sm)',
-    }}>
-      {/* Header */}
-      <div style={{
-        display: 'flex', alignItems: 'center', gap: 16,
-        padding: '16px 20px',
-        background: fy.is_active ? 'var(--color-primary)05' : 'transparent',
-        borderBottom: expanded ? '1px solid var(--color-border)' : 'none',
-      }}>
-        {/* Year badge */}
-        <div style={{
-          fontWeight: 800, fontSize: '1.125rem', fontFamily: 'monospace',
-          color: fy.is_active ? 'var(--color-primary)' : 'var(--color-text)',
-          minWidth: 80,
-        }}>
-          {fy.fiscal_year}
+    <section className="panel" style={{ flexShrink: 0 }} aria-label={`Fiscal Year ${fy.fiscal_year}`}>
+      <div className="panel-header" style={{ borderBottom: expanded ? undefined : 'none', flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', minWidth: 0 }}>
+          <h2 className="panel-title" style={{ fontVariantNumeric: 'tabular-nums' }}>{fy.fiscal_year}</h2>
+          {fy.is_active && <Badge variant="info">Active</Badge>}
+          <Badge variant={YEAR_STATUS_TONE[fy.status] ?? 'neutral'}>{statusLabel(fy.status)}</Badge>
+          {fy.is_locked && <Badge variant="warning">Locked</Badge>}
         </div>
 
-        {/* Tags */}
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flex: 1 }}>
-          {fy.is_active && (
-            <span style={{
-              fontSize: '0.625rem', fontWeight: 800, letterSpacing: '0.06em',
-              background: 'var(--color-primary)', color: 'white',
-              padding: '2px 8px', borderRadius: 10,  }}>Active</span>
-          )}
-          <span style={{
-            fontSize: '0.6875rem', fontWeight: 600, padding: '2px 8px', borderRadius: 10,
-            background: ss.bg, color: ss.color,
-          }}>{fy.status}</span>
-          {fy.is_locked && (
-            <span style={{
-              fontSize: '0.6875rem', fontWeight: 600, padding: '2px 8px', borderRadius: 10,
-              background: '#f1f5f9', color: '#64748b',
-            }}>🔒 Locked</span>
-          )}
-        </div>
-
-        {/* Meta */}
-        <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-muted)', textAlign: 'right' }}>
-          <div>{fmt(fy.start_date, settings)} — {fmt(fy.end_date, settings)}</div>
-          <div>{fy.number_of_periods} periods · {fy.transaction_count} transactions</div>
-        </div>
-
-        {/* Actions */}
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          {fy.status === 'open' && !fy.is_locked && (
-            <button
-              onClick={() => setConfirmLockOpen(true)}
-              disabled={lockMut.isPending}
-              style={actionBtnStyle('#b91c1c', '#fee2e2')}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginLeft: 'auto', flexWrap: 'wrap' }}>
+          <span style={{ fontSize: 'var(--font-size-sm)', color: 'var(--color-text-muted)', fontVariantNumeric: 'tabular-nums' }}>
+            {fmt(fy.start_date, settings)} – {fmt(fy.end_date, settings)} · {fy.number_of_periods} Periods · {fy.transaction_count} Transactions
+          </span>
+          <div style={{ display: 'flex', gap: 8 }}>
+            {fy.status === 'open' && !fy.is_locked && (
+              <Button size="sm" icon={<IconLock size={16} stroke={1.8} />} onClick={() => setConfirmLockOpen(true)} disabled={lockMut.isPending}>
+                Lock Year
+              </Button>
+            )}
+            {fy.is_locked && fy.status !== 'closed' && (
+              <Button size="sm" icon={<IconLockOpen size={16} stroke={1.8} />} onClick={() => setConfirmUnlockOpen(true)} disabled={unlockMut.isPending}>
+                Unlock Year
+              </Button>
+            )}
+            <Button
+              variant="ghost"
+              size="sm"
+              icon={expanded ? <IconChevronDown size={16} stroke={1.8} /> : <IconChevronRight size={16} stroke={1.8} />}
+              onClick={() => setExpanded(e => !e)}
+              aria-expanded={expanded}
+              aria-controls={periodsId}
             >
-              Lock Year
-            </button>
-          )}
-          {fy.is_locked && fy.status !== 'closed' && (
-            <button
-              onClick={() => setConfirmUnlockOpen(true)}
-              disabled={unlockMut.isPending}
-              style={actionBtnStyle('#15803d', '#dcfce7')}
-            >
-              Unlock Year
-            </button>
-          )}
-          <button
-            onClick={() => setExpanded(e => !e)}
-            style={{
-              padding: '5px 14px', borderRadius: 'var(--radius-sm)',
-              border: '1px solid var(--color-border)', background: 'var(--color-surface)',
-              fontSize: 'var(--font-size-xs)', fontWeight: 600, cursor: 'pointer',
-              color: 'var(--color-text-muted)', display: 'flex', alignItems: 'center', gap: 4,
-            }}
-          >
-            {expanded ? 'Hide' : 'Periods'}
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"
-              style={{ transform: expanded ? 'rotate(180deg)' : 'rotate(0deg)', transition: '0.2s' }}>
-              <polyline points="6 9 12 15 18 9"/>
-            </svg>
-          </button>
+              {expanded ? 'Hide Periods' : 'Show Periods'}
+            </Button>
+          </div>
         </div>
       </div>
 
-      {/* Periods table */}
-      {expanded && <PeriodsPanel fyId={fy.id} fyStatus={fy.status} settings={settings} />}
+      {expanded && (
+        <div id={periodsId}>
+          <PeriodsPanel fyId={fy.id} fyStatus={fy.status} settings={settings} />
+        </div>
+      )}
+
       <ConfirmDialog
         open={confirmLockOpen}
         title="Lock Fiscal Year?"
@@ -479,7 +443,7 @@ function FYCard({ fy, onRefresh, settings }: { fy: FiscalYear; onRefresh: () => 
         )}
         onCancel={() => setConfirmUnlockOpen(false)}
       />
-    </div>
+    </section>
   );
 }
 
@@ -494,65 +458,42 @@ function ClosingCheckRow({
   check: FiscalYearClosingCheck;
   onViewDetails: (check: FiscalYearClosingIssueCheck, title: string) => void;
 }) {
-  const tone = check.status === 'Passed'
-    ? { bg: '#dcfce7', color: '#15803d' }
-    : check.status === 'Warning'
-      ? { bg: '#fef3c7', color: '#92400e' }
-      : { bg: '#fee2e2', color: '#b91c1c' };
   const issueCheck = isDetailCheck(check.key) ? check.key : null;
   const canViewDetails = check.count > 0 && issueCheck;
   return (
     <tr>
-      <td style={checkCellStyle}>
-        <span style={{ fontWeight: 800, color: 'var(--color-heading)' }}>{check.label}</span>
-      </td>
-      <td style={checkCellStyle}>
-        <span style={{
-          display: 'inline-flex',
-          alignItems: 'center',
-          padding: '2px 8px',
-          borderRadius: 10,
-          background: tone.bg,
-          color: tone.color,
-          fontSize: '0.68rem',
-          fontWeight: 850,
-        }}>{check.status}</span>
-      </td>
-      <td style={{ ...checkCellStyle, textAlign: 'right', fontFamily: 'monospace', fontWeight: 800 }}>{check.count}</td>
-      <td style={checkCellStyle}>
-        <div style={checkMessageLineStyle}>
+      <td className="cell-strong">{check.label}</td>
+      <td><Badge variant={CHECK_STATUS_TONE[check.status] ?? 'danger'}>{check.status}</Badge></td>
+      <td className="num">{check.count}</td>
+      <td className={check.details?.length ? 'cell-stack' : undefined}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
           <span>{check.message}</span>
           {canViewDetails ? (
-            <button
-              type="button"
-              className="btn btn-secondary"
-              style={checkDetailsButtonStyle}
-              onClick={() => issueCheck && onViewDetails(issueCheck, check.label)}
-            >
+            <Button size="sm" onClick={() => issueCheck && onViewDetails(issueCheck, check.label)}>
               View Details
-            </button>
+            </Button>
           ) : null}
         </div>
         {check.details?.length ? (
-          <div style={checkDetailsStyle}>
-            {check.details.map(detail => (
-              <div key={`${check.key}-${detail.label}`} style={checkDetailItemStyle}>
-                <span style={checkDetailLabelStyle}>{detail.label}</span>
-                <span style={checkDetailCountStyle}>{detail.count}</span>
-                {detail.note ? <span style={checkDetailNoteStyle}>{detail.note}</span> : null}
-              </div>
+          <span className="cell-sub" style={{ whiteSpace: 'normal', marginTop: 2 }}>
+            {check.details.map((detail, index) => (
+              <span key={`${check.key}-${detail.label}`}>
+                {index > 0 && ' · '}
+                {detail.label}: <span style={{ fontVariantNumeric: 'tabular-nums', fontWeight: 600 }}>{detail.count}</span>
+                {detail.note ? ` (${detail.note})` : null}
+              </span>
             ))}
-          </div>
+          </span>
         ) : null}
       </td>
     </tr>
   );
 }
 
-function moneyText(value: string | null) {
+function moneyText(value: string | null, settings?: AppFormatSettingsSource | null) {
   const numberValue = Number(value ?? 0);
-  if (!Number.isFinite(numberValue)) return value ?? '-';
-  return numberValue.toLocaleString('en-PK', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  if (!Number.isFinite(numberValue)) return value ?? 'Not Set';
+  return formatNumber(numberValue, settings);
 }
 
 function ClosingIssuesPanel({
@@ -573,68 +514,85 @@ function ClosingIssuesPanel({
   onPageChange: (page: number) => void;
 }) {
   const issuesQuery = useFiscalYearClosingIssues(fiscalYearId, issue?.check ?? null, page, limit);
+
+  useEffect(() => {
+    if (!issue) return;
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') onClose();
+    }
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [issue, onClose]);
+
   if (!issue) return null;
 
   const rows = issuesQuery.data?.data ?? [];
   const pagination = issuesQuery.data?.pagination;
 
   return (
-    <div style={issueOverlayStyle} role="dialog" aria-modal="true" aria-label={`${issue.title} Details`}>
-      <button type="button" aria-label="Close Details" style={issueBackdropStyle} onClick={onClose} />
-      <aside style={issuePanelStyle}>
-        <div style={issuePanelHeaderStyle}>
-          <div>
-            <h3 style={issuePanelTitleStyle}>{issue.title}</h3>
-            <p style={issuePanelSubtitleStyle}>Pending records that must be posted or voided before closing.</p>
+    <div className="dialog-backdrop" onMouseDown={event => { if (event.target === event.currentTarget) onClose(); }}>
+      <div
+        className="dialog dialog-lg"
+        role="dialog"
+        aria-modal="true"
+        aria-label={`${issue.title} Details`}
+        style={{ maxWidth: 980, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}
+      >
+        <div className="panel-header">
+          <div style={{ minWidth: 0 }}>
+            <h2 className="dialog-title" style={{ margin: 0 }}>{issue.title}</h2>
+            <p className="dialog-message">Pending records that must be posted or voided before closing.</p>
           </div>
-          <button type="button" className="btn btn-secondary" onClick={onClose}>Close</button>
+          <Button variant="ghost" size="sm" icon={<IconX size={16} stroke={1.8} />} onClick={onClose} aria-label="Close Details" title="Close Details" />
         </div>
 
-        {issuesQuery.isLoading && (
-          <div style={issueLoadingStyle}>
-            <span className="spinner" style={{ width: 16, height: 16, borderWidth: 2 }} />
-            Loading records...
+        {issuesQuery.error && (
+          <div style={{ padding: 16 }}>
+            <InlineAlert tone="danger">{friendlyErrorMessage(issuesQuery.error, 'Unable to load pending records.')}</InlineAlert>
           </div>
         )}
 
-        {issuesQuery.error && <div style={errorBannerStyle}>{issuesQuery.error.message}</div>}
-
-        {!issuesQuery.isLoading && !issuesQuery.error && (
+        {!issuesQuery.error && (
           <>
-            <div style={issueTableWrapStyle}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 760 }}>
+            <div className="table-scroll">
+              <table className="data-table">
                 <thead>
                   <tr>
-                    {['Module', 'Document', 'Date', 'Party / Reference', 'Amount', 'Status', 'Action'].map(header => (
-                      <th key={header} style={header === 'Amount' ? { ...issueHeaderStyle, textAlign: 'right' } : issueHeaderStyle}>{header}</th>
-                    ))}
+                    <th>Module</th>
+                    <th>Document</th>
+                    <th style={{ width: 120 }}>Date</th>
+                    <th>Party Or Reference</th>
+                    <th className="num" style={{ width: 130 }}>Amount</th>
+                    <th style={{ width: 110 }}>Status</th>
+                    <th style={{ width: 90 }}><span className="sr-only">Actions</span></th>
                   </tr>
                 </thead>
                 <tbody>
-                  {rows.length === 0 && (
-                    <tr>
-                      <td colSpan={7} style={issueEmptyCellStyle}>No pending records found for this check.</td>
-                    </tr>
+                  {issuesQuery.isLoading && <TableMessageRow colSpan={7} title="Loading Records…" loading />}
+                  {!issuesQuery.isLoading && rows.length === 0 && (
+                    <TableMessageRow colSpan={7} title="No Pending Records" description="Nothing is blocking this check." />
                   )}
-                  {rows.map(row => (
+                  {!issuesQuery.isLoading && rows.map(row => (
                     <ClosingIssueRow key={`${row.module_name}-${row.id}`} row={row} settings={settings} />
                   ))}
                 </tbody>
               </table>
             </div>
 
-            <PaginationBar
-              page={pagination?.page ?? page}
-              totalPages={pagination?.pages ?? 1}
-              totalRecords={pagination?.total ?? 0}
-              pageSize={pagination?.limit ?? limit}
-              recordLabel="Records"
-              disabled={issuesQuery.isFetching}
-              onPageChange={onPageChange}
-            />
+            {!issuesQuery.isLoading && (
+              <PaginationBar
+                page={pagination?.page ?? page}
+                totalPages={pagination?.pages ?? 1}
+                totalRecords={pagination?.total ?? 0}
+                pageSize={pagination?.limit ?? limit}
+                recordLabel="Records"
+                disabled={issuesQuery.isFetching}
+                onPageChange={onPageChange}
+              />
+            )}
           </>
         )}
-      </aside>
+      </div>
     </div>
   );
 }
@@ -648,24 +606,23 @@ function ClosingIssueRow({
 }) {
   return (
     <tr>
-      <td style={issueCellStyle}>
-        <div style={{ fontWeight: 850, color: 'var(--color-heading)' }}>{row.module_name}</div>
-        <div style={issueMutedTextStyle}>{row.document_type}</div>
+      <td className="cell-stack">
+        <span style={{ display: 'block', fontWeight: 600, color: 'var(--color-heading)' }}>{row.module_name}</span>
+        <span className="cell-sub">{row.document_type}</span>
       </td>
-      <td style={issueCellStyle}>
-        <span style={issueDocumentNumberStyle}>{row.document_number}</span>
-      </td>
-      <td style={issueCellStyle}>{fmt(row.document_date, settings)}</td>
-      <td style={issueCellStyle}>{row.party_name || '-'}</td>
-      <td style={{ ...issueCellStyle, textAlign: 'right', fontFamily: 'monospace', fontWeight: 850 }}>{moneyText(row.amount)}</td>
-      <td style={issueCellStyle}>
-        <span style={issueStatusStyle}>{row.status}</span>
-      </td>
-      <td style={issueCellStyle}>
+      <td className="cell-strong">{row.document_number}</td>
+      <td style={{ fontVariantNumeric: 'tabular-nums' }}>{fmt(row.document_date, settings)}</td>
+      <td className={row.party_name ? undefined : 'cell-muted'}>{row.party_name || 'Not Set'}</td>
+      <td className="num">{moneyText(row.amount, settings)}</td>
+      <td><Badge variant="warning">{statusLabel(row.status)}</Badge></td>
+      <td className="cell-actions">
         {row.source_path ? (
-          <a href={row.source_path} className="btn btn-secondary" style={issueOpenLinkStyle}>Open</a>
+          <a href={row.source_path} className="btn-secondary btn-sm" style={{ textDecoration: 'none' }}>
+            <IconExternalLink size={16} stroke={1.8} aria-hidden />
+            Open
+          </a>
         ) : (
-          <span style={issueMutedTextStyle}>-</span>
+          <span className="cell-muted">Not Set</span>
         )}
       </td>
     </tr>
@@ -693,6 +650,7 @@ function YearClosingTab({
 
   const canClose = Boolean(preCloseQuery.data?.can_close && fiscalYear && fiscalYear.status !== 'closed');
   const showNewYearForm = !fiscalYear || fiscalYear.status === 'closed';
+  const messageIsSuccess = message.includes('successfully') || message.includes('closed');
 
   function refreshAll() {
     queryClient.invalidateQueries({ queryKey: fiscalYearsQueryKey });
@@ -725,67 +683,79 @@ function YearClosingTab({
   }
 
   return (
-    <main style={closingShellStyle}>
-      <section style={closingPanelStyle}>
-        <div style={closingHeaderStyle}>
-          <div>
-            <h2 style={closingTitleStyle}>Close Current Fiscal Year</h2>
-            <p style={closingSubtitleStyle}>Run final checks before locking the year and opening the next Fiscal Year.</p>
+    <>
+      {message && <InlineAlert tone={messageIsSuccess ? 'success' : 'danger'}>{message}</InlineAlert>}
+
+      <section className="panel" style={{ flexShrink: 0 }}>
+        <div className="panel-header">
+          <div style={{ minWidth: 0 }}>
+            <h2 className="panel-title">Close Current Fiscal Year</h2>
+            <p className="page-head-desc">Run the final checks before locking the year and opening the next Fiscal Year.</p>
           </div>
-          <button className="btn btn-secondary" type="button" onClick={() => preCloseQuery.refetch()} disabled={!fiscalYear || preCloseQuery.isFetching}>
-            {preCloseQuery.isFetching ? <span className="spinner" style={{ width: 13, height: 13, borderWidth: 2 }} /> : null}
+          <Button
+            icon={<IconRefresh size={16} stroke={1.8} />}
+            onClick={() => preCloseQuery.refetch()}
+            disabled={!fiscalYear}
+            loading={preCloseQuery.isFetching}
+          >
             Run Pre-Close Check
-          </button>
+          </Button>
         </div>
 
         {!fiscalYear && (
-          <div style={emptyClosingStyle}>No Fiscal Year found. Open a new Fiscal Year to start posting transactions.</div>
+          <div className="empty-state">
+            <div className="empty-title">No Fiscal Year Found</div>
+            <div className="empty-desc">Open a new Fiscal Year below to start posting transactions.</div>
+          </div>
         )}
 
         {fiscalYear && (
           <>
-            <div style={currentYearGridStyle}>
-              <div>
-                <span style={metaLabelStyle}>Fiscal Year</span>
-                <strong style={metaValueStyle}>{fiscalYear.fiscal_year}</strong>
-              </div>
-              <div>
-                <span style={metaLabelStyle}>Date Range</span>
-                <strong style={metaValueStyle}>{fmt(fiscalYear.start_date, settings)} - {fmt(fiscalYear.end_date, settings)}</strong>
-              </div>
-              <div>
-                <span style={metaLabelStyle}>Status</span>
-                <strong style={metaValueStyle}>{fiscalYear.status}</strong>
-              </div>
-              <div>
-                <span style={metaLabelStyle}>Locked</span>
-                <strong style={metaValueStyle}>{fiscalYear.is_locked ? 'Yes' : 'No'}</strong>
-              </div>
+            <div className="panel-body" style={{ borderBottom: '1px solid var(--color-border-subtle)' }}>
+              <dl className="form-grid" style={{ margin: 0 }}>
+                <div>
+                  <dt className="field-label">Fiscal Year</dt>
+                  <dd style={{ margin: 0, fontWeight: 600, color: 'var(--color-heading)', fontVariantNumeric: 'tabular-nums' }}>{fiscalYear.fiscal_year}</dd>
+                </div>
+                <div>
+                  <dt className="field-label">Date Range</dt>
+                  <dd style={{ margin: 0, color: 'var(--color-heading)', fontVariantNumeric: 'tabular-nums' }}>
+                    {fmt(fiscalYear.start_date, settings)} – {fmt(fiscalYear.end_date, settings)}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="field-label">Status</dt>
+                  <dd style={{ margin: 0 }}><Badge variant={YEAR_STATUS_TONE[fiscalYear.status] ?? 'neutral'}>{statusLabel(fiscalYear.status)}</Badge></dd>
+                </div>
+                <div>
+                  <dt className="field-label">Locked</dt>
+                  <dd style={{ margin: 0 }}>
+                    <Badge variant={fiscalYear.is_locked ? 'warning' : 'neutral'}>{fiscalYear.is_locked ? 'Yes' : 'No'}</Badge>
+                  </dd>
+                </div>
+              </dl>
             </div>
 
-            {preCloseQuery.isLoading && (
-              <div style={loadingCheckStyle}>
-                <span className="spinner" style={{ width: 16, height: 16, borderWidth: 2 }} />
-                Loading closing checks...
+            {preCloseQuery.error && (
+              <div style={{ padding: '12px 16px 0' }}>
+                <InlineAlert tone="danger">{friendlyErrorMessage(preCloseQuery.error, 'Unable to run the closing checks.')}</InlineAlert>
               </div>
             )}
 
-            {preCloseQuery.error && (
-              <div style={errorBannerStyle}>{preCloseQuery.error.message}</div>
-            )}
-
-            {preCloseQuery.data && (
-              <div style={checkTableWrapStyle}>
-                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            {(preCloseQuery.isLoading || preCloseQuery.data) && (
+              <div style={{ overflowX: 'auto' }}>
+                <table className="data-table">
                   <thead>
                     <tr>
-                      {['Check', 'Result', 'Count', 'Message'].map(header => (
-                        <th key={header} style={header === 'Count' ? { ...checkHeaderStyle, textAlign: 'right' } : checkHeaderStyle}>{header}</th>
-                      ))}
+                      <th style={{ width: '24%' }}>Check</th>
+                      <th style={{ width: 110 }}>Result</th>
+                      <th className="num" style={{ width: 90 }}>Count</th>
+                      <th>Message</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {preCloseQuery.data.checks.map(check => (
+                    {preCloseQuery.isLoading && <TableMessageRow colSpan={4} title="Loading Closing Checks…" loading />}
+                    {preCloseQuery.data?.checks.map(check => (
                       <ClosingCheckRow key={check.key} check={check} onViewDetails={openIssuePanel} />
                     ))}
                   </tbody>
@@ -793,37 +763,45 @@ function YearClosingTab({
               </div>
             )}
 
-            <div style={closeActionStyle}>
-              <label style={{ display: 'grid', gap: 5, flex: 1 }}>
-                <span style={labelStyle}>Closing Remarks</span>
-                <textarea className="form-input" rows={2} value={remarks} onChange={event => setRemarks(event.currentTarget.value)} placeholder="Final closing notes" />
-              </label>
-              <button className="btn btn-primary" type="button" onClick={() => setConfirmCloseOpen(true)} disabled={!canClose || closeYear.isPending}>
-                {closeYear.isPending ? <span className="spinner" style={{ width: 14, height: 14, borderWidth: 2 }} /> : null}
+            <div className="panel-footer" style={{ alignItems: 'flex-end' }}>
+              <div style={{ flex: 1 }}>
+                <TextareaField
+                  label="Closing Remarks"
+                  rows={2}
+                  value={remarks}
+                  onChange={setRemarks}
+                  placeholder="Final closing notes"
+                />
+              </div>
+              <Button
+                variant="primary"
+                icon={<IconLock size={16} stroke={1.8} />}
+                onClick={() => setConfirmCloseOpen(true)}
+                disabled={!canClose}
+                loading={closeYear.isPending}
+              >
                 Close Current Fiscal Year
-              </button>
+              </Button>
             </div>
           </>
         )}
-
-        {message && (
-          <div style={message.includes('successfully') || message.includes('closed') ? successBannerStyle : errorBannerStyle}>{message}</div>
-        )}
       </section>
 
-      <section style={closingPanelStyle}>
-        <div style={closingHeaderStyle}>
-          <div>
-            <h2 style={closingTitleStyle}>Open New Fiscal Year</h2>
-            <p style={closingSubtitleStyle}>Create the next year after the current year is closed.</p>
+      <section className="panel" style={{ flexShrink: 0 }}>
+        <div className="panel-header">
+          <div style={{ minWidth: 0 }}>
+            <h2 className="panel-title">Open New Fiscal Year</h2>
+            <p className="page-head-desc">Create the next year after the current year is closed.</p>
           </div>
         </div>
         {showNewYearForm ? (
-          <div style={{ padding: 14 }}>
+          <div className="panel-body">
             <CreateFYForm onCreated={refreshAll} />
           </div>
         ) : (
-          <div style={emptyClosingStyle}>Close the current Fiscal Year before opening a new Fiscal Year.</div>
+          <div className="empty-state">
+            <div className="empty-desc">Close the current Fiscal Year before opening a new Fiscal Year.</div>
+          </div>
         )}
       </section>
 
@@ -848,7 +826,7 @@ function YearClosingTab({
         onConfirm={closeCurrentYear}
         onCancel={() => setConfirmCloseOpen(false)}
       />
-    </main>
+    </>
   );
 }
 
@@ -865,417 +843,74 @@ export default function FiscalYearPage() {
   const refreshFiscalYears = () => queryClient.invalidateQueries({ queryKey: fiscalYearsQueryKey });
 
   return (
-    <div>
-      {/* Header */}
-      <div className="page-header">
-        <div>
-          <h1 className="page-title">Fiscal Year</h1>
-          <p className="page-subtitle">Manage accounting years and period close procedures</p>
-        </div>
+    <main className="page-shell">
+      <PageHeader
+        title="Fiscal Year"
+        description="Accounting years, their periods, and the year-end closing steps."
+        actions={activeTab === 'years' ? (
+          showForm
+            ? <Button icon={<IconX size={16} stroke={1.8} />} onClick={() => setShowForm(false)}>Cancel</Button>
+            : <Button variant="primary" icon={<IconPlus size={16} stroke={1.8} />} onClick={() => setShowForm(true)}>New Fiscal Year</Button>
+        ) : undefined}
+      />
+
+      {error && <InlineAlert tone="danger">{friendlyErrorMessage(error, 'Unable to load Fiscal Years.')}</InlineAlert>}
+
+      <Tabs label="Fiscal Year Sections" value={activeTab} onChange={setActiveTab} items={FISCAL_YEAR_TABS} />
+
+      <div
+        role="tabpanel"
+        aria-labelledby={`tab-${activeTab}`}
+        style={{ flex: 1, minHeight: 0, overflow: 'auto', display: 'flex', flexDirection: 'column', gap: 12 }}
+      >
+        {activeTab === 'closing' && (
+          <YearClosingTab fiscalYear={currentYear} onRefresh={refreshFiscalYears} settings={generalSettings} />
+        )}
+
         {activeTab === 'years' && (
-          <button
-            className="btn btn-primary"
-            onClick={() => setShowForm(f => !f)}
-          >
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <circle cx="12" cy="12" r="10"/><path d="M12 8v8M8 12h8"/>
-            </svg>
-            {showForm ? 'Cancel' : 'New Fiscal Year'}
-          </button>
+          <>
+            {/* Create form */}
+            {showForm && (
+              <section className="panel" style={{ flexShrink: 0 }}>
+                <div className="panel-header">
+                  <h2 className="panel-title">Create New Fiscal Year</h2>
+                </div>
+                <div className="panel-body">
+                  <CreateFYForm onCreated={() => setShowForm(false)} />
+                </div>
+              </section>
+            )}
+
+            {/* Loading */}
+            {isLoading && (
+              <section className="panel" style={{ flexShrink: 0 }}>
+                <div className="empty-state">
+                  <span className="spinner" aria-hidden />
+                  <div className="empty-title">Loading Fiscal Years…</div>
+                </div>
+              </section>
+            )}
+
+            {/* Empty state */}
+            {!isLoading && !error && years.length === 0 && (
+              <section className="panel" style={{ flexShrink: 0 }}>
+                <div className="empty-state">
+                  <div className="empty-title">No Fiscal Years Yet</div>
+                  <div className="empty-desc">Create your first Fiscal Year to start tracking accounting periods.</div>
+                  <Button variant="primary" icon={<IconPlus size={16} stroke={1.8} />} onClick={() => setShowForm(true)}>
+                    Create Fiscal Year
+                  </Button>
+                </div>
+              </section>
+            )}
+
+            {/* Year panels */}
+            {years.map(fy => (
+              <FYCard key={fy.id} fy={fy} onRefresh={refreshFiscalYears} settings={generalSettings} />
+            ))}
+          </>
         )}
       </div>
-
-      <div style={tabBarStyle}>
-        {[
-          { id: 'years' as FiscalYearTab, label: 'Fiscal Years' },
-          { id: 'closing' as FiscalYearTab, label: 'Year Closing' },
-        ].map(tab => (
-          <button
-            key={tab.id}
-            type="button"
-            onClick={() => setActiveTab(tab.id)}
-            style={activeTab === tab.id ? activeTabStyle : tabStyle}
-          >
-            {tab.label}
-          </button>
-        ))}
-      </div>
-
-      {activeTab === 'closing' && (
-        <YearClosingTab fiscalYear={currentYear} onRefresh={refreshFiscalYears} settings={generalSettings} />
-      )}
-
-      {activeTab === 'years' && (
-        <>
-
-      {/* Create form card */}
-      {showForm && (
-        <div style={{
-          background: 'var(--color-surface)', border: '1px solid var(--color-primary)40',
-          borderRadius: 'var(--radius)', padding: 24, marginBottom: 24,
-          boxShadow: '0 0 0 2px var(--color-primary)10',
-        }}>
-          <h3 style={{ fontWeight: 700, marginBottom: 20, color: 'var(--color-text)', fontSize: 'var(--font-size-base)' }}>
-            Create New Fiscal Year
-          </h3>
-          <CreateFYForm onCreated={() => setShowForm(false)} />
-        </div>
-      )}
-
-      {/* Loading */}
-      {isLoading && (
-        <div style={{ display: 'flex', gap: 10, alignItems: 'center', padding: 32, color: 'var(--color-text-muted)' }}>
-          <div className="spinner" style={{ width: 18, height: 18, borderWidth: 2 }} />
-          Loading fiscal years…
-        </div>
-      )}
-
-      {/* Error */}
-      {error && (
-        <div style={{ padding: '12px 16px', background: '#fee2e2', borderRadius: 8, color: '#b91c1c', marginBottom: 16 }}>
-          {error.message}
-        </div>
-      )}
-
-      {/* Empty state */}
-      {!isLoading && !error && years.length === 0 && (
-        <div style={{
-          textAlign: 'center', padding: 60,
-          background: 'var(--color-surface)', border: '1px dashed var(--color-border)',
-          borderRadius: 'var(--radius)',
-        }}>
-          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="1.5"
-            style={{ marginBottom: 16 }}>
-            <rect x="3" y="4" width="18" height="18" rx="2"/>
-            <path d="M16 2v4M8 2v4M3 10h18M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01M16 18h.01"/>
-          </svg>
-          <p style={{ fontWeight: 600, marginBottom: 8 }}>No fiscal years yet</p>
-          <p style={{ color: 'var(--color-text-muted)', fontSize: 'var(--font-size-sm)', marginBottom: 20 }}>
-            Create your first fiscal year to start tracking accounting periods.
-          </p>
-          <button className="btn btn-primary" onClick={() => setShowForm(true)}>
-            Create Fiscal Year
-          </button>
-        </div>
-      )}
-
-      {/* Year cards */}
-      {years.length > 0 && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          {years.map(fy => (
-            <FYCard key={fy.id} fy={fy} onRefresh={refreshFiscalYears} settings={generalSettings} />
-          ))}
-        </div>
-      )}
-        </>
-      )}
-    </div>
+    </main>
   );
-}
-
-/* ── Shared micro-styles ─────────────────────────────────────────────── */
-const labelStyle: React.CSSProperties = {
-  display: 'block', fontSize: 'var(--font-size-xs)',
-  fontWeight: 700, color: 'var(--color-text-muted)',
-  marginBottom: 6, letterSpacing: 0,
-};
-const hintStyle: React.CSSProperties = {
-  fontSize: '0.6875rem', color: 'var(--color-text-muted)', marginTop: 4,
-};
-const tabBarStyle: React.CSSProperties = {
-  display: 'flex',
-  gap: 0,
-  borderBottom: '2px solid var(--color-border)',
-  marginBottom: 16,
-};
-const tabStyle: React.CSSProperties = {
-  border: 'none',
-  background: 'transparent',
-  padding: '10px 18px',
-  color: 'var(--color-text-muted)',
-  fontSize: 'var(--font-size-sm)',
-  fontWeight: 650,
-  cursor: 'pointer',
-  borderBottom: '2px solid transparent',
-  marginBottom: -2,
-};
-const activeTabStyle: React.CSSProperties = {
-  ...tabStyle,
-  color: 'var(--color-primary)',
-  fontWeight: 850,
-  borderBottomColor: 'var(--color-primary)',
-};
-const closingShellStyle: React.CSSProperties = {
-  display: 'grid',
-  gap: 10,
-};
-const closingPanelStyle: React.CSSProperties = {
-  border: '1px solid var(--color-border)',
-  background: 'var(--color-surface)',
-  boxShadow: 'var(--shadow-sm)',
-};
-const closingHeaderStyle: React.CSSProperties = {
-  display: 'flex',
-  justifyContent: 'space-between',
-  alignItems: 'center',
-  gap: 10,
-  padding: '11px 14px',
-  borderBottom: '1px solid var(--color-border)',
-};
-const closingTitleStyle: React.CSSProperties = {
-  margin: 0,
-  color: 'var(--color-heading)',
-  fontSize: '0.95rem',
-  fontWeight: 900,
-};
-const closingSubtitleStyle: React.CSSProperties = {
-  margin: '3px 0 0',
-  color: 'var(--color-text-muted)',
-  fontSize: '0.74rem',
-  fontWeight: 750,
-};
-const currentYearGridStyle: React.CSSProperties = {
-  display: 'grid',
-  gridTemplateColumns: 'repeat(4, minmax(140px, 1fr))',
-  gap: 8,
-  padding: 14,
-  borderBottom: '1px solid var(--color-border-subtle)',
-};
-const metaLabelStyle: React.CSSProperties = {
-  display: 'block',
-  color: 'var(--color-text-muted)',
-  fontSize: '0.68rem',
-  fontWeight: 850,
-  marginBottom: 4,
-};
-const metaValueStyle: React.CSSProperties = {
-  color: 'var(--color-heading)',
-  fontSize: '0.82rem',
-  fontWeight: 900,
-};
-const loadingCheckStyle: React.CSSProperties = {
-  display: 'flex',
-  alignItems: 'center',
-  gap: 8,
-  padding: 16,
-  color: 'var(--color-text-muted)',
-  fontSize: '0.78rem',
-  fontWeight: 800,
-};
-const checkTableWrapStyle: React.CSSProperties = {
-  padding: 14,
-  overflowX: 'auto',
-};
-const checkHeaderStyle: React.CSSProperties = {
-  background: 'var(--color-table-header-bg)',
-  color: 'var(--color-table-header-text)',
-  border: '1px solid var(--color-border)',
-  padding: '7px 8px',
-  textAlign: 'left',
-  fontSize: '0.72rem',
-  fontWeight: 900,
-  whiteSpace: 'nowrap',
-};
-const checkCellStyle: React.CSSProperties = {
-  border: '1px solid var(--color-border)',
-  padding: '7px 8px',
-  color: 'var(--color-text)',
-  fontSize: '0.75rem',
-  verticalAlign: 'middle',
-};
-const checkMessageLineStyle: React.CSSProperties = {
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'space-between',
-  gap: 10,
-};
-const checkDetailsButtonStyle: React.CSSProperties = {
-  padding: '4px 9px',
-  minHeight: 26,
-  whiteSpace: 'nowrap',
-  fontSize: '0.68rem',
-  fontWeight: 850,
-};
-const checkDetailsStyle: React.CSSProperties = {
-  display: 'flex',
-  flexWrap: 'wrap',
-  gap: 6,
-  marginTop: 7,
-};
-const checkDetailItemStyle: React.CSSProperties = {
-  display: 'inline-flex',
-  alignItems: 'center',
-  gap: 6,
-  maxWidth: '100%',
-  border: '1px solid var(--color-border)',
-  background: 'var(--color-surface-alt)',
-  padding: '3px 7px',
-  fontSize: '0.68rem',
-  fontWeight: 800,
-};
-const checkDetailLabelStyle: React.CSSProperties = {
-  color: 'var(--color-heading)',
-};
-const checkDetailCountStyle: React.CSSProperties = {
-  minWidth: 18,
-  borderRadius: 9,
-  background: 'var(--color-primary)18',
-  color: 'var(--color-primary)',
-  padding: '1px 6px',
-  textAlign: 'center',
-  fontFamily: 'monospace',
-};
-const checkDetailNoteStyle: React.CSSProperties = {
-  color: 'var(--color-text-muted)',
-  fontWeight: 700,
-  overflow: 'hidden',
-  textOverflow: 'ellipsis',
-  whiteSpace: 'nowrap',
-};
-const issueOverlayStyle: React.CSSProperties = {
-  position: 'fixed',
-  inset: 0,
-  zIndex: 80,
-};
-const issueBackdropStyle: React.CSSProperties = {
-  position: 'absolute',
-  inset: 0,
-  border: 'none',
-  background: 'rgba(15, 23, 42, 0.28)',
-  cursor: 'default',
-};
-const issuePanelStyle: React.CSSProperties = {
-  position: 'absolute',
-  top: 0,
-  right: 0,
-  width: 'min(980px, 94vw)',
-  height: '100%',
-  background: 'var(--color-surface)',
-  borderLeft: '1px solid var(--color-border)',
-  boxShadow: '-18px 0 42px rgba(15, 23, 42, 0.18)',
-  display: 'flex',
-  flexDirection: 'column',
-};
-const issuePanelHeaderStyle: React.CSSProperties = {
-  display: 'flex',
-  justifyContent: 'space-between',
-  alignItems: 'center',
-  gap: 10,
-  padding: '12px 14px',
-  borderBottom: '1px solid var(--color-border)',
-  flexShrink: 0,
-};
-const issuePanelTitleStyle: React.CSSProperties = {
-  margin: 0,
-  color: 'var(--color-heading)',
-  fontSize: '0.95rem',
-  fontWeight: 900,
-};
-const issuePanelSubtitleStyle: React.CSSProperties = {
-  margin: '3px 0 0',
-  color: 'var(--color-text-muted)',
-  fontSize: '0.72rem',
-  fontWeight: 750,
-};
-const issueLoadingStyle: React.CSSProperties = {
-  display: 'flex',
-  alignItems: 'center',
-  gap: 8,
-  padding: 14,
-  color: 'var(--color-text-muted)',
-  fontSize: '0.76rem',
-  fontWeight: 850,
-};
-const issueTableWrapStyle: React.CSSProperties = {
-  flex: 1,
-  minHeight: 0,
-  overflow: 'auto',
-  padding: 10,
-};
-const issueHeaderStyle: React.CSSProperties = {
-  background: 'var(--color-table-header-bg)',
-  color: 'var(--color-table-header-text)',
-  border: '1px solid var(--color-border)',
-  padding: '7px 8px',
-  textAlign: 'left',
-  fontSize: '0.7rem',
-  fontWeight: 900,
-  whiteSpace: 'nowrap',
-};
-const issueCellStyle: React.CSSProperties = {
-  border: '1px solid var(--color-border)',
-  padding: '7px 8px',
-  color: 'var(--color-text)',
-  fontSize: '0.73rem',
-  verticalAlign: 'middle',
-};
-const issueEmptyCellStyle: React.CSSProperties = {
-  ...issueCellStyle,
-  padding: 18,
-  textAlign: 'center',
-  color: 'var(--color-text-muted)',
-  fontWeight: 850,
-};
-const issueMutedTextStyle: React.CSSProperties = {
-  color: 'var(--color-text-muted)',
-  fontSize: '0.68rem',
-  fontWeight: 750,
-};
-const issueDocumentNumberStyle: React.CSSProperties = {
-  fontFamily: 'monospace',
-  fontWeight: 900,
-  color: 'var(--color-heading)',
-};
-const issueStatusStyle: React.CSSProperties = {
-  display: 'inline-flex',
-  padding: '2px 8px',
-  borderRadius: 10,
-  background: '#fef3c7',
-  color: '#92400e',
-  fontSize: '0.67rem',
-  fontWeight: 850,
-};
-const issueOpenLinkStyle: React.CSSProperties = {
-  minHeight: 26,
-  padding: '4px 9px',
-  fontSize: '0.68rem',
-  fontWeight: 850,
-  textDecoration: 'none',
-};
-const closeActionStyle: React.CSSProperties = {
-  display: 'flex',
-  alignItems: 'end',
-  gap: 10,
-  padding: '0 14px 14px',
-};
-const emptyClosingStyle: React.CSSProperties = {
-  padding: 18,
-  color: 'var(--color-text-muted)',
-  fontSize: '0.78rem',
-  fontWeight: 800,
-};
-const successBannerStyle: React.CSSProperties = {
-  margin: 14,
-  border: '1px solid var(--color-success-border)',
-  background: 'var(--color-success-bg)',
-  color: 'var(--color-success-text)',
-  padding: '8px 10px',
-  fontSize: '0.76rem',
-  fontWeight: 850,
-};
-const errorBannerStyle: React.CSSProperties = {
-  margin: 14,
-  border: '1px solid var(--color-danger-border)',
-  background: 'var(--color-danger-bg)',
-  color: 'var(--color-danger-text)',
-  padding: '8px 10px',
-  fontSize: '0.76rem',
-  fontWeight: 850,
-};
-function actionBtnStyle(color: string, bg: string): React.CSSProperties {
-  return {
-    padding: '3px 12px', fontSize: '0.6875rem', fontWeight: 700,
-    borderRadius: 4, border: `1px solid ${color}`,
-    background: 'transparent', color, cursor: 'pointer',
-  };
 }

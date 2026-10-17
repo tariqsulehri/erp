@@ -1,7 +1,6 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { IconReportMoney } from '@tabler/icons-react';
 import { useAccountsList } from '@/lib/api/accounts';
 import { useLedgerReport } from '@/lib/api/reports';
 import { useGeneralSettings } from '@/lib/api/settings';
@@ -11,7 +10,9 @@ import { LedgerReportFilters } from './LedgerReportFilters';
 import { firstDayOfCurrentYear, todayInputDate } from './LedgerReportHelpers';
 import { LedgerReportSummary } from './LedgerReportSummary';
 import { LedgerReportTable } from './LedgerReportTable';
-import { reportTitleIconStyle, reportToolbarStyle } from './LedgerReportStyles';
+import { embeddedReportStyle } from './LedgerReportStyles';
+import { InlineAlert } from '@/components/ui/InlineAlert';
+import { PageHeader } from '@/components/ui/PageHeader';
 
 interface LedgerReportPageProps {
   embedded?: boolean;
@@ -81,73 +82,53 @@ export function LedgerReportPage({ embedded = false }: LedgerReportPageProps) {
 
   const errorMessage = message || friendlyErrorMessage(reportQuery.error, '');
 
+  const Root = embedded ? 'div' : 'main';
+
   return (
-    <main style={{ height: '100%', minHeight: 0, boxSizing: 'border-box', padding: embedded ? 0 : 10, display: 'flex', flexDirection: 'column', gap: 8, overflow: 'hidden' }}>
+    <Root className={embedded ? undefined : 'page-shell'} style={embedded ? embeddedReportStyle : undefined}>
       {!embedded && (
-        <section style={reportToolbarStyle}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-            <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-              <div style={reportTitleIconStyle}><IconReportMoney size={20} stroke={1.8} /></div>
-              <div>
-                <h1 style={{ margin: 0, fontSize: '1.05rem', lineHeight: 1.1, color: 'var(--color-heading)' }}>Ledger Report</h1>
-                <p style={{ margin: '3px 0 0', color: 'var(--color-text-muted)', fontSize: '0.73rem', fontWeight: 700 }}>
-                  {selectedAccount ? `${selectedAccount} | ${formatDate(dateFrom, generalSettings)} To ${formatDate(dateTo, generalSettings)}` : 'Verify Account Balance With Opening And Running Balance'}
-                </p>
-              </div>
-            </div>
-            <span style={{
-              border: '1px solid var(--color-border)',
-              background: 'var(--color-surface-alt)',
-              borderRadius: 'var(--radius-full)',
-              padding: '3px 9px',
-              color: 'var(--color-text-secondary)',
-              fontSize: '0.7rem',
-              fontWeight: 800,
-            }}>
-              Posted Transactions Only
-            </span>
-          </div>
-        </section>
+        <PageHeader
+          title="Ledger Report"
+          description={selectedAccount
+            ? `${selectedAccount} · ${formatDate(dateFrom, generalSettings)} to ${formatDate(dateTo, generalSettings)} · Posted transactions only`
+            : 'Check an Account balance with its opening and running balance. Posted transactions only.'}
+        />
       )}
 
-      <LedgerReportFilters
-        accountId={accountId}
-        selectedAccountLabel={selectedAccount ?? ''}
-        dateFrom={dateFrom}
-        dateTo={dateTo}
-        accountOptions={accountOptions}
-        loadingAccounts={accountsQuery.isLoading}
-        loadingReport={reportQuery.isFetching}
-        onAccountChange={value => {
-          const option = accountOptions.find(item => item.value === value);
-          setAccountId(value);
-          setSelectedAccountLabel(option?.label ?? '');
-          setShouldLoad(false);
-          setMessage('');
-        }}
-        onDateFromChange={value => {
-          setDateFrom(value);
-          setShouldLoad(false);
-          setMessage('');
-        }}
-        onDateToChange={value => {
-          setDateTo(value);
-          setShouldLoad(false);
-          setMessage('');
-        }}
-        onViewReport={viewReport}
-        onRefresh={refreshReport}
-      />
+      {accountsQuery.error && <InlineAlert tone="danger">{friendlyErrorMessage(accountsQuery.error, 'Unable to load Accounts.')}</InlineAlert>}
 
-      {accountsQuery.error && (
-        <div style={{ color: 'var(--color-danger-text)', fontSize: '0.72rem', fontWeight: 700 }}>
-          {friendlyErrorMessage(accountsQuery.error, 'Unable to load Accounts.')}
-        </div>
-      )}
+      <section className="panel panel-fill">
+        <LedgerReportFilters
+          accountId={accountId}
+          selectedAccountLabel={selectedAccount ?? ''}
+          dateFrom={dateFrom}
+          dateTo={dateTo}
+          accountOptions={accountOptions}
+          loadingAccounts={accountsQuery.isLoading}
+          loadingReport={reportQuery.isFetching}
+          onAccountChange={value => {
+            const option = accountOptions.find(item => item.value === value);
+            setAccountId(value);
+            setSelectedAccountLabel(option?.label ?? '');
+            setShouldLoad(false);
+            setMessage('');
+          }}
+          onDateFromChange={value => {
+            setDateFrom(value);
+            setShouldLoad(false);
+            setMessage('');
+          }}
+          onDateToChange={value => {
+            setDateTo(value);
+            setShouldLoad(false);
+            setMessage('');
+          }}
+          onViewReport={viewReport}
+          onRefresh={refreshReport}
+        />
 
-      <LedgerReportSummary report={reportQuery.data} settings={generalSettings} />
+        <LedgerReportSummary report={reportQuery.data} settings={generalSettings} />
 
-      <section className="workspace-card" style={{ padding: 10, flex: 1, minHeight: 0, display: 'grid', gridTemplateRows: '1fr', overflow: 'hidden' }}>
         <LedgerReportTable
           report={reportQuery.data}
           loading={reportQuery.isFetching}
@@ -155,6 +136,6 @@ export function LedgerReportPage({ embedded = false }: LedgerReportPageProps) {
           settings={generalSettings}
         />
       </section>
-    </main>
+    </Root>
   );
 }

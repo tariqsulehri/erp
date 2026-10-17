@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import {
-  IconBuildingBank,
   IconCalendarDollar,
 } from '@tabler/icons-react';
 import { formatMoney } from '@/lib/app-settings';
@@ -15,7 +14,6 @@ import { useCreateVoucher, useUpdateVoucher, useVoucherDetail } from '@/lib/api/
 import { FieldLabel, SearchableSelect, SummaryRow, type VoucherSelectOption } from './VoucherControls';
 import {
   BankReceiptVoucherLineTable,
-  type BankReceiptDepositKind,
   type BankReceiptVoucherLine,
 } from './BankReceiptVoucherLineTable';
 import { VoucherActionButtons, VoucherLineSection, VoucherMessageBanner, VoucherPageHeader, VoucherSummaryFooter } from './VoucherLayout';
@@ -33,7 +31,6 @@ import {
   type VoucherMessageKind,
 } from './VoucherShared';
 
-type DepositKind = BankReceiptDepositKind;
 type MessageKind = VoucherMessageKind;
 
 type ReceiptLine = BankReceiptVoucherLine;
@@ -317,10 +314,6 @@ export default function BankReceiptVoucherPage() {
       <VoucherPageHeader
         title="Bank Receipt Voucher"
         badgeText="BRV"
-        badgeColor="#15803d"
-        badgeBackground="#dcfce7"
-        accent="linear-gradient(135deg, #15803d, #0f766e)"
-        icon={<IconBuildingBank size={20} stroke={1.8} />}
         mode={editingVoucherId ? 'Edit' : 'Add'}
         actions={
           <VoucherActionButtons
@@ -386,7 +379,7 @@ export default function BankReceiptVoucherPage() {
               background: 'transparent',
               color: 'var(--color-danger-text)',
               fontWeight: 500,
-              fontSize: '0.66rem',
+              fontSize: 'var(--font-size-xs)',
               lineHeight: 1.2,
               padding: 0,
               overflow: 'hidden',

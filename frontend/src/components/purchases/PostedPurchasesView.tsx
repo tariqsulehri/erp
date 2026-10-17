@@ -7,7 +7,6 @@ import {
   IconEye,
   IconFileInvoice,
   IconFilePlus,
-  IconListSearch,
   IconPrinter,
   IconRefresh,
 } from '@tabler/icons-react';
@@ -15,7 +14,6 @@ import { formatDate, formatNumber } from '@/lib/app-settings';
 import { friendlyErrorMessage, numericValue } from '@/lib/erp-utils';
 import { useCompanyProfile } from '@/lib/api/settings';
 import { usePurchaseInvoiceDetail, usePurchaseInvoicesList } from '@/lib/api/purchases';
-import { fieldStyle } from '@/components/ui/FormFields';
 import { PaginationBar } from '@/components/ui/PaginationBar';
 import { PurchaseInvoicePrintPreview } from './PurchasePrintPreview';
 import { PostedPurchasesFilters } from './components';
@@ -26,11 +24,9 @@ import {
   lineActionButtonStyle,
   messageStyle,
   purchaseDetailPanelStyle,
-  purchaseListFooterStyle,
   statusBadgeStyle,
   tableCellStyle,
   tableHeadStyle,
-  titleIconStyle,
   toolbarStyle,
 } from './PurchaseVoucherStyles';
 import type { PaymentType, PurchaseListRow, SupplierOption, WarehouseOption } from './PurchaseVoucherTypes';
@@ -91,8 +87,6 @@ export function PostedPurchasesView({
   const rows = (listQuery.data?.data ?? []) as PurchaseListRow[];
   const total = listQuery.data?.total ?? 0;
   const pages = listQuery.data?.totalPages ?? Math.max(1, Math.ceil(total / pageSize));
-  const fromRecord = total === 0 ? 0 : (page - 1) * pageSize + 1;
-  const toRecord = Math.min(page * pageSize, total);
 
   function resetFilters() {
     setPrintError('');
@@ -132,11 +126,10 @@ export function PostedPurchasesView({
       <section style={toolbarStyle}>
         <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
           <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-            <div style={titleIconStyle}><IconListSearch size={20} stroke={1.8} /></div>
             <div>
               <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-                <h1 style={{ margin: 0, fontSize: '1.05rem', lineHeight: 1.1, color: 'var(--color-heading)' }}>Posted Purchases</h1>
-                <span style={badgeStyle('#166534', '#dcfce7')}>Posted Only</span>
+                <h1 className="page-head-title">Posted Purchases</h1>
+                <span style={badgeStyle('var(--color-success-text)', 'var(--color-success-bg)')}>Posted Only</span>
                 <span style={statusBadgeStyle}>{total} Record{total === 1 ? '' : 's'}</span>
               </div>
             </div>
@@ -185,7 +178,7 @@ export function PostedPurchasesView({
 
         <div style={{ minHeight: 0, display: 'grid', gridTemplateColumns: selectedId ? 'minmax(0, 1fr) 390px' : '1fr', gap: 8, overflow: 'hidden' }}>
           <div style={{ minHeight: 0, overflow: 'auto', border: '1px solid var(--color-border)', borderRadius: 'var(--radius)' }}>
-            <table style={{ width: '100%', minWidth: 1080, borderCollapse: 'collapse', fontSize: '0.74rem', tableLayout: 'fixed' }}>
+            <table style={{ width: '100%', minWidth: 1080, borderCollapse: 'collapse', fontSize: 'var(--font-size-xs)', tableLayout: 'fixed' }}>
               <colgroup>
                 <col style={{ width: 116 }} />
                 <col style={{ width: 92 }} />
@@ -259,7 +252,7 @@ export function PostedPurchasesView({
           {selectedId && (
             <aside style={purchaseDetailPanelStyle}>
               <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'center', borderBottom: '1px solid var(--color-border)', paddingBottom: 8 }}>
-                <strong style={{ fontSize: '0.86rem', color: 'var(--color-heading)' }}>Purchase Detail</strong>
+                <strong style={{ fontSize: 'var(--font-size-md)', color: 'var(--color-heading)' }}>Purchase Detail</strong>
                 <div style={{ display: 'flex', gap: 4 }}>
                   {detailQuery.data && (
                     <button
@@ -297,14 +290,14 @@ export function PostedPurchasesView({
                       ['Posted At', detailQuery.data.posted_at ? formatDate(detailQuery.data.posted_at, generalSettings) : '—'],
                     ].map(([label, value]) => (
                       <div key={label} style={{ border: '1px solid var(--color-border-subtle)', borderRadius: 'var(--radius-sm)', padding: '6px 7px', minWidth: 0 }}>
-                        <div style={{ color: 'var(--color-text-muted)', fontSize: '0.62rem', fontWeight: 800 }}>{label}</div>
-                        <div style={{ color: 'var(--color-text)', fontSize: '0.73rem', fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{value}</div>
+                        <div style={{ color: 'var(--color-text-muted)', fontSize: 'var(--font-size-xs)', fontWeight: 600 }}>{label}</div>
+                        <div style={{ color: 'var(--color-text)', fontSize: 'var(--font-size-xs)', fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{value}</div>
                       </div>
                     ))}
                   </div>
 
                   <div style={{ minHeight: 0, overflowY: 'auto', border: '1px solid var(--color-border)', borderRadius: 'var(--radius)' }}>
-                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.7rem', tableLayout: 'fixed' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 'var(--font-size-xs)', tableLayout: 'fixed' }}>
                       <colgroup>
                         <col style={{ width: 32 }} />
                         <col />
@@ -339,7 +332,7 @@ export function PostedPurchasesView({
                       ['Freight', Number(detailQuery.data.freight_amount)],
                       ['Net Amount', Number(detailQuery.data.net_amount)],
                     ].map(([label, value]) => (
-                      <div key={String(label)} style={{ display: 'flex', justifyContent: 'space-between', gap: 10, fontSize: '0.74rem' }}>
+                      <div key={String(label)} style={{ display: 'flex', justifyContent: 'space-between', gap: 10, fontSize: 'var(--font-size-xs)' }}>
                         <span style={{ color: 'var(--color-text-muted)', fontWeight: 700 }}>{label}</span>
                         <strong style={{ fontFamily: 'var(--font-mono)', color: 'var(--color-amount)' }}>{money(Number(value))}</strong>
                       </div>

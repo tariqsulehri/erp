@@ -3,7 +3,8 @@
 /**
  * AccountSlideOver
  *
- * Right-side panel for viewing, editing, and managing a single account.
+ * Side panel (beside the accounts list, not a modal) for viewing, editing, and managing a single account.
+ * The parent places it inside `.split-view.has-side`.
  *
  * Tabs:
  *   Details  — edit name, description, opening balance; activate/deactivate
@@ -17,6 +18,7 @@
 
 import { useState, useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
+import { IconArrowRight, IconBan, IconCheck, IconCopy, IconX } from '@tabler/icons-react';
 import {
   accountsQueryKey,
   useAccountDetail,
@@ -26,38 +28,30 @@ import {
   useUpdateAccount,
   type AccountListItem,
 } from '@/lib/api/accounts';
+import { useGeneralSettings } from '@/lib/api/settings';
+import { formatDate } from '@/lib/app-settings';
+import { friendlyErrorMessage } from '@/lib/erp-utils';
+import { Badge } from '@/components/ui/Badge';
+import { Button } from '@/components/ui/Button';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
-import { getAccountLevel } from '@/modules/accounts/account-code';
+import { DateField, TextField, TextareaField } from '@/components/ui/FormFields';
+import { InlineAlert } from '@/components/ui/InlineAlert';
+import { Tabs } from '@/components/ui/Tabs';
+import { getAccountLevel, getAccountLevelLabel } from '@/modules/accounts/account-code';
+import { accountTypeBadge } from '@/lib/ui/account-category-colors';
 
 /* ── Helpers ─────────────────────────────────────────────────────────── */
-const TYPE_COLOR: Record<string, string> = {
-  Asset: '#2563eb', Liability: '#dc2626', Equity: '#7c3aed',
-  Revenue: '#16a34a', Expense: '#d97706',
-};
-
-const LEVEL_LABEL: Record<number, { label: string; color: string }> = {
-  1: { label: 'Main Category',   color: '#dbeafe' },
-  2: { label: 'Group',           color: '#e0e7ff' },
-  3: { label: 'Sub-Group',       color: '#f3e8ff' },
-  4: { label: 'Posting Account', color: '#dcfce7' },
-};
-
 function codeLevel(code: string): number {
   return getAccountLevel(code);
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div>
-      <div style={{
-        fontSize: '0.6875rem', fontWeight: 600, letterSpacing: 0, color: 'var(--color-text-muted)', marginBottom: 4,
-      }}>{label}</div>
-      <div style={{ fontSize: 'var(--font-size-sm)', color: 'var(--color-text)' }}>{children}</div>
-    </div>
-  );
-}
-
 type Tab = 'details' | 'clone' | 'history';
+
+const TAB_ITEMS: { value: Tab; label: string }[] = [
+  { value: 'details', label: 'Details' },
+  { value: 'clone',   label: 'Clone'   },
+  { value: 'history', label: 'History' },
+];
 
 /* ── Details tab ─────────────────────────────────────────────────────── */
 function DetailsTab({ account, onSaved }: { account: AccountListItem; onSaved: () => void }) {
@@ -135,140 +129,94 @@ function DetailsTab({ account, onSaved }: { account: AccountListItem; onSaved: (
 
   return (
     <>
-      {/* Read-only metadata grid */}
-      <div style={{
-        display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14,
-        padding: 16, background: 'var(--color-bg)',
-        borderRadius: 'var(--radius)', border: '1px solid var(--color-border)',
-        marginBottom: 20,
-      }}>
-        <Field label="Account Type">
-          <span style={{
-            fontSize: '0.8125rem', fontWeight: 600,
-            color: TYPE_COLOR[account.account_type] ?? '#64748b',
-            background: `${TYPE_COLOR[account.account_type] ?? '#64748b'}15`,
-            padding: '2px 8px', borderRadius: 4,
-          }}>{account.account_type}</span>
-        </Field>
-        <Field label="Normal Balance">
-          <span style={{
-            fontSize: '0.8125rem', fontWeight: 600,
-            color: account.normal_balance === 'Debit' ? '#1d4ed8' : '#b91c1c',
-          }}>{account.normal_balance}</span>
-        </Field>
-        <Field label="Posting">
-          {account.is_posting
-            ? <span style={{ color: '#0891b2', fontWeight: 600, fontSize: '0.8125rem' }}>✓ Posting Account</span>
-            : <span style={{ color: 'var(--color-text-muted)', fontSize: '0.8125rem' }}>Header Only</span>}
-        </Field>
-        <Field label="Status">
-          <span style={{
-            display: 'inline-flex', alignItems: 'center', gap: 5,
-            fontSize: '0.8125rem', fontWeight: 600,
-            color: account.is_active ? '#16a34a' : '#6b7280',
-          }}>
-            <span style={{
-              width: 7, height: 7, borderRadius: '50%',
-              background: account.is_active ? '#16a34a' : '#d1d5db',
-            }} />
-            {account.is_active ? 'Active' : 'Inactive'}
-          </span>
-        </Field>
-      </div>
+      <div className="panel-body">
+        {saveErr && <InlineAlert tone="danger">{saveErr}</InlineAlert>}
 
-      {/* Editable fields */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-        <div className="form-group">
-          <label className="form-label">Account Name <span style={{ color: 'var(--color-danger)' }}>*</span></label>
-          <input type="text" className="form-input"
-            value={name}
-            onChange={e => { setName(e.target.value); setDirty(true); }}
-            disabled={isBusy} maxLength={100}
-          />
-        </div>
+        {/* Read-only facts */}
+        <dl className="detail-list" style={{ margin: 0 }}>
+          <div className="detail-row">
+            <dt>Account Type</dt>
+            <dd><Badge variant={accountTypeBadge(account.account_type)}>{account.account_type}</Badge></dd>
+          </div>
+          <div className="detail-row">
+            <dt>Normal Balance</dt>
+            <dd>{account.normal_balance}</dd>
+          </div>
+          <div className="detail-row">
+            <dt>Account Kind</dt>
+            <dd>{account.is_posting ? 'Posting Account' : 'Header Only'}</dd>
+          </div>
+          <div className="detail-row">
+            <dt>Status</dt>
+            <dd><Badge variant={account.is_active ? 'success' : 'neutral'}>{account.is_active ? 'Active' : 'Inactive'}</Badge></dd>
+          </div>
+        </dl>
 
-        <div className="form-group">
-          <label className="form-label">Description <span style={{ fontWeight: 400, color: 'var(--color-text-muted)' }}>(optional)</span></label>
-          <textarea className="form-input"
-            value={desc}
-            onChange={e => { setDesc(e.target.value); setDirty(true); }}
-            disabled={isBusy} rows={2} style={{ resize: 'vertical' }}
-            placeholder="Brief description of this account..."
-          />
-        </div>
+        {/* Editable fields */}
+        <TextField
+          label="Account Name"
+          required
+          value={name}
+          onChange={value => { setName(value); setDirty(true); }}
+          disabled={isBusy}
+          inputProps={{ maxLength: 100 }}
+        />
+        <TextareaField
+          label="Description"
+          value={desc}
+          onChange={value => { setDesc(value); setDirty(true); }}
+          disabled={isBusy}
+          rows={2}
+          placeholder="Short note about what this account is for"
+          style={{ resize: 'vertical' }}
+        />
 
         {/* Opening balance — posting accounts only */}
         {account.is_posting && (
-          <div style={{
-            padding: 14, borderRadius: 'var(--radius)',
-            border: '1px solid #bfdbfe', background: '#f0f9ff',
-          }}>
-            <div style={{ fontSize: 'var(--font-size-xs)', fontWeight: 700, color: 'var(--color-primary)', marginBottom: 10 }}>
-              Opening Balance
+          <div className="form-section" style={{ marginTop: 6, paddingTop: 14, borderTop: '1px solid var(--color-border-subtle)' }}>
+            <h3 className="form-section-title">Opening Balance</h3>
+            <div className="form-grid" style={{ gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' }}>
+              <TextField
+                label="Amount"
+                value={obAmount}
+                onChange={value => { setObAmount(value); setDirty(true); }}
+                disabled={isBusy}
+                placeholder="0.00"
+                inputProps={{ type: 'number', step: '0.01', inputMode: 'decimal' }}
+                style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}
+              />
+              <DateField
+                label="As Of Date"
+                value={obDate}
+                onChange={value => { setObDate(value); setDirty(true); }}
+                disabled={isBusy}
+              />
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-              <div className="form-group" style={{ margin: 0 }}>
-                <label className="form-label" style={{ fontSize: '0.6875rem' }}>Amount</label>
-                <input type="number" className="form-input"
-                  value={obAmount}
-                  onChange={e => { setObAmount(e.target.value); setDirty(true); }}
-                  disabled={isBusy}
-                  placeholder="0.00" step="0.01"
-                  style={{ height: 34 }}
-                />
-              </div>
-              <div className="form-group" style={{ margin: 0 }}>
-                <label className="form-label" style={{ fontSize: '0.6875rem' }}>As of Date</label>
-                <input type="date" className="form-input"
-                  value={obDate}
-                  onChange={e => { setObDate(e.target.value); setDirty(true); }}
-                  disabled={isBusy}
-                  style={{ height: 34 }}
-                />
-              </div>
-            </div>
-            <p style={{ margin: '8px 0 0', fontSize: '0.6875rem', color: 'var(--color-text-muted)' }}>
-              Enter the balance brought forward from your previous system.
-            </p>
+            <p className="form-hint">Enter the balance brought forward from your previous system.</p>
           </div>
         )}
       </div>
 
-      {saveErr && (
-        <div className="alert alert-danger" style={{ marginTop: 14 }}>{saveErr}</div>
-      )}
-
-      {/* Footer actions */}
-      <div style={{ marginTop: 20, display: 'flex', flexDirection: 'column', gap: 8 }}>
-        <button className="btn btn-primary"
-          onClick={handleSave}
-          disabled={!dirty || isBusy || !name.trim()}
-          style={{ width: '100%', justifyContent: 'center' }}
-        >
-          {updateMutation.isPending
-            ? <><div className="spinner" style={{ width: 14, height: 14, borderWidth: 2 }} /> Saving…</>
-            : 'Save Changes'}
-        </button>
-
+      <div className="panel-footer">
         {!account.is_system && (
-          <button
+          <Button
+            icon={account.is_active ? <IconBan size={16} stroke={1.8} /> : <IconCheck size={16} stroke={1.8} />}
             onClick={() => account.is_active ? setConfirmOpen(true) : toggleActive(true)}
-            disabled={isBusy}
-            style={{
-              width: '100%',
-              padding: '8px 16px', borderRadius: 'var(--radius-sm)',
-              border: `1px solid ${account.is_active ? 'var(--color-danger)' : '#16a34a'}`,
-              background: 'transparent', cursor: 'pointer',
-              color: account.is_active ? 'var(--color-danger)' : '#16a34a',
-              fontWeight: 600, fontSize: 'var(--font-size-sm)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-            }}
+            disabled={updateMutation.isPending}
+            loading={toggleMutation.isPending}
+            style={{ marginRight: 'auto' }}
           >
-            {toggleMutation.isPending
-              ? <><div className="spinner" style={{ width: 14, height: 14, borderWidth: 2 }} /> Updating…</>
-              : account.is_active ? 'Deactivate Account' : 'Activate Account'}
-          </button>
+            {account.is_active ? 'Deactivate' : 'Activate'}
+          </Button>
         )}
+        <Button
+          variant="primary"
+          onClick={handleSave}
+          disabled={!dirty || toggleMutation.isPending || !name.trim()}
+          loading={updateMutation.isPending}
+        >
+          Save Changes
+        </Button>
       </div>
 
       <ConfirmDialog
@@ -298,145 +246,150 @@ function CloneTab({ account, onCloned }: { account: AccountListItem; onCloned: (
 
   if (level === 1) {
     return (
-      <div style={{ padding: '24px 0', textAlign: 'center', color: 'var(--color-text-muted)', fontSize: 'var(--font-size-sm)' }}>
-        Top-level category accounts cannot be cloned.
+      <div className="panel-body">
+        <div className="empty-state">
+          <div className="empty-title">Cannot Clone A Main Category</div>
+          <div className="empty-desc">Main Category accounts cannot be cloned. Open a Group, Sub-Group, or Posting Account instead.</div>
+        </div>
       </div>
     );
   }
 
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      <div style={{
-        padding: 14, borderRadius: 'var(--radius)',
-        background: 'var(--color-bg)', border: '1px solid var(--color-border)',
-        fontSize: 'var(--font-size-xs)', color: 'var(--color-text-muted)',
-      }}>
-        Creates a new account under the same parent as{' '}
-        <span style={{ fontFamily: 'monospace', fontWeight: 700, color: 'var(--color-text)' }}>
-          {account.code}
-        </span>, with the next available code. Copies type, balance direction, posting flag, and description.
-      </div>
+  const runClone = () => cloneMutation.mutate(
+    { sourceId: account.id, newName: name.trim() },
+    {
+      onSuccess: result => {
+        queryClient.invalidateQueries({ queryKey: accountsQueryKey });
+        setError('');
+        onCloned(result.account);
+      },
+      onError: error => setError(error.message),
+    },
+  );
 
-      <div className="form-group">
-        <label className="form-label">New Account Name <span style={{ color: 'var(--color-danger)' }}>*</span></label>
-        <input type="text" className="form-input"
+  return (
+    <>
+      <div className="panel-body">
+        {error && <InlineAlert tone="danger">{error}</InlineAlert>}
+        {cloneMutation.data && (
+          <InlineAlert tone="success">
+            Created as{' '}
+            <span style={{ fontVariantNumeric: 'tabular-nums' }}>{cloneMutation.data.account.code}</span>
+            {' — '}{cloneMutation.data.account.name}.
+          </InlineAlert>
+        )}
+
+        <p className="form-hint" style={{ margin: 0, fontSize: 'var(--font-size-sm)' }}>
+          Creates a new account under the same parent as{' '}
+          <span style={{ fontVariantNumeric: 'tabular-nums', fontWeight: 600, color: 'var(--color-heading)' }}>{account.code}</span>,
+          with the next free code. It copies the type, normal balance, posting setting, and description.
+        </p>
+
+        <TextField
+          label="New Account Name"
+          required
           value={name}
-          onChange={e => setName(e.target.value)}
+          onChange={setName}
           disabled={cloneMutation.isPending}
-          maxLength={100}
-          autoFocus
+          inputProps={{ maxLength: 100, autoFocus: true }}
         />
       </div>
 
-      {error && <div className="alert alert-danger">{error}</div>}
-
-      {cloneMutation.data && (
-        <div style={{
-          padding: 12, borderRadius: 'var(--radius)',
-          background: '#f0fdf4', border: '1px solid #bbf7d0',
-          fontSize: 'var(--font-size-sm)', color: '#16a34a', fontWeight: 600,
-        }}>
-          ✓ Created as{' '}
-          <span style={{ fontFamily: 'monospace' }}>{cloneMutation.data.account.code}</span>
-          {' — '}{cloneMutation.data.account.name}
-        </div>
-      )}
-
-      <button className="btn btn-primary"
-        onClick={() => cloneMutation.mutate(
-          { sourceId: account.id, newName: name.trim() },
-          {
-            onSuccess: result => {
-              queryClient.invalidateQueries({ queryKey: accountsQueryKey });
-              setError('');
-              onCloned(result.account);
-            },
-            onError: error => setError(error.message),
-          },
-        )}
-        disabled={cloneMutation.isPending || !name.trim()}
-        style={{ justifyContent: 'center' }}
-      >
-        {cloneMutation.isPending
-          ? <><div className="spinner" style={{ width: 14, height: 14, borderWidth: 2 }} /> Cloning…</>
-          : 'Clone Account'}
-      </button>
-    </div>
+      <div className="panel-footer">
+        <Button
+          variant="primary"
+          icon={<IconCopy size={16} stroke={1.8} />}
+          onClick={runClone}
+          disabled={!name.trim()}
+          loading={cloneMutation.isPending}
+        >
+          Clone Account
+        </Button>
+      </div>
+    </>
   );
 }
 
 /* ── History tab ─────────────────────────────────────────────────────── */
-const ACTION_STYLE: Record<string, { color: string; bg: string; label: string }> = {
-  created:     { color: '#16a34a', bg: '#f0fdf4', label: 'Created'     },
-  updated:     { color: '#2563eb', bg: '#eff6ff', label: 'Updated'     },
-  activated:   { color: '#16a34a', bg: '#f0fdf4', label: 'Activated'   },
-  deactivated: { color: '#dc2626', bg: '#fef2f2', label: 'Deactivated' },
-  cloned:      { color: '#7c3aed', bg: '#f5f3ff', label: 'Cloned'      },
+const ACTION_STYLE: Record<string, { variant: 'success' | 'info' | 'danger' | 'neutral'; label: string }> = {
+  created:     { variant: 'success', label: 'Created'     },
+  updated:     { variant: 'info',    label: 'Updated'     },
+  activated:   { variant: 'success', label: 'Activated'   },
+  deactivated: { variant: 'danger',  label: 'Deactivated' },
+  cloned:      { variant: 'neutral', label: 'Cloned'      },
 };
 
 function HistoryTab({ accountId }: { accountId: string }) {
   const { data, isLoading, error } = useAccountHistory(accountId);
+  const { data: generalSettings } = useGeneralSettings();
+
+  const formatWhen = (value: string) => {
+    const time = new Date(value).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    return `${formatDate(value, generalSettings)} ${time}`;
+  };
 
   if (isLoading) {
     return (
-      <div style={{ padding: '32px 0', display: 'flex', justifyContent: 'center' }}>
-        <div className="spinner" style={{ width: 24, height: 24, borderWidth: 3 }} />
+      <div className="panel-body">
+        <div className="empty-state">
+          <span className="spinner" aria-hidden />
+          <div className="empty-title">Loading History…</div>
+        </div>
       </div>
     );
   }
 
   if (error) {
-    return <div className="alert alert-danger">{error.message}</div>;
+    return (
+      <div className="panel-body">
+        <InlineAlert tone="danger">{friendlyErrorMessage(error, 'Unable to load account history.')}</InlineAlert>
+      </div>
+    );
   }
 
   if (!data || data.length === 0) {
     return (
-      <div style={{ padding: '32px 0', textAlign: 'center', color: 'var(--color-text-muted)', fontSize: 'var(--font-size-sm)' }}>
-        No changes recorded yet.
+      <div className="panel-body">
+        <div className="empty-state">
+          <div className="empty-title">No Changes Yet</div>
+          <div className="empty-desc">Changes to this account will be listed here.</div>
+        </div>
       </div>
     );
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+    <div className="panel-body" style={{ gap: 8 }}>
       {data.map(entry => {
-        const s = ACTION_STYLE[entry.action] ?? { color: '#6b7280', bg: '#f1f5f9', label: entry.action };
+        const s = ACTION_STYLE[entry.action] ?? { variant: 'neutral' as const, label: entry.action };
         const changes = entry.changes as Record<string, { from: unknown; to: unknown }> | null;
 
         return (
           <div key={entry.id} style={{
-            padding: 12, borderRadius: 'var(--radius)',
-            border: '1px solid var(--color-border)', background: 'var(--color-surface)',
+            padding: '10px 12px', borderRadius: 'var(--radius)',
+            border: '1px solid var(--color-border-subtle)', background: 'var(--color-surface)',
           }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: changes ? 8 : 0 }}>
-              <span style={{
-                fontSize: '0.6875rem', fontWeight: 700,
-                color: s.color, background: s.bg,
-                padding: '2px 8px', borderRadius: 8,
-              }}>{s.label}</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: changes ? 8 : 0, flexWrap: 'wrap' }}>
+              <Badge variant={s.variant}>{s.label}</Badge>
               {entry.changed_by && (
-                <span style={{ fontSize: '0.6875rem', color: 'var(--color-text-muted)' }}>
-                  by {entry.changed_by}
+                <span style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-muted)' }}>
+                  By {entry.changed_by}
                 </span>
               )}
-              <span style={{ marginLeft: 'auto', fontSize: '0.6875rem', color: 'var(--color-text-muted)' }}>
-                {new Date(entry.created_at).toLocaleString()}
+              <span style={{ marginLeft: 'auto', fontSize: 'var(--font-size-xs)', color: 'var(--color-text-muted)', fontVariantNumeric: 'tabular-nums' }}>
+                {formatWhen(entry.created_at)}
               </span>
             </div>
 
             {changes && Object.entries(changes).map(([field, diff]) => (
               <div key={field} style={{
-                fontSize: '0.6875rem', display: 'flex', alignItems: 'center', gap: 6,
-                color: 'var(--color-text-muted)',
+                fontSize: 'var(--font-size-xs)', display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap',
+                color: 'var(--color-text-muted)', lineHeight: 1.6,
               }}>
                 <span style={{ fontWeight: 600, color: 'var(--color-text)' }}>{field}</span>
-                <span style={{ color: '#dc2626', textDecoration: 'line-through', fontFamily: 'monospace' }}>
-                  {String(diff.from ?? '—')}
-                </span>
-                <span>→</span>
-                <span style={{ color: '#16a34a', fontFamily: 'monospace' }}>
-                  {String(diff.to ?? '—')}
-                </span>
+                <span style={{ textDecoration: 'line-through' }}>{String(diff.from ?? 'Not Set')}</span>
+                <IconArrowRight size={14} stroke={1.8} aria-label="changed to" />
+                <span style={{ color: 'var(--color-heading)', fontWeight: 500 }}>{String(diff.to ?? 'Not Set')}</span>
               </div>
             ))}
           </div>
@@ -467,103 +420,37 @@ export function AccountSlideOver({ account, onClose, onSaved }: AccountSlideOver
 
   if (!current) return null;
 
-  const color = TYPE_COLOR[current.account_type] ?? '#64748b';
-  const level = codeLevel(current.code);
-  const levelMeta = LEVEL_LABEL[level];
-
-  const TAB_ITEMS: { id: Tab; label: string }[] = [
-    { id: 'details', label: 'Details'  },
-    { id: 'clone',   label: 'Clone'    },
-    { id: 'history', label: 'History'  },
-  ];
-
   return (
-    <>
-      {/* Backdrop */}
-      <div onClick={onClose} style={{
-        position: 'fixed', inset: 0, zIndex: 40,
-        background: 'rgba(0,0,0,0.25)',
-        animation: 'fadeIn 0.15s ease',
-      }} />
-
-      {/* Panel */}
-      <div style={{
-        position: 'fixed', top: 0, right: 0, bottom: 0,
-        width: 440, zIndex: 50,
-        background: 'var(--color-surface)',
-        boxShadow: '-8px 0 32px rgba(0,0,0,0.15)',
-        display: 'flex', flexDirection: 'column',
-        animation: 'slideInRight 0.2s ease',
-      }}>
-
-        {/* Header */}
-        <div style={{
-          padding: '18px 20px', borderBottom: '1px solid var(--color-border)',
-          display: 'flex', alignItems: 'flex-start', gap: 12,
-        }}>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4, flexWrap: 'wrap' }}>
-              <span style={{
-                fontFamily: 'monospace', fontWeight: 800, fontSize: '1.125rem',
-                color, background: `${color}15`, padding: '2px 10px', borderRadius: 6,
-              }}>{current.code}</span>
-              <span style={{
-                fontSize: '0.6875rem', fontWeight: 600,
-                background: levelMeta.color, color: '#374151',
-                padding: '2px 8px', borderRadius: 4,
-              }}>{levelMeta.label}</span>
-              {current.is_system && (
-                <span style={{
-                  fontSize: '0.6875rem', fontWeight: 700,
-                  color: '#92400e', background: '#fef3c7',
-                  padding: '2px 6px', borderRadius: 3,
-                }}>SYS</span>
-              )}
-            </div>
-            <div style={{ fontWeight: 700, fontSize: 'var(--font-size-sm)', color: 'var(--color-text)', wordBreak: 'break-word' }}>
-              {current.name}
-            </div>
-          </div>
-          <button onClick={onClose} style={{
-            background: 'none', border: 'none', cursor: 'pointer',
-            color: 'var(--color-text-muted)', padding: 4, borderRadius: 4,
-            display: 'flex', alignItems: 'center', flexShrink: 0,
+    <aside className="panel side-panel" aria-label={`Account ${current.code}`}>
+      {/* Header */}
+      <div className="panel-header" style={{ alignItems: 'flex-start', paddingTop: 10, paddingBottom: 10 }}>
+        <div style={{ minWidth: 0 }}>
+          <h2 className="panel-title" style={{ overflowWrap: 'anywhere' }}>{current.name}</h2>
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginTop: 4,
+            fontSize: 'var(--font-size-sm)', color: 'var(--color-text-muted)',
           }}>
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-            </svg>
-          </button>
+            <span style={{ fontVariantNumeric: 'tabular-nums', color: 'var(--color-text)', fontWeight: 500 }}>{current.code}</span>
+            <span aria-hidden>·</span>
+            <span>{getAccountLevelLabel(current.code)}</span>
+            {current.is_system && <Badge variant="info" title="System Account. It cannot be deactivated.">System</Badge>}
+          </div>
         </div>
-
-        {/* Tabs */}
-        <div style={{
-          display: 'flex', borderBottom: '1px solid var(--color-border)',
-          background: 'var(--color-bg)',
-        }}>
-          {TAB_ITEMS.map(t => (
-            <button key={t.id} onClick={() => setTab(t.id)} style={{
-              flex: 1, padding: '10px 0', background: 'none', border: 'none',
-              borderBottom: tab === t.id ? '2px solid var(--color-primary)' : '2px solid transparent',
-              cursor: 'pointer',
-              fontSize: 'var(--font-size-xs)', fontWeight: tab === t.id ? 700 : 500,
-              color: tab === t.id ? 'var(--color-primary)' : 'var(--color-text-muted)',
-              transition: 'all 0.15s',
-            }}>{t.label}</button>
-          ))}
-        </div>
-
-        {/* Body */}
-        <div style={{ flex: 1, overflowY: 'auto', padding: '20px' }}>
-          {tab === 'details' && <DetailsTab account={current} onSaved={onSaved} />}
-          {tab === 'clone'   && <CloneTab   account={current} onCloned={onSaved} />}
-          {tab === 'history' && <HistoryTab accountId={current.id} />}
-        </div>
+        <Button
+          variant="ghost"
+          size="sm"
+          icon={<IconX size={16} stroke={1.8} />}
+          onClick={onClose}
+          aria-label="Close Account Panel"
+          title="Close Panel"
+        />
       </div>
 
-      <style>{`
-        @keyframes fadeIn       { from { opacity: 0 } to { opacity: 1 } }
-        @keyframes slideInRight { from { transform: translateX(100%); opacity: 0 } to { transform: translateX(0); opacity: 1 } }
-      `}</style>
-    </>
+      <Tabs label="Account Panel Sections" value={tab} onChange={setTab} items={TAB_ITEMS} />
+
+      {tab === 'details' && <DetailsTab account={current} onSaved={onSaved} />}
+      {tab === 'clone'   && <CloneTab   account={current} onCloned={onSaved} />}
+      {tab === 'history' && <HistoryTab accountId={current.id} />}
+    </aside>
   );
 }

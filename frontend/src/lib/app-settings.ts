@@ -131,6 +131,14 @@ export function formatNumber(value: number | string, settings?: AppFormatSetting
   );
 }
 
+/** Whole-number counts (records, vouchers, items) with the company thousands separator, never decimals. */
+export function formatCount(value: number | string, settings?: AppFormatSettingsSource | null) {
+  const { thousandsSeparator } = normalizeFormatSettings(settings);
+  const whole = Math.round(Number(value) || 0);
+  const sign = whole < 0 ? '-' : '';
+  return sign + String(Math.abs(whole)).replace(/\B(?=(\d{3})+(?!\d))/g, thousandsSeparator);
+}
+
 export function formatMoney(value: number | string, settings?: AppFormatSettingsSource | null) {
   const normalizedSettings = normalizeFormatSettings(settings);
   const amount = formatNumber(value, normalizedSettings);

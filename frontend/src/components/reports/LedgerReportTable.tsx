@@ -3,8 +3,8 @@
 import type { AppFormatSettingsSource } from '@/lib/app-settings';
 import { formatDate, formatMoney } from '@/lib/app-settings';
 import type { LedgerReportResponse } from '@/lib/api/reports';
+import { TableMessageRow } from '@/components/ui/TableMessageRow';
 import { formatLedgerBalance } from './LedgerReportHelpers';
-import { reportTableCellStyle, reportTableHeadStyle, reportTableTotalCellStyle } from './LedgerReportStyles';
 
 interface LedgerReportTableProps {
   report: LedgerReportResponse | undefined;
@@ -17,79 +17,59 @@ export function LedgerReportTable({ report, loading, errorMessage, settings }: L
   const lines = report?.lines ?? [];
 
   return (
-    <div style={{ minHeight: 0, overflow: 'auto', border: '1px solid var(--color-border)', borderRadius: 'var(--radius)' }}>
-      <table style={{ width: '100%', minWidth: 980, borderCollapse: 'collapse', tableLayout: 'fixed', fontSize: '0.74rem' }}>
+    <div className="table-scroll">
+      <table className="data-table" style={{ tableLayout: 'fixed', minWidth: 980 }}>
         <colgroup>
-          <col style={{ width: 92 }} />
-          <col style={{ width: 128 }} />
-          <col style={{ width: 74 }} />
+          <col style={{ width: 110 }} />
+          <col style={{ width: 140 }} />
+          <col style={{ width: 70 }} />
           <col style={{ width: 150 }} />
           <col />
-          <col style={{ width: 120 }} />
-          <col style={{ width: 120 }} />
-          <col style={{ width: 150 }} />
+          <col style={{ width: 130 }} />
+          <col style={{ width: 130 }} />
+          <col style={{ width: 160 }} />
         </colgroup>
         <thead>
           <tr>
-            <th style={reportTableHeadStyle()}>Date</th>
-            <th style={reportTableHeadStyle()}>Voucher Number</th>
-            <th style={reportTableHeadStyle()}>Type</th>
-            <th style={reportTableHeadStyle()}>Reference</th>
-            <th style={reportTableHeadStyle()}>Description</th>
-            <th style={reportTableHeadStyle(true)}>Debit</th>
-            <th style={reportTableHeadStyle(true)}>Credit</th>
-            <th style={reportTableHeadStyle(true)}>Running Balance</th>
+            <th>Date</th>
+            <th>Voucher Number</th>
+            <th>Type</th>
+            <th>Reference</th>
+            <th>Description</th>
+            <th className="num">Debit</th>
+            <th className="num">Credit</th>
+            <th className="num">Running Balance</th>
           </tr>
         </thead>
         <tbody>
-          {loading && (
-            <tr>
-              <td colSpan={8} style={{ ...reportTableCellStyle(), height: 90, textAlign: 'center', color: 'var(--color-text-muted)', fontWeight: 800 }}>
-                Loading Ledger Report...
-              </td>
-            </tr>
-          )}
-          {!loading && errorMessage && (
-            <tr>
-              <td colSpan={8} style={{ ...reportTableCellStyle(), height: 90, textAlign: 'center', color: 'var(--color-danger-text)', fontWeight: 800 }}>
-                {errorMessage}
-              </td>
-            </tr>
-          )}
+          {loading && <TableMessageRow colSpan={8} title="Loading Ledger Report…" loading />}
+          {!loading && errorMessage && <TableMessageRow colSpan={8} title="Report Not Loaded" description={errorMessage} />}
           {!loading && !errorMessage && !report && (
-            <tr>
-              <td colSpan={8} style={{ ...reportTableCellStyle(), height: 90, textAlign: 'center', color: 'var(--color-text-muted)', fontWeight: 800 }}>
-                Select Account and Dates, then click View Report.
-              </td>
-            </tr>
+            <TableMessageRow colSpan={8} title="Choose An Account" description="Select an Account and the dates, then click View Report." />
           )}
           {!loading && !errorMessage && report && lines.length === 0 && (
-            <tr>
-              <td colSpan={8} style={{ ...reportTableCellStyle(), height: 90, textAlign: 'center', color: 'var(--color-text-muted)', fontWeight: 800 }}>
-                No posted transactions found for the selected period.
-              </td>
-            </tr>
+            <TableMessageRow colSpan={8} title="No Posted Transactions" description="This Account has no posted transactions in the selected period. Widen the dates to see more." />
           )}
-          {lines.map(line => (
+          {!loading && lines.map(line => (
             <tr key={line.id}>
-              <td style={reportTableCellStyle()}>{formatDate(line.voucher_date, settings)}</td>
-              <td style={reportTableCellStyle()}><strong>{line.voucher_number}</strong></td>
-              <td style={reportTableCellStyle()}>{line.voucher_type}</td>
-              <td style={reportTableCellStyle()}>{line.reference || '-'}</td>
-              <td style={reportTableCellStyle()}>{line.description || '-'}</td>
-              <td style={reportTableCellStyle(true)}>{Number(line.debit_amount) > 0 ? formatMoney(line.debit_amount, settings) : '-'}</td>
-              <td style={reportTableCellStyle(true)}>{Number(line.credit_amount) > 0 ? formatMoney(line.credit_amount, settings) : '-'}</td>
-              <td style={reportTableCellStyle(true)}>{formatLedgerBalance(line.running_balance, line.running_balance_side, settings)}</td>
+              <td className="cell-muted">{formatDate(line.voucher_date, settings)}</td>
+              <td className="cell-strong">{line.voucher_number}</td>
+              <td className="cell-muted">{line.voucher_type}</td>
+              <td className={line.reference ? undefined : 'cell-muted'}>{line.reference || 'Not Set'}</td>
+              <td className={line.description ? undefined : 'cell-muted'} title={line.description || undefined}>{line.description || 'Not Set'}</td>
+              <td className="num">{Number(line.debit_amount) > 0 ? formatMoney(line.debit_amount, settings) : ''}</td>
+              <td className="num">{Number(line.credit_amount) > 0 ? formatMoney(line.credit_amount, settings) : ''}</td>
+              <td className="num">{formatLedgerBalance(line.running_balance, line.running_balance_side, settings)}</td>
             </tr>
           ))}
         </tbody>
         {report && (
           <tfoot>
             <tr>
-              <td colSpan={5} style={reportTableTotalCellStyle(true)}>Totals</td>
-              <td style={reportTableTotalCellStyle(true)}>{formatMoney(report.total_debit, settings)}</td>
-              <td style={reportTableTotalCellStyle(true)}>{formatMoney(report.total_credit, settings)}</td>
-              <td style={reportTableTotalCellStyle(true)}>{formatLedgerBalance(report.closing_balance, report.closing_balance_side, settings)}</td>
+              <td colSpan={5}>Totals</td>
+              <td className="num">{formatMoney(report.total_debit, settings)}</td>
+              <td className="num">{formatMoney(report.total_credit, settings)}</td>
+              <td className="num">{formatLedgerBalance(report.closing_balance, report.closing_balance_side, settings)}</td>
             </tr>
           </tfoot>
         )}

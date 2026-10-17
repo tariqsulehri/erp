@@ -4,14 +4,13 @@ import { useEffect, useMemo, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import {
   IconCalendarDollar,
-  IconFileInvoice,
 } from '@tabler/icons-react';
 import { formatMoney } from '@/lib/app-settings';
 import { useAccountsList } from '@/lib/api/accounts';
 import { usePostingDateGuard } from '@/lib/api/fiscal-years';
 import { useGeneralSettings } from '@/lib/api/settings';
 import { useCreateVoucher, useUpdateVoucher, useVoucherDetail } from '@/lib/api/vouchers';
-import { FieldLabel, SearchableSelect, SummaryRow, type VoucherSelectOption } from './VoucherControls';
+import { FieldLabel, SummaryRow, type VoucherSelectOption } from './VoucherControls';
 import { JournalVoucherLineTable, type JournalVoucherLine } from './JournalVoucherLineTable';
 import { VoucherActionButtons, VoucherLineSection, VoucherMessageBanner, VoucherPageHeader, VoucherSummaryFooter } from './VoucherLayout';
 import { useDefaultVoucherDate } from './VoucherFiscalDate';
@@ -21,7 +20,6 @@ import { validateJournalVoucher } from './VoucherValidation';
 import {
   amountValue,
   compactInputStyle,
-  compactNumericInputStyle,
   friendlyErrorMessage,
   today,
   type VoucherMessageKind,
@@ -289,10 +287,6 @@ export default function JournalVoucherPage() {
       <VoucherPageHeader
         title="Journal Voucher"
         badgeText="JV"
-        badgeColor="#1d4ed8"
-        badgeBackground="#dbeafe"
-        accent="linear-gradient(135deg, #1d4ed8, #0891b2)"
-        icon={<IconFileInvoice size={20} stroke={1.8} />}
         mode={editingVoucherId ? 'Edit' : 'Add'}
         actions={
           <VoucherActionButtons
@@ -343,7 +337,7 @@ export default function JournalVoucherPage() {
           <FieldLabel label="Attachments">
             <input className="form-input" value="0 Files" disabled style={compactInputStyle} />
           </FieldLabel>
-          <div style={{ color: 'var(--color-text-muted)', fontSize: '0.68rem', lineHeight: 1.2, alignSelf: 'center' }}>
+          <div style={{ color: 'var(--color-text-muted)', fontSize: 'var(--font-size-xs)', lineHeight: 1.2, alignSelf: 'center' }}>
             Attachments and approval history will use the shared transaction workflow area.
           </div>
         </div>
@@ -357,7 +351,7 @@ export default function JournalVoucherPage() {
             background: 'transparent',
             color: 'var(--color-danger-text)',
             fontWeight: 500,
-            fontSize: '0.66rem',
+            fontSize: 'var(--font-size-xs)',
             lineHeight: 1.2,
             padding: 0,
             overflow: 'hidden',
@@ -475,8 +469,8 @@ function JournalVoucherReviewDialog({
                   <td style={reviewCellStyle}>{index + 1}</td>
                   <td style={reviewCellStyle}>{accountName(line.accountId)}</td>
                   <td style={reviewCellStyle}>{line.description || description}</td>
-                  <td style={{ ...reviewCellStyle, textAlign: 'right', fontFamily: 'var(--font-mono)', fontWeight: 850 }}>{amountValue(line.debit) ? formatMoney(amountValue(line.debit), generalSettings) : '-'}</td>
-                  <td style={{ ...reviewCellStyle, textAlign: 'right', fontFamily: 'var(--font-mono)', fontWeight: 850 }}>{amountValue(line.credit) ? formatMoney(amountValue(line.credit), generalSettings) : '-'}</td>
+                  <td style={{ ...reviewCellStyle, textAlign: 'right', fontVariantNumeric: 'tabular-nums', fontWeight: 500 }}>{amountValue(line.debit) ? formatMoney(amountValue(line.debit), generalSettings) : '-'}</td>
+                  <td style={{ ...reviewCellStyle, textAlign: 'right', fontVariantNumeric: 'tabular-nums', fontWeight: 500 }}>{amountValue(line.credit) ? formatMoney(amountValue(line.credit), generalSettings) : '-'}</td>
                 </tr>
               ))}
             </tbody>
@@ -519,7 +513,7 @@ const reviewBackdropStyle: React.CSSProperties = {
   position: 'absolute',
   inset: 0,
   border: 'none',
-  background: 'rgba(15, 23, 42, 0.30)',
+  background: 'var(--color-scrim)',
 };
 const reviewDialogStyle: React.CSSProperties = {
   position: 'absolute',
@@ -530,7 +524,7 @@ const reviewDialogStyle: React.CSSProperties = {
   maxHeight: '88vh',
   background: 'var(--color-surface)',
   border: '1px solid var(--color-border)',
-  boxShadow: '0 24px 70px rgba(15, 23, 42, 0.28)',
+  boxShadow: 'var(--shadow-overlay)',
   display: 'grid',
   gridTemplateRows: 'auto auto 1fr auto',
   overflow: 'hidden',
@@ -546,14 +540,14 @@ const reviewHeaderStyle: React.CSSProperties = {
 const reviewTitleStyle: React.CSSProperties = {
   margin: 0,
   color: 'var(--color-heading)',
-  fontSize: '0.98rem',
-  fontWeight: 900,
+  fontSize: 'var(--font-size-lg)',
+  fontWeight: 600,
 };
 const reviewSubtitleStyle: React.CSSProperties = {
   margin: '3px 0 0',
   color: 'var(--color-text-muted)',
-  fontSize: '0.72rem',
-  fontWeight: 750,
+  fontSize: 'var(--font-size-xs)',
+  fontWeight: 600,
 };
 const reviewMetaGridStyle: React.CSSProperties = {
   display: 'grid',
@@ -568,13 +562,13 @@ const reviewMetaItemStyle: React.CSSProperties = {
 };
 const reviewMetaLabelStyle: React.CSSProperties = {
   color: 'var(--color-text-muted)',
-  fontSize: '0.66rem',
-  fontWeight: 850,
+  fontSize: 'var(--font-size-xs)',
+  fontWeight: 600,
 };
 const reviewMetaValueStyle: React.CSSProperties = {
   color: 'var(--color-heading)',
-  fontSize: '0.78rem',
-  fontWeight: 850,
+  fontSize: 'var(--font-size-sm)',
+  fontWeight: 600,
 };
 const reviewTableWrapStyle: React.CSSProperties = {
   minHeight: 0,
@@ -587,20 +581,20 @@ const reviewHeadStyle: React.CSSProperties = {
   border: '1px solid var(--color-border)',
   padding: '7px 8px',
   textAlign: 'left',
-  fontSize: '0.7rem',
-  fontWeight: 900,
+  fontSize: 'var(--font-size-xs)',
+  fontWeight: 600,
 };
 const reviewCellStyle: React.CSSProperties = {
   border: '1px solid var(--color-border)',
   padding: '7px 8px',
-  fontSize: '0.72rem',
+  fontSize: 'var(--font-size-xs)',
   color: 'var(--color-text)',
 };
 const reviewTotalCellStyle: React.CSSProperties = {
   ...reviewCellStyle,
   textAlign: 'right',
   color: 'var(--color-heading)',
-  fontWeight: 900,
+  fontWeight: 600,
   background: 'var(--color-surface-alt)',
 };
 const reviewTotalAmountStyle: React.CSSProperties = {

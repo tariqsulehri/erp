@@ -1,15 +1,20 @@
 'use client';
 
-import { useMemo, useState } from 'react';
-import { formatMoney } from '@/lib/app-settings';
+import { useMemo, useState, type CSSProperties } from 'react';
+import { IconArrowDown, IconArrowUp, IconPencil, IconPlus } from '@tabler/icons-react';
 import { useGeneralSettings } from '@/lib/api/settings';
 import { useProductBrands, useProductCategories, useProductsList } from '@/lib/api/products';
+import { friendlyErrorMessage } from '@/lib/erp-utils';
+import { Button } from '@/components/ui/Button';
+import { InlineAlert } from '@/components/ui/InlineAlert';
 import { PaginationBar } from '@/components/ui/PaginationBar';
+import { SearchField } from '@/components/ui/SearchField';
+import { SearchableSelect } from '@/components/ui/SearchableSelect';
+import { SegmentedControl } from '@/components/ui/SegmentedControl';
+import { TableMessageRow } from '@/components/ui/TableMessageRow';
 import {
-  fmtQty,
   MoneyCell,
   PRODUCT_TYPE_OPTIONS,
-  SearchableSelect,
   SelectOption,
   STATUS_OPTIONS,
   STOCK_FILTER_OPTIONS,
@@ -17,6 +22,24 @@ import {
   StockIndicator,
   TypeBadge,
 } from './ProductShared';
+
+type SortColumn = 'sku' | 'name' | 'sale_price' | 'qty_on_hand';
+
+const STATUS_FILTER_OPTIONS: Array<{ value: string; label: string }> = [
+  { value: '', label: 'All' },
+  ...STATUS_OPTIONS.map(option => ({ value: option.value, label: option.label })),
+];
+
+const sortButtonStyle: CSSProperties = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: 4,
+  padding: 0,
+  border: 0,
+  background: 'transparent',
+  color: 'inherit',
+  font: 'inherit',
+};
 
 export function ProductList({ selectedId, onSelect, onNew, onEdit, detailOpen }: {
   selectedId: string | null; onSelect: (id: string) => void;
@@ -29,7 +52,7 @@ export function ProductList({ selectedId, onSelect, onNew, onEdit, detailOpen }:
   const [typeFlt,  setTypeFlt]  = useState('');
   const [statusFlt,setStatusFlt]= useState('Active');
   const [stockFlt, setStockFlt] = useState('');
-  const [sortBy,   setSortBy]   = useState('name');
+  const [sortBy,   setSortBy]   = useState<string>('name');
   const [sortDir,  setSortDir]  = useState<'ASC'|'DESC'>('ASC');
   const [page,     setPage]     = useState(1);
   const LIMIT = 60;
@@ -37,23 +60,27 @@ export function ProductList({ selectedId, onSelect, onNew, onEdit, detailOpen }:
   const { data: categories } = useProductCategories();
   const { data: brands }     = useProductBrands();
   const { data: generalSettings } = useGeneralSettings();
-  const { data, isLoading, isFetching }  = useProductsList({
+  const { data, isLoading, error }  = useProductsList({
     page, limit: LIMIT,
     search:       search    || undefined,
     category_id:  catFlt    || undefined,
     brand_id:     brandFlt  || undefined,
-    product_type: typeFlt   as any || undefined,
-    status:       statusFlt as any || undefined,
-    stock_filter: stockFlt  as any || undefined,
-    sort_by:      sortBy    as any,
+    product_type: typeFlt   || undefined,
+    status:       statusFlt || undefined,
+    stock_filter: stockFlt  || undefined,
+    sort_by:      sortBy,
     sort_dir:     sortDir,
   });
 
   const rows  = data?.data ?? [];
   const total = data?.pagination?.total ?? 0;
   const pages = data?.pagination?.pages ?? 1;
+  const isFiltered = Boolean(search || catFlt || brandFlt || typeFlt || stockFlt || (statusFlt && statusFlt !== 'Active'));
+  // Keep the list readable next to the detail panel by hiding the least-used columns.
+  const colSpan = detailOpen ? 9 : 11;
+
   const categoryFilterOptions = useMemo<SelectOption[]>(
-    () => (categories ?? []).map((c: any) => ({
+    () => ((categories ?? []) as Array<{ id: string; code: string; name: string }>).map(c => ({
       value: c.id,
       label: `${c.code} — ${c.name}`,
       searchText: `${c.code} ${c.name}`,
@@ -61,7 +88,7 @@ export function ProductList({ selectedId, onSelect, onNew, onEdit, detailOpen }:
     [categories],
   );
   const brandFilterOptions = useMemo<SelectOption[]>(
-    () => (brands ?? []).map((brand: any) => ({
+    () => ((brands ?? []) as Array<{ id: string; code: string; name: string }>).map(brand => ({
       value: brand.id,
       label: `${brand.code} — ${brand.name}`,
       searchText: `${brand.code} ${brand.name}`,
@@ -69,218 +96,163 @@ export function ProductList({ selectedId, onSelect, onNew, onEdit, detailOpen }:
     [brands],
   );
 
-  function toggleSort(col: string) {
+  function toggleSort(col: SortColumn) {
     if (sortBy === col) setSortDir(d => d === 'ASC' ? 'DESC' : 'ASC');
     else { setSortBy(col); setSortDir('ASC'); }
   }
-
-  const sortIcon = (col: string) => sortBy === col ? (sortDir === 'ASC' ? ' ↑' : ' ↓') : '';
 
   function applySearch() {
     setSearch(searchText.trim());
     setPage(1);
   }
 
-  function clearSearch() {
+  function clearFilters() {
     setSearchText('');
     setSearch('');
+    setCatFlt('');
+    setBrandFlt('');
+    setTypeFlt('');
+    setStockFlt('');
     setPage(1);
   }
 
+  function sortHeader(col: SortColumn, label: string, { numeric = false, width }: { numeric?: boolean; width?: number } = {}) {
+    const active = sortBy === col;
+    return (
+      <th
+        key={col}
+        className={numeric ? 'num' : undefined}
+        style={width ? { width } : undefined}
+        aria-sort={active ? (sortDir === 'ASC' ? 'ascending' : 'descending') : 'none'}
+      >
+        <button type="button" style={sortButtonStyle} onClick={() => toggleSort(col)} title={`Sort By ${label}`}>
+          {label}
+          {active && (sortDir === 'ASC'
+            ? <IconArrowUp size={14} stroke={1.8} aria-hidden />
+            : <IconArrowDown size={14} stroke={1.8} aria-hidden />)}
+        </button>
+      </th>
+    );
+  }
+
+  const hasActiveFilters = Boolean(search || searchText || catFlt || brandFlt || typeFlt || stockFlt);
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-
-      {/* ── Toolbar ── */}
-      <div style={{
-        display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap',
-        padding: '8px 16px',
-        background: 'var(--color-surface)',
-        borderBottom: '1.5px solid var(--color-border)',
-        flexShrink: 0,
-      }}>
-        <span style={{ fontWeight: 800, fontSize: '1rem', color: 'var(--color-heading)' }}>Product Catalogue</span>
-        <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', background: 'var(--color-border-subtle)', padding: '2px 8px', borderRadius: 10 }}>
-          {total} item{total !== 1 ? 's' : ''}
-        </span>
-
-        <div style={{ flex: 1 }} />
-
-        {/* Filters */}
-        <input className="form-input" placeholder="Search Code, Name, Brand, Barcode…"
-          value={searchText}
-          onChange={e => setSearchText(e.target.value)}
-          onKeyDown={event => {
-            if (event.key === 'Enter') applySearch();
-          }}
-          style={{ fontSize: '0.8rem', padding: '4px 10px', height: 32, width: 200 }}
-        />
-        <button className="btn btn-secondary btn-sm" type="button" onClick={applySearch} disabled={isFetching} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-          {isFetching && <span className="spinner" style={{ width: 12, height: 12, borderWidth: 2 }} />}
-          {isFetching ? 'Searching...' : 'Search'}
-        </button>
-        {(search || searchText) && (
-          <button className="btn btn-secondary btn-sm" type="button" onClick={clearSearch} disabled={isFetching}>
-            Clear
-          </button>
-        )}
-        <SearchableSelect
-          value={catFlt}
-          options={categoryFilterOptions}
-          onChange={nextCategory => { setCatFlt(nextCategory); setPage(1); }}
-          placeholder="All Categories"
-          compact
-          width={170}
-        />
-        <SearchableSelect
-          value={brandFlt}
-          options={brandFilterOptions}
-          onChange={nextBrand => { setBrandFlt(nextBrand); setPage(1); }}
-          placeholder="All Brands"
-          compact
-          width={150}
-        />
-        <SearchableSelect
-          value={typeFlt}
-          options={PRODUCT_TYPE_OPTIONS}
-          onChange={nextType => { setTypeFlt(nextType); setPage(1); }}
-          placeholder="All Types"
-          compact
-          width={145}
-        />
-        <SearchableSelect
-          value={statusFlt}
-          options={STATUS_OPTIONS}
-          onChange={nextStatus => { setStatusFlt(nextStatus); setPage(1); }}
-          placeholder="All Status"
-          compact
-          width={130}
-        />
-        <SearchableSelect
-          value={stockFlt}
-          options={STOCK_FILTER_OPTIONS}
-          onChange={nextStockFilter => { setStockFlt(nextStockFilter); setPage(1); }}
-          placeholder="All Stock"
-          compact
-          width={190}
-        />
-
-        <button className="btn btn-primary btn-sm" onClick={onNew} style={{ whiteSpace: 'nowrap' }}>
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><circle cx="12" cy="12" r="10"/><path d="M12 8v8M8 12h8"/></svg>
-          New Product
-        </button>
+    <section className="panel panel-fill">
+      <div className="filter-bar">
+        <div className="filter-bar-grow">
+          <SearchField
+            label="Search Products"
+            value={searchText}
+            onChange={setSearchText}
+            onSubmit={applySearch}
+            placeholder="Search by SKU, Name, Brand, or Barcode, then press Enter"
+          />
+        </div>
+        <div style={{ width: 180 }}>
+          <SearchableSelect
+            value={catFlt}
+            options={categoryFilterOptions}
+            onChange={nextCategory => { setCatFlt(nextCategory); setPage(1); }}
+            placeholder="All Categories"
+          />
+        </div>
+        <div style={{ width: 160 }}>
+          <SearchableSelect
+            value={brandFlt}
+            options={brandFilterOptions}
+            onChange={nextBrand => { setBrandFlt(nextBrand); setPage(1); }}
+            placeholder="All Brands"
+          />
+        </div>
+        <select className="form-input" aria-label="Filter By Product Type" value={typeFlt} onChange={event => { setTypeFlt(event.target.value); setPage(1); }} style={{ width: 150 }}>
+          <option value="">All Types</option>
+          {PRODUCT_TYPE_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+        </select>
+        <select className="form-input" aria-label="Filter By Stock Level" value={stockFlt} onChange={event => { setStockFlt(event.target.value); setPage(1); }} style={{ width: 200 }}>
+          <option value="">All Stock Levels</option>
+          {STOCK_FILTER_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+        </select>
+        <SegmentedControl label="Status Filter" value={statusFlt} options={STATUS_FILTER_OPTIONS} onChange={value => { setStatusFlt(value); setPage(1); }} />
+        {hasActiveFilters && <Button variant="ghost" onClick={clearFilters}>Clear</Button>}
       </div>
 
-      {/* ── Table ── */}
-      <div style={{ flex: 1, overflowY: 'auto' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem', tableLayout: 'fixed' }}>
-          <colgroup>
-            <col style={{ width: 38 }} />
-            <col style={{ width: detailOpen ? 90  : 110  }} />
-            <col style={{ width: detailOpen ? 170 : 260  }} />
-            <col style={{ width: detailOpen ? 90  : 120  }} />
-            <col style={{ width: detailOpen ? 90  : 120  }} />
-            <col style={{ width: detailOpen ? 90  : 110  }} />
-            <col style={{ width: detailOpen ? 125 : 150  }} />
-            <col style={{ width: detailOpen ? 120 : 140  }} />
-            <col style={{ width: detailOpen ? 105 : 125  }} />
-            <col style={{ width: detailOpen ? 80  : 100  }} />
-            <col style={{ width: 76 }} />
-          </colgroup>
-          <thead style={{ position: 'sticky', top: 0, zIndex: 5 }}>
-            <tr style={{ background: 'var(--color-table-head-bg)', borderBottom: '2px solid var(--color-panel-header-border)' }}>
-              {[
-                { col: '',           label: '#',          sortable: false, align: 'left'   },
-                { col: 'sku',        label: 'SKU',        sortable: true,  align: 'left'   },
-                { col: 'name',       label: 'Product Name', sortable: true, align: 'left'  },
-                { col: '',           label: 'Brand',      sortable: false, align: 'left'   },
-                { col: '',           label: 'Type',       sortable: false, align: 'left'   },
-                { col: '',           label: 'Category',   sortable: false, align: 'left'   },
-                { col: 'sale_price', label: 'Sale Rate',  sortable: true,  align: 'right'  },
-                { col: '',           label: 'Min Sale Rate', sortable: false, align: 'right' },
-                { col: 'qty_on_hand',label: 'Stock On Hand', sortable: true,  align: 'right'  },
-                { col: '',           label: 'Status',     sortable: false, align: 'center' },
-                { col: '',           label: 'Actions',    sortable: false, align: 'center' },
-              ].map(h => (
-                <th key={h.label} onClick={() => h.sortable && toggleSort(h.col)}
-                  style={{
-                    padding: '7px 10px', textAlign: h.align as any,
-                    fontSize: '0.6rem', fontWeight: 800,
-                    letterSpacing: 0, color: 'var(--color-table-head-text)',
-                    cursor: h.sortable ? 'pointer' : 'default', whiteSpace: 'nowrap',
-                    userSelect: 'none',
-                  }}>
-                  {h.label}{h.sortable ? sortIcon(h.col) : ''}
-                </th>
-              ))}
+      {error && (
+        <div style={{ padding: '10px 16px 0' }}>
+          <InlineAlert tone="danger">{friendlyErrorMessage(error, 'Unable to load Products.')}</InlineAlert>
+        </div>
+      )}
+
+      <div className="table-scroll">
+        <table className="data-table" style={{ tableLayout: 'fixed', minWidth: detailOpen ? 820 : 1180 }}>
+          <thead>
+            <tr>
+              <th className="num" style={{ width: 48 }}>No.</th>
+              {sortHeader('sku', 'SKU', { width: 120 })}
+              {sortHeader('name', 'Product Name')}
+              {!detailOpen && <th style={{ width: 130 }}>Brand</th>}
+              <th style={{ width: 130 }}>Type</th>
+              {!detailOpen && <th style={{ width: 140 }}>Category</th>}
+              {sortHeader('sale_price', 'Sale Rate', { numeric: true, width: 130 })}
+              {!detailOpen && <th className="num" style={{ width: 130 }}>Min Sale Rate</th>}
+              {sortHeader('qty_on_hand', 'Stock On Hand', { numeric: true, width: 190 })}
+              <th style={{ width: 110 }}>Status</th>
+              <th style={{ width: 56 }}><span className="sr-only">Actions</span></th>
             </tr>
           </thead>
           <tbody>
-            {isLoading && (
-              <tr><td colSpan={11} style={{ padding: 24, textAlign: 'center', color: 'var(--color-text-muted)' }}>
-                <div style={{ display: 'flex', gap: 8, alignItems: 'center', justifyContent: 'center' }}>
-                  <div className="spinner" style={{ width: 15, height: 15, borderWidth: 2 }} /> Loading products…
-                </div>
-              </td></tr>
-            )}
+            {isLoading && <TableMessageRow colSpan={colSpan} title="Loading Products…" loading />}
             {!isLoading && rows.length === 0 && (
-              <tr><td colSpan={11} style={{ padding: '48px 24px', textAlign: 'center' }}>
-                <p style={{ fontWeight: 700, color: 'var(--color-text-secondary)', marginBottom: 6, fontSize: '0.9375rem' }}>No products found</p>
-                <p style={{ color: 'var(--color-text-muted)', fontSize: '0.8rem', marginBottom: 16 }}>Click <strong>New Product</strong> to add your first item to inventory.</p>
-                <button className="btn btn-primary btn-sm" onClick={onNew}>+ New Product</button>
-              </td></tr>
+              isFiltered
+                ? <TableMessageRow colSpan={colSpan} title="No Products Match" description="Change the search text or the filters to see more Products." />
+                : <TableMessageRow colSpan={colSpan} title="No Products Yet" description="Add your first Product to start buying, selling, and tracking stock." action={<Button variant="primary" icon={<IconPlus size={16} stroke={1.8} />} onClick={onNew}>New Product</Button>} />
             )}
-            {rows.map((p: any, i: number) => {
-              const active = selectedId === p.id;
-              return (
-                <tr key={p.id}
-                  style={{
-                    borderBottom: '1px solid var(--color-border-subtle)',
-                    background: active ? 'var(--color-table-row-selected)' : i % 2 === 0 ? 'var(--color-table-row-odd)' : 'var(--color-table-row-even)',
-                    cursor: 'pointer', transition: 'background var(--transition)',
-                    outline: active ? '2px solid var(--color-primary)' : 'none', outlineOffset: -1,
-                  }}
-                  onMouseEnter={e => { if (!active) e.currentTarget.style.background = 'var(--color-table-row-hover)'; }}
-                  onMouseLeave={e => { if (!active) e.currentTarget.style.background = i % 2 === 0 ? 'var(--color-table-row-odd)' : 'var(--color-table-row-even)'; }}
-                  onClick={() => onSelect(p.id)}
-                >
-                  <td style={TD}><span style={{ color: 'var(--color-text-muted)', fontFamily: 'var(--font-mono)', fontSize: '0.7rem' }}>{(page-1)*LIMIT + i+1}</span></td>
-                  <td style={TD}>
-                    <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 800, fontSize: '0.775rem', color: 'var(--color-primary)' }}>{p.sku}</span>
+            {!isLoading && rows.map((p, i: number) => (
+              <tr
+                key={p.id}
+                className={selectedId === p.id ? 'is-selected' : undefined}
+                style={{ cursor: 'pointer' }}
+                onClick={() => onSelect(p.id)}
+              >
+                <td className="num cell-muted">{(page - 1) * LIMIT + i + 1}</td>
+                <td className="cell-strong" style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.sku}</td>
+                <td className="cell-stack">
+                  <span className="cell-strong" style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name}</span>
+                  {p.barcode && <span className="cell-sub">{p.barcode}</span>}
+                </td>
+                {!detailOpen && (
+                  <td className={p.brand ? undefined : 'cell-muted'} style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {p.brand || 'Not Set'}
                   </td>
-                  <td style={{ ...TD, overflow: 'hidden' }}>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                      <span style={{ fontWeight: 700, color: 'var(--color-text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.name}</span>
-                      {p.barcode && (
-                        <span style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)' }}>
-                          {p.barcode}
-                        </span>
-                      )}
-                    </div>
+                )}
+                <td><TypeBadge type={p.product_type} /></td>
+                {!detailOpen && (
+                  <td className={p.category?.name ? undefined : 'cell-muted'} style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {p.category?.name ?? 'Not Set'}
                   </td>
-                  <td style={{ ...TD, color: 'var(--color-text-secondary)', fontSize: '0.78rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                    {p.brand ?? '—'}
+                )}
+                <td className="num"><MoneyCell value={p.sale_price} settings={generalSettings} /></td>
+                {!detailOpen && (
+                  <td className="num">
+                    {p.min_sale_price ? <MoneyCell value={p.min_sale_price} muted settings={generalSettings} /> : <span className="cell-muted">Not Set</span>}
                   </td>
-                  <td style={TD}><TypeBadge type={p.product_type} /></td>
-                  <td style={{ ...TD, color: 'var(--color-text-secondary)', fontSize: '0.78rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                    {p.category?.name ?? '—'}
-                  </td>
-                  <td style={{ ...TD, textAlign: 'right' }}>
-                    <MoneyCell value={p.sale_price} settings={generalSettings} />
-                  </td>
-                  <td style={{ ...TD, textAlign: 'right' }}>
-                    {p.min_sale_price ? <MoneyCell value={p.min_sale_price} muted settings={generalSettings} /> : '—'}
-                  </td>
-                  <td style={{ ...TD, textAlign: 'right' }}>
-                    <StockIndicator onHand={p.qty_on_hand} minLevel={p.min_stock_level} reorderLevel={p.reorder_level} settings={generalSettings} />
-                  </td>
-                  <td style={{ ...TD, textAlign: 'center' }}><StatusBadge status={p.status} /></td>
-                  <td style={{ ...TD, textAlign: 'center' }}>
-                    <button className="btn btn-sm" style={{ padding: '2px 10px', fontSize: '0.7rem', background: 'var(--color-primary-light)', border: '1px solid var(--color-border)', color: 'var(--color-primary)' }}
-                      onClick={e => { e.stopPropagation(); onEdit(p.id); }}>Edit</button>
-                  </td>
-                </tr>
-              );
-            })}
+                )}
+                <td className="num">
+                  <StockIndicator onHand={p.qty_on_hand} minLevel={p.min_stock_level} reorderLevel={p.reorder_level} settings={generalSettings} />
+                </td>
+                <td><StatusBadge status={p.status} /></td>
+                <td className="cell-actions">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    icon={<IconPencil size={16} stroke={1.8} />}
+                    onClick={event => { event.stopPropagation(); onEdit(p.id); }}
+                    aria-label={`Edit Product ${p.sku}`}
+                    title="Edit Product"
+                  />
+                </td>
+              </tr>
+            ))}
           </tbody>
         </table>
       </div>
@@ -292,8 +264,6 @@ export function ProductList({ selectedId, onSelect, onNew, onEdit, detailOpen }:
         recordLabel={total === 1 ? 'Product' : 'Products'}
         onPageChange={setPage}
       />
-    </div>
+    </section>
   );
 }
-
-const TD: React.CSSProperties  = { padding: '5px 10px', verticalAlign: 'middle' };

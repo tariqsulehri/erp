@@ -53,83 +53,83 @@ export function formatAmountInput(value: string, settings?: AppFormatSettingsSou
   return numericValue > 0 ? formatNumber(numericValue, settings) : '';
 }
 
+// Style constants for the finance voucher screens, built on the Calm Ledger tokens (see DESIGN.md).
 export function badgeStyle(color: string, background: string): CSSProperties {
   return {
     display: 'inline-flex',
     alignItems: 'center',
-    minHeight: 22,
-    padding: '2px 8px',
+    height: 20,
+    padding: '0 8px',
     borderRadius: 'var(--radius-full)',
     color,
     background,
-    fontSize: '0.68rem',
-    fontWeight: 900,
+    fontSize: 'var(--font-size-2xs)',
+    fontWeight: 600,
     whiteSpace: 'nowrap',
   };
 }
 
 export function tableHeadStyle(right = false): CSSProperties {
   return {
-    height: 30,
-    padding: '5px 7px',
+    position: 'sticky',
+    top: 0,
+    zIndex: 1,
+    height: 'var(--row-h)',
+    padding: '0 8px',
     textAlign: right ? 'right' : 'left',
     background: 'var(--color-table-head-bg)',
     color: 'var(--color-table-head-text)',
-    border: '1px solid var(--color-border)',
+    borderBottom: '1px solid var(--color-border)',
     whiteSpace: 'nowrap',
-    fontSize: '0.7rem',
+    fontSize: 'var(--font-size-xs)',
+    fontWeight: 600,
   };
 }
 
 export function tableCellStyle(width?: number): CSSProperties {
   return {
     width,
-    padding: 4,
-    border: '1px solid var(--color-border-subtle)',
+    padding: '4px 6px',
+    borderBottom: '1px solid var(--color-border-subtle)',
     background: 'var(--color-surface)',
     verticalAlign: 'middle',
   };
 }
 
 export const compactInputStyle: CSSProperties = {
-  height: 28,
-  minHeight: 28,
-  padding: '3px 8px',
-  fontSize: '0.76rem',
+  height: 'var(--control-h)',
+  minHeight: 'var(--control-h)',
+  padding: '0 8px',
+  fontSize: 'var(--font-size-sm)',
 };
 
 export const compactNumericInputStyle: CSSProperties = {
   ...compactInputStyle,
   textAlign: 'right',
-  fontFamily: 'var(--font-mono)',
-  fontWeight: 800,
+  fontVariantNumeric: 'tabular-nums',
+  fontWeight: 500,
 };
 
 export const compactDateInputStyle: CSSProperties = {
   ...compactInputStyle,
-  padding: '3px 2px 3px 5px',
-  fontSize: '0.72rem',
+  padding: '0 6px 0 8px',
 };
 
 export const compactMoneyInputStyle: CSSProperties = {
   ...compactNumericInputStyle,
-  fontWeight: 800,
 };
 
-export const compactButtonStyle: CSSProperties = {
-  minHeight: 30,
-  padding: '5px 10px',
-  fontSize: '0.76rem',
-};
+// Buttons take their size from the shared .btn-* classes; nothing to override.
+export const compactButtonStyle: CSSProperties = {};
 
 export const voucherSummaryFooterStyle: CSSProperties = {
   display: 'grid',
   gridTemplateColumns: 'auto 1fr',
   gap: 12,
-  alignItems: 'center',
+  alignItems: 'end',
   borderTop: '1px solid var(--color-border-subtle)',
-  paddingTop: 10,
-  minHeight: 66,
+  padding: '10px 12px',
+  background: 'var(--color-panel-footer-bg)',
   overflow: 'hidden',
 };
 

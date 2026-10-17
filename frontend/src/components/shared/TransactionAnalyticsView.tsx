@@ -1,10 +1,13 @@
 'use client';
 
 import { useMemo, type CSSProperties } from 'react';
-import { IconChartBar, IconFilePlus, IconListSearch, IconRefresh } from '@tabler/icons-react';
+import { IconFilePlus, IconListSearch, IconRefresh } from '@tabler/icons-react';
 import { formatDate, formatMoney, formatNumber, type AppFormatSettingsSource } from '@/lib/app-settings';
-import { ChartMetricBadge, ChartTitle } from '@/components/analytics/AnalyticsWidgets';
-import { compactButtonStyle, reportTitleIconStyle, reportToolbarStyle } from '@/components/reports/LedgerReportStyles';
+import { AnalyticsKpi, ChartMetricBadge, ChartTitle, ChartTooltipBox, ChartValueLegend, DonutLayout, chartPanelStyle } from '@/components/analytics/AnalyticsWidgets';
+import { chartAxisTick, chartLegendStyle, useChartTheme } from '@/components/analytics/chart-palette';
+import { Button } from '@/components/ui/Button';
+import { InlineAlert } from '@/components/ui/InlineAlert';
+import { PageHeader } from '@/components/ui/PageHeader';
 import {
   Bar,
   BarChart,
@@ -67,42 +70,47 @@ export function TransactionAnalyticsView({
 }: TransactionAnalyticsViewProps) {
   const model = useMemo(() => buildAnalyticsModel(rows, settings), [rows, settings]);
   const chartEmpty = !loading && rows.length === 0;
+  const theme = useChartTheme();
+  const { series } = theme;
+  const tick = chartAxisTick(theme);
 
   return (
-    <main style={pageStyle}>
-      <section style={reportToolbarStyle}>
-        <div style={toolbarInnerStyle}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <div style={reportTitleIconStyle}><IconChartBar size={20} stroke={1.8} /></div>
-            <div>
-              <h1 style={titleStyle}>{title}</h1>
-              <p style={subtitleStyle}>{totalRecords} Posted {documentLabel}</p>
-            </div>
-          </div>
-          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-            <button type="button" className="btn-secondary" style={smallButtonStyle} disabled={newDisabled} title={newDisabledReason} onClick={onNew}><IconFilePlus size={14} /> New</button>
-            <button type="button" className="btn-secondary" style={smallButtonStyle} onClick={onPostedList}><IconListSearch size={14} /> {postedListLabel}</button>
-            <button type="button" className="btn-secondary" style={smallButtonStyle} onClick={onRefresh}><IconRefresh size={14} /> Refresh</button>
-          </div>
-        </div>
-      </section>
+    <main className="page-shell">
+      <PageHeader
+        title={title}
+        description={`${formatNumber(totalRecords, settings)} Posted ${documentLabel}`}
+        actions={(
+          <>
+            <Button icon={<IconRefresh size={16} stroke={1.8} />} onClick={onRefresh}>Refresh</Button>
+            <Button icon={<IconListSearch size={16} stroke={1.8} />} onClick={onPostedList}>{postedListLabel}</Button>
+            <Button variant="primary" icon={<IconFilePlus size={16} stroke={1.8} />} disabled={newDisabled} title={newDisabledReason} onClick={onNew}>New</Button>
+          </>
+        )}
+      />
 
-      <section className="workspace-card" style={workspaceStyle}>
+      {Boolean(error) && <InlineAlert tone="danger">Unable to load analytics. Refresh the page and try again.</InlineAlert>}
+
+      <div style={chartsScrollStyle}>
         <div style={summaryGridStyle}>
-          <KpiTile label="Net Amount" value={formatMoney(model.totals.net, settings)} detail={`Gross ${formatMoney(model.totals.gross, settings)}`} accent="#2563eb" tone="blue" />
-          <KpiTile label="Document Count" value={formatNumber(totalRecords, settings)} detail={`Average ${formatMoney(model.averageDocument, settings)}`} accent="#0f766e" tone="teal" />
-          <KpiTile label="Credit Amount" value={formatMoney(model.totals.credit, settings)} detail={`${formatNumber(model.creditShare, settings)}% Of Total`} accent="#7c3aed" tone="violet" />
-          <KpiTile label="Tax And Freight" value={formatMoney(model.totals.tax + model.totals.freight, settings)} detail={`Discount ${formatMoney(model.totals.discount, settings)}`} accent="#c2410c" tone="orange" />
+          <AnalyticsKpi label="Net Amount" value={formatMoney(model.totals.net, settings)} detail={`Gross ${formatMoney(model.totals.gross, settings)}`} />
+          <AnalyticsKpi label="Document Count" value={formatNumber(totalRecords, settings)} detail={`Average ${formatMoney(model.averageDocument, settings)}`} />
+          <AnalyticsKpi label="Credit Amount" value={formatMoney(model.totals.credit, settings)} detail={`${formatNumber(model.creditShare, settings)}% Of Total`} />
+          <AnalyticsKpi label="Tax And Freight" value={formatMoney(model.totals.tax + model.totals.freight, settings)} detail={`Discount ${formatMoney(model.totals.discount, settings)}`} />
         </div>
 
-        {Boolean(error) && <div style={errorStyle}>Unable to load analytics. Please refresh and try again.</div>}
-        {loading && <div style={emptyStyle}>Loading Analytics...</div>}
-        {chartEmpty && <div style={emptyStyle}>No posted records found for analytics.</div>}
+        {(loading || chartEmpty) && (
+          <section className="panel">
+            <div className="empty-state" style={{ padding: '32px 16px' }}>
+              <div className="empty-title">{loading ? 'Loading Analytics…' : 'No Posted Records Yet'}</div>
+              {chartEmpty && <div className="empty-desc">Charts appear here after {documentLabel.toLowerCase()} are posted.</div>}
+            </div>
+          </section>
+        )}
 
         {!loading && !chartEmpty && (
-          <div style={chartsScrollStyle}>
+          <>
             <div style={mainGridStyle}>
-              <ChartPanel>
+              <div style={chartPanelStyle}>
                 <ChartTitle
                   title={`Month Wise ${documentLabel} Trend`}
                   subtitle="Gross amount, net amount, and average document value"
@@ -110,19 +118,19 @@ export function TransactionAnalyticsView({
                 />
                 <ResponsiveContainer width="100%" height={230}>
                   <ComposedChart data={model.monthlyRows} margin={{ top: 6, right: 14, left: 0, bottom: 0 }}>
-                    <CartesianGrid stroke="var(--color-border-subtle)" vertical={false} strokeDasharray="4 6" />
-                    <XAxis dataKey="monthLabel" tick={axisStyle} axisLine={false} tickLine={false} />
-                    <YAxis tickFormatter={model.moneyAxis} tick={axisStyle} axisLine={false} tickLine={false} />
-                    <Tooltip content={tooltipContent(settings)} />
-                    <Legend wrapperStyle={{ fontSize: 11, fontWeight: 700 }} />
-                    <Bar dataKey="grossAmount" name="Gross Amount" fill="#bfdbfe" radius={[5, 5, 0, 0]} maxBarSize={28} />
-                    <Bar dataKey="netAmount" name="Net Amount" fill="#2563eb" radius={[5, 5, 0, 0]} maxBarSize={22} />
-                    <Line type="monotone" dataKey="averageDocument" name="Average Document" stroke="#f97316" strokeWidth={3} dot={{ r: 3, fill: '#fff', strokeWidth: 2 }} activeDot={{ r: 5 }} />
+                    <CartesianGrid stroke={theme.grid} vertical={false} />
+                    <XAxis dataKey="monthLabel" tick={tick} axisLine={false} tickLine={false} />
+                    <YAxis tickFormatter={model.moneyAxis} tick={tick} axisLine={false} tickLine={false} />
+                    <Tooltip content={tooltipContent(settings)} cursor={{ fill: theme.grid }} />
+                    <Legend wrapperStyle={chartLegendStyle} iconType="square" iconSize={10} />
+                    <Bar dataKey="grossAmount" name="Gross Amount" fill={series.blueSoft} radius={[3, 3, 0, 0]} maxBarSize={28} />
+                    <Bar dataKey="netAmount" name="Net Amount" fill={series.blue} radius={[3, 3, 0, 0]} maxBarSize={22} />
+                    <Line type="monotone" dataKey="averageDocument" name="Average Document" stroke={series.amber} strokeWidth={2} dot={{ r: 3, fill: theme.surface, strokeWidth: 2 }} activeDot={{ r: 4 }} />
                   </ComposedChart>
                 </ResponsiveContainer>
-              </ChartPanel>
+              </div>
 
-              <ChartPanel>
+              <div style={chartPanelStyle}>
                 <ChartTitle
                   title={`Cash Vs Credit ${documentLabel}`}
                   subtitle="Monthly payment-type mix and document count"
@@ -130,22 +138,22 @@ export function TransactionAnalyticsView({
                 />
                 <ResponsiveContainer width="100%" height={230}>
                   <ComposedChart data={model.monthlyRows} margin={{ top: 6, right: 14, left: 0, bottom: 0 }}>
-                    <CartesianGrid stroke="var(--color-border-subtle)" vertical={false} strokeDasharray="4 6" />
-                    <XAxis dataKey="monthLabel" tick={axisStyle} axisLine={false} tickLine={false} />
-                    <YAxis yAxisId="amount" tickFormatter={model.moneyAxis} tick={axisStyle} axisLine={false} tickLine={false} />
-                    <YAxis yAxisId="count" orientation="right" tickFormatter={value => formatNumber(Number(value), settings)} tick={axisStyle} axisLine={false} tickLine={false} />
-                    <Tooltip content={tooltipContent(settings)} />
-                    <Legend wrapperStyle={{ fontSize: 11, fontWeight: 700 }} />
-                    <Bar yAxisId="amount" dataKey="cashAmount" name="Cash Amount" stackId="payment" fill="#14b8a6" radius={[0, 0, 4, 4]} maxBarSize={30} />
-                    <Bar yAxisId="amount" dataKey="creditAmount" name="Credit Amount" stackId="payment" fill="#7c3aed" radius={[4, 4, 0, 0]} maxBarSize={30} />
-                    <Line yAxisId="count" type="monotone" dataKey="documents" name="Document Count" stroke="#0f172a" strokeWidth={2.5} dot={{ r: 3, fill: '#fff', strokeWidth: 2 }} />
+                    <CartesianGrid stroke={theme.grid} vertical={false} />
+                    <XAxis dataKey="monthLabel" tick={tick} axisLine={false} tickLine={false} />
+                    <YAxis yAxisId="amount" tickFormatter={model.moneyAxis} tick={tick} axisLine={false} tickLine={false} />
+                    <YAxis yAxisId="count" orientation="right" tickFormatter={value => formatNumber(Number(value), settings)} tick={tick} axisLine={false} tickLine={false} />
+                    <Tooltip content={tooltipContent(settings)} cursor={{ fill: theme.grid }} />
+                    <Legend wrapperStyle={chartLegendStyle} iconType="square" iconSize={10} />
+                    <Bar yAxisId="amount" dataKey="cashAmount" name="Cash Amount" stackId="payment" fill={series.teal} maxBarSize={30} />
+                    <Bar yAxisId="amount" dataKey="creditAmount" name="Credit Amount" stackId="payment" fill={series.blue} radius={[3, 3, 0, 0]} maxBarSize={30} />
+                    <Line yAxisId="count" type="monotone" dataKey="documents" name="Document Count" stroke={series.slate} strokeWidth={2} dot={{ r: 3, fill: theme.surface, strokeWidth: 2 }} />
                   </ComposedChart>
                 </ResponsiveContainer>
-              </ChartPanel>
+              </div>
             </div>
 
             <div style={smallGridStyle}>
-              <ChartPanel>
+              <div style={chartPanelStyle}>
                 <ChartTitle
                   title="Top Parties"
                   subtitle="Highest net amount and document count"
@@ -153,41 +161,49 @@ export function TransactionAnalyticsView({
                 />
                 <ResponsiveContainer width="100%" height={185}>
                   <BarChart data={model.partyRows} layout="vertical" margin={{ top: 2, right: 12, left: 12, bottom: 2 }}>
-                    <CartesianGrid stroke="var(--color-border-subtle)" horizontal={false} strokeDasharray="4 6" />
-                    <XAxis type="number" tickFormatter={model.moneyAxis} tick={smallAxisStyle} axisLine={false} tickLine={false} />
-                    <YAxis type="category" dataKey="name" width={128} tick={smallAxisStyle} axisLine={false} tickLine={false} />
-                    <Tooltip content={tooltipContent(settings)} />
-                    <Bar dataKey="amount" name="Net Amount" fill="#2563eb" radius={[0, 5, 5, 0]} barSize={13} />
+                    <CartesianGrid stroke={theme.grid} horizontal={false} />
+                    <XAxis type="number" tickFormatter={model.moneyAxis} tick={tick} axisLine={false} tickLine={false} />
+                    <YAxis type="category" dataKey="name" width={128} tick={tick} axisLine={false} tickLine={false} />
+                    <Tooltip content={tooltipContent(settings)} cursor={{ fill: theme.grid }} />
+                    <Bar dataKey="amount" name="Net Amount" fill={series.blue} radius={[0, 3, 3, 0]} barSize={13} />
                   </BarChart>
                 </ResponsiveContainer>
-              </ChartPanel>
+              </div>
 
-              <ChartPanel>
+              <div style={chartPanelStyle}>
                 <ChartTitle
                   title="Amount Composition"
                   subtitle="Cash, credit, tax, freight, and discount share"
                   right={<ChartMetricBadge label="Net" value={formatMoney(model.totals.net, settings)} />}
                 />
-                <div style={{ position: 'relative', height: 185 }}>
-                  <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <Tooltip content={tooltipContent(settings)} />
-                      <Legend wrapperStyle={{ fontSize: 11, fontWeight: 700 }} />
-                      <Pie data={model.compositionRows} dataKey="amount" nameKey="name" innerRadius={42} outerRadius={68} paddingAngle={4} stroke="var(--color-surface)" strokeWidth={3}>
-                        {model.compositionRows.map((entry, index) => (
-                          <Cell key={entry.name} fill={chartColors[index % chartColors.length]} />
-                        ))}
-                      </Pie>
-                    </PieChart>
-                  </ResponsiveContainer>
-                  <div style={donutCenterStyle}>
-                    <span>Net</span>
-                    <strong>{formatMoney(model.totals.net, settings)}</strong>
-                  </div>
-                </div>
-              </ChartPanel>
+                <DonutLayout
+                  centerLabel="Net"
+                  centerValue={formatMoney(model.totals.net, settings)}
+                  chart={(
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Tooltip content={tooltipContent(settings)} />
+                        <Pie data={model.compositionRows} dataKey="amount" nameKey="name" innerRadius={50} outerRadius={72} paddingAngle={2} stroke={theme.surface} strokeWidth={2}>
+                          {model.compositionRows.map((entry, index) => (
+                            <Cell key={entry.name} fill={theme.categorical[index % theme.categorical.length]} />
+                          ))}
+                        </Pie>
+                      </PieChart>
+                    </ResponsiveContainer>
+                  )}
+                  legend={(
+                    <ChartValueLegend
+                      items={model.compositionRows.map((entry, index) => ({
+                        name: entry.name,
+                        color: theme.categorical[index % theme.categorical.length],
+                        value: formatMoney(entry.amount, settings),
+                      }))}
+                    />
+                  )}
+                />
+              </div>
 
-              <ChartPanel>
+              <div style={chartPanelStyle}>
                 <ChartTitle
                   title="Tax Discount And Freight"
                   subtitle="Monthly cost and concession view"
@@ -195,92 +211,68 @@ export function TransactionAnalyticsView({
                 />
                 <ResponsiveContainer width="100%" height={185}>
                   <BarChart data={model.monthlyRows} margin={{ top: 2, right: 12, left: 0, bottom: 2 }}>
-                    <CartesianGrid stroke="var(--color-border-subtle)" vertical={false} strokeDasharray="4 6" />
-                    <XAxis dataKey="monthLabel" tick={smallAxisStyle} axisLine={false} tickLine={false} />
-                    <YAxis tickFormatter={model.moneyAxis} tick={smallAxisStyle} axisLine={false} tickLine={false} />
-                    <Tooltip content={tooltipContent(settings)} />
-                    <Legend wrapperStyle={{ fontSize: 11, fontWeight: 700 }} />
-                    <Bar dataKey="taxAmount" name="Tax" fill="#fb923c" radius={[4, 4, 0, 0]} maxBarSize={20} />
-                    <Bar dataKey="freightAmount" name="Freight" fill="#14b8a6" radius={[4, 4, 0, 0]} maxBarSize={20} />
-                    <Bar dataKey="discountAmount" name="Discount" fill="#64748b" radius={[4, 4, 0, 0]} maxBarSize={20} />
+                    <CartesianGrid stroke={theme.grid} vertical={false} />
+                    <XAxis dataKey="monthLabel" tick={tick} axisLine={false} tickLine={false} />
+                    <YAxis tickFormatter={model.moneyAxis} tick={tick} axisLine={false} tickLine={false} />
+                    <Tooltip content={tooltipContent(settings)} cursor={{ fill: theme.grid }} />
+                    <Legend wrapperStyle={chartLegendStyle} iconType="square" iconSize={10} />
+                    <Bar dataKey="taxAmount" name="Tax" fill={series.amber} radius={[3, 3, 0, 0]} maxBarSize={20} />
+                    <Bar dataKey="freightAmount" name="Freight" fill={series.teal} radius={[3, 3, 0, 0]} maxBarSize={20} />
+                    <Bar dataKey="discountAmount" name="Discount" fill={series.slate} radius={[3, 3, 0, 0]} maxBarSize={20} />
                   </BarChart>
                 </ResponsiveContainer>
-              </ChartPanel>
+              </div>
             </div>
 
-            <div style={tableWrapStyle}>
-              <table style={tableStyle}>
-                <thead>
-                  <tr>
-                    <th style={thStyle}>Date</th>
-                    <th style={thStyle}>Document Number</th>
-                    <th style={thStyle}>Party</th>
-                    <th style={thStyle}>Type</th>
-                    <th style={moneyThStyle}>Net Amount</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {rows.slice(0, 12).map(row => (
-                    <tr key={row.id}>
-                      <td style={tdStyle}>{formatDate(row.documentDate, settings)}</td>
-                      <td style={strongTdStyle}>{row.documentNumber}</td>
-                      <td style={tdStyle}>{row.partyName}</td>
-                      <td style={tdStyle}>{row.paymentType}</td>
-                      <td style={moneyTdStyle}>{formatMoney(row.netAmount, settings)}</td>
+            <section className="panel">
+              <div className="panel-header">
+                <h2 className="panel-title">Latest {documentLabel}</h2>
+              </div>
+              <div className="table-scroll">
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      <th style={{ width: 120 }}>Date</th>
+                      <th style={{ width: 170 }}>Document Number</th>
+                      <th>Party</th>
+                      <th style={{ width: 110 }}>Type</th>
+                      <th className="num" style={{ width: 160 }}>Net Amount</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
+                  </thead>
+                  <tbody>
+                    {rows.slice(0, 12).map(row => (
+                      <tr key={row.id}>
+                        <td>{formatDate(row.documentDate, settings)}</td>
+                        <td className="cell-strong">{row.documentNumber}</td>
+                        <td>{row.partyName || 'Not Set'}</td>
+                        <td className="cell-muted">{row.paymentType || 'Not Set'}</td>
+                        <td className="num">{formatMoney(row.netAmount, settings)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          </>
         )}
-      </section>
+      </div>
     </main>
   );
-}
-
-function KpiTile({
-  label,
-  value,
-  detail,
-  accent,
-  tone,
-}: {
-  label: string;
-  value: string;
-  detail: string;
-  accent: string;
-  tone: 'blue' | 'teal' | 'violet' | 'orange';
-}) {
-  return (
-    <div style={{ ...kpiStyle, borderTopColor: accent, background: kpiBackground[tone] }}>
-      <span style={kpiLabelStyle}>{label}</span>
-      <strong style={kpiValueStyle}>{value}</strong>
-      <span style={kpiDetailStyle}>{detail}</span>
-    </div>
-  );
-}
-
-function ChartPanel({ children }: { children: React.ReactNode }) {
-  return <div style={chartPanelStyle}>{children}</div>;
 }
 
 function tooltipContent(settings?: AppFormatSettingsSource | null) {
   return function AnalyticsTooltip({ active, payload, label }: any) {
     if (!active || !payload?.length) return null;
     return (
-      <div style={tooltipStyle}>
-        <strong style={{ display: 'block', marginBottom: 6, color: 'var(--color-heading)' }}>{label}</strong>
-        {payload.map((entry: any) => {
-          const isCount = entry.dataKey === 'documents';
-          return (
-            <div key={`${entry.dataKey}-${entry.name}`} style={{ display: 'flex', justifyContent: 'space-between', gap: 18, color: entry.color, fontSize: '0.72rem', fontWeight: 800 }}>
-              <span>{entry.name}</span>
-              <span style={{ fontFamily: 'var(--font-mono)' }}>{isCount ? formatNumber(Number(entry.value), settings) : formatMoney(Number(entry.value), settings)}</span>
-            </div>
-          );
-        })}
-      </div>
+      <ChartTooltipBox
+        label={label}
+        entries={payload.map((entry: any) => ({
+          key: `${entry.dataKey}-${entry.name}`,
+          name: entry.name,
+          color: entry.color ?? entry.payload?.fill,
+          value: entry.dataKey === 'documents' ? formatNumber(Number(entry.value), settings) : formatMoney(Number(entry.value), settings),
+        }))}
+      />
     );
   };
 }
@@ -387,217 +379,29 @@ function shortLabel(value: string) {
   return value.length > 28 ? `${value.slice(0, 25)}...` : value;
 }
 
-const chartColors = ['#2563eb', '#0f766e', '#7c3aed', '#f97316', '#64748b'];
-const axisStyle = { fontSize: 11, fill: 'var(--color-text-muted)', fontWeight: 700 };
-const smallAxisStyle = { fontSize: 10, fill: 'var(--color-text-muted)', fontWeight: 700 };
-
-const pageStyle: CSSProperties = {
-  height: '100%',
-  minHeight: 0,
-  boxSizing: 'border-box',
-  padding: 10,
-  display: 'flex',
-  flexDirection: 'column',
-  gap: 6,
-  overflow: 'hidden',
-};
-
-const toolbarInnerStyle: CSSProperties = {
-  display: 'flex',
-  justifyContent: 'space-between',
-  gap: 8,
-  alignItems: 'center',
-  flexWrap: 'wrap',
-};
-
-const titleStyle: CSSProperties = {
-  margin: 0,
-  fontSize: '1.05rem',
-  lineHeight: 1.1,
-  color: 'var(--color-heading)',
-};
-
-const subtitleStyle: CSSProperties = {
-  margin: '3px 0 0',
-  color: 'var(--color-text-muted)',
-  fontSize: '0.73rem',
-  fontWeight: 800,
-};
-
-const smallButtonStyle: CSSProperties = {
-  ...compactButtonStyle,
-  minHeight: 28,
-  padding: '4px 9px',
-  fontSize: '0.74rem',
-};
-
-const workspaceStyle: CSSProperties = {
-  padding: 8,
-  flex: 1,
-  minHeight: 0,
-  display: 'grid',
-  gridTemplateRows: 'auto auto minmax(0, 1fr)',
-  gap: 8,
-  overflow: 'hidden',
-};
-
 const chartsScrollStyle: CSSProperties = {
+  flex: 1,
   minHeight: 0,
   overflow: 'auto',
   display: 'grid',
-  gap: 8,
-  paddingRight: 2,
+  alignContent: 'start',
+  gap: 12,
 };
 
 const summaryGridStyle: CSSProperties = {
   display: 'grid',
   gridTemplateColumns: 'repeat(4, minmax(138px, 1fr))',
-  gap: 7,
-};
-
-const kpiBackground = {
-  blue: 'linear-gradient(135deg, rgba(37, 99, 235, 0.12), var(--color-surface) 58%)',
-  teal: 'linear-gradient(135deg, rgba(15, 118, 110, 0.12), var(--color-surface) 58%)',
-  violet: 'linear-gradient(135deg, rgba(124, 58, 237, 0.12), var(--color-surface) 58%)',
-  orange: 'linear-gradient(135deg, rgba(194, 65, 12, 0.12), var(--color-surface) 58%)',
-} as const;
-
-const kpiStyle: CSSProperties = {
-  minHeight: 68,
-  display: 'grid',
-  gridTemplateRows: 'auto 1fr auto',
-  gap: 3,
-  padding: '7px 10px',
-  border: '1px solid var(--color-border)',
-  borderTop: '3px solid var(--color-primary)',
-  borderRadius: 'var(--radius)',
-  background: 'var(--color-surface)',
-  boxShadow: '0 10px 24px rgba(15, 23, 42, 0.06)',
-};
-
-const kpiLabelStyle: CSSProperties = {
-  color: 'var(--color-text-muted)',
-  fontSize: '0.66rem',
-  fontWeight: 800,
-};
-
-const kpiValueStyle: CSSProperties = {
-  color: 'var(--color-heading)',
-  fontSize: '0.92rem',
-  fontFamily: 'var(--font-mono)',
-  textAlign: 'right',
-};
-
-const kpiDetailStyle: CSSProperties = {
-  color: 'var(--color-text-secondary)',
-  fontSize: '0.64rem',
-  fontWeight: 800,
-  textAlign: 'right',
+  gap: 12,
 };
 
 const mainGridStyle: CSSProperties = {
   display: 'grid',
   gridTemplateColumns: 'minmax(0, 1.35fr) minmax(0, 1fr)',
-  gap: 8,
+  gap: 12,
 };
 
 const smallGridStyle: CSSProperties = {
   display: 'grid',
   gridTemplateColumns: 'minmax(0, 1.15fr) minmax(0, 0.85fr) minmax(0, 1fr)',
-  gap: 8,
-};
-
-const chartPanelStyle: CSSProperties = {
-  minHeight: 0,
-  padding: 9,
-  border: '1px solid var(--color-border)',
-  borderRadius: 'var(--radius)',
-  background: 'linear-gradient(180deg, rgba(255,255,255,0.92), var(--color-surface-alt))',
-  boxShadow: '0 14px 34px rgba(15, 23, 42, 0.08)',
-};
-
-const tooltipStyle: CSSProperties = {
-  minWidth: 170,
-  padding: '7px 9px',
-  border: '1px solid var(--color-border)',
-  borderRadius: 'var(--radius)',
-  background: 'var(--color-surface)',
-  boxShadow: '0 14px 34px rgba(15, 23, 42, 0.18)',
-};
-
-const donutCenterStyle: CSSProperties = {
-  position: 'absolute',
-  left: '50%',
-  top: '47%',
-  transform: 'translate(-50%, -50%)',
-  display: 'grid',
-  gap: 2,
-  textAlign: 'center',
-  pointerEvents: 'none',
-  color: 'var(--color-text-muted)',
-  fontSize: '0.62rem',
-  fontWeight: 850,
-};
-
-const tableWrapStyle: CSSProperties = {
-  minHeight: 0,
-  overflow: 'auto',
-  border: '1px solid var(--color-border)',
-  borderRadius: 'var(--radius)',
-};
-
-const tableStyle: CSSProperties = {
-  width: '100%',
-  borderCollapse: 'collapse',
-  fontSize: '0.74rem',
-};
-
-const thStyle: CSSProperties = {
-  background: 'var(--color-table-header-bg)',
-  color: 'var(--color-table-header-text)',
-  padding: '7px 8px',
-  border: '1px solid var(--color-border)',
-  textAlign: 'left',
-  fontWeight: 900,
-};
-
-const moneyThStyle: CSSProperties = {
-  ...thStyle,
-  textAlign: 'right',
-};
-
-const tdStyle: CSSProperties = {
-  padding: '6px 8px',
-  border: '1px solid var(--color-border-subtle)',
-  color: 'var(--color-text)',
-};
-
-const strongTdStyle: CSSProperties = {
-  ...tdStyle,
-  fontWeight: 900,
-  color: 'var(--color-heading)',
-};
-
-const moneyTdStyle: CSSProperties = {
-  ...tdStyle,
-  textAlign: 'right',
-  fontFamily: 'var(--font-mono)',
-  fontWeight: 850,
-};
-
-const emptyStyle: CSSProperties = {
-  display: 'grid',
-  placeItems: 'center',
-  minHeight: 150,
-  color: 'var(--color-text-muted)',
-  fontWeight: 850,
-  border: '1px dashed var(--color-border)',
-  borderRadius: 'var(--radius)',
-  background: 'var(--color-surface-alt)',
-};
-
-const errorStyle: CSSProperties = {
-  color: 'var(--color-danger-text)',
-  fontSize: '0.74rem',
-  fontWeight: 850,
+  gap: 12,
 };

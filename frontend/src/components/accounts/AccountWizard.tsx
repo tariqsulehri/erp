@@ -9,11 +9,12 @@
  *   Step 3 — Pick Sub-Group  (XXX0 accounts under selected group)
  *   Step 4 — Enter details   (code auto-assigned; user provides name)
  *
- * At steps 2 & 3 the user can also create a new header account inline.
+ * At steps 2 and 3 the user can also create a new header account inline.
  */
 
-import { useState } from 'react';
+import { Fragment, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
+import { IconArrowLeft, IconCheck, IconChevronRight, IconPlus } from '@tabler/icons-react';
 import {
   accountsQueryKey,
   useChildAccounts,
@@ -21,75 +22,58 @@ import {
   useNextAccountCode,
   useTopLevelAccounts,
   type AccountListItem,
+  type CreateAccountInput,
 } from '@/lib/api/accounts';
-import { getAccountLevel } from '@/modules/accounts/account-code';
+import { friendlyErrorMessage } from '@/lib/erp-utils';
+import { Button } from '@/components/ui/Button';
+import { DateField, TextField, TextareaField } from '@/components/ui/FormFields';
+import { InlineAlert } from '@/components/ui/InlineAlert';
 
 type Account = AccountListItem;
 type NormalBalance = 'Debit' | 'Credit';
+type AccountType = CreateAccountInput['account_type'];
 
-/* ── colour palette per account type ──────────────────────────────── */
-const TYPE_COLOR: Record<string, string> = {
-  Asset:     '#2563eb',
-  Liability: '#dc2626',
-  Equity:    '#7c3aed',
-  Revenue:   '#16a34a',
-  Expense:   '#d97706',
-};
-
-const CATEGORY_ICON: Record<string, string> = {
-  '0100000000': '🏦',
-  '0200000000': '📋',
-  '0300000000': '📊',
-  '0400000000': '💰',
-  '0500000000': '💸',
-};
-
-/* ── Step progress bar ─────────────────────────────────────────────── */
+/* ── Step progress ─────────────────────────────────────────────────── */
 const STEPS = ['Category', 'Group', 'Sub-Group', 'Account Details'];
 
 function StepBar({ current }: { current: number }) {
   return (
-    <div style={{ display: 'flex', alignItems: 'center', marginBottom: 28 }}>
+    <ol aria-label="Steps" style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '0 0 20px', padding: 0, listStyle: 'none', flexWrap: 'wrap' }}>
       {STEPS.map((label, i) => {
-        const num   = i + 1;
-        const done  = num < current;
+        const num    = i + 1;
+        const done   = num < current;
         const active = num === current;
-        const color  = done || active ? 'var(--color-primary)' : 'var(--color-border)';
 
         return (
-          <div key={label} style={{ display: 'flex', alignItems: 'center', flex: i < STEPS.length - 1 ? 1 : undefined }}>
-            {/* Circle */}
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
-              <div style={{
-                width: 30, height: 30, borderRadius: '50%',
-                background: done ? 'var(--color-primary)' : active ? 'var(--color-primary)' : 'var(--color-surface)',
-                border: `2px solid ${color}`,
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontSize: 13, fontWeight: 700,
-                color: done || active ? 'white' : 'var(--color-text-muted)',
-                flexShrink: 0,
-              }}>
-                {done ? '✓' : num}
-              </div>
-              <span style={{
-                fontSize: '0.6875rem', fontWeight: active ? 700 : 400,
-                color: active ? 'var(--color-primary)' : done ? 'var(--color-text)' : 'var(--color-text-muted)',
-                whiteSpace: 'nowrap',
-              }}>
-                {label}
-              </span>
-            </div>
-            {/* Connector */}
+          <li
+            key={label}
+            aria-current={active ? 'step' : undefined}
+            style={{ display: 'flex', alignItems: 'center', gap: 8, flex: i < STEPS.length - 1 ? '1 1 0' : undefined, minWidth: 0 }}
+          >
+            <span style={{
+              width: 24, height: 24, borderRadius: 'var(--radius-full)', flexShrink: 0,
+              display: 'inline-grid', placeItems: 'center',
+              fontSize: 'var(--font-size-xs)', fontWeight: 600, fontVariantNumeric: 'tabular-nums',
+              border: '1px solid',
+              borderColor: active ? 'var(--color-primary)' : done ? 'var(--color-primary)' : 'var(--color-border)',
+              background: active ? 'var(--color-primary)' : done ? 'var(--color-primary-light)' : 'var(--color-surface)',
+              color: active ? 'var(--color-on-primary)' : done ? 'var(--color-primary-text)' : 'var(--color-text-muted)',
+            }}>
+              {done ? <IconCheck size={14} stroke={1.8} aria-label="Done" /> : num}
+            </span>
+            <span style={{
+              fontSize: 'var(--font-size-sm)', fontWeight: active ? 600 : 400, whiteSpace: 'nowrap',
+              color: active ? 'var(--color-heading)' : 'var(--color-text-muted)',
+            }}>
+              {label}
+            </span>
             {i < STEPS.length - 1 && (
-              <div style={{
-                flex: 1, height: 2, margin: '0 6px', marginBottom: 20,
-                background: done ? 'var(--color-primary)' : 'var(--color-border)',
-              }} />
+              <span aria-hidden style={{ flex: 1, minWidth: 16, height: 1, background: 'var(--color-border)' }} />
             )}
-          </div>
+          </li>
         );
       })}
-    </div>
+    </ol>
   );
 }
 
@@ -104,38 +88,26 @@ interface BreadcrumbProps {
 function Breadcrumb({ category, group, subgroup, onBack }: BreadcrumbProps) {
   if (!category) return null;
 
-  const items: { label: string; step: number }[] = [
-    { label: `${category.code} ${category.name}`, step: 1 },
-  ];
-  if (group)    items.push({ label: `${group.code} ${group.name}`, step: 2 });
-  if (subgroup) items.push({ label: `${subgroup.code} ${subgroup.name}`, step: 3 });
+  const items: { account: Account; step: number }[] = [{ account: category, step: 1 }];
+  if (group)    items.push({ account: group, step: 2 });
+  if (subgroup) items.push({ account: subgroup, step: 3 });
 
   return (
-    <div style={{
-      display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap',
-      marginBottom: 20, fontSize: 'var(--font-size-xs)', color: 'var(--color-text-muted)',
-    }}>
+    <nav aria-label="Selected Accounts" style={{ display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap', marginBottom: 16 }}>
       {items.map((item, i) => (
-        <span key={item.step} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          {i > 0 && <span>›</span>}
-          <button
-            onClick={() => onBack(item.step)}
-            style={{
-              border: 'none', padding: '2px 6px',
-              cursor: 'pointer', borderRadius: 4,
-              background: 'var(--color-primary-light)', color: 'var(--color-primary)',
-              fontFamily: 'monospace', fontWeight: 600, fontSize: 'var(--font-size-xs)',
-            }}
-          >
-            {item.label}
-          </button>
-        </span>
+        <Fragment key={item.step}>
+          {i > 0 && <IconChevronRight size={14} stroke={1.8} aria-hidden style={{ color: 'var(--color-text-light)' }} />}
+          <Button variant="ghost" size="sm" onClick={() => onBack(item.step)} title="Go back to this step">
+            <span style={{ fontVariantNumeric: 'tabular-nums' }}>{item.account.code}</span>
+            <span>{item.account.name}</span>
+          </Button>
+        </Fragment>
       ))}
-    </div>
+    </nav>
   );
 }
 
-/* ── Account selection card ─────────────────────────────────────────── */
+/* ── Account selection row ──────────────────────────────────────────── */
 interface AccountCardProps {
   account:  Account;
   selected: boolean;
@@ -143,62 +115,43 @@ interface AccountCardProps {
 }
 
 function AccountCard({ account, selected, onClick }: AccountCardProps) {
-  const color = TYPE_COLOR[account.account_type] ?? '#64748b';
-  const level = getAccountLevel(account.code);
-
   return (
     <button
+      type="button"
       onClick={onClick}
+      aria-pressed={selected}
       style={{
-        display: 'flex', flexDirection: 'column', alignItems: 'flex-start',
-        padding: '14px 16px', borderRadius: 'var(--radius)',
-        border: `2px solid ${selected ? color : 'var(--color-border)'}`,
-        background: selected ? `${color}08` : 'var(--color-surface)',
+        display: 'flex', alignItems: 'center', gap: 12,
+        padding: '10px 12px', borderRadius: 'var(--radius)',
+        border: '1px solid var(--color-border)',
+        background: selected ? 'var(--color-table-row-selected)' : 'var(--color-surface)',
+        boxShadow: selected ? 'inset 0 0 0 1px var(--color-primary)' : 'none',
         cursor: 'pointer', textAlign: 'left', width: '100%',
-        transition: 'all 0.15s', outline: 'none',
-        boxShadow: selected ? `0 0 0 3px ${color}20` : 'none',
+        color: 'var(--color-text)',
+        transition: 'background var(--transition)',
       }}
     >
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%' }}>
-        {level === 1 && (
-          <span style={{ fontSize: 18 }}>
-            {CATEGORY_ICON[account.code] ?? '📁'}
-          </span>
-        )}
-        <span style={{
-          fontFamily: 'monospace', fontWeight: 700, fontSize: '0.8125rem',
-          color, background: `${color}15`, padding: '2px 8px', borderRadius: 4,
-        }}>
-          {account.code}
-        </span>
-        <span style={{
-          fontWeight: 600, fontSize: 'var(--font-size-sm)',
-          color: 'var(--color-text)', flex: 1,
-        }}>
+      <span style={{ fontVariantNumeric: 'tabular-nums', fontWeight: 500, color: 'var(--color-heading)', flexShrink: 0, minWidth: 92 }}>
+        {account.code}
+      </span>
+      <span style={{ flex: 1, minWidth: 0 }}>
+        <span style={{ display: 'block', fontWeight: 600, fontSize: 'var(--font-size-sm)', color: 'var(--color-heading)' }}>
           {account.name}
         </span>
-        {selected && (
-          <span style={{
-            width: 18, height: 18, borderRadius: '50%',
-            background: color, color: 'white',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: 11, fontWeight: 700, flexShrink: 0,
-          }}>✓</span>
+        {account.description && (
+          <span style={{ display: 'block', marginTop: 2, fontSize: 'var(--font-size-xs)', color: 'var(--color-text-muted)' }}>
+            {account.description}
+          </span>
         )}
-      </div>
-      {account.description && (
-        <span style={{
-          marginTop: 6, fontSize: 'var(--font-size-xs)',
-          color: 'var(--color-text-muted)', paddingLeft: level === 1 ? 26 : 0,
-        }}>
-          {account.description}
-        </span>
-      )}
+      </span>
+      {selected
+        ? <IconCheck size={16} stroke={1.8} aria-hidden style={{ color: 'var(--color-primary)', flexShrink: 0 }} />
+        : <IconChevronRight size={16} stroke={1.8} aria-hidden style={{ color: 'var(--color-text-light)', flexShrink: 0 }} />}
     </button>
   );
 }
 
-/* ── Inline "Create New" card ──────────────────────────────────────── */
+/* ── Inline "Create New" row ───────────────────────────────────────── */
 interface NewAccountCardProps {
   parentCode:    string;
   parentType:    string;
@@ -223,13 +176,13 @@ function NewAccountCard({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim()) { setError('Name is required'); return; }
-    if (!nextCode)    { setError('No available code in this range'); return; }
+    if (!name.trim()) { setError('Enter an Account Name.'); return; }
+    if (!nextCode)    { setError('No free code is left in this range.'); return; }
     setError('');
     createMutation.mutate({
       code:           nextCode,
       name:           name.trim(),
-      account_type:   parentType as any,
+      account_type:   parentType as AccountType,
       normal_balance: parentBalance,
       is_posting:     isPosting,
       is_system:      false,
@@ -249,97 +202,68 @@ function NewAccountCard({
 
   if (!open) {
     return (
-      <button
-        onClick={() => setOpen(true)}
-        style={{
-          display: 'flex', alignItems: 'center', gap: 8,
-          padding: '14px 16px', borderRadius: 'var(--radius)',
-          border: '2px dashed var(--color-border)',
-          background: 'transparent', cursor: 'pointer', width: '100%',
-          color: 'var(--color-text-muted)', fontSize: 'var(--font-size-sm)',
-          fontWeight: 500, transition: 'all 0.15s',
-        }}
-      >
-        <span style={{
-          width: 24, height: 24, borderRadius: '50%',
-          background: 'var(--color-border)', color: 'var(--color-text-muted)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          fontSize: 16, fontWeight: 700, flexShrink: 0,
-        }}>+</span>
-        {label}
-      </button>
+      <div>
+        <Button icon={<IconPlus size={16} stroke={1.8} />} onClick={() => setOpen(true)}>
+          {label}
+        </Button>
+      </div>
     );
   }
 
   return (
-    <div style={{
-      padding: '16px', borderRadius: 'var(--radius)',
-      border: '2px dashed var(--color-primary)',
-      background: 'var(--color-primary-light)',
-    }}>
-      <form onSubmit={handleSubmit}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-          <span style={{
-            fontFamily: 'monospace', fontWeight: 700, fontSize: '0.8125rem',
-            color: 'var(--color-primary)', background: 'white',
-            padding: '2px 8px', borderRadius: 4, border: '1px solid #bfdbfe',
-          }}>
-            {nextCode ?? '—'}
-          </span>
-          <span style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-primary)', fontWeight: 600 }}>
-            Auto-assigned code
-          </span>
-        </div>
+    <form
+      onSubmit={handleSubmit}
+      noValidate
+      style={{
+        padding: 12, borderRadius: 'var(--radius)',
+        border: '1px solid var(--color-border)',
+        background: 'var(--color-surface-alt)',
+        display: 'flex', flexDirection: 'column', gap: 10,
+      }}
+    >
+      <div style={{ fontSize: 'var(--font-size-sm)', color: 'var(--color-text-muted)' }}>
+        New Code:{' '}
+        <span style={{ fontVariantNumeric: 'tabular-nums', fontWeight: 600, color: 'var(--color-heading)' }}>
+          {nextCodeQuery.isLoading ? 'Loading…' : (nextCode ?? 'Not Set')}
+        </span>
+        {' '}(assigned automatically)
+      </div>
 
-        <div style={{ display: 'flex', gap: 8 }}>
-          <input
-            autoFocus
-            type="text"
-            className="form-input"
-            placeholder="Account name..."
-            value={name}
-            onChange={e => setName(e.target.value)}
-            style={{ flex: 1 }}
-            disabled={createMutation.isPending}
-          />
-          <button
-            type="submit"
-            className="btn btn-primary"
-            disabled={createMutation.isPending || !nextCode}
-            style={{ whiteSpace: 'nowrap' }}
-          >
-            {createMutation.isPending ? 'Creating…' : 'Create & Select'}
-          </button>
-          <button
-            type="button"
-            className="btn btn-secondary"
-            onClick={() => { setOpen(false); setName(''); setError(''); }}
-            disabled={createMutation.isPending}
-          >
-            Cancel
-          </button>
-        </div>
+      <TextField
+        label="Account Name"
+        required
+        value={name}
+        onChange={setName}
+        placeholder="For example Petty Cash"
+        disabled={createMutation.isPending}
+        inputProps={{ autoFocus: true, maxLength: 100 }}
+      />
 
-        {error && (
-          <p style={{ marginTop: 8, fontSize: 'var(--font-size-xs)', color: 'var(--color-danger)' }}>
-            {error}
-          </p>
-        )}
-      </form>
-    </div>
+      {error && <p className="form-error" style={{ margin: 0 }}>{error}</p>}
+
+      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+        <Button
+          variant="ghost"
+          onClick={() => { setOpen(false); setName(''); setError(''); }}
+          disabled={createMutation.isPending}
+        >
+          Cancel
+        </Button>
+        <Button type="submit" variant="primary" disabled={!nextCode} loading={createMutation.isPending}>
+          Create And Select
+        </Button>
+      </div>
+    </form>
   );
 }
 
 /* ── Loading / Empty states ─────────────────────────────────────────── */
 function LoadingCards() {
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }} aria-busy="true">
+      <span className="sr-only" role="status">Loading Accounts…</span>
       {[1, 2, 3].map(i => (
-        <div key={i} style={{
-          height: 56, borderRadius: 'var(--radius)',
-          background: 'var(--color-surface)', border: '1px solid var(--color-border)',
-          animation: 'pulse 1.5s infinite',
-        }} />
+        <div key={i} className="skeleton" aria-hidden style={{ height: 44, borderRadius: 'var(--radius)' }} />
       ))}
     </div>
   );
@@ -347,18 +271,8 @@ function LoadingCards() {
 
 function EmptyState({ message }: { message: string }) {
   return (
-    <div style={{
-      padding: '32px 16px', textAlign: 'center',
-      color: 'var(--color-text-muted)', fontSize: 'var(--font-size-sm)',
-    }}>
-      <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"
-        style={{ marginBottom: 8, opacity: 0.4 }}>
-        <rect x="3" y="3" width="7" height="7" rx="1"/>
-        <rect x="14" y="3" width="7" height="7" rx="1"/>
-        <rect x="3" y="14" width="7" height="7" rx="1"/>
-        <rect x="14" y="14" width="7" height="7" rx="1"/>
-      </svg>
-      <p>{message}</p>
+    <div className="empty-state">
+      <div className="empty-desc">{message}</div>
     </div>
   );
 }
@@ -384,14 +298,14 @@ function DetailsStep({ subgroup, onSuccess }: DetailsStepProps) {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim()) { setError('Account name is required'); return; }
-    if (!nextCode)    { setError('No available code under this sub-group'); return; }
+    if (!name.trim()) { setError('Enter an Account Name.'); return; }
+    if (!nextCode)    { setError('No free code is left under this Sub-Group.'); return; }
     setError('');
     createMutation.mutate({
       code:                 nextCode,
       name:                 name.trim(),
       description:          desc.trim() || undefined,
-      account_type:         subgroup.account_type as any,
+      account_type:         subgroup.account_type as AccountType,
       normal_balance:       subgroup.normal_balance as NormalBalance,
       is_posting:           true,
       is_system:            false,
@@ -406,124 +320,89 @@ function DetailsStep({ subgroup, onSuccess }: DetailsStepProps) {
     });
   };
 
+  const codeText = nextCodeQuery.isLoading ? 'Loading…' : (nextCode ?? 'No Free Code Left');
+
   return (
-    <form onSubmit={handleSubmit}>
-      {/* Auto-assigned code preview */}
-      <div style={{
-        display: 'flex', alignItems: 'center', gap: 12,
-        padding: '14px 16px', borderRadius: 'var(--radius)',
-        background: 'var(--color-primary-light)', border: '1px solid #bfdbfe',
-        marginBottom: 20,
-      }}>
-        <div>
-          <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-primary)', fontWeight: 600, marginBottom: 2 }}>
-            Auto-assigned Account Code
-          </div>
-          <div style={{
-            fontFamily: 'monospace', fontWeight: 800, fontSize: '1.25rem',
-            color: 'var(--color-primary)', letterSpacing: '0.1em',
-          }}>
-            {nextCodeQuery.isLoading ? '…' : (nextCode ?? 'Full — no slots available')}
-          </div>
-        </div>
-        <div style={{ marginLeft: 'auto', textAlign: 'right' }}>
-          <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-muted)', marginBottom: 2 }}>
-            Type / Balance
-          </div>
-          <div style={{ fontSize: 'var(--font-size-sm)', fontWeight: 600, color: 'var(--color-text)' }}>
-            {subgroup.account_type} · {subgroup.normal_balance}
-          </div>
-        </div>
-      </div>
+    <form onSubmit={handleSubmit} noValidate>
+      {error && <div style={{ marginBottom: 12 }}><InlineAlert tone="danger">{error}</InlineAlert></div>}
 
-      {/* Name */}
-      <div className="form-group" style={{ marginBottom: 16 }}>
-        <label className="form-label">
-          Account Name <span style={{ color: 'var(--color-danger)' }}>*</span>
-        </label>
-        <input
-          autoFocus
-          type="text"
-          className="form-input"
-          placeholder="e.g. Cash in Hand"
-          value={name}
-          onChange={e => setName(e.target.value)}
-          disabled={createMutation.isPending}
-          maxLength={100}
-        />
-      </div>
-
-      {/* Description */}
-      <div className="form-group" style={{ marginBottom: 16 }}>
-        <label className="form-label">Description <span style={{ color: 'var(--color-text-muted)', fontWeight: 400 }}>(optional)</span></label>
-        <textarea
-          className="form-input"
-          placeholder="Brief description of this account..."
-          value={desc}
-          onChange={e => setDesc(e.target.value)}
-          disabled={createMutation.isPending}
-          rows={2}
-          style={{ resize: 'vertical' }}
-        />
-      </div>
-
-      {/* Opening Balance */}
-      <div style={{
-        padding: '14px 16px', borderRadius: 'var(--radius)',
-        border: '1px solid #bfdbfe', background: '#f0f9ff', marginBottom: 20,
-      }}>
-        <div style={{ fontSize: 'var(--font-size-xs)', fontWeight: 700, color: 'var(--color-primary)', marginBottom: 10 }}>
-          Opening Balance <span style={{ fontWeight: 400, color: 'var(--color-text-muted)' }}>(optional)</span>
-        </div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-          <div className="form-group" style={{ margin: 0 }}>
-            <label className="form-label" style={{ fontSize: '0.6875rem' }}>Amount</label>
-            <input type="number" className="form-input"
-              placeholder="0.00" step="0.01"
-              value={obAmt}
-              onChange={e => setObAmt(e.target.value)}
+      <div className="form-section">
+        <h3 className="form-section-title">Account Details</h3>
+        <div className="form-grid" style={{ gridTemplateColumns: 'repeat(3, minmax(0, 1fr))' }}>
+          <TextField
+            label="Account Code"
+            value={codeText}
+            disabled
+            style={{ fontVariantNumeric: 'tabular-nums' }}
+          />
+          <TextField label="Account Type" value={subgroup.account_type} disabled />
+          <TextField label="Normal Balance" value={subgroup.normal_balance} disabled />
+          <div className="span-all">
+            <TextField
+              label="Account Name"
+              required
+              value={name}
+              onChange={setName}
+              placeholder="For example Cash In Hand"
               disabled={createMutation.isPending}
-              style={{ height: 34 }}
+              inputProps={{ autoFocus: true, maxLength: 100 }}
             />
           </div>
-          <div className="form-group" style={{ margin: 0 }}>
-            <label className="form-label" style={{ fontSize: '0.6875rem' }}>As of Date</label>
-            <input type="date" className="form-input"
-              value={obDate}
-              onChange={e => setObDate(e.target.value)}
+          <div className="span-all">
+            <TextareaField
+              label="Description"
+              value={desc}
+              onChange={setDesc}
+              placeholder="Short note about what this account is for"
               disabled={createMutation.isPending}
-              style={{ height: 34 }}
+              rows={2}
+              style={{ resize: 'vertical' }}
             />
           </div>
         </div>
-        <p style={{ margin: '8px 0 0', fontSize: '0.6875rem', color: 'var(--color-text-muted)' }}>
-          Balance brought forward from your previous system. Can be set later in account details.
-        </p>
+        <p className="form-hint">The code is assigned automatically from the selected Sub-Group.</p>
       </div>
 
-      {error && (
-        <div className="alert alert-danger" style={{ marginBottom: 16 }}>
-          {error}
+      <div className="form-section">
+        <h3 className="form-section-title">Opening Balance</h3>
+        <div className="form-grid" style={{ gridTemplateColumns: 'repeat(3, minmax(0, 1fr))' }}>
+          <TextField
+            label="Amount"
+            value={obAmt}
+            onChange={setObAmt}
+            placeholder="0.00"
+            disabled={createMutation.isPending}
+            inputProps={{ type: 'number', step: '0.01', inputMode: 'decimal' }}
+            style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}
+          />
+          <DateField
+            label="As Of Date"
+            value={obDate}
+            onChange={setObDate}
+            disabled={createMutation.isPending}
+          />
         </div>
-      )}
+        <p className="form-hint">Balance brought forward from your previous system. You can also set it later in the account details.</p>
+      </div>
 
-      <button
-        type="submit"
-        className="btn btn-primary"
-        disabled={createMutation.isPending || !nextCode || nextCodeQuery.isLoading}
-        style={{ width: '100%', justifyContent: 'center', padding: '10px 0' }}
-      >
-        {createMutation.isPending ? (
-          <>
-            <div className="spinner" style={{ width: 16, height: 16, borderWidth: 2 }} />
-            Creating Account…
-          </>
-        ) : (
-          'Create Posting Account'
-        )}
-      </button>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 16 }}>
+        <Button
+          type="submit"
+          variant="primary"
+          icon={<IconCheck size={16} stroke={1.8} />}
+          disabled={!nextCode || nextCodeQuery.isLoading}
+          loading={createMutation.isPending}
+        >
+          Create Posting Account
+        </Button>
+      </div>
     </form>
   );
+}
+
+/** Loading error for one wizard step. */
+function StepError({ error }: { error: unknown }) {
+  return <InlineAlert tone="danger">{friendlyErrorMessage(error, 'Unable to load accounts for this step.')}</InlineAlert>;
 }
 
 /* ── Main Wizard ─────────────────────────────────────────────────────── */
@@ -551,6 +430,16 @@ export function AccountWizard({ onSuccess }: AccountWizardProps) {
   };
 
   /* ── Render ──────────────────────────────────────────────────────── */
+  const intro = (text: React.ReactNode) => (
+    <p style={{ margin: '0 0 12px', fontSize: 'var(--font-size-md)', color: 'var(--color-text-muted)' }}>{text}</p>
+  );
+  const accountRef = (account: Account) => (
+    <strong style={{ color: 'var(--color-heading)', fontWeight: 600 }}>
+      <span style={{ fontVariantNumeric: 'tabular-nums' }}>{account.code}</span> {account.name}
+    </strong>
+  );
+  const listStyle: React.CSSProperties = { display: 'flex', flexDirection: 'column', gap: 8 };
+
   return (
     <div>
       <StepBar current={step} />
@@ -565,20 +454,13 @@ export function AccountWizard({ onSuccess }: AccountWizardProps) {
       {/* ── Step 1: Category ─────────────────────────────────── */}
       {step === 1 && (
         <div>
-          <p style={{
-            marginBottom: 16, fontSize: 'var(--font-size-sm)',
-            color: 'var(--color-text-muted)',
-          }}>
-            Select the top-level category for the new account.
-          </p>
+          {intro('Select the Main Category for the new account.')}
           {categoriesQ.isLoading && <LoadingCards />}
-          {categoriesQ.error && (
-            <div className="alert alert-danger">{categoriesQ.error.message}</div>
-          )}
+          {categoriesQ.error && <StepError error={categoriesQ.error} />}
           {categoriesQ.data && categoriesQ.data.length === 0 && (
-            <EmptyState message="No categories found. Please import a COA template first." />
+            <EmptyState message="No Main Categories found. Import a Chart Of Accounts template first." />
           )}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <div style={listStyle}>
             {(categoriesQ.data ?? []).map(acct => (
               <AccountCard
                 key={acct.id}
@@ -599,14 +481,10 @@ export function AccountWizard({ onSuccess }: AccountWizardProps) {
       {/* ── Step 2: Group ────────────────────────────────────── */}
       {step === 2 && category && (
         <div>
-          <p style={{ marginBottom: 16, fontSize: 'var(--font-size-sm)', color: 'var(--color-text-muted)' }}>
-            Select a group under <strong>{category.code} {category.name}</strong>, or create a new one.
-          </p>
+          {intro(<>Select a Group under {accountRef(category)}, or create a new one.</>)}
           {groupsQ.isLoading && <LoadingCards />}
-          {groupsQ.error && (
-            <div className="alert alert-danger">{groupsQ.error.message}</div>
-          )}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {groupsQ.error && <StepError error={groupsQ.error} />}
+          <div style={listStyle}>
             {(groupsQ.data ?? []).map(acct => (
               <AccountCard
                 key={acct.id}
@@ -638,14 +516,10 @@ export function AccountWizard({ onSuccess }: AccountWizardProps) {
       {/* ── Step 3: Sub-Group ────────────────────────────────── */}
       {step === 3 && group && (
         <div>
-          <p style={{ marginBottom: 16, fontSize: 'var(--font-size-sm)', color: 'var(--color-text-muted)' }}>
-            Select a sub-group under <strong>{group.code} {group.name}</strong>, or create a new one.
-          </p>
+          {intro(<>Select a Sub-Group under {accountRef(group)}, or create a new one.</>)}
           {subgroupsQ.isLoading && <LoadingCards />}
-          {subgroupsQ.error && (
-            <div className="alert alert-danger">{subgroupsQ.error.message}</div>
-          )}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {subgroupsQ.error && <StepError error={subgroupsQ.error} />}
+          <div style={listStyle}>
             {(subgroupsQ.data ?? []).map(acct => (
               <AccountCard
                 key={acct.id}
@@ -675,26 +549,18 @@ export function AccountWizard({ onSuccess }: AccountWizardProps) {
       {/* ── Step 4: Account Details ──────────────────────────── */}
       {step === 4 && subgroup && (
         <div>
-          <p style={{ marginBottom: 20, fontSize: 'var(--font-size-sm)', color: 'var(--color-text-muted)' }}>
-            Enter the name for the new posting account under{' '}
-            <strong>{subgroup.code} {subgroup.name}</strong>.
-          </p>
+          {intro(<>Enter the name of the new Posting Account under {accountRef(subgroup)}.</>)}
           <DetailsStep subgroup={subgroup} onSuccess={onSuccess} />
         </div>
       )}
 
       {/* ── Back button ──────────────────────────────────────── */}
       {step > 1 && (
-        <button
-          onClick={() => goBack(step - 1)}
-          className="btn btn-secondary"
-          style={{ marginTop: 16, display: 'flex', alignItems: 'center', gap: 6 }}
-        >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <polyline points="15 18 9 12 15 6"/>
-          </svg>
-          Back
-        </button>
+        <div style={{ marginTop: 16 }}>
+          <Button icon={<IconArrowLeft size={16} stroke={1.8} />} onClick={() => goBack(step - 1)}>
+            Back
+          </Button>
+        </div>
       )}
     </div>
   );

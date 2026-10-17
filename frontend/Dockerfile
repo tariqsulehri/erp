@@ -7,7 +7,7 @@ WORKDIR /app
 COPY package*.json ./
 
 # Install dependencies
-RUN npm ci
+RUN npm ci --legacy-peer-deps
 
 # Copy source code
 COPY . .
@@ -23,9 +23,11 @@ WORKDIR /app
 # Install only production dependencies
 ENV NODE_ENV=production
 
+RUN apk add --no-cache curl
+
 COPY package*.json ./
 
-RUN npm ci --only=production
+RUN npm ci --only=production --legacy-peer-deps
 
 # Copy built application from builder
 COPY --from=builder /app/.next ./.next

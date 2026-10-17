@@ -1,19 +1,8 @@
 'use client';
 
-import { useMemo, useState, type CSSProperties, type ReactNode } from 'react';
+import { useMemo, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import {
-  IconBuildingWarehouse,
-  IconCheck,
-  IconCircleX,
-  IconEdit,
-  IconMapPin,
-  IconPackage,
-  IconPlus,
-  IconRefresh,
-  IconSearch,
-  IconX,
-} from '@tabler/icons-react';
+import { IconArrowLeft, IconCheck, IconPencil, IconPlus, IconRefresh, IconSearch, IconX } from '@tabler/icons-react';
 import { formatMoney, formatNumber, type AppFormatSettingsSource } from '@/lib/app-settings';
 import { friendlyErrorMessage } from '@/lib/erp-utils';
 import { useGeneralSettings } from '@/lib/api/settings';
@@ -33,10 +22,27 @@ import {
   useWarehouseStockSummary,
   warehousesQueryKey,
 } from '@/lib/api/warehouses';
-import { SelectField, TextField, fieldStyle, numericFieldStyle } from '@/components/ui/FormFields';
+import { Badge } from '@/components/ui/Badge';
+import { Button } from '@/components/ui/Button';
+import { FieldLabel } from '@/components/ui/FieldLabel';
+import { CheckboxField, TextField, TextareaField } from '@/components/ui/FormFields';
+import { InlineAlert } from '@/components/ui/InlineAlert';
+import { PageHeader } from '@/components/ui/PageHeader';
 import { PaginationBar } from '@/components/ui/PaginationBar';
+import { SearchField } from '@/components/ui/SearchField';
+import { SearchableSelect } from '@/components/ui/SearchableSelect';
+import { SegmentedControl } from '@/components/ui/SegmentedControl';
+import { TableMessageRow } from '@/components/ui/TableMessageRow';
 
 type ViewMode = 'list' | 'form';
+type StatusFilter = 'All' | 'Active' | 'Inactive';
+type Notice = { tone: 'success' | 'danger'; text: string } | null;
+
+const STATUS_OPTIONS: Array<{ value: StatusFilter; label: string }> = [
+  { value: 'All', label: 'All' },
+  { value: 'Active', label: 'Active' },
+  { value: 'Inactive', label: 'Inactive' },
+];
 
 const EMPTY_WAREHOUSE_FORM = {
   code: '',
@@ -66,10 +72,10 @@ export default function WarehouseManagementPage() {
   const [warehouseForm, setWarehouseForm] = useState(EMPTY_WAREHOUSE_FORM);
   const [locationForm, setLocationForm] = useState(EMPTY_LOCATION_FORM);
   const [editingLocationId, setEditingLocationId] = useState('');
-  const [message, setMessage] = useState('');
+  const [notice, setNotice] = useState<Notice>(null);
   const [searchText, setSearchText] = useState('');
   const [search, setSearch] = useState('');
-  const [status, setStatus] = useState<'All' | 'Active' | 'Inactive'>('All');
+  const [status, setStatus] = useState<StatusFilter>('All');
   const [page, setPage] = useState(1);
   const [stockSearchText, setStockSearchText] = useState('');
   const [stockSearch, setStockSearch] = useState('');
@@ -87,7 +93,11 @@ export default function WarehouseManagementPage() {
     return warehousesQuery.data?.data.find(row => row.id === selectedWarehouseId);
   }, [selectedWarehouseId, warehousesQuery.data?.data]);
 
-  const warehouseTitle = selectedWarehouseId ? 'Edit Warehouse' : 'New Warehouse';
+  const branchOptions = useMemo(() => [
+    { value: '', label: 'No Branch', searchText: '' },
+    ...(branchesQuery.data?.data ?? []).map(branch => ({ value: branch.id, label: `${branch.code} - ${branch.name}`, searchText: `${branch.code} ${branch.name}` })),
+  ], [branchesQuery.data?.data]);
+
   const savingWarehouse = createWarehouse.isPending || updateWarehouse.isPending;
   const savingLocation = createLocation.isPending || updateLocation.isPending;
 
@@ -120,7 +130,7 @@ export default function WarehouseManagementPage() {
     setWarehouseForm(EMPTY_WAREHOUSE_FORM);
     setLocationForm(EMPTY_LOCATION_FORM);
     setEditingLocationId('');
-    setMessage('');
+    setNotice(null);
     setViewMode('form');
   }
 
@@ -138,7 +148,7 @@ export default function WarehouseManagementPage() {
     });
     setLocationForm(EMPTY_LOCATION_FORM);
     setEditingLocationId('');
-    setMessage('');
+    setNotice(null);
     setViewMode('form');
   }
 
@@ -148,19 +158,19 @@ export default function WarehouseManagementPage() {
     setWarehouseForm(EMPTY_WAREHOUSE_FORM);
     setLocationForm(EMPTY_LOCATION_FORM);
     setEditingLocationId('');
-    setMessage('');
+    setNotice(null);
   }
 
   function validateWarehouse() {
-    if (!warehouseForm.code.trim()) return 'Warehouse Code is required.';
-    if (!warehouseForm.name.trim()) return 'Warehouse Name is required.';
+    if (!warehouseForm.code.trim()) return 'Enter a Warehouse Code.';
+    if (!warehouseForm.name.trim()) return 'Enter a Warehouse Name.';
     return '';
   }
 
   function saveWarehouse() {
     const validationMessage = validateWarehouse();
     if (validationMessage) {
-      setMessage(validationMessage);
+      setNotice({ tone: 'danger', text: validationMessage });
       return;
     }
     const payload: WarehousePayload = {
@@ -174,16 +184,16 @@ export default function WarehouseManagementPage() {
       is_active: warehouseForm.is_active,
     };
 
-    setMessage('');
+    setNotice(null);
     if (selectedWarehouseId) {
       updateWarehouse.mutate(
         { id: selectedWarehouseId, data: payload },
         {
           onSuccess: () => {
             refreshAll();
-            setMessage('Warehouse saved successfully.');
+            setNotice({ tone: 'success', text: `Warehouse ${payload.code} saved.` });
           },
-          onError: error => setMessage(friendlyErrorMessage(error, 'Unable to save Warehouse.')),
+          onError: error => setNotice({ tone: 'danger', text: friendlyErrorMessage(error, 'Unable to save Warehouse.') }),
         },
       );
       return;
@@ -193,23 +203,23 @@ export default function WarehouseManagementPage() {
       onSuccess: warehouse => {
         refreshAll();
         openEditWarehouse(warehouse);
-        setMessage('Warehouse created successfully.');
+        setNotice({ tone: 'success', text: `Warehouse ${warehouse.code} created. You can now add its Locations.` });
       },
-      onError: error => setMessage(friendlyErrorMessage(error, 'Unable to create Warehouse.')),
+      onError: error => setNotice({ tone: 'danger', text: friendlyErrorMessage(error, 'Unable to create Warehouse.') }),
     });
   }
 
   function validateLocation() {
-    if (!selectedWarehouseId) return 'Please save the Warehouse before adding Locations.';
-    if (!locationForm.code.trim()) return 'Location Code is required.';
-    if (!locationForm.name.trim()) return 'Location Name is required.';
+    if (!selectedWarehouseId) return 'Save the Warehouse first, then add its Locations.';
+    if (!locationForm.code.trim()) return 'Enter a Location Code.';
+    if (!locationForm.name.trim()) return 'Enter a Location Name.';
     return '';
   }
 
   function saveLocation() {
     const validationMessage = validateLocation();
     if (validationMessage) {
-      setMessage(validationMessage);
+      setNotice({ tone: 'danger', text: validationMessage });
       return;
     }
 
@@ -221,14 +231,14 @@ export default function WarehouseManagementPage() {
       is_active: locationForm.is_active,
     };
 
-    setMessage('');
+    setNotice(null);
     const onSuccess = () => {
       refreshAll();
       setLocationForm(EMPTY_LOCATION_FORM);
       setEditingLocationId('');
-      setMessage('Warehouse Location saved successfully.');
+      setNotice({ tone: 'success', text: `Location ${payload.code} saved.` });
     };
-    const onError = (error: Error) => setMessage(friendlyErrorMessage(error, 'Unable to save Warehouse Location.'));
+    const onError = (error: Error) => setNotice({ tone: 'danger', text: friendlyErrorMessage(error, 'Unable to save Warehouse Location.') });
 
     if (editingLocationId) {
       updateLocation.mutate({ id: editingLocationId, data: payload }, { onSuccess, onError });
@@ -246,7 +256,7 @@ export default function WarehouseManagementPage() {
       is_default: location.is_default,
       is_active: location.is_active,
     });
-    setMessage('');
+    setNotice(null);
   }
 
   function resetLocationForm() {
@@ -255,241 +265,219 @@ export default function WarehouseManagementPage() {
   }
 
   const listError = friendlyErrorMessage(warehousesQuery.error, '');
-  const formError = message || friendlyErrorMessage(locationsQuery.error, '') || friendlyErrorMessage(stockQuery.error, '');
+  const detailError = friendlyErrorMessage(locationsQuery.error, '') || friendlyErrorMessage(stockQuery.error, '');
+  const isFiltered = Boolean(search) || status !== 'All';
+  const total = warehousesQuery.data?.pagination.total ?? 0;
+  const noWarehouse = !selectedWarehouseId;
 
   if (viewMode === 'form') {
     return (
-      <main style={pageShellStyle}>
-        <section style={toolbarStyle}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <div style={titleIconStyle}><IconBuildingWarehouse size={20} stroke={1.8} /></div>
-            <div>
-              <h1 style={titleStyle}>{warehouseTitle}</h1>
-              <p style={subtitleStyle}>{selectedWarehouse ? `${selectedWarehouse.code} - ${selectedWarehouse.name}` : 'Create a storage place for stock transactions'}</p>
-            </div>
-          </div>
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            <button className="btn-ghost" type="button" onClick={closeForm}><IconX size={15} /> Back To List</button>
-            <button className="btn-primary" type="button" onClick={saveWarehouse} disabled={savingWarehouse}><IconCheck size={15} /> Save Warehouse</button>
-          </div>
-        </section>
+      <main className="page-shell">
+        <PageHeader
+          title={selectedWarehouseId ? `Edit Warehouse ${warehouseForm.code}` : 'New Warehouse'}
+          description={selectedWarehouse ? `${selectedWarehouse.code} - ${selectedWarehouse.name}` : 'A Warehouse is a place where stock is kept. Stock transactions always name a Warehouse.'}
+          actions={(
+            <>
+              <Button variant="secondary" icon={<IconArrowLeft size={16} stroke={1.8} />} onClick={closeForm}>Back To List</Button>
+              <Button variant="primary" icon={<IconCheck size={16} stroke={1.8} />} onClick={saveWarehouse} loading={savingWarehouse}>Save Warehouse</Button>
+            </>
+          )}
+        />
 
-        {formError && <div style={messageStyle(message.includes('successfully'))}>{formError}</div>}
+        {notice && <InlineAlert tone={notice.tone}>{notice.text}</InlineAlert>}
+        {detailError && <InlineAlert tone="danger">{detailError}</InlineAlert>}
 
-        <section style={formGridStyle}>
-          <div style={formCardStyle}>
-            <SectionTitle icon={<IconBuildingWarehouse size={16} />} title="Warehouse Details" />
-            <div style={{ display: 'grid', gridTemplateColumns: '150px 1fr 240px 140px 130px 90px', gap: 10, alignItems: 'end' }}>
-              <TextField label="Warehouse Code" value={warehouseForm.code} required onChange={value => setWarehouseForm(form => ({ ...form, code: value.toUpperCase() }))} />
-              <TextField label="Warehouse Name" value={warehouseForm.name} required onChange={value => setWarehouseForm(form => ({ ...form, name: value }))} />
-              <SelectField
-                label="Branch"
-                value={warehouseForm.branch_id}
-                placeholder="Select Branch"
-                options={(branchesQuery.data?.data ?? []).map(branch => ({ value: branch.id, label: `${branch.code} - ${branch.name}` }))}
-                onChange={value => setWarehouseForm(form => ({ ...form, branch_id: value }))}
-              />
-              <CheckField label="Default Warehouse" checked={warehouseForm.is_default} onChange={value => setWarehouseForm(form => ({ ...form, is_default: value }))} />
-              <CheckField label="Use Locations" checked={warehouseForm.use_locations} onChange={value => setWarehouseForm(form => ({ ...form, use_locations: value }))} />
-              <CheckField label="Active" checked={warehouseForm.is_active} onChange={value => setWarehouseForm(form => ({ ...form, is_active: value }))} />
-            </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginTop: 10 }}>
-              <TextareaField label="Address" value={warehouseForm.address} onChange={value => setWarehouseForm(form => ({ ...form, address: value }))} />
-              <TextareaField label="Description" value={warehouseForm.description} onChange={value => setWarehouseForm(form => ({ ...form, description: value }))} />
-            </div>
-          </div>
+        <div style={{ flex: 1, minHeight: 0, overflow: 'auto', display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <section className="panel" style={{ flexShrink: 0 }}>
+            <div className="panel-body">
+              <div className="form-section">
+                <h2 className="form-section-title">Warehouse Details</h2>
+                <div className="form-grid">
+                  <TextField label="Warehouse Code" required value={warehouseForm.code} onChange={value => setWarehouseForm(form => ({ ...form, code: value.toUpperCase() }))} placeholder="WH-001" />
+                  <div className="span-2">
+                    <TextField label="Warehouse Name" required value={warehouseForm.name} onChange={value => setWarehouseForm(form => ({ ...form, name: value }))} placeholder="Main Warehouse" />
+                  </div>
+                  <FieldLabel label="Branch">
+                    <SearchableSelect
+                      value={warehouseForm.branch_id}
+                      options={branchOptions}
+                      onChange={value => setWarehouseForm(form => ({ ...form, branch_id: value }))}
+                      placeholder={branchesQuery.isLoading ? 'Loading Branches' : 'Search Branch'}
+                      disabled={branchesQuery.isLoading}
+                    />
+                  </FieldLabel>
+                  <div className="span-2">
+                    <TextareaField label="Address" value={warehouseForm.address} onChange={value => setWarehouseForm(form => ({ ...form, address: value }))} rows={2} />
+                  </div>
+                  <div className="span-2">
+                    <TextareaField label="Description" value={warehouseForm.description} onChange={value => setWarehouseForm(form => ({ ...form, description: value }))} rows={2} />
+                  </div>
+                </div>
+              </div>
 
-          <div style={formCardStyle}>
-            <SectionTitle icon={<IconMapPin size={16} />} title="Warehouse Locations" />
-            <div style={{ display: 'grid', gridTemplateColumns: '120px 1fr 1fr 120px 90px 92px', gap: 8, alignItems: 'end', marginBottom: 10 }}>
-              <TextField label="Location Code" value={locationForm.code} required disabled={!selectedWarehouseId} onChange={value => setLocationForm(form => ({ ...form, code: value.toUpperCase() }))} />
-              <TextField label="Location Name" value={locationForm.name} required disabled={!selectedWarehouseId} onChange={value => setLocationForm(form => ({ ...form, name: value }))} />
-              <TextField label="Description" value={locationForm.description} disabled={!selectedWarehouseId} onChange={value => setLocationForm(form => ({ ...form, description: value }))} />
-              <CheckField label="Default" checked={locationForm.is_default} disabled={!selectedWarehouseId} onChange={value => setLocationForm(form => ({ ...form, is_default: value }))} />
-              <CheckField label="Active" checked={locationForm.is_active} disabled={!selectedWarehouseId} onChange={value => setLocationForm(form => ({ ...form, is_active: value }))} />
-              <button className="btn-primary" type="button" onClick={saveLocation} disabled={!selectedWarehouseId || savingLocation} style={{ height: 28, padding: '4px 8px' }}>
-                <IconCheck size={14} /> Save
-              </button>
-            </div>
-            {editingLocationId && (
-              <button className="btn-ghost" type="button" onClick={resetLocationForm} style={{ marginBottom: 8, height: 28, padding: '4px 8px' }}>
-                <IconCircleX size={14} /> Clear Location Edit
-              </button>
-            )}
-            <LocationsTable rows={locationsQuery.data ?? []} loading={locationsQuery.isFetching} onEdit={editLocation} />
-          </div>
-
-          <div style={{ ...formCardStyle, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
-              <SectionTitle icon={<IconPackage size={16} />} title="Stock Summary" />
-              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                <input
-                  className="form-input"
-                  value={stockSearchText}
-                  placeholder="Search Item Or Location"
-                  onChange={event => setStockSearchText(event.currentTarget.value)}
-                  onKeyDown={event => {
-                    if (event.key === 'Enter') applyStockSearch();
-                  }}
-                  style={{ ...fieldStyle('compact'), width: 260 }}
-                />
-                <button className="btn-ghost" type="button" onClick={applyStockSearch} disabled={stockQuery.isFetching} style={{ height: 28, padding: '4px 8px', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                  {stockQuery.isFetching ? <span className="spinner" style={{ width: 12, height: 12, borderWidth: 2 }} /> : <IconSearch size={14} />}
-                  {stockQuery.isFetching ? 'Searching...' : 'Search'}
-                </button>
-                {(stockSearch || stockSearchText) && (
-                  <button className="btn-ghost" type="button" onClick={clearStockSearch} disabled={stockQuery.isFetching} style={{ height: 28, padding: '4px 8px' }}>
-                    Clear
-                  </button>
-                )}
+              <div className="form-section">
+                <h2 className="form-section-title">Settings</h2>
+                <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap' }}>
+                  <CheckboxField label="Default Warehouse" checked={warehouseForm.is_default} onChange={value => setWarehouseForm(form => ({ ...form, is_default: value }))} />
+                  <CheckboxField label="Use Locations" checked={warehouseForm.use_locations} onChange={value => setWarehouseForm(form => ({ ...form, use_locations: value }))} />
+                  <CheckboxField label="Active" checked={warehouseForm.is_active} onChange={value => setWarehouseForm(form => ({ ...form, is_active: value }))} />
+                </div>
+                <p className="form-hint">The Default Warehouse is selected first on new stock transactions. Use Locations lets you track stock by shelf, rack, or bin inside this Warehouse.</p>
               </div>
             </div>
-            <StockSummaryTable rows={stockQuery.data?.data ?? []} loading={stockQuery.isFetching} settings={generalSettings} />
-          </div>
-        </section>
+          </section>
+
+          <section className="panel" style={{ flexShrink: 0 }}>
+            <div className="panel-header">
+              <h2 className="panel-title">Warehouse Locations</h2>
+            </div>
+            <div className="panel-body">
+              {noWarehouse && <p className="form-hint" style={{ marginTop: 0, marginBottom: 12 }}>Save the Warehouse first, then add its Locations.</p>}
+              <div className="form-grid">
+                <TextField label="Location Code" required value={locationForm.code} disabled={noWarehouse} onChange={value => setLocationForm(form => ({ ...form, code: value.toUpperCase() }))} placeholder="RACK-01" />
+                <TextField label="Location Name" required value={locationForm.name} disabled={noWarehouse} onChange={value => setLocationForm(form => ({ ...form, name: value }))} />
+                <div className="span-2">
+                  <TextField label="Description" value={locationForm.description} disabled={noWarehouse} onChange={value => setLocationForm(form => ({ ...form, description: value }))} />
+                </div>
+                <div className="span-all" style={{ display: 'flex', alignItems: 'center', gap: 24, flexWrap: 'wrap' }}>
+                  <CheckboxField label="Default Location" checked={locationForm.is_default} disabled={noWarehouse} onChange={value => setLocationForm(form => ({ ...form, is_default: value }))} />
+                  <CheckboxField label="Active" checked={locationForm.is_active} disabled={noWarehouse} onChange={value => setLocationForm(form => ({ ...form, is_active: value }))} />
+                  <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
+                    {editingLocationId && (
+                      <Button variant="ghost" icon={<IconX size={16} stroke={1.8} />} onClick={resetLocationForm}>Cancel Edit</Button>
+                    )}
+                    <Button variant="secondary" icon={<IconCheck size={16} stroke={1.8} />} onClick={saveLocation} disabled={noWarehouse} loading={savingLocation}>
+                      {editingLocationId ? 'Save Location Changes' : 'Add Location'}
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div className="table-scroll" style={{ maxHeight: 240, borderTop: '1px solid var(--color-border-subtle)' }}>
+              <LocationsTable rows={locationsQuery.data ?? []} loading={locationsQuery.isLoading && !noWarehouse} noWarehouse={noWarehouse} editingId={editingLocationId} onEdit={editLocation} />
+            </div>
+          </section>
+
+          <section className="panel" style={{ flexShrink: 0, minHeight: 280 }}>
+            <div className="panel-header">
+              <h2 className="panel-title">Stock Summary</h2>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <div style={{ width: 280 }}>
+                  <SearchField label="Search Stock" value={stockSearchText} onChange={setStockSearchText} onSubmit={applyStockSearch} placeholder="Search Item Or Location" />
+                </div>
+                <Button variant="secondary" size="sm" icon={<IconSearch size={16} stroke={1.8} />} onClick={applyStockSearch} disabled={noWarehouse} loading={stockQuery.isFetching && !stockQuery.isLoading}>Search</Button>
+                {(stockSearch || stockSearchText) && <Button variant="ghost" size="sm" onClick={clearStockSearch}>Clear</Button>}
+              </div>
+            </div>
+            <div className="table-scroll">
+              <StockSummaryTable rows={stockQuery.data?.data ?? []} loading={stockQuery.isLoading && !noWarehouse} noWarehouse={noWarehouse} isFiltered={Boolean(stockSearch)} settings={generalSettings} />
+            </div>
+          </section>
+        </div>
       </main>
     );
   }
 
   return (
-    <main style={pageShellStyle}>
-      <section style={toolbarStyle}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <div style={titleIconStyle}><IconBuildingWarehouse size={20} stroke={1.8} /></div>
-          <div>
-            <h1 style={titleStyle}>Warehouse Management</h1>
-            <p style={subtitleStyle}>Manage warehouses, locations, and warehouse-wise stock visibility</p>
-          </div>
-        </div>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          <button className="btn-ghost" type="button" onClick={refreshAll}><IconRefresh size={15} /> Refresh</button>
-          <button className="btn-primary" type="button" onClick={openNewWarehouse}><IconPlus size={15} /> New Warehouse</button>
-        </div>
-      </section>
+    <main className="page-shell">
+      <PageHeader
+        title="Warehouses"
+        description="Places where stock is kept. Each Warehouse can belong to a Branch and can use Locations such as racks or bins."
+        actions={(
+          <>
+            <Button variant="secondary" icon={<IconRefresh size={16} stroke={1.8} />} onClick={refreshAll} loading={warehousesQuery.isFetching && !warehousesQuery.isLoading}>Refresh</Button>
+            <Button variant="primary" icon={<IconPlus size={16} stroke={1.8} />} onClick={openNewWarehouse}>New Warehouse</Button>
+          </>
+        )}
+      />
 
-      {listError && <div style={messageStyle(false)}>{listError}</div>}
+      {listError && <InlineAlert tone="danger">{listError}</InlineAlert>}
 
-      <section style={filterBarStyle}>
-        <div style={{ flex: 1 }}>
-          <label className="form-label">Search</label>
-          <div style={{ position: 'relative' }}>
-            <IconSearch size={15} style={{ position: 'absolute', left: 9, top: 7, color: 'var(--color-text-muted)' }} />
-            <input
-              className="form-input"
+      <section className="panel panel-fill">
+        <div className="filter-bar">
+          <div className="filter-bar-grow">
+            <SearchField
+              label="Search Warehouses"
               value={searchText}
-              onChange={event => setSearchText(event.currentTarget.value)}
-              onKeyDown={event => {
-                if (event.key === 'Enter') applySearch();
-              }}
-              placeholder="Warehouse Code, Name, Or Address"
-              style={{ ...fieldStyle('compact'), paddingLeft: 30 }}
+              onChange={setSearchText}
+              onSubmit={applySearch}
+              placeholder="Search by Code, Name, or Address, then press Enter"
             />
           </div>
+          <SegmentedControl label="Status Filter" value={status} options={STATUS_OPTIONS} onChange={value => { setStatus(value); setPage(1); }} />
+          {(search || searchText) && <Button variant="ghost" onClick={clearSearch}>Clear</Button>}
         </div>
-        <button className="btn-ghost" type="button" onClick={applySearch} disabled={warehousesQuery.isFetching} style={{ alignSelf: 'end', height: 30, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-          {warehousesQuery.isFetching ? <span className="spinner" style={{ width: 12, height: 12, borderWidth: 2 }} /> : <IconSearch size={14} />}
-          {warehousesQuery.isFetching ? 'Searching...' : 'Search'}
-        </button>
-        {(search || searchText) && (
-          <button className="btn-ghost" type="button" onClick={clearSearch} disabled={warehousesQuery.isFetching} style={{ alignSelf: 'end', height: 30 }}>
-            Clear
-          </button>
-        )}
-        <div style={{ width: 180 }}>
-          <SelectField
-            label="Status"
-            value={status}
-            options={[{ value: 'All', label: 'All' }, { value: 'Active', label: 'Active' }, { value: 'Inactive', label: 'Inactive' }]}
-            onChange={value => { setStatus(value as 'All' | 'Active' | 'Inactive'); setPage(1); }}
+
+        <div className="table-scroll">
+          <WarehouseTable
+            rows={warehousesQuery.data?.data ?? []}
+            loading={warehousesQuery.isLoading}
+            isFiltered={isFiltered}
+            onEdit={openEditWarehouse}
+            onNew={openNewWarehouse}
+            settings={generalSettings}
           />
         </div>
-      </section>
 
-      <section style={listCardStyle}>
-        <WarehouseTable
-          rows={warehousesQuery.data?.data ?? []}
-          loading={warehousesQuery.isFetching}
-          onEdit={openEditWarehouse}
-          settings={generalSettings}
+        <PaginationBar
+          page={page}
+          totalPages={warehousesQuery.data?.pagination.pages || 1}
+          totalRecords={total}
+          recordLabel={total === 1 ? 'Warehouse' : 'Warehouses'}
+          onPageChange={setPage}
         />
       </section>
-
-      <PaginationBar
-        page={page}
-        totalPages={warehousesQuery.data?.pagination.pages || 1}
-        totalRecords={warehousesQuery.data?.pagination.total ?? 0}
-        recordLabel={(warehousesQuery.data?.pagination.total ?? 0) === 1 ? 'Warehouse' : 'Warehouses'}
-        onPageChange={setPage}
-      />
     </main>
   );
 }
 
-function SectionTitle({ icon, title }: { icon: ReactNode; title: string }) {
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10, paddingBottom: 8, borderBottom: '1px solid var(--color-border)' }}>
-      <span style={{ color: 'var(--color-primary)', display: 'inline-flex' }}>{icon}</span>
-      <h2 style={{ margin: 0, fontSize: '0.86rem', color: 'var(--color-heading)', fontWeight: 850 }}>{title}</h2>
-    </div>
-  );
-}
-
-function CheckField({ label, checked, disabled, onChange }: { label: string; checked: boolean; disabled?: boolean; onChange: (value: boolean) => void }) {
-  return (
-    <label style={{ display: 'flex', alignItems: 'center', gap: 8, height: 28, fontSize: '0.76rem', fontWeight: 800, color: 'var(--color-text-secondary)' }}>
-      <input type="checkbox" checked={checked} disabled={disabled} onChange={event => onChange(event.currentTarget.checked)} style={{ width: 16, height: 16, accentColor: 'var(--color-primary)' }} />
-      {label}
-    </label>
-  );
-}
-
-function TextareaField({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
-  return (
-    <label style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-      <span className="form-label">{label}</span>
-      <textarea className="form-input" value={value} onChange={event => onChange(event.currentTarget.value)} rows={2} style={{ minHeight: 54, resize: 'vertical' }} />
-    </label>
-  );
-}
-
-function WarehouseTable({ rows, loading, onEdit, settings }: {
+function WarehouseTable({ rows, loading, isFiltered, onEdit, onNew, settings }: {
   rows: WarehouseRow[];
   loading: boolean;
+  isFiltered: boolean;
   onEdit: (row: WarehouseRow) => void;
+  onNew: () => void;
   settings?: AppFormatSettingsSource | null;
 }) {
   return (
-    <table style={tableStyle}>
+    <table className="data-table" style={{ tableLayout: 'fixed', minWidth: 1080 }}>
       <thead>
         <tr>
-          <HeaderCell width={110}>Code</HeaderCell>
-          <HeaderCell>Warehouse Name</HeaderCell>
-          <HeaderCell width={180}>Branch</HeaderCell>
-          <HeaderCell>Address</HeaderCell>
-          <HeaderCell width={110}>Default</HeaderCell>
-          <HeaderCell width={120}>Locations</HeaderCell>
-          <HeaderCell width={100}>Status</HeaderCell>
-          <HeaderCell width={130} right>Stock On Hand</HeaderCell>
-          <HeaderCell width={150} right>Stock Value</HeaderCell>
-          <HeaderCell width={70}>Edit</HeaderCell>
+          <th style={{ width: 110 }}>Code</th>
+          <th>Warehouse Name</th>
+          <th style={{ width: 190 }}>Branch</th>
+          <th>Address</th>
+          <th style={{ width: 110 }}>Locations</th>
+          <th style={{ width: 100 }}>Status</th>
+          <th className="num" style={{ width: 130 }}>Stock On Hand</th>
+          <th className="num" style={{ width: 150 }}>Stock Value</th>
+          <th style={{ width: 64 }}><span className="sr-only">Actions</span></th>
         </tr>
       </thead>
       <tbody>
-        {loading && <EmptyRow colSpan={10} text="Loading Warehouses..." />}
-        {!loading && rows.length === 0 && <EmptyRow colSpan={10} text="No Warehouses Found." />}
+        {loading && <TableMessageRow colSpan={9} title="Loading Warehouses…" loading />}
+        {!loading && rows.length === 0 && (
+          isFiltered
+            ? <TableMessageRow colSpan={9} title="No Warehouses Match" description="Change the search text or the status filter to see more Warehouses." />
+            : <TableMessageRow colSpan={9} title="No Warehouses Yet" description="Add your first Warehouse so stock can be received and issued." action={<Button variant="primary" icon={<IconPlus size={16} stroke={1.8} />} onClick={onNew}>New Warehouse</Button>} />
+        )}
         {!loading && rows.map(row => (
-          <tr key={row.id}>
-            <td style={bodyCellStyle(true)}>{row.code}</td>
-            <td style={bodyCellStyle(true)}>{row.name}</td>
-            <td style={bodyCellStyle()}>{row.branch ? `${row.branch.code} - ${row.branch.name}` : '-'}</td>
-            <td style={bodyCellStyle()}>{row.address || '-'}</td>
-            <td style={bodyCellStyle()}>{row.is_default ? <StatusBadge tone="blue">Default</StatusBadge> : '-'}</td>
-            <td style={bodyCellStyle()}>{row.use_locations ? <StatusBadge tone="blue">Enabled</StatusBadge> : '-'}</td>
-            <td style={bodyCellStyle()}><StatusBadge tone={row.is_active ? 'green' : 'gray'}>{row.is_active ? 'Active' : 'Inactive'}</StatusBadge></td>
-            <td style={amountCellStyle}>{formatNumber(row.stock_on_hand ?? 0, settings)}</td>
-            <td style={amountCellStyle}>{formatMoney(row.total_stock_value ?? 0, settings)}</td>
-            <td style={bodyCellStyle()}>
-              <button className="btn-ghost" type="button" onClick={() => onEdit(row)} title="Edit Warehouse" style={iconButtonStyle}><IconEdit size={14} /></button>
+          <tr key={row.id} onDoubleClick={() => onEdit(row)}>
+            <td className="cell-strong">{row.code}</td>
+            <td>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, maxWidth: '100%' }}>
+                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{row.name}</span>
+                {row.is_default && <Badge variant="info">Default</Badge>}
+              </span>
+            </td>
+            <td className={row.branch ? undefined : 'cell-muted'}>{row.branch ? `${row.branch.code} - ${row.branch.name}` : 'Not Set'}</td>
+            <td className={row.address ? undefined : 'cell-muted'}>{row.address || 'Not Set'}</td>
+            <td className={row.use_locations ? undefined : 'cell-muted'}>{row.use_locations ? <Badge variant="info">Enabled</Badge> : 'Not Used'}</td>
+            <td><Badge variant={row.is_active ? 'success' : 'neutral'}>{row.is_active ? 'Active' : 'Inactive'}</Badge></td>
+            <td className="num">{formatNumber(row.stock_on_hand ?? 0, settings)}</td>
+            <td className="num">{formatMoney(row.total_stock_value ?? 0, settings)}</td>
+            <td className="cell-actions">
+              <Button variant="ghost" size="sm" icon={<IconPencil size={16} stroke={1.8} />} onClick={() => onEdit(row)} aria-label={`Edit Warehouse ${row.code}`} title="Edit Warehouse" />
             </td>
           </tr>
         ))}
@@ -498,206 +486,95 @@ function WarehouseTable({ rows, loading, onEdit, settings }: {
   );
 }
 
-function LocationsTable({ rows, loading, onEdit }: { rows: WarehouseLocationRow[]; loading: boolean; onEdit: (row: WarehouseLocationRow) => void }) {
+function LocationsTable({ rows, loading, noWarehouse, editingId, onEdit }: {
+  rows: WarehouseLocationRow[];
+  loading: boolean;
+  noWarehouse: boolean;
+  editingId: string;
+  onEdit: (row: WarehouseLocationRow) => void;
+}) {
   return (
-    <div style={{ maxHeight: 180, overflow: 'auto', border: '1px solid var(--color-border)' }}>
-      <table style={tableStyle}>
-        <thead>
-          <tr>
-            <HeaderCell width={110}>Code</HeaderCell>
-            <HeaderCell>Location Name</HeaderCell>
-            <HeaderCell>Description</HeaderCell>
-            <HeaderCell width={90}>Default</HeaderCell>
-            <HeaderCell width={90}>Status</HeaderCell>
-            <HeaderCell width={60}>Edit</HeaderCell>
+    <table className="data-table" style={{ tableLayout: 'fixed' }}>
+      <thead>
+        <tr>
+          <th style={{ width: 130 }}>Code</th>
+          <th>Location Name</th>
+          <th>Description</th>
+          <th style={{ width: 100 }}>Status</th>
+          <th style={{ width: 64 }}><span className="sr-only">Actions</span></th>
+        </tr>
+      </thead>
+      <tbody>
+        {loading && <TableMessageRow colSpan={5} title="Loading Locations…" loading />}
+        {!loading && rows.length === 0 && (
+          noWarehouse
+            ? <TableMessageRow colSpan={5} title="No Locations Yet" description="Save the Warehouse first, then add its Locations here." />
+            : <TableMessageRow colSpan={5} title="No Locations Yet" description="Enter a Location Code and Name above, then choose Add Location." />
+        )}
+        {!loading && rows.map(row => (
+          <tr key={row.id} className={editingId === row.id ? 'is-selected' : undefined} onDoubleClick={() => onEdit(row)}>
+            <td className="cell-strong">{row.code}</td>
+            <td>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, maxWidth: '100%' }}>
+                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{row.name}</span>
+                {row.is_default && <Badge variant="info">Default</Badge>}
+              </span>
+            </td>
+            <td className={row.description ? undefined : 'cell-muted'}>{row.description || 'Not Set'}</td>
+            <td><Badge variant={row.is_active ? 'success' : 'neutral'}>{row.is_active ? 'Active' : 'Inactive'}</Badge></td>
+            <td className="cell-actions">
+              <Button variant="ghost" size="sm" icon={<IconPencil size={16} stroke={1.8} />} onClick={() => onEdit(row)} aria-label={`Edit Location ${row.code}`} title="Edit Location" />
+            </td>
           </tr>
-        </thead>
-        <tbody>
-          {loading && <EmptyRow colSpan={6} text="Loading Locations..." />}
-          {!loading && rows.length === 0 && <EmptyRow colSpan={6} text="No Locations Added." />}
-          {!loading && rows.map(row => (
-            <tr key={row.id}>
-              <td style={bodyCellStyle(true)}>{row.code}</td>
-              <td style={bodyCellStyle(true)}>{row.name}</td>
-              <td style={bodyCellStyle()}>{row.description || '-'}</td>
-              <td style={bodyCellStyle()}>{row.is_default ? <StatusBadge tone="blue">Default</StatusBadge> : '-'}</td>
-              <td style={bodyCellStyle()}><StatusBadge tone={row.is_active ? 'green' : 'gray'}>{row.is_active ? 'Active' : 'Inactive'}</StatusBadge></td>
-              <td style={bodyCellStyle()}><button className="btn-ghost" type="button" onClick={() => onEdit(row)} style={iconButtonStyle}><IconEdit size={14} /></button></td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+        ))}
+      </tbody>
+    </table>
   );
 }
 
-function StockSummaryTable({ rows, loading, settings }: { rows: WarehouseStockRow[]; loading: boolean; settings?: AppFormatSettingsSource | null }) {
+function StockSummaryTable({ rows, loading, noWarehouse, isFiltered, settings }: {
+  rows: WarehouseStockRow[];
+  loading: boolean;
+  noWarehouse: boolean;
+  isFiltered: boolean;
+  settings?: AppFormatSettingsSource | null;
+}) {
   return (
-    <div style={{ flex: 1, minHeight: 0, overflow: 'auto', border: '1px solid var(--color-border)' }}>
-      <table style={tableStyle}>
-        <thead>
-          <tr>
-            <HeaderCell width={120}>Item Code</HeaderCell>
-            <HeaderCell>Item Name</HeaderCell>
-            <HeaderCell width={150}>Location</HeaderCell>
-            <HeaderCell width={110} right>Stock On Hand</HeaderCell>
-            <HeaderCell width={110} right>Reserved</HeaderCell>
-            <HeaderCell width={110} right>Available</HeaderCell>
-            <HeaderCell width={130} right>Average Cost</HeaderCell>
-            <HeaderCell width={140} right>Stock Value</HeaderCell>
+    <table className="data-table" style={{ tableLayout: 'fixed', minWidth: 1000 }}>
+      <thead>
+        <tr>
+          <th style={{ width: 130 }}>Item Code</th>
+          <th>Item Name</th>
+          <th style={{ width: 170 }}>Location</th>
+          <th className="num" style={{ width: 120 }}>Stock On Hand</th>
+          <th className="num" style={{ width: 110 }}>Reserved</th>
+          <th className="num" style={{ width: 110 }}>Available</th>
+          <th className="num" style={{ width: 130 }}>Average Cost</th>
+          <th className="num" style={{ width: 140 }}>Stock Value</th>
+        </tr>
+      </thead>
+      <tbody>
+        {loading && <TableMessageRow colSpan={8} title="Loading Stock Summary…" loading />}
+        {!loading && rows.length === 0 && (
+          noWarehouse
+            ? <TableMessageRow colSpan={8} title="No Stock Yet" description="Save the Warehouse first. Stock appears here after it is received into this Warehouse." />
+            : isFiltered
+              ? <TableMessageRow colSpan={8} title="No Stock Matches" description="Change or clear the search text to see all stock in this Warehouse." />
+              : <TableMessageRow colSpan={8} title="No Stock In This Warehouse" description="Stock appears here after a purchase, transfer, or adjustment is posted to this Warehouse." />
+        )}
+        {!loading && rows.map(row => (
+          <tr key={row.id}>
+            <td className="cell-strong">{row.sku || row.item_code}</td>
+            <td>{row.item_name}</td>
+            <td className={row.location_name ? undefined : 'cell-muted'}>{row.location_name ? `${row.location_code ?? ''} - ${row.location_name}` : 'Not Set'}</td>
+            <td className="num">{formatNumber(row.stock_on_hand, settings)}</td>
+            <td className="num">{formatNumber(row.reserved_stock, settings)}</td>
+            <td className="num">{formatNumber(row.available_stock, settings)}</td>
+            <td className="num">{formatMoney(row.average_cost, settings)}</td>
+            <td className="num">{formatMoney(row.total_stock_value, settings)}</td>
           </tr>
-        </thead>
-        <tbody>
-          {loading && <EmptyRow colSpan={8} text="Loading Stock Summary..." />}
-          {!loading && rows.length === 0 && <EmptyRow colSpan={8} text="No Stock Found For This Warehouse." />}
-          {!loading && rows.map(row => (
-            <tr key={row.id}>
-              <td style={bodyCellStyle(true)}>{row.sku || row.item_code}</td>
-              <td style={bodyCellStyle()}>{row.item_name}</td>
-              <td style={bodyCellStyle()}>{row.location_name ? `${row.location_code ?? ''} - ${row.location_name}` : '-'}</td>
-              <td style={amountCellStyle}>{formatNumber(row.stock_on_hand, settings)}</td>
-              <td style={amountCellStyle}>{formatNumber(row.reserved_stock, settings)}</td>
-              <td style={amountCellStyle}>{formatNumber(row.available_stock, settings)}</td>
-              <td style={amountCellStyle}>{formatMoney(row.average_cost, settings)}</td>
-              <td style={amountCellStyle}>{formatMoney(row.total_stock_value, settings)}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+        ))}
+      </tbody>
+    </table>
   );
-}
-
-function HeaderCell({ children, width, right = false }: { children: ReactNode; width?: number; right?: boolean }) {
-  return <th style={{ ...headerCellStyle, width, textAlign: right ? 'right' : 'left' }}>{children}</th>;
-}
-
-function EmptyRow({ colSpan, text }: { colSpan: number; text: string }) {
-  return <tr><td colSpan={colSpan} style={{ ...bodyCellStyle(), height: 70, textAlign: 'center', color: 'var(--color-text-muted)', fontWeight: 800 }}>{text}</td></tr>;
-}
-
-function StatusBadge({ children, tone }: { children: ReactNode; tone: 'green' | 'gray' | 'blue' }) {
-  const colors = {
-    green: { bg: 'rgba(22, 163, 74, 0.12)', text: '#15803d', border: 'rgba(22, 163, 74, 0.24)' },
-    gray: { bg: 'rgba(100, 116, 139, 0.12)', text: '#475569', border: 'rgba(100, 116, 139, 0.24)' },
-    blue: { bg: 'rgba(37, 99, 235, 0.12)', text: '#1d4ed8', border: 'rgba(37, 99, 235, 0.24)' },
-  }[tone];
-  return <span style={{ display: 'inline-flex', border: `1px solid ${colors.border}`, background: colors.bg, color: colors.text, borderRadius: 'var(--radius-full)', padding: '2px 8px', fontSize: '0.68rem', fontWeight: 850 }}>{children}</span>;
-}
-
-const pageShellStyle: CSSProperties = {
-  height: '100%',
-  minHeight: 0,
-  padding: 10,
-  display: 'flex',
-  flexDirection: 'column',
-  gap: 8,
-  overflow: 'hidden',
-};
-
-const toolbarStyle: CSSProperties = {
-  border: '1px solid var(--color-border)',
-  background: 'var(--color-surface)',
-  padding: '9px 12px',
-  display: 'flex',
-  justifyContent: 'space-between',
-  alignItems: 'center',
-  gap: 10,
-  flexShrink: 0,
-};
-
-const titleIconStyle: CSSProperties = {
-  width: 36,
-  height: 36,
-  borderRadius: 'var(--radius)',
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  color: '#fff',
-  background: 'linear-gradient(135deg, #0f766e, #2563eb)',
-};
-
-const titleStyle: CSSProperties = { margin: 0, fontSize: '1.05rem', lineHeight: 1.1, color: 'var(--color-heading)', fontWeight: 900 };
-const subtitleStyle: CSSProperties = { margin: '3px 0 0', fontSize: '0.73rem', color: 'var(--color-text-muted)', fontWeight: 750 };
-
-const filterBarStyle: CSSProperties = {
-  display: 'flex',
-  alignItems: 'end',
-  gap: 10,
-  flexShrink: 0,
-};
-
-const listCardStyle: CSSProperties = {
-  border: '1px solid var(--color-border)',
-  background: 'var(--color-surface)',
-  flex: 1,
-  minHeight: 0,
-  overflow: 'auto',
-};
-
-const formGridStyle: CSSProperties = {
-  flex: 1,
-  minHeight: 0,
-  display: 'grid',
-  gridTemplateRows: 'auto auto 1fr',
-  gap: 8,
-  overflow: 'hidden',
-};
-
-const formCardStyle: CSSProperties = {
-  border: '1px solid var(--color-border)',
-  background: 'var(--color-surface)',
-  padding: 12,
-};
-
-const tableStyle: CSSProperties = {
-  width: '100%',
-  borderCollapse: 'collapse',
-  tableLayout: 'fixed',
-};
-
-const headerCellStyle: CSSProperties = {
-  background: 'var(--color-table-header)',
-  color: 'var(--color-table-header-text)',
-  border: '1px solid var(--color-border)',
-  padding: '7px 8px',
-  fontSize: '0.74rem',
-  fontWeight: 900,
-};
-
-function bodyCellStyle(strong = false): CSSProperties {
-  return {
-    border: '1px solid var(--color-border-subtle)',
-    padding: '7px 8px',
-    fontSize: '0.76rem',
-    color: 'var(--color-text)',
-    fontWeight: strong ? 850 : 600,
-    overflow: 'hidden',
-    textOverflow: 'ellipsis',
-    whiteSpace: 'nowrap',
-  };
-}
-
-const amountCellStyle: CSSProperties = {
-  ...bodyCellStyle(true),
-  ...numericFieldStyle('compact'),
-  height: 'auto',
-  minHeight: 0,
-  borderRadius: 0,
-  background: 'transparent',
-  borderTop: '1px solid var(--color-border-subtle)',
-  borderRight: '1px solid var(--color-border-subtle)',
-  borderBottom: '1px solid var(--color-border-subtle)',
-  borderLeft: '1px solid var(--color-border-subtle)',
-};
-
-const iconButtonStyle: CSSProperties = { height: 26, width: 28, minWidth: 28, padding: 0 };
-
-function messageStyle(success: boolean): CSSProperties {
-  return {
-    color: success ? '#15803d' : 'var(--color-danger-text)',
-    fontSize: '0.74rem',
-    fontWeight: 750,
-    flexShrink: 0,
-  };
 }

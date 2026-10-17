@@ -40,7 +40,7 @@ export function PaginationBar({
     <div style={paginationBarStyle}>
       <div style={paginationControlsStyle}>
         <span style={paginationInfoStyle}>
-          Showing Page {safePage} Of {safeTotalPages} | {totalRecords} {recordLabel}
+          Page {safePage} Of {safeTotalPages} · {totalRecords} {recordLabel}
         </span>
         {pageSize !== undefined && onPageSizeChange && (
           <select
@@ -55,16 +55,16 @@ export function PaginationBar({
           </select>
         )}
         <IconPageButton label="First Page" disabled={disabled || atStart} onClick={() => onPageChange(1)}>
-          <IconChevronsLeft size={17} stroke={2.6} />
+          <IconChevronsLeft size={17} stroke={1.8} />
         </IconPageButton>
         <IconPageButton label="Previous Page" disabled={disabled || atStart} onClick={() => onPageChange(safePage - 1)}>
-          <IconChevronLeft size={17} stroke={2.6} />
+          <IconChevronLeft size={17} stroke={1.8} />
         </IconPageButton>
         <IconPageButton label="Next Page" disabled={disabled || atEnd} onClick={() => onPageChange(safePage + 1)}>
-          <IconChevronRight size={17} stroke={2.6} />
+          <IconChevronRight size={17} stroke={1.8} />
         </IconPageButton>
         <IconPageButton label="Last Page" disabled={disabled || atEnd} onClick={() => onPageChange(safeTotalPages)}>
-          <IconChevronsRight size={17} stroke={2.6} />
+          <IconChevronsRight size={17} stroke={1.8} />
         </IconPageButton>
       </div>
     </div>
@@ -101,24 +101,26 @@ const paginationBarStyle: CSSProperties = {
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'flex-end',
-  height: 40,
-  minHeight: 40,
-  maxHeight: 40,
-  padding: '0 10px',
-  borderTop: '1.5px solid var(--color-panel-footer-border)',
+  height: 44,
+  minHeight: 44,
+  maxHeight: 44,
+  padding: '0 12px',
+  borderTop: '1px solid var(--color-border-subtle)',
   background: 'var(--color-surface)',
   color: 'var(--color-text-muted)',
-  fontSize: '0.76rem',
-  fontWeight: 850,
+  fontSize: 'var(--font-size-sm)',
+  fontWeight: 500,
   flexShrink: 0,
   overflowX: 'auto',
   overflowY: 'hidden',
 };
 
 const paginationInfoStyle: CSSProperties = {
-  display: 'inline-flex',
-  alignItems: 'center',
-  height: 30,
+  display: 'block',
+  minWidth: 0,
+  flexShrink: 1,
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
   whiteSpace: 'nowrap',
 };
 
@@ -129,25 +131,25 @@ const paginationControlsStyle: CSSProperties = {
   flexWrap: 'nowrap',
   justifyContent: 'flex-end',
   minWidth: 0,
+  width: '100%',
 };
 
 const pageSizeSelectStyle: CSSProperties = {
   width: 74,
-  height: 30,
-  minHeight: 30,
-  padding: '4px 8px',
-  fontSize: '0.78rem',
-  fontWeight: 800,
+  height: 'var(--control-h-sm)',
+  minHeight: 'var(--control-h-sm)',
+  padding: '0 8px',
+  fontSize: 'var(--font-size-sm)',
 };
 
 const paginationButtonStyle: CSSProperties = {
-  width: 32,
-  minWidth: 32,
-  height: 30,
-  minHeight: 30,
+  width: 'var(--control-h-sm)',
+  minWidth: 'var(--control-h-sm)',
+  height: 'var(--control-h-sm)',
+  minHeight: 'var(--control-h-sm)',
   padding: 0,
   display: 'inline-flex',
   alignItems: 'center',
   justifyContent: 'center',
-  color: 'var(--color-primary)',
+  color: 'var(--color-text-secondary)',
 };

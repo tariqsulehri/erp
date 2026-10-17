@@ -186,14 +186,14 @@ function messageStyle(kind: 'success' | 'error'): CSSProperties {
     display: 'flex',
     alignItems: 'center',
     gap: 8,
-    fontSize: '0.78rem',
+    fontSize: 'var(--font-size-sm)',
   };
 }
 
 const compactButtonStyle: CSSProperties = {
   minHeight: 28,
   padding: '4px 9px',
-  fontSize: '0.76rem',
+  fontSize: 'var(--font-size-sm)',
 };
 
 const analyticsFilterGridStyle: CSSProperties = {
@@ -225,7 +225,7 @@ const analyticsEmptyStyle: CSSProperties = {
   border: '1px dashed var(--color-border)',
   borderRadius: 'var(--radius)',
   color: 'var(--color-text-muted)',
-  fontSize: '0.8rem',
-  fontWeight: 800,
+  fontSize: 'var(--font-size-sm)',
+  fontWeight: 600,
   background: 'var(--color-surface-alt)',
 };

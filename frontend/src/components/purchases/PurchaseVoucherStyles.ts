@@ -1,43 +1,50 @@
 import type { CSSProperties } from 'react';
 import type { PurchaseMessageKind } from './PurchaseVoucherTypes';
 
+// Shared style constants for trade documents and posted-document lists, built on the
+// Calm Ledger tokens (see DESIGN.md). New screens should prefer the classes in globals.css.
 export function badgeStyle(color: string, background: string): CSSProperties {
   return {
     display: 'inline-flex',
     alignItems: 'center',
-    minHeight: 22,
-    padding: '2px 8px',
+    height: 20,
+    padding: '0 8px',
     borderRadius: 'var(--radius-full)',
     color,
     background,
-    fontSize: '0.68rem',
-    fontWeight: 900,
+    fontSize: 'var(--font-size-2xs)',
+    fontWeight: 600,
     whiteSpace: 'nowrap',
   };
 }
 
 export function tableHeadStyle(right = false): CSSProperties {
   return {
-    height: 30,
-    padding: '5px 7px',
+    position: 'sticky',
+    top: 0,
+    zIndex: 1,
+    height: 'var(--row-h)',
+    padding: '0 8px',
     textAlign: right ? 'right' : 'left',
     background: 'var(--color-table-head-bg)',
     color: 'var(--color-table-head-text)',
-    border: '1px solid var(--color-border)',
+    borderBottom: '1px solid var(--color-border)',
     whiteSpace: 'nowrap',
-    fontSize: '0.7rem',
+    fontSize: 'var(--font-size-xs)',
+    fontWeight: 600,
   };
 }
 
 export function tableCellStyle(right = false): CSSProperties {
   return {
-    padding: 4,
-    border: '1px solid var(--color-border-subtle)',
+    height: 'var(--row-h)',
+    padding: '4px 8px',
+    borderBottom: '1px solid var(--color-border-subtle)',
     background: 'var(--color-surface)',
     verticalAlign: 'middle',
     textAlign: right ? 'right' : 'left',
-    fontFamily: right ? 'var(--font-mono)' : undefined,
-    fontWeight: right ? 800 : undefined,
+    fontVariantNumeric: right ? 'tabular-nums' : undefined,
+    fontWeight: right ? 500 : undefined,
     overflow: 'hidden',
     textOverflow: 'ellipsis',
     whiteSpace: 'nowrap',
@@ -52,51 +59,35 @@ export function messageStyle(kind: PurchaseMessageKind): CSSProperties {
     border: `1px solid ${kind === 'success' ? 'var(--color-success-border)' : 'var(--color-danger-border)'}`,
     background: kind === 'success' ? 'var(--color-success-bg)' : 'var(--color-danger-bg)',
     color: kind === 'success' ? 'var(--color-success-text)' : 'var(--color-danger-text)',
-    fontWeight: 700,
+    fontWeight: 500,
     display: 'flex',
     alignItems: 'center',
     gap: 8,
-    fontSize: '0.78rem',
+    fontSize: 'var(--font-size-sm)',
   };
 }
 
-export const compactButtonStyle: CSSProperties = {
-  minHeight: 30,
-  padding: '5px 10px',
-  fontSize: '0.76rem',
-};
+// Buttons take their size from the shared .btn-* classes.
+export const compactButtonStyle: CSSProperties = {};
 
+// Page header strip: unboxed, like PageHeader.
 export const toolbarStyle: CSSProperties = {
-  background: 'var(--color-surface)',
-  border: '1px solid var(--color-border)',
-  borderRadius: 'var(--radius-md)',
-  boxShadow: 'var(--color-workspace-shadow)',
-  padding: '8px 10px',
+  padding: '2px 0',
   flexShrink: 0,
-};
-
-export const titleIconStyle: CSSProperties = {
-  width: 34,
-  height: 34,
-  borderRadius: 'var(--radius)',
-  display: 'grid',
-  placeItems: 'center',
-  color: '#fff',
-  background: 'linear-gradient(135deg, #0f6bff, #14b8a6)',
 };
 
 export const statusBadgeStyle: CSSProperties = {
   display: 'inline-flex',
   alignItems: 'center',
   gap: 5,
-  minHeight: 22,
-  padding: '2px 8px',
+  height: 20,
+  padding: '0 8px',
   borderRadius: 'var(--radius-full)',
-  border: '1px solid var(--color-border)',
-  background: 'var(--color-surface-alt)',
-  color: 'var(--color-text-secondary)',
-  fontSize: '0.68rem',
-  fontWeight: 800,
+  border: '1px solid var(--color-neutral-border)',
+  background: 'var(--color-neutral-bg)',
+  color: 'var(--color-neutral-text)',
+  fontSize: 'var(--font-size-2xs)',
+  fontWeight: 600,
   whiteSpace: 'nowrap',
 };
 
@@ -106,8 +97,8 @@ export const dateMessageStyle: CSSProperties = {
   alignItems: 'center',
   color: 'var(--color-danger-text)',
   fontWeight: 500,
-  fontSize: '0.66rem',
-  lineHeight: 1.2,
+  fontSize: 'var(--font-size-xs)',
+  lineHeight: 1.3,
   padding: 0,
   overflow: 'hidden',
 };
@@ -130,7 +121,6 @@ export const summaryFooterStyle: CSSProperties = {
   alignItems: 'center',
   borderTop: '1px solid var(--color-border-subtle)',
   paddingTop: 10,
-  minHeight: 66,
   overflow: 'hidden',
 };
 
@@ -143,8 +133,9 @@ export const summaryValuesStyle: CSSProperties = {
 
 export const purchaseFilterGridStyle: CSSProperties = {
   display: 'grid',
-  gridTemplateColumns: 'minmax(220px, 1.6fr) minmax(210px, 1.35fr) 112px minmax(190px, 1.2fr) 118px 118px 112px 112px auto',
-  gap: 7,
+  // Wraps onto a second row instead of pushing the page sideways.
+  gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
+  gap: '8px 12px',
   alignItems: 'end',
   overflow: 'visible',
   position: 'relative',
@@ -158,17 +149,17 @@ export const purchaseDetailPanelStyle: CSSProperties = {
   gridTemplateRows: 'auto 1fr',
   gap: 8,
   border: '1px solid var(--color-border)',
-  borderRadius: 'var(--radius)',
+  borderRadius: 'var(--radius-lg)',
   background: 'var(--color-surface)',
-  padding: 8,
+  padding: 12,
 };
 
 export const detailMessageStyle: CSSProperties = {
   display: 'grid',
   placeItems: 'center',
   color: 'var(--color-text-muted)',
-  fontSize: '0.76rem',
-  fontWeight: 700,
+  fontSize: 'var(--font-size-sm)',
+  fontWeight: 400,
   minHeight: 120,
 };
 
@@ -177,10 +168,10 @@ export const purchaseListFooterStyle: CSSProperties = {
   justifyContent: 'space-between',
   alignItems: 'center',
   gap: 10,
-  minHeight: 34,
+  minHeight: 40,
   color: 'var(--color-text-muted)',
-  fontSize: '0.74rem',
-  fontWeight: 700,
+  fontSize: 'var(--font-size-sm)',
+  fontWeight: 500,
   borderTop: '1px solid var(--color-border-subtle)',
   paddingTop: 6,
 };
@@ -193,9 +184,9 @@ export const lineActionGroupStyle: CSSProperties = {
 };
 
 export const lineActionButtonStyle: CSSProperties = {
-  width: 20,
-  minWidth: 20,
-  minHeight: 24,
-  padding: 2,
+  width: 'var(--control-h-sm)',
+  minWidth: 'var(--control-h-sm)',
+  height: 'var(--control-h-sm)',
+  padding: 0,
   color: 'var(--color-text-secondary)',
 };

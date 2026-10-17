@@ -28,16 +28,16 @@ export interface BankReceiptVoucherLine {
 }
 
 const receiptLineColumns = [
-  { label: 'No.', width: 32 },
-  { label: 'Received From Account', width: 235 },
-  { label: 'Description', width: 190 },
-  { label: 'Deposit Type', width: 105 },
-  { label: 'Cheque Number', width: 110, required: true },
-  { label: 'Cheque Date', width: 96 },
-  { label: 'Cheque Bank', width: 145 },
-  { label: 'Clearing Date', width: 96 },
-  { label: 'Amount', width: 110, right: true },
-  { label: '', width: 30 },
+  { label: 'No.', width: 44 },
+  { label: 'Received From Account', width: 240 },
+  { label: 'Description', width: undefined },
+  { label: 'Deposit Type', width: 120 },
+  { label: 'Cheque Number', width: 124, required: true },
+  { label: 'Cheque Date', width: 128 },
+  { label: 'Cheque Bank', width: 150 },
+  { label: 'Clearing Date', width: 128 },
+  { label: 'Amount', width: 140, right: true },
+  { label: '', width: 44 },
 ] as const;
 
 export function BankReceiptVoucherLineTable({
@@ -60,8 +60,8 @@ export function BankReceiptVoucherLineTable({
   onRemoveLine: (id: number) => void;
 }) {
   return (
-    <div style={{ minHeight: 0, overflowY: 'auto', overflowX: 'hidden', border: '1px solid var(--color-border)', borderRadius: 'var(--radius)' }}>
-      <table style={{ width: '100%', minWidth: '100%', borderCollapse: 'collapse', fontSize: '0.76rem', tableLayout: 'fixed' }}>
+    <div style={{ minHeight: 0, overflowY: 'auto', overflowX: 'auto', border: '1px solid var(--color-border)', borderRadius: 'var(--radius)' }}>
+      <table style={{ width: '100%', minWidth: 1300, borderCollapse: 'collapse', fontSize: 'var(--font-size-sm)', tableLayout: 'fixed' }}>
         <colgroup>
           {receiptLineColumns.map(column => (
             <col key={column.label || 'action'} style={{ width: column.width }} />
@@ -72,7 +72,7 @@ export function BankReceiptVoucherLineTable({
             {receiptLineColumns.map(column => (
               <th key={column.label || 'action'} style={tableHeadStyle('right' in column && Boolean(column.right))}>
                 {column.label}
-                {'required' in column && column.required && <span style={{ color: '#fecaca', marginLeft: 2 }}>*</span>}
+                {'required' in column && column.required && <span className="field-required" aria-hidden>*</span>}
               </th>
             ))}
           </tr>
@@ -158,7 +158,7 @@ export function BankReceiptVoucherLineTable({
                     onFocus={() => onUpdateLine(line.id, { amount: cleanAmount(line.amount) })}
                     onBlur={() => onUpdateLine(line.id, { amount: formatAmountInput(line.amount, generalSettings) })}
                     placeholder="0.00"
-                    style={{ ...compactInputStyle, textAlign: 'right', fontFamily: 'var(--font-mono)', fontWeight: 800 }}
+                    style={{ ...compactInputStyle, textAlign: 'right', fontVariantNumeric: 'tabular-nums', fontWeight: 500 }}
                   />
                 </td>
                 <td style={tableCellStyle()}>
@@ -168,7 +168,7 @@ export function BankReceiptVoucherLineTable({
                     onClick={() => onRemoveLine(line.id)}
                     disabled={lines.length === 1}
                     title="Remove Line"
-                    style={{ padding: 4, color: 'var(--color-danger)', minHeight: 28 }}
+                    style={{ width: 'var(--control-h)', padding: 0 }}
                   >
                     <IconTrash size={16} />
                   </button>

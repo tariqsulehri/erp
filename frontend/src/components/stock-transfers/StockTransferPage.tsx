@@ -1,8 +1,7 @@
 'use client';
 
-import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import {
-  IconArrowsExchange,
   IconCheck,
   IconEye,
   IconFilePlus,
@@ -12,7 +11,7 @@ import {
   IconTrash,
   IconX,
 } from '@tabler/icons-react';
-import { formatDate, formatMoney, formatNumber } from '@/lib/app-settings';
+import { formatDate, formatNumber } from '@/lib/app-settings';
 import { useGeneralSettings } from '@/lib/api/settings';
 import {
   type StockTransferPayload,
@@ -27,7 +26,12 @@ import { usePostingDateGuard } from '@/lib/api/fiscal-years';
 import { friendlyErrorMessage, numericValue } from '@/lib/erp-utils';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { FieldLabel } from '@/components/ui/FieldLabel';
-import { DateField, NumericField, TextField, fieldStyle, numericFieldStyle } from '@/components/ui/FormFields';
+import { DateField, NumericField, TextField } from '@/components/ui/FormFields';
+import { Badge } from '@/components/ui/Badge';
+import { Button } from '@/components/ui/Button';
+import { InlineAlert } from '@/components/ui/InlineAlert';
+import { PageHeader } from '@/components/ui/PageHeader';
+import { TableMessageRow } from '@/components/ui/TableMessageRow';
 import { SearchableSelect } from '@/components/ui/SearchableSelect';
 
 interface TransferLine {
@@ -254,142 +258,182 @@ export default function StockTransferPage() {
   }
 
   if (viewMode === 'list') {
+    const rows = listQuery.data?.data ?? [];
     return (
-      <main style={pageShellStyle}>
-        <Toolbar title="Stock Transfers" subtitle="Posted warehouse to warehouse stock movements">
-          <button className="btn-ghost" type="button" onClick={() => listQuery.refetch()}><IconRefresh size={15} /> Refresh</button>
-          <button className="btn-primary" type="button" disabled={newTransferGuard.disabled} title={newTransferDisabledReason} onClick={openNewTransfer}><IconFilePlus size={15} /> New Transfer</button>
-        </Toolbar>
-        {message && <MessageBanner message={message} />}
-        <section style={workspaceStyle}>
-          <div style={{ minWidth: 0, overflow: 'auto', border: '1px solid var(--color-border)' }}>
-            <table style={tableStyle}>
-              <thead>
-                <tr>
-                  <HeaderCell width={150}>Transfer Number</HeaderCell>
-                  <HeaderCell width={115}>Date</HeaderCell>
-                  <HeaderCell>From Warehouse</HeaderCell>
-                  <HeaderCell>To Warehouse</HeaderCell>
-                  <HeaderCell width={120} right>Total Qty</HeaderCell>
-                  <HeaderCell width={100}>Status</HeaderCell>
-                  <HeaderCell width={70}>View</HeaderCell>
-                </tr>
-              </thead>
-              <tbody>
-                {listQuery.isFetching && <EmptyRow colSpan={7} text="Loading Stock Transfers..." />}
-                {!listQuery.isFetching && (listQuery.data?.data ?? []).length === 0 && <EmptyRow colSpan={7} text="No posted Stock Transfers found." />}
-                {!listQuery.isFetching && (listQuery.data?.data ?? []).map((row: any) => (
-                  <tr key={row.id}>
-                    <td style={bodyCellStyle(true)}>{row.transfer_number}</td>
-                    <td style={bodyCellStyle()}>{formatDate(row.transfer_date, generalSettings)}</td>
-                    <td style={bodyCellStyle()}>{row.from_warehouse_code} - {row.from_warehouse_name}</td>
-                    <td style={bodyCellStyle()}>{row.to_warehouse_code} - {row.to_warehouse_name}</td>
-                    <td style={amountCellStyle}>{formatNumber(row.total_quantity, generalSettings)}</td>
-                    <td style={bodyCellStyle()}><StatusBadge>{row.status}</StatusBadge></td>
-                    <td style={bodyCellStyle()}><button className="btn-ghost" style={iconButtonStyle} onClick={() => setSelectedTransferId(row.id)}><IconEye size={14} /></button></td>
+      <main className="page-shell">
+        <PageHeader
+          title="Stock Transfers"
+          description="Posted stock movements between Warehouses and Locations."
+          actions={(
+            <>
+              <Button variant="secondary" icon={<IconRefresh size={16} stroke={1.8} />} onClick={() => listQuery.refetch()} loading={listQuery.isFetching && !listQuery.isLoading}>Refresh</Button>
+              <Button variant="primary" icon={<IconFilePlus size={16} stroke={1.8} />} disabled={newTransferGuard.disabled} title={newTransferDisabledReason} onClick={openNewTransfer}>New Transfer</Button>
+            </>
+          )}
+        />
+        {message && <InlineAlert tone={message.kind === 'success' ? 'success' : 'danger'}>{message.text}</InlineAlert>}
+        <div className={`split-view${selectedTransferId ? ' has-side' : ''}`}>
+          <section className="panel">
+            <div className="table-scroll">
+              <table className="data-table" style={{ tableLayout: 'fixed' }}>
+                <thead>
+                  <tr>
+                    <th style={{ width: 150 }}>Transfer No.</th>
+                    <th style={{ width: 110 }}>Date</th>
+                    <th>From Warehouse</th>
+                    <th>To Warehouse</th>
+                    <th className="num" style={{ width: 120 }}>Total Qty</th>
+                    <th style={{ width: 100 }}>Status</th>
+                    <th style={{ width: 56 }}><span className="sr-only">Actions</span></th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <DetailPanel detail={detailQuery.data} loading={detailQuery.isFetching} settings={generalSettings} />
-        </section>
+                </thead>
+                <tbody>
+                  {listQuery.isLoading && <TableMessageRow colSpan={7} title="Loading Stock Transfers…" loading />}
+                  {!listQuery.isLoading && rows.length === 0 && (
+                    <TableMessageRow colSpan={7} title="No Posted Stock Transfers Yet" description="Move stock between Warehouses with a new transfer." action={<Button variant="primary" icon={<IconFilePlus size={16} stroke={1.8} />} disabled={newTransferGuard.disabled} onClick={openNewTransfer}>New Transfer</Button>} />
+                  )}
+                  {!listQuery.isLoading && rows.map((row: any) => (
+                    <tr key={row.id} className={selectedTransferId === row.id ? 'is-selected' : undefined} onClick={() => setSelectedTransferId(row.id)} style={{ cursor: 'pointer' }}>
+                      <td className="cell-strong">{row.transfer_number}</td>
+                      <td>{formatDate(row.transfer_date, generalSettings)}</td>
+                      <td>{row.from_warehouse_code} - {row.from_warehouse_name}</td>
+                      <td>{row.to_warehouse_code} - {row.to_warehouse_name}</td>
+                      <td className="num">{formatNumber(row.total_quantity, generalSettings)}</td>
+                      <td><Badge variant="success">{row.status}</Badge></td>
+                      <td className="cell-actions">
+                        <Button variant="ghost" size="sm" icon={<IconEye size={16} stroke={1.8} />} onClick={event => { event.stopPropagation(); setSelectedTransferId(row.id); }} aria-label={`View Transfer ${row.transfer_number}`} title="View Transfer" />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </section>
+          {selectedTransferId && <DetailPanel detail={detailQuery.data} loading={detailQuery.isFetching} settings={generalSettings} onClose={() => setSelectedTransferId(null)} />}
+        </div>
       </main>
     );
   }
 
   return (
-    <main style={pageShellStyle}>
-      <Toolbar title="New Stock Transfer" subtitle="Move stock from one Warehouse to another Warehouse">
-        <button className="btn-ghost" type="button" onClick={() => setViewMode('list')}>Cancel</button>
-        <button className="btn-ghost" type="button" onClick={() => saveTransfer(false)} disabled={actionDisabled} title={dateStatusMessage}>Save Draft</button>
-        <button className="btn-primary" type="button" onClick={() => {
-          const validationMessage = validateForm();
-          if (validationMessage) setMessage({ kind: 'error', text: validationMessage });
-          else setConfirmOpen(true);
-        }} disabled={actionDisabled} title={dateStatusMessage}><IconCheck size={15} /> Process</button>
-      </Toolbar>
-      {message && <MessageBanner message={message} />}
-      <section style={entryCardStyle}>
-        <div style={{ display: 'grid', gridTemplateColumns: '115px minmax(260px, 1fr) minmax(220px, 0.8fr) minmax(260px, 1fr) minmax(220px, 0.8fr) 180px', gap: 8, alignItems: 'end' }}>
-          <DateField label="Transfer Date" required value={transferDate} onChange={setTransferDate} />
-          <FieldLabel label="From Warehouse" required>
-            <SearchableSelect value={fromWarehouseId} options={warehouses} onChange={value => { setFromWarehouseId(value); setFromLocationId(''); }} placeholder={supportQuery.isLoading ? 'Loading Warehouses' : 'Search Warehouse'} disabled={supportQuery.isLoading || supportQuery.isError} />
-          </FieldLabel>
-          <FieldLabel label="From Location" required={Boolean(selectedFromWarehouse?.useLocations)}>
-            <SearchableSelect value={fromLocationId} options={fromLocations} onChange={setFromLocationId} placeholder={selectedFromWarehouse?.useLocations ? 'Search Location' : 'Optional Location'} disabled={!fromWarehouseId || !selectedFromWarehouse?.useLocations} />
-          </FieldLabel>
-          <FieldLabel label="To Warehouse" required>
-            <SearchableSelect value={toWarehouseId} options={warehouses.filter((warehouse: any) => warehouse.value !== fromWarehouseId || fromLocationId)} onChange={value => { setToWarehouseId(value); setToLocationId(''); }} placeholder={supportQuery.isLoading ? 'Loading Warehouses' : 'Search Warehouse'} disabled={supportQuery.isLoading || supportQuery.isError} />
-          </FieldLabel>
-          <FieldLabel label="To Location" required={Boolean(selectedToWarehouse?.useLocations)}>
-            <SearchableSelect value={toLocationId} options={toLocations} onChange={setToLocationId} placeholder={selectedToWarehouse?.useLocations ? 'Search Location' : 'Optional Location'} disabled={!toWarehouseId || !selectedToWarehouse?.useLocations} />
-          </FieldLabel>
-          <TextField label="Reference Number" value={referenceNumber} onChange={setReferenceNumber} placeholder="Optional" />
+    <main className="page-shell">
+      <PageHeader
+        title="New Stock Transfer"
+        description="Move stock from one Warehouse or Location to another."
+        actions={(
+          <>
+            <Button variant="ghost" onClick={() => setViewMode('list')}>Cancel</Button>
+            <Button variant="secondary" onClick={() => saveTransfer(false)} disabled={actionDisabled} title={dateStatusMessage}>Save Draft</Button>
+            <Button
+              variant="primary"
+              icon={<IconCheck size={16} stroke={1.8} />}
+              onClick={() => {
+                const validationMessage = validateForm();
+                if (validationMessage) setMessage({ kind: 'error', text: validationMessage });
+                else setConfirmOpen(true);
+              }}
+              disabled={actionDisabled}
+              loading={saving}
+              title={dateStatusMessage}
+            >
+              Process
+            </Button>
+          </>
+        )}
+      />
+      {message && <InlineAlert tone={message.kind === 'success' ? 'success' : 'danger'}>{message.text}</InlineAlert>}
+
+      <section className="panel" style={{ flexShrink: 0, overflow: 'visible' }}>
+        <div className="panel-body" style={{ overflow: 'visible' }}>
+          <div className="form-grid" style={{ ['--form-cols' as string]: 6 }}>
+            <DateField label="Transfer Date" required value={transferDate} onChange={setTransferDate} />
+            <FieldLabel label="From Warehouse" required>
+              <SearchableSelect value={fromWarehouseId} options={warehouses} onChange={value => { setFromWarehouseId(value); setFromLocationId(''); }} placeholder={supportQuery.isLoading ? 'Loading Warehouses' : 'Search Warehouse'} disabled={supportQuery.isLoading || supportQuery.isError} />
+            </FieldLabel>
+            <FieldLabel label="From Location" required={Boolean(selectedFromWarehouse?.useLocations)}>
+              <SearchableSelect value={fromLocationId} options={fromLocations} onChange={setFromLocationId} placeholder={selectedFromWarehouse?.useLocations ? 'Search Location' : 'Not Used'} disabled={!fromWarehouseId || !selectedFromWarehouse?.useLocations} />
+            </FieldLabel>
+            <FieldLabel label="To Warehouse" required>
+              <SearchableSelect value={toWarehouseId} options={warehouses.filter((warehouse: any) => warehouse.value !== fromWarehouseId || fromLocationId)} onChange={value => { setToWarehouseId(value); setToLocationId(''); }} placeholder={supportQuery.isLoading ? 'Loading Warehouses' : 'Search Warehouse'} disabled={supportQuery.isLoading || supportQuery.isError} />
+            </FieldLabel>
+            <FieldLabel label="To Location" required={Boolean(selectedToWarehouse?.useLocations)}>
+              <SearchableSelect value={toLocationId} options={toLocations} onChange={setToLocationId} placeholder={selectedToWarehouse?.useLocations ? 'Search Location' : 'Not Used'} disabled={!toWarehouseId || !selectedToWarehouse?.useLocations} />
+            </FieldLabel>
+            <TextField label="Reference Number" value={referenceNumber} onChange={setReferenceNumber} placeholder="Optional" />
+            <div className="span-all">
+              <TextField label="Description" value={description} onChange={setDescription} placeholder="Short details for this transfer" />
+            </div>
+          </div>
+          {dateStatusMessage && <p className="form-error">{dateStatusMessage}</p>}
         </div>
-        <div style={{ marginTop: 8 }}>
-          <TextField label="Voucher Details" value={description} onChange={setDescription} placeholder="Short details for this transfer" />
-        </div>
-        <div style={dateMessageStyle}>{dateStatusMessage}</div>
       </section>
 
-      <section style={lineEntryStyle}>
-        <FieldLabel label="Item" required>
-          <SearchableSelect value={lineItemId} options={items} onChange={setLineItemId} placeholder={supportQuery.isLoading ? 'Loading Items' : 'Search Item'} disabled={supportQuery.isLoading || supportQuery.isError} />
-        </FieldLabel>
-        <NumericField label="Quantity" required value={lineQuantity} onChange={setLineQuantity} decimalPlaces={4} />
-        <TextField label="Line Description" value={lineDescription} onChange={setLineDescription} />
-        <div style={{ ...lineActionGroupStyle, gridTemplateColumns: editingLineId ? 'minmax(110px, 1fr) 92px' : '1fr' }}>
-          <button className="btn-primary" type="button" onClick={addLine} style={linePrimaryButtonStyle}>
-            {editingLineId ? 'Update Line' : 'Add Line'}
-          </button>
-          {editingLineId && (
-            <button className="btn-ghost" type="button" onClick={cancelLineEdit} title="Cancel Line Edit" style={lineCancelButtonStyle}>
-              <IconX size={14} /> Cancel
-            </button>
-          )}
+      <section className="panel" style={{ flex: 1, minHeight: 0 }}>
+        <div className="panel-header" style={{ alignItems: 'flex-end', paddingTop: 12, paddingBottom: 12, overflow: 'visible' }}>
+          <div className="form-grid" style={{ flex: 1, ['--form-cols' as string]: 7 }}>
+            <div className="span-3">
+              <FieldLabel label="Item" required>
+                <SearchableSelect value={lineItemId} options={items} onChange={setLineItemId} placeholder={supportQuery.isLoading ? 'Loading Items' : 'Search Item'} disabled={supportQuery.isLoading || supportQuery.isError} />
+              </FieldLabel>
+            </div>
+            <NumericField label="Quantity" required value={lineQuantity} onChange={setLineQuantity} decimalPlaces={4} />
+            <div className="span-2">
+              <TextField label="Line Description" value={lineDescription} onChange={setLineDescription} />
+            </div>
+            <div style={{ display: 'flex', gap: 6, alignItems: 'flex-end', height: '100%', paddingTop: 20 }}>
+              <Button variant="secondary" onClick={addLine} style={{ flex: 1 }}>{editingLineId ? 'Update Line' : 'Add Line'}</Button>
+              {editingLineId && <Button variant="ghost" icon={<IconX size={16} stroke={1.8} />} onClick={cancelLineEdit} aria-label="Cancel Line Edit" title="Cancel Line Edit" />}
+            </div>
+          </div>
         </div>
-      </section>
-
-      <section style={{ ...workspaceStyle, gridTemplateColumns: '1fr 250px' }}>
-        <div style={{ minHeight: 0, overflow: 'auto', border: '1px solid var(--color-border)' }}>
-          <table style={tableStyle}>
+        <div className="table-scroll">
+          <table className="data-table" style={{ tableLayout: 'fixed' }}>
             <thead>
               <tr>
-                <HeaderCell width={45}>No.</HeaderCell>
-                <HeaderCell>Item</HeaderCell>
-                <HeaderCell width={110} right>Quantity</HeaderCell>
-                <HeaderCell width={90}>UOM</HeaderCell>
-                <HeaderCell>Description</HeaderCell>
-                <HeaderCell width={90}>Actions</HeaderCell>
+                <th className="num" style={{ width: 56 }}>No.</th>
+                <th>Item</th>
+                <th className="num" style={{ width: 130 }}>Quantity</th>
+                <th style={{ width: 90 }}>UOM</th>
+                <th>Description</th>
+                <th style={{ width: 84 }}><span className="sr-only">Actions</span></th>
               </tr>
             </thead>
             <tbody>
-              {lines.length === 0 && <EmptyRow colSpan={6} text="No transfer items added." />}
+              {lines.length === 0 && <TableMessageRow colSpan={6} title="No Items Added" description="Choose an Item and Quantity above, then select Add Line." />}
               {lines.map((line, index) => (
-                <tr key={line.id} style={editingLineId === line.id ? { background: 'var(--color-primary-light)' } : undefined}>
-                  <td style={bodyCellStyle(true)}>{index + 1}</td>
-                  <td style={bodyCellStyle(true)}>{line.itemCode} - {line.itemName}</td>
-                  <td style={amountCellStyle}>{formatNumber(line.quantity, generalSettings)}</td>
-                  <td style={bodyCellStyle()}>{line.uomName || '-'}</td>
-                  <td style={bodyCellStyle()}>{line.description || '-'}</td>
-                  <td style={bodyCellStyle()}>
-                    <div style={{ display: 'flex', gap: 4 }}>
-                      <button className="btn-ghost" style={iconButtonStyle} onClick={() => editLine(line)} title="Edit Line"><IconPencil size={14} /></button>
-                      <button className="btn-ghost" style={iconButtonStyle} onClick={() => removeLine(line.id)} title="Delete Line"><IconTrash size={14} /></button>
-                    </div>
+                <tr key={line.id} className={editingLineId === line.id ? 'is-selected' : undefined}>
+                  <td className="num cell-muted">{index + 1}</td>
+                  <td className="cell-strong">{line.itemCode} - {line.itemName}</td>
+                  <td className="num">{formatNumber(line.quantity, generalSettings)}</td>
+                  <td className={line.uomName ? undefined : 'cell-muted'}>{line.uomName || 'Not Set'}</td>
+                  <td className={line.description ? undefined : 'cell-muted'}>{line.description || 'Not Set'}</td>
+                  <td className="cell-actions">
+                    <span className="row-actions">
+                      <Button variant="ghost" size="sm" icon={<IconPencil size={16} stroke={1.8} />} onClick={() => editLine(line)} aria-label={`Edit Line ${index + 1}`} title="Edit Line" />
+                      <Button variant="ghost" size="sm" icon={<IconTrash size={16} stroke={1.8} />} onClick={() => removeLine(line.id)} aria-label={`Remove Line ${index + 1}`} title="Remove Line" />
+                    </span>
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
-        <aside style={summaryStyle}>
-          <SummaryValue label="Total Items" value={String(lines.length)} />
-          <SummaryValue label="Total Quantity" value={formatNumber(totalQuantity, generalSettings)} />
-        </aside>
+        <div className="panel-footer" style={{ justifyContent: 'space-between' }}>
+          <span style={{ fontSize: 'var(--font-size-sm)', color: 'var(--color-text-muted)' }}>Total Items <strong style={{ color: 'var(--color-heading)', fontWeight: 600 }}>{lines.length}</strong></span>
+          <span style={{ fontSize: 'var(--font-size-sm)', color: 'var(--color-text-muted)' }}>Total Quantity <strong style={{ color: 'var(--color-heading)', fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>{formatNumber(totalQuantity, generalSettings)}</strong></span>
+        </div>
       </section>
-      <ConfirmDialog open={confirmOpen} title="Process Stock Transfer?" message="This will post stock movements and update warehouse stock balances. Posted transfers cannot be edited directly." confirmLabel="Process" onConfirm={() => saveTransfer(true)} onCancel={() => setConfirmOpen(false)} />
+
+      <ConfirmDialog
+        open={confirmOpen}
+        variant="primary"
+        title="Process Stock Transfer?"
+        message="This posts the stock movements and updates Warehouse stock balances. A posted transfer cannot be edited."
+        confirmLabel="Process"
+        loading={saving}
+        onConfirm={() => saveTransfer(true)}
+        onCancel={() => setConfirmOpen(false)}
+      />
     </main>
   );
 }
@@ -400,90 +444,46 @@ function locationOptions(rows: any[], warehouseId: string) {
     .map(location => ({ value: location.id, label: `${location.code} - ${location.name}`, searchText: `${location.code} ${location.name}` }));
 }
 
-function Toolbar({ title, subtitle, children }: { title: string; subtitle: string; children: ReactNode }) {
+function DetailPanel({ detail, loading, settings, onClose }: { detail: any; loading: boolean; settings: any; onClose: () => void }) {
   return (
-    <section style={toolbarStyle}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-        <div style={titleIconStyle}><IconArrowsExchange size={20} /></div>
-        <div><h1 style={titleStyle}>{title}</h1><p style={subtitleStyle}>{subtitle}</p></div>
+    <aside className="panel side-panel" aria-label="Transfer Detail">
+      <div className="panel-header">
+        <h2 className="panel-title">{detail?.transfer_number ?? 'Transfer Detail'}</h2>
+        <span className="row-actions">
+          {detail && <Button variant="ghost" size="sm" icon={<IconPrinter size={16} stroke={1.8} />} onClick={() => window.print()} aria-label="Print Transfer" title="Print Transfer" />}
+          <Button variant="ghost" size="sm" icon={<IconX size={16} stroke={1.8} />} onClick={onClose} aria-label="Close Detail" title="Close Detail" />
+        </span>
       </div>
-      <div style={{ display: 'flex', gap: 8 }}>{children}</div>
-    </section>
-  );
-}
-
-function DetailPanel({ detail, loading, settings }: { detail: any; loading: boolean; settings: any }) {
-  if (loading) return <aside style={detailStyle}>Loading Transfer Detail...</aside>;
-  if (!detail) return <aside style={detailStyle}>Select a Stock Transfer to view detail.</aside>;
-  return (
-    <aside style={detailStyle}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <h2 style={{ margin: 0, fontSize: '0.92rem' }}>Transfer Detail</h2>
-        <button className="btn-ghost" style={iconButtonStyle} onClick={() => window.print()}><IconPrinter size={14} /></button>
+      <div className="panel-body">
+        {loading && <p className="form-hint">Loading Transfer Detail…</p>}
+        {!loading && detail && (
+          <>
+            <dl className="detail-list">
+              <InfoRow label="Date" value={formatDate(detail.transfer_date, settings)} />
+              <InfoRow label="Status" value={<Badge variant="success">{detail.status}</Badge>} />
+              <InfoRow label="From" value={`${detail.from_warehouse_code} - ${detail.from_warehouse_name}`} />
+              <InfoRow label="To" value={`${detail.to_warehouse_code} - ${detail.to_warehouse_name}`} />
+              <InfoRow label="Reference" value={detail.reference_number || 'Not Set'} />
+            </dl>
+            <table className="data-table" style={{ tableLayout: 'fixed' }}>
+              <thead><tr><th className="num" style={{ width: 44 }}>No.</th><th>Item</th><th className="num" style={{ width: 96 }}>Qty</th></tr></thead>
+              <tbody>
+                {(detail.lines ?? []).map((line: any, index: number) => (
+                  <tr key={line.id}>
+                    <td className="num cell-muted">{index + 1}</td>
+                    <td className="cell-strong">{line.item_code} - {line.item_name}</td>
+                    <td className="num">{formatNumber(line.quantity, settings)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </>
+        )}
       </div>
-      <div style={detailGridStyle}>
-        <InfoBox label="Transfer No." value={detail.transfer_number} />
-        <InfoBox label="Date" value={formatDate(detail.transfer_date, settings)} />
-        <InfoBox label="From" value={`${detail.from_warehouse_code} - ${detail.from_warehouse_name}`} />
-        <InfoBox label="To" value={`${detail.to_warehouse_code} - ${detail.to_warehouse_name}`} />
-        <InfoBox label="Reference" value={detail.reference_number || '-'} />
-        <InfoBox label="Status" value={detail.status} />
-      </div>
-      <table style={{ ...tableStyle, marginTop: 10 }}>
-        <thead><tr><HeaderCell width={38}>No.</HeaderCell><HeaderCell>Item</HeaderCell><HeaderCell width={90} right>Qty</HeaderCell></tr></thead>
-        <tbody>
-          {(detail.lines ?? []).map((line: any, index: number) => (
-            <tr key={line.id}><td style={bodyCellStyle()}>{index + 1}</td><td style={bodyCellStyle(true)}>{line.item_code} - {line.item_name}</td><td style={amountCellStyle}>{formatNumber(line.quantity, settings)}</td></tr>
-          ))}
-        </tbody>
-      </table>
     </aside>
   );
 }
 
-function InfoBox({ label, value }: { label: string; value: string }) {
-  return <div style={{ border: '1px solid var(--color-border)', padding: 8 }}><div style={{ fontSize: '0.68rem', fontWeight: 850, color: 'var(--color-text-muted)' }}>{label}</div><div style={{ fontSize: '0.78rem', fontWeight: 850 }}>{value}</div></div>;
+function InfoRow({ label, value }: { label: string; value: ReactNode }) {
+  return <div className="detail-row"><dt>{label}</dt><dd>{value}</dd></div>;
 }
-
-function SummaryValue({ label, value }: { label: string; value: string }) {
-  return <div><div style={{ fontSize: '0.7rem', fontWeight: 850, color: 'var(--color-text-muted)' }}>{label}</div><div style={{ ...numericFieldStyle('compact'), border: '1px solid var(--color-border)', background: 'var(--color-surface)', marginTop: 4 }}>{value}</div></div>;
-}
-
-function MessageBanner({ message }: { message: { kind: 'success' | 'error'; text: string } }) {
-  return <div style={{ color: message.kind === 'success' ? '#15803d' : 'var(--color-danger-text)', fontSize: '0.74rem', fontWeight: 750 }}>{message.text}</div>;
-}
-
-function HeaderCell({ children, width, right = false }: { children: ReactNode; width?: number; right?: boolean }) {
-  return <th style={{ ...headerCellStyle, width, textAlign: right ? 'right' : 'left' }}>{children}</th>;
-}
-
-function EmptyRow({ colSpan, text }: { colSpan: number; text: string }) {
-  return <tr><td colSpan={colSpan} style={{ ...bodyCellStyle(), height: 70, textAlign: 'center', color: 'var(--color-text-muted)', fontWeight: 800 }}>{text}</td></tr>;
-}
-
-function StatusBadge({ children }: { children: ReactNode }) {
-  return <span style={{ border: '1px solid rgba(22,163,74,0.24)', background: 'rgba(22,163,74,0.12)', color: '#15803d', borderRadius: 'var(--radius-full)', padding: '2px 8px', fontSize: '0.68rem', fontWeight: 850 }}>{children}</span>;
-}
-
-const pageShellStyle: CSSProperties = { height: '100%', minHeight: 0, padding: 10, display: 'flex', flexDirection: 'column', gap: 8, overflow: 'hidden' };
-const toolbarStyle: CSSProperties = { border: '1px solid var(--color-border)', background: 'var(--color-surface)', padding: '9px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, flexShrink: 0 };
-const titleIconStyle: CSSProperties = { width: 36, height: 36, borderRadius: 'var(--radius)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', background: 'linear-gradient(135deg, #0f766e, #2563eb)' };
-const titleStyle: CSSProperties = { margin: 0, fontSize: '1.05rem', lineHeight: 1.1, color: 'var(--color-heading)', fontWeight: 900 };
-const subtitleStyle: CSSProperties = { margin: '3px 0 0', fontSize: '0.73rem', color: 'var(--color-text-muted)', fontWeight: 750 };
-const entryCardStyle: CSSProperties = { border: '1px solid var(--color-border)', background: 'var(--color-surface)', padding: 10, flexShrink: 0 };
-const lineEntryStyle: CSSProperties = { border: '1px solid var(--color-border)', background: 'var(--color-surface)', padding: 10, display: 'grid', gridTemplateColumns: 'minmax(360px,1fr) 130px minmax(260px,0.8fr) 220px', gap: 8, flexShrink: 0 };
-const lineActionGroupStyle: CSSProperties = { display: 'grid', gap: 8, alignSelf: 'end' };
-const linePrimaryButtonStyle: CSSProperties = { height: 28, minWidth: 110, whiteSpace: 'nowrap' };
-const lineCancelButtonStyle: CSSProperties = { height: 28, padding: '4px 8px', whiteSpace: 'nowrap', justifyContent: 'center' };
-const workspaceStyle: CSSProperties = { flex: 1, minHeight: 0, display: 'grid', gridTemplateColumns: '1fr 420px', gap: 8, overflow: 'hidden' };
-const detailStyle: CSSProperties = { border: '1px solid var(--color-border)', background: 'var(--color-surface)', padding: 10, overflow: 'auto', minWidth: 0 };
-const detailGridStyle: CSSProperties = { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 10 };
-const summaryStyle: CSSProperties = { border: '1px solid var(--color-border)', background: 'var(--color-surface)', padding: 10, display: 'flex', flexDirection: 'column', gap: 10 };
-const tableStyle: CSSProperties = { width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' };
-const headerCellStyle: CSSProperties = { background: 'var(--color-table-header)', color: 'var(--color-table-header-text)', border: '1px solid var(--color-border)', padding: '7px 8px', fontSize: '0.74rem', fontWeight: 900 };
-function bodyCellStyle(strong = false): CSSProperties {
-  return { border: '1px solid var(--color-border-subtle)', padding: '7px 8px', fontSize: '0.76rem', color: 'var(--color-text)', fontWeight: strong ? 850 : 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' };
-}
-const amountCellStyle: CSSProperties = { ...bodyCellStyle(true), textAlign: 'right', fontFamily: 'var(--font-mono)' };
-const iconButtonStyle: CSSProperties = { height: 26, width: 28, minWidth: 28, padding: 0 };
-const dateMessageStyle: CSSProperties = { minHeight: 17, marginTop: 6, color: 'var(--color-danger-text)', fontSize: '0.72rem', fontWeight: 700 };

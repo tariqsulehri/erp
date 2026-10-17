@@ -1,142 +1,54 @@
 'use client';
 
 import type { ReactNode } from 'react';
-import {
-  IconCircleCheck,
-  IconCircleX,
-  IconDeviceFloppy,
-  IconFilePlus,
-  IconPrinter,
-  IconReceipt,
-  IconRefresh,
-} from '@tabler/icons-react';
-import { badgeStyle, compactButtonStyle, voucherSummaryFooterStyle, voucherSummaryValuesStyle } from './VoucherShared';
+import { IconCircleCheck, IconDeviceFloppy, IconFilePlus, IconPrinter, IconRefresh } from '@tabler/icons-react';
+import { Badge } from '@/components/ui/Badge';
+import { Button } from '@/components/ui/Button';
+import { InlineAlert } from '@/components/ui/InlineAlert';
+import { voucherSummaryFooterStyle, voucherSummaryValuesStyle } from './VoucherShared';
 import type { VoucherMessageKind } from './VoucherShared';
 
+/**
+ * Voucher page header: title, voucher type code, mode, and status on the left; actions on the right.
+ * `badgeColor`, `badgeBackground`, `accent`, and `icon` are accepted for older callers but no longer
+ * drawn — the standard header has no colored icon tile (DESIGN.md, The One Blue Rule).
+ */
 export function VoucherPageHeader({
   title,
   badgeText,
-  badgeColor,
-  badgeBackground,
-  accent,
-  icon,
   mode = 'Add',
   status = 'Draft',
   actions,
 }: {
   title: string;
   badgeText: string;
-  badgeColor: string;
-  badgeBackground: string;
-  accent: string;
-  icon: ReactNode;
+  badgeColor?: string;
+  badgeBackground?: string;
+  accent?: string;
+  icon?: ReactNode;
   mode?: 'Add' | 'Edit' | 'View';
   status?: string;
   actions: ReactNode;
 }) {
   return (
-    <section
-      style={{
-        background: 'var(--color-surface)',
-        border: '1px solid var(--color-border)',
-        borderRadius: 'var(--radius-md)',
-        boxShadow: 'var(--color-workspace-shadow)',
-        padding: '8px 10px',
-        flexShrink: 0,
-      }}
-    >
-      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-          <div
-            style={{
-              width: 34,
-              height: 34,
-              borderRadius: 'var(--radius)',
-              display: 'grid',
-              placeItems: 'center',
-              color: '#fff',
-              background: accent,
-            }}
-          >
-            {icon}
-          </div>
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-            <h1 style={{ margin: 0, fontSize: '1.05rem', lineHeight: 1.1, color: 'var(--color-heading)' }}>{title}</h1>
-            <span style={badgeStyle(badgeColor, badgeBackground)}>{badgeText}</span>
-            <span
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 5,
-                minHeight: 22,
-                padding: '2px 8px',
-                borderRadius: 'var(--radius-full)',
-                border: '1px solid var(--color-primary)',
-                background: 'var(--color-primary-soft, rgba(37, 99, 235, 0.12))',
-                color: 'var(--color-primary)',
-                fontSize: '0.68rem',
-                fontWeight: 800,
-                whiteSpace: 'nowrap',
-              }}
-            >
-              <span style={{ color: 'var(--color-text-muted)', fontWeight: 700 }}>Mode</span>
-              {mode}
-            </span>
-            <span
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 5,
-                minHeight: 22,
-                padding: '2px 8px',
-                borderRadius: 'var(--radius-full)',
-                border: '1px solid var(--color-border)',
-                background: 'var(--color-surface-alt)',
-                color: 'var(--color-text-secondary)',
-                fontSize: '0.68rem',
-                fontWeight: 800,
-                whiteSpace: 'nowrap',
-              }}
-            >
-              <span style={{ color: 'var(--color-text-muted)', fontWeight: 700 }}>Status</span>
-              {status}
-            </span>
-          </div>
-        </div>
-        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>{actions}</div>
+    <header className="page-head" style={{ flexWrap: 'wrap' }}>
+      <div className="page-head-text" style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+        <h1 className="page-head-title">{title}</h1>
+        <Badge variant="neutral" title="Voucher Type">{badgeText}</Badge>
+        <Badge variant="info">{mode === 'Add' ? 'New' : mode}</Badge>
+        <Badge variant={status === 'Posted' || status === 'Approved' ? 'success' : status === 'Pending' ? 'warning' : 'neutral'}>{status}</Badge>
       </div>
-    </section>
+      <div className="page-head-actions" style={{ flexWrap: 'wrap' }}>{actions}</div>
+    </header>
   );
 }
 
 export function VoucherMessageBanner({ message }: { message: { kind: VoucherMessageKind; text: string } | null }) {
   if (!message) return null;
-
-  return (
-    <div
-      style={{
-        flexShrink: 0,
-        borderRadius: 'var(--radius)',
-        padding: '7px 10px',
-        border: `1px solid ${message.kind === 'success' ? 'var(--color-success-border)' : 'var(--color-danger-border)'}`,
-        background: message.kind === 'success' ? 'var(--color-success-bg)' : 'var(--color-danger-bg)',
-        color: message.kind === 'success' ? 'var(--color-success-text)' : 'var(--color-danger-text)',
-        fontWeight: 700,
-        display: 'flex',
-        alignItems: 'flex-start',
-        gap: 8,
-        fontSize: '0.78rem',
-        lineHeight: 1.35,
-      }}
-    >
-      <span style={{ display: 'inline-flex', flexShrink: 0, paddingTop: 1 }}>
-        {message.kind === 'success' ? <IconCircleCheck size={18} /> : <IconReceipt size={18} />}
-      </span>
-      <span style={{ minWidth: 0, overflowWrap: 'anywhere' }}>{message.text}</span>
-    </div>
-  );
+  return <InlineAlert tone={message.kind === 'success' ? 'success' : 'danger'}>{message.text}</InlineAlert>;
 }
 
+/** Standard voucher actions: secondary tools first, then Cancel, Save Draft, and the one primary action. */
 export function VoucherActionButtons({
   saving,
   actionDisabled,
@@ -162,33 +74,15 @@ export function VoucherActionButtons({
   onSaveDraft: () => void;
   onProcess: () => void;
 }) {
+  const icon = (Icon: typeof IconFilePlus) => <Icon size={16} stroke={1.8} />;
   return (
     <>
-      <button
-        className="btn-secondary"
-        type="button"
-        disabled={saving || newDisabled}
-        onClick={onNew}
-        title={newDisabledReason}
-        style={compactButtonStyle}
-      >
-        <IconFilePlus size={15} /> New
-      </button>
-      <button className="btn-secondary" type="button" disabled={saving} onClick={onRefresh} style={compactButtonStyle}>
-        <IconRefresh size={15} /> Refresh
-      </button>
-      <button className="btn-secondary" type="button" disabled={saving} onClick={onPrint} style={compactButtonStyle}>
-        <IconPrinter size={15} /> Print
-      </button>
-      <button type="button" className="btn-secondary" onClick={onCancel} style={compactButtonStyle}>
-        <IconCircleX size={15} /> Cancel
-      </button>
-      <button type="button" className="btn-secondary" disabled={actionDisabled} onClick={onSaveDraft} style={compactButtonStyle}>
-        <IconDeviceFloppy size={15} /> Save Draft
-      </button>
-      <button type="button" className="btn-primary" disabled={actionDisabled} onClick={onProcess} style={compactButtonStyle}>
-        <IconCircleCheck size={15} /> {processLabel}
-      </button>
+      <Button variant="secondary" icon={icon(IconFilePlus)} disabled={saving || newDisabled} onClick={onNew} title={newDisabledReason}>New</Button>
+      <Button variant="secondary" icon={icon(IconRefresh)} disabled={saving} onClick={onRefresh} aria-label="Refresh" title="Refresh" />
+      <Button variant="secondary" icon={icon(IconPrinter)} disabled={saving} onClick={onPrint} aria-label="Print" title="Print" />
+      <Button variant="ghost" onClick={onCancel}>Cancel</Button>
+      <Button variant="secondary" icon={icon(IconDeviceFloppy)} disabled={actionDisabled} onClick={onSaveDraft}>Save Draft</Button>
+      <Button variant="primary" icon={icon(IconCircleCheck)} disabled={actionDisabled} loading={saving} onClick={onProcess}>{processLabel}</Button>
     </>
   );
 }
@@ -204,11 +98,9 @@ export function VoucherLineSection({
 }) {
   return (
     <div style={{ minHeight: 0, display: 'grid', gridTemplateRows: 'auto 1fr', overflow: 'hidden' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'center', padding: '0 0 6px' }}>
-        <h2 style={{ margin: 0, fontSize: '0.9rem', color: 'var(--color-heading)' }}>{title}</h2>
-        <button type="button" className="btn-secondary" onClick={onAddLine} style={compactButtonStyle}>
-          <IconFilePlus size={15} /> Add Line
-        </button>
+      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'center', padding: '0 0 8px' }}>
+        <h2 className="panel-title">{title}</h2>
+        <Button variant="secondary" size="sm" icon={<IconFilePlus size={16} stroke={1.8} />} onClick={onAddLine}>Add Line</Button>
       </div>
       {children}
     </div>
@@ -218,8 +110,8 @@ export function VoucherLineSection({
 export function VoucherSummaryFooter({ activeLines, children }: { activeLines: number; children: ReactNode }) {
   return (
     <div style={voucherSummaryFooterStyle}>
-      <span style={{ color: 'var(--color-text-muted)', fontSize: '0.76rem', whiteSpace: 'nowrap' }}>
-        Active Lines: <strong style={{ color: 'var(--color-text)' }}>{activeLines}</strong>
+      <span style={{ color: 'var(--color-text-muted)', fontSize: 'var(--font-size-sm)', whiteSpace: 'nowrap', paddingBottom: 7 }}>
+        Active Lines <strong style={{ color: 'var(--color-heading)', fontWeight: 600 }}>{activeLines}</strong>
       </span>
       <div style={voucherSummaryValuesStyle}>{children}</div>
     </div>

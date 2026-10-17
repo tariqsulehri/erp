@@ -71,6 +71,7 @@ The frontend calls backend REST endpoints through focused API client files. Avoi
 
 ## UI Rules
 
+- Every screen follows `DESIGN.md` (Calm Ledger). Tokens live in `frontend/src/app/design-tokens.css`; build from the shared components in `frontend/src/components/ui/`. Reference screens: Branches and Areas.
 - Use Title Case labels.
 - Use clear words that non-native English speakers and less technical staff can understand.
 - Numeric and amount fields must be right aligned.

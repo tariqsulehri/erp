@@ -3,7 +3,7 @@
 import { FieldLabel } from '@/components/ui/FieldLabel';
 import { DateField, NumericField, SelectField, TextField } from '@/components/ui/FormFields';
 import { SearchableSelect } from '@/components/ui/SearchableSelect';
-import { compactButtonStyle, purchaseFilterGridStyle } from '../PurchaseVoucherStyles';
+import { compactButtonStyle } from '../PurchaseVoucherStyles';
 import type { SupplierOption, WarehouseOption } from '../PurchaseVoucherTypes';
 
 interface PostedPurchasesFiltersProps {
@@ -58,7 +58,7 @@ export function PostedPurchasesFilters({
   onResetFilters,
 }: PostedPurchasesFiltersProps) {
   return (
-    <div style={{ ...purchaseFilterGridStyle, gridTemplateColumns: 'minmax(220px, 1.4fr) 84px 76px minmax(180px, 1fr) 120px minmax(150px, 1fr) 115px 115px 110px 110px 110px' }}>
+    <div className="filter-grid">
       <TextField
         label="Search"
         value={search}

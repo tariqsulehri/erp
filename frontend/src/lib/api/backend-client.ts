@@ -1,5 +1,8 @@
-const backendApiBaseUrl = process.env.NEXT_PUBLIC_BACKEND_API_URL ?? 'http://localhost:4000/api/v1';
-const defaultCompanyId = process.env.NEXT_PUBLIC_DEFAULT_COMPANY_ID;
+const backendApiBaseUrl =
+  typeof window !== 'undefined'
+    ? '/api/v1'
+    : (process.env.BACKEND_API_INTERNAL_URL || process.env.NEXT_PUBLIC_BACKEND_API_URL || 'http://localhost:4000/api/v1');
+const defaultCompanyId = process.env.NEXT_PUBLIC_DEFAULT_COMPANY_ID || '00000000-0000-0000-0000-000000000001';
 
 interface BackendErrorDetails {
   formErrors?: string[];

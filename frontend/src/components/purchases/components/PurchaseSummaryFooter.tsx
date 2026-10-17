@@ -38,7 +38,7 @@ export function PurchaseSummaryFooter({
 }: PurchaseSummaryFooterProps) {
   return (
     <div style={summaryFooterStyle}>
-      <span style={{ color: 'var(--color-text-muted)', fontSize: '0.76rem', whiteSpace: 'nowrap' }}>
+      <span style={{ color: 'var(--color-text-muted)', fontSize: 'var(--font-size-sm)', whiteSpace: 'nowrap' }}>
         Total Items: <strong style={{ color: 'var(--color-text)' }}>{totalItems}</strong>
       </span>
       <div style={summaryValuesStyle}>

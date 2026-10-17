@@ -6,7 +6,6 @@ import {
   IconCircleX,
   IconEye,
   IconFilePlus,
-  IconListSearch,
   IconPrinter,
   IconRefresh,
 } from '@tabler/icons-react';
@@ -15,18 +14,16 @@ import { friendlyErrorMessage, numericValue } from '@/lib/erp-utils';
 import { useSaleInvoiceDetail, useSaleInvoicesList } from '@/lib/api/sales';
 import { SearchableSelect } from '@/components/ui/SearchableSelect';
 import { PaginationBar } from '@/components/ui/PaginationBar';
-import { DateField, SelectField, TextField, fieldStyle } from '@/components/ui/FormFields';
+import { DateField, SelectField, TextField } from '@/components/ui/FormFields';
 import {
   badgeStyle,
   compactButtonStyle,
   detailMessageStyle,
   lineActionButtonStyle,
   purchaseDetailPanelStyle,
-  purchaseListFooterStyle,
   statusBadgeStyle,
   tableCellStyle,
   tableHeadStyle,
-  titleIconStyle,
   toolbarStyle,
 } from '@/components/purchases/PurchaseVoucherStyles';
 import type { CustomerOption, SaleListRow, SalePaymentType, WarehouseOption } from './SaleVoucherTypes';
@@ -83,8 +80,6 @@ export function PostedSalesView({
   const rows = (listQuery.data?.data ?? []) as SaleListRow[];
   const total = listQuery.data?.total ?? 0;
   const pages = listQuery.data?.totalPages ?? Math.max(1, Math.ceil(total / pageSize));
-  const fromRecord = total === 0 ? 0 : (page - 1) * pageSize + 1;
-  const toRecord = Math.min(page * pageSize, total);
 
   function updateFilter(action: () => void) {
     action();
@@ -122,10 +117,9 @@ export function PostedSalesView({
       <section style={toolbarStyle}>
         <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
           <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-            <div style={titleIconStyle}><IconListSearch size={20} stroke={1.8} /></div>
             <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-              <h1 style={{ margin: 0, fontSize: '1.05rem', lineHeight: 1.1, color: 'var(--color-heading)' }}>Posted Sales</h1>
-              <span style={badgeStyle('#166534', '#dcfce7')}>Posted Only</span>
+              <h1 className="page-head-title">Posted Sales</h1>
+              <span style={badgeStyle('var(--color-success-text)', 'var(--color-success-bg)')}>Posted Only</span>
               <span style={statusBadgeStyle}>{total} Record{total === 1 ? '' : 's'}</span>
             </div>
           </div>
@@ -138,7 +132,7 @@ export function PostedSalesView({
       </section>
 
       <section className="workspace-card" style={{ padding: 10, flex: 1, minHeight: 0, display: 'grid', gridTemplateRows: 'auto 1fr auto', gap: 8, overflow: 'hidden' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(220px, 1.5fr) 84px 76px minmax(210px, 1fr) 120px 150px 115px 115px 110px 110px 110px', gap: 6, alignItems: 'end' }}>
+        <div className="filter-grid">
           <TextField label="Search" value={searchText} onChange={setSearchText} placeholder="Sale No., Customer, Reference" inputProps={{ onKeyDown: event => { if (event.key === 'Enter') applySearch(); } }} />
           <button type="button" className="btn-secondary" onClick={applySearch} disabled={listQuery.isFetching} style={{ ...compactButtonStyle, alignSelf: 'end' }}>
             {listQuery.isFetching && <span className="spinner" style={{ width: 12, height: 12, borderWidth: 2 }} />}
@@ -163,7 +157,7 @@ export function PostedSalesView({
 
         <div style={{ minHeight: 0, display: 'grid', gridTemplateColumns: selectedId ? 'minmax(0, 1fr) 390px' : '1fr', gap: 8, overflow: 'hidden' }}>
           <div style={{ minHeight: 0, overflow: 'auto', border: '1px solid var(--color-border)', borderRadius: 'var(--radius)' }}>
-            <table style={{ width: '100%', minWidth: 980, borderCollapse: 'collapse', fontSize: '0.74rem', tableLayout: 'fixed' }}>
+            <table style={{ width: '100%', minWidth: 980, borderCollapse: 'collapse', fontSize: 'var(--font-size-xs)', tableLayout: 'fixed' }}>
               <colgroup>
                 <col style={{ width: 116 }} />
                 <col style={{ width: 92 }} />
@@ -220,7 +214,7 @@ export function PostedSalesView({
           {selectedId && (
             <aside style={purchaseDetailPanelStyle}>
               <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'center', borderBottom: '1px solid var(--color-border)', paddingBottom: 8 }}>
-                <strong style={{ fontSize: '0.86rem', color: 'var(--color-heading)' }}>Sale Detail</strong>
+                <strong style={{ fontSize: 'var(--font-size-md)', color: 'var(--color-heading)' }}>Sale Detail</strong>
                 <div style={{ display: 'flex', gap: 4 }}>
                   <button type="button" className="btn-ghost" onClick={() => window.print()} title="Print" style={{ ...lineActionButtonStyle, width: 28, minWidth: 28 }}><IconPrinter size={15} /></button>
                   <button type="button" className="btn-ghost" onClick={() => setSelectedId(null)} style={{ ...lineActionButtonStyle, width: 28, minWidth: 28 }}><IconCircleX size={15} /></button>
@@ -242,14 +236,14 @@ export function PostedSalesView({
                       ['Posted At', detailQuery.data.posted_at ? formatDate(detailQuery.data.posted_at, generalSettings) : '—'],
                     ].map(([label, value]) => (
                       <div key={label} style={{ border: '1px solid var(--color-border-subtle)', borderRadius: 'var(--radius-sm)', padding: '6px 7px', minWidth: 0 }}>
-                        <div style={{ color: 'var(--color-text-muted)', fontSize: '0.62rem', fontWeight: 800 }}>{label}</div>
-                        <div style={{ color: 'var(--color-text)', fontSize: '0.73rem', fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{value}</div>
+                        <div style={{ color: 'var(--color-text-muted)', fontSize: 'var(--font-size-xs)', fontWeight: 600 }}>{label}</div>
+                        <div style={{ color: 'var(--color-text)', fontSize: 'var(--font-size-xs)', fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{value}</div>
                       </div>
                     ))}
                   </div>
 
                   <div style={{ minHeight: 0, overflowY: 'auto', border: '1px solid var(--color-border)', borderRadius: 'var(--radius)' }}>
-                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.7rem', tableLayout: 'fixed' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 'var(--font-size-xs)', tableLayout: 'fixed' }}>
                       <colgroup><col style={{ width: 32 }} /><col /><col style={{ width: 66 }} /><col style={{ width: 88 }} /></colgroup>
                       <thead><tr>{['No.', 'Item', 'Qty', 'Amount'].map((label, index) => <th key={label} style={tableHeadStyle(index >= 2)}>{label}</th>)}</tr></thead>
                       <tbody>
@@ -273,7 +267,7 @@ export function PostedSalesView({
                       ['Freight', Number(detailQuery.data.freight_amount)],
                       ['Net Amount', Number(detailQuery.data.net_amount)],
                     ].map(([label, value]) => (
-                      <div key={String(label)} style={{ display: 'flex', justifyContent: 'space-between', gap: 10, fontSize: '0.74rem' }}>
+                      <div key={String(label)} style={{ display: 'flex', justifyContent: 'space-between', gap: 10, fontSize: 'var(--font-size-xs)' }}>
                         <span style={{ color: 'var(--color-text-muted)', fontWeight: 700 }}>{label}</span>
                         <strong style={{ fontFamily: 'var(--font-mono)', color: 'var(--color-amount)' }}>{money(Number(value))}</strong>
                       </div>

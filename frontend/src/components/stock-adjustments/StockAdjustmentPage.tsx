@@ -1,8 +1,7 @@
 'use client';
 
-import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import {
-  IconAdjustmentsHorizontal,
   IconCheck,
   IconEye,
   IconFilePlus,
@@ -28,7 +27,12 @@ import { usePostingDateGuard } from '@/lib/api/fiscal-years';
 import { friendlyErrorMessage, numericValue } from '@/lib/erp-utils';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { FieldLabel } from '@/components/ui/FieldLabel';
-import { DateField, NumericField, TextField, numericFieldStyle } from '@/components/ui/FormFields';
+import { DateField, NumericField, TextField } from '@/components/ui/FormFields';
+import { Badge } from '@/components/ui/Badge';
+import { Button } from '@/components/ui/Button';
+import { InlineAlert } from '@/components/ui/InlineAlert';
+import { PageHeader } from '@/components/ui/PageHeader';
+import { TableMessageRow } from '@/components/ui/TableMessageRow';
 import { SearchableSelect } from '@/components/ui/SearchableSelect';
 
 interface AdjustmentLine {
@@ -274,154 +278,183 @@ export default function StockAdjustmentPage() {
   }
 
   if (viewMode === 'list') {
+    const rows = listQuery.data?.data ?? [];
     return (
-      <main style={pageShellStyle}>
-        <Toolbar title="Stock Adjustments" subtitle="Posted inventory increases and decreases">
-          <button className="btn-ghost" type="button" onClick={() => listQuery.refetch()}><IconRefresh size={15} /> Refresh</button>
-          <button className="btn-primary" type="button" disabled={newAdjustmentGuard.disabled} title={newAdjustmentDisabledReason} onClick={openNewAdjustment}><IconFilePlus size={15} /> New Adjustment</button>
-        </Toolbar>
-        {message && <MessageBanner message={message} />}
-        <section style={workspaceStyle}>
-          <div style={{ minWidth: 0, overflow: 'auto', border: '1px solid var(--color-border)' }}>
-            <table style={tableStyle}>
-              <thead>
-                <tr>
-                  <HeaderCell width={150}>Adjustment Number</HeaderCell>
-                  <HeaderCell width={115}>Date</HeaderCell>
-                  <HeaderCell>Warehouse</HeaderCell>
-                  <HeaderCell>Reason</HeaderCell>
-                  <HeaderCell width={110} right>Qty In</HeaderCell>
-                  <HeaderCell width={110} right>Qty Out</HeaderCell>
-                  <HeaderCell width={100}>Status</HeaderCell>
-                  <HeaderCell width={70}>View</HeaderCell>
-                </tr>
-              </thead>
-              <tbody>
-                {listQuery.isFetching && <EmptyRow colSpan={8} text="Loading Stock Adjustments..." />}
-                {!listQuery.isFetching && (listQuery.data?.data ?? []).length === 0 && <EmptyRow colSpan={8} text="No posted Stock Adjustments found." />}
-                {!listQuery.isFetching && (listQuery.data?.data ?? []).map((row: any) => (
-                  <tr key={row.id}>
-                    <td style={bodyCellStyle(true)}>{row.adjustment_number}</td>
-                    <td style={bodyCellStyle()}>{formatDate(row.adjustment_date, generalSettings)}</td>
-                    <td style={bodyCellStyle()}>{row.warehouse_code} - {row.warehouse_name}</td>
-                    <td style={bodyCellStyle()}>{row.reason || '-'}</td>
-                    <td style={amountCellStyle}>{formatNumber(row.total_quantity_in, generalSettings)}</td>
-                    <td style={amountCellStyle}>{formatNumber(row.total_quantity_out, generalSettings)}</td>
-                    <td style={bodyCellStyle()}><StatusBadge>{row.status}</StatusBadge></td>
-                    <td style={bodyCellStyle()}><button className="btn-ghost" style={iconButtonStyle} onClick={() => setSelectedAdjustmentId(row.id)}><IconEye size={14} /></button></td>
+      <main className="page-shell">
+        <PageHeader
+          title="Stock Adjustments"
+          description="Posted stock increases and decreases, with cost and reason."
+          actions={(
+            <>
+              <Button variant="secondary" icon={<IconRefresh size={16} stroke={1.8} />} onClick={() => listQuery.refetch()} loading={listQuery.isFetching && !listQuery.isLoading}>Refresh</Button>
+              <Button variant="primary" icon={<IconFilePlus size={16} stroke={1.8} />} disabled={newAdjustmentGuard.disabled} title={newAdjustmentDisabledReason} onClick={openNewAdjustment}>New Adjustment</Button>
+            </>
+          )}
+        />
+        {message && <InlineAlert tone={message.kind === 'success' ? 'success' : 'danger'}>{message.text}</InlineAlert>}
+        <div className={`split-view${selectedAdjustmentId ? ' has-side' : ''}`}>
+          <section className="panel">
+            <div className="table-scroll">
+              <table className="data-table" style={{ tableLayout: 'fixed' }}>
+                <thead>
+                  <tr>
+                    <th style={{ width: 160 }}>Adjustment No.</th>
+                    <th style={{ width: 110 }}>Date</th>
+                    <th>Warehouse</th>
+                    <th>Reason</th>
+                    <th className="num" style={{ width: 110 }}>Qty In</th>
+                    <th className="num" style={{ width: 110 }}>Qty Out</th>
+                    <th style={{ width: 100 }}>Status</th>
+                    <th style={{ width: 56 }}><span className="sr-only">Actions</span></th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <DetailPanel detail={detailQuery.data} loading={detailQuery.isFetching} settings={generalSettings} />
-        </section>
+                </thead>
+                <tbody>
+                  {listQuery.isLoading && <TableMessageRow colSpan={8} title="Loading Stock Adjustments…" loading />}
+                  {!listQuery.isLoading && rows.length === 0 && (
+                    <TableMessageRow colSpan={8} title="No Posted Stock Adjustments Yet" description="Record a stock count difference, damage, or opening fix with a new adjustment." action={<Button variant="primary" icon={<IconFilePlus size={16} stroke={1.8} />} disabled={newAdjustmentGuard.disabled} onClick={openNewAdjustment}>New Adjustment</Button>} />
+                  )}
+                  {!listQuery.isLoading && rows.map((row: any) => (
+                    <tr key={row.id} className={selectedAdjustmentId === row.id ? 'is-selected' : undefined} onClick={() => setSelectedAdjustmentId(row.id)} style={{ cursor: 'pointer' }}>
+                      <td className="cell-strong">{row.adjustment_number}</td>
+                      <td>{formatDate(row.adjustment_date, generalSettings)}</td>
+                      <td>{row.warehouse_code} - {row.warehouse_name}</td>
+                      <td className={row.reason ? undefined : 'cell-muted'}>{row.reason || 'Not Set'}</td>
+                      <td className="num">{formatNumber(row.total_quantity_in, generalSettings)}</td>
+                      <td className="num">{formatNumber(row.total_quantity_out, generalSettings)}</td>
+                      <td><Badge variant="success">{row.status}</Badge></td>
+                      <td className="cell-actions">
+                        <Button variant="ghost" size="sm" icon={<IconEye size={16} stroke={1.8} />} onClick={event => { event.stopPropagation(); setSelectedAdjustmentId(row.id); }} aria-label={`View Adjustment ${row.adjustment_number}`} title="View Adjustment" />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </section>
+          {selectedAdjustmentId && <DetailPanel detail={detailQuery.data} loading={detailQuery.isFetching} settings={generalSettings} onClose={() => setSelectedAdjustmentId(null)} />}
+        </div>
       </main>
     );
   }
 
   return (
-    <main style={pageShellStyle}>
-      <Toolbar title="New Stock Adjustment" subtitle="Adjust stock quantity with an auditable posted movement">
-        <button className="btn-ghost" type="button" onClick={() => setViewMode('list')}>Cancel</button>
-        <button className="btn-ghost" type="button" onClick={() => saveAdjustment(false)} disabled={actionDisabled} title={dateStatusMessage}>Save Draft</button>
-        <button className="btn-primary" type="button" onClick={() => {
-          const validationMessage = validateForm();
-          if (validationMessage) setMessage({ kind: 'error', text: validationMessage });
-          else setConfirmOpen(true);
-        }} disabled={actionDisabled} title={dateStatusMessage}><IconCheck size={15} /> Process</button>
-      </Toolbar>
-      {message && <MessageBanner message={message} />}
-      <section style={entryCardStyle}>
-        <div style={headerGridStyle}>
-          <DateField label="Adjustment Date" required value={adjustmentDate} onChange={setAdjustmentDate} />
-          <FieldLabel label="Warehouse" required>
-            <SearchableSelect value={warehouseId} options={warehouses} onChange={value => { setWarehouseId(value); setLocationId(''); }} placeholder={supportQuery.isLoading ? 'Loading Warehouses' : 'Search Warehouse'} disabled={supportQuery.isLoading || supportQuery.isError} />
-          </FieldLabel>
-          <FieldLabel label="Location" required={Boolean(selectedWarehouse?.useLocations)}>
-            <SearchableSelect value={locationId} options={locations} onChange={setLocationId} placeholder={selectedWarehouse?.useLocations ? 'Search Location' : 'Optional Location'} disabled={!warehouseId || !selectedWarehouse?.useLocations} />
-          </FieldLabel>
-          <TextField label="Reference Number" value={referenceNumber} onChange={setReferenceNumber} placeholder="Optional" />
-          <TextField label="Reason" value={reason} onChange={setReason} placeholder="Count Difference, Damage, Opening Fix" />
-        </div>
-        <div style={{ marginTop: 8 }}>
-          <TextField label="Voucher Details" value={description} onChange={setDescription} placeholder="Short details for this adjustment" />
-        </div>
-        <div style={dateMessageStyle}>{dateStatusMessage}</div>
-      </section>
+    <main className="page-shell">
+      <PageHeader
+        title="New Stock Adjustment"
+        description="Adjust stock quantity with an auditable posted movement."
+        actions={(
+          <>
+            <Button variant="ghost" onClick={() => setViewMode('list')}>Cancel</Button>
+            <Button variant="secondary" onClick={() => saveAdjustment(false)} disabled={actionDisabled} title={dateStatusMessage}>Save Draft</Button>
+            <Button
+              variant="primary"
+              icon={<IconCheck size={16} stroke={1.8} />}
+              onClick={() => {
+                const validationMessage = validateForm();
+                if (validationMessage) setMessage({ kind: 'error', text: validationMessage });
+                else setConfirmOpen(true);
+              }}
+              disabled={actionDisabled}
+              title={dateStatusMessage}
+            >
+              Process
+            </Button>
+          </>
+        )}
+      />
+      {message && <InlineAlert tone={message.kind === 'success' ? 'success' : 'danger'}>{message.text}</InlineAlert>}
 
-      <section style={lineEntryStyle}>
-        <FieldLabel label="Type" required>
-          <select className="form-input" value={lineType} onChange={event => setLineType(event.currentTarget.value as AdjustmentType)} style={{ height: 28, minHeight: 28, padding: '3px 8px', fontSize: '0.76rem' }}>
-            {adjustmentTypeOptions.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
-          </select>
-        </FieldLabel>
-        <FieldLabel label="Item" required>
-          <SearchableSelect value={lineItemId} options={items} onChange={setLineItemId} placeholder={supportQuery.isLoading ? 'Loading Items' : 'Search Item'} disabled={supportQuery.isLoading || supportQuery.isError} />
-        </FieldLabel>
-        <NumericField label="Quantity" required value={lineQuantity} onChange={setLineQuantity} decimalPlaces={4} />
-        <NumericField label="Unit Cost" value={lineUnitCost} onChange={setLineUnitCost} decimalPlaces={4} disabled={lineType === 'Decrease'} />
-        <TextField label="Line Description" value={lineDescription} onChange={setLineDescription} />
-        <div style={{ ...lineActionGroupStyle, gridTemplateColumns: editingLineId ? 'minmax(110px, 1fr) 92px' : '1fr' }}>
-          <button className="btn-primary" type="button" onClick={addLine} style={linePrimaryButtonStyle}>
-            {editingLineId ? 'Update Line' : 'Add Line'}
-          </button>
-          {editingLineId && (
-            <button className="btn-ghost" type="button" onClick={cancelLineEdit} title="Cancel Line Edit" style={lineCancelButtonStyle}>
-              <IconX size={14} /> Cancel
-            </button>
-          )}
+      <section className="panel" style={{ flexShrink: 0, overflow: 'visible' }}>
+        <div className="panel-body" style={{ overflow: 'visible' }}>
+          <div className="form-grid" style={{ ['--form-cols' as string]: 5 }}>
+            <DateField label="Adjustment Date" required value={adjustmentDate} onChange={setAdjustmentDate} />
+            <FieldLabel label="Warehouse" required>
+              <SearchableSelect value={warehouseId} options={warehouses} onChange={value => { setWarehouseId(value); setLocationId(''); }} placeholder={supportQuery.isLoading ? 'Loading Warehouses' : 'Search Warehouse'} disabled={supportQuery.isLoading || supportQuery.isError} />
+            </FieldLabel>
+            <FieldLabel label="Location" required={Boolean(selectedWarehouse?.useLocations)}>
+              <SearchableSelect value={locationId} options={locations} onChange={setLocationId} placeholder={selectedWarehouse?.useLocations ? 'Search Location' : 'Not Used'} disabled={!warehouseId || !selectedWarehouse?.useLocations} />
+            </FieldLabel>
+            <TextField label="Reference Number" value={referenceNumber} onChange={setReferenceNumber} placeholder="Optional" />
+            <TextField label="Reason" value={reason} onChange={setReason} placeholder="Count Difference, Damage, Opening Fix" />
+            <div className="span-all">
+              <TextField label="Description" value={description} onChange={setDescription} placeholder="Short details for this adjustment" />
+            </div>
+          </div>
+          {dateStatusMessage && <p className="form-error">{dateStatusMessage}</p>}
         </div>
       </section>
 
-      <section style={{ ...workspaceStyle, gridTemplateColumns: '1fr 260px' }}>
-        <div style={{ minHeight: 0, overflow: 'auto', border: '1px solid var(--color-border)' }}>
-          <table style={tableStyle}>
+      <section className="panel" style={{ flex: 1, minHeight: 0 }}>
+        <div className="panel-header" style={{ alignItems: 'flex-end', paddingTop: 12, paddingBottom: 12, overflow: 'visible' }}>
+          <div className="form-grid" style={{ flex: 1, ['--form-cols' as string]: 8 }}>
+            <FieldLabel label="Type" required>
+              <select className="form-input" value={lineType} onChange={event => setLineType(event.currentTarget.value as AdjustmentType)}>
+                {adjustmentTypeOptions.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+              </select>
+            </FieldLabel>
+            <div className="span-2">
+              <FieldLabel label="Item" required>
+                <SearchableSelect value={lineItemId} options={items} onChange={setLineItemId} placeholder={supportQuery.isLoading ? 'Loading Items' : 'Search Item'} disabled={supportQuery.isLoading || supportQuery.isError} />
+              </FieldLabel>
+            </div>
+            <NumericField label="Quantity" required value={lineQuantity} onChange={setLineQuantity} decimalPlaces={4} />
+            <NumericField label="Unit Cost" value={lineUnitCost} onChange={setLineUnitCost} decimalPlaces={4} disabled={lineType === 'Decrease'} />
+            <div className="span-2">
+              <TextField label="Line Description" value={lineDescription} onChange={setLineDescription} />
+            </div>
+            <div style={{ display: 'flex', gap: 6, alignItems: 'flex-end', height: '100%', paddingTop: 20 }}>
+              <Button variant="secondary" onClick={addLine} style={{ flex: 1 }}>{editingLineId ? 'Update Line' : 'Add Line'}</Button>
+              {editingLineId && <Button variant="ghost" icon={<IconX size={16} stroke={1.8} />} onClick={cancelLineEdit} aria-label="Cancel Line Edit" title="Cancel Line Edit" />}
+            </div>
+          </div>
+        </div>
+        <div className="table-scroll">
+          <table className="data-table" style={{ tableLayout: 'fixed' }}>
             <thead>
               <tr>
-                <HeaderCell width={45}>No.</HeaderCell>
-                <HeaderCell width={90}>Type</HeaderCell>
-                <HeaderCell>Item</HeaderCell>
-                <HeaderCell width={100} right>Quantity</HeaderCell>
-                <HeaderCell width={80}>UOM</HeaderCell>
-                <HeaderCell width={110} right>Unit Cost</HeaderCell>
-                <HeaderCell width={120} right>Total Cost</HeaderCell>
-                <HeaderCell>Description</HeaderCell>
-                <HeaderCell width={90}>Actions</HeaderCell>
+                <th className="num" style={{ width: 56 }}>No.</th>
+                <th style={{ width: 100 }}>Type</th>
+                <th>Item</th>
+                <th className="num" style={{ width: 110 }}>Quantity</th>
+                <th style={{ width: 80 }}>UOM</th>
+                <th className="num" style={{ width: 120 }}>Unit Cost</th>
+                <th className="num" style={{ width: 130 }}>Total Cost</th>
+                <th>Description</th>
+                <th style={{ width: 84 }}><span className="sr-only">Actions</span></th>
               </tr>
             </thead>
             <tbody>
-              {lines.length === 0 && <EmptyRow colSpan={9} text="No adjustment items added." />}
+              {lines.length === 0 && <TableMessageRow colSpan={9} title="No Items Added" description="Choose a Type, Item, and Quantity above, then select Add Line." />}
               {lines.map((line, index) => (
-                <tr key={line.id} style={editingLineId === line.id ? { background: 'var(--color-primary-light)' } : undefined}>
-                  <td style={bodyCellStyle(true)}>{index + 1}</td>
-                  <td style={bodyCellStyle()}><TypeBadge type={line.adjustmentType} /></td>
-                  <td style={bodyCellStyle(true)}>{line.itemCode} - {line.itemName}</td>
-                  <td style={amountCellStyle}>{formatNumber(line.quantity, generalSettings)}</td>
-                  <td style={bodyCellStyle()}>{line.uomName || '-'}</td>
-                  <td style={amountCellStyle}>{formatMoney(numericValue(line.unitCost), generalSettings)}</td>
-                  <td style={amountCellStyle}>{formatMoney(numericValue(line.quantity) * numericValue(line.unitCost), generalSettings)}</td>
-                  <td style={bodyCellStyle()}>{line.description || '-'}</td>
-                  <td style={bodyCellStyle()}>
-                    <div style={{ display: 'flex', gap: 4 }}>
-                      <button className="btn-ghost" style={iconButtonStyle} onClick={() => editLine(line)} title="Edit Line"><IconPencil size={14} /></button>
-                      <button className="btn-ghost" style={iconButtonStyle} onClick={() => removeLine(line.id)} title="Delete Line"><IconTrash size={14} /></button>
-                    </div>
+                <tr key={line.id} className={editingLineId === line.id ? 'is-selected' : undefined}>
+                  <td className="num cell-muted">{index + 1}</td>
+                  <td><TypeBadge type={line.adjustmentType} /></td>
+                  <td className="cell-strong">{line.itemCode} - {line.itemName}</td>
+                  <td className="num">{formatNumber(line.quantity, generalSettings)}</td>
+                  <td className={line.uomName ? undefined : 'cell-muted'}>{line.uomName || 'Not Set'}</td>
+                  <td className="num">{formatMoney(numericValue(line.unitCost), generalSettings)}</td>
+                  <td className="num">{formatMoney(numericValue(line.quantity) * numericValue(line.unitCost), generalSettings)}</td>
+                  <td className={line.description ? undefined : 'cell-muted'}>{line.description || 'Not Set'}</td>
+                  <td className="cell-actions">
+                    <span className="row-actions">
+                      <Button variant="ghost" size="sm" icon={<IconPencil size={16} stroke={1.8} />} onClick={() => editLine(line)} aria-label={`Edit Line ${index + 1}`} title="Edit Line" />
+                      <Button variant="ghost" size="sm" icon={<IconTrash size={16} stroke={1.8} />} onClick={() => removeLine(line.id)} aria-label={`Remove Line ${index + 1}`} title="Remove Line" />
+                    </span>
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
-        <aside style={summaryStyle}>
-          <SummaryValue label="Total Lines" value={String(lines.length)} />
-          <SummaryValue label="Quantity In" value={formatNumber(totalQuantityIn, generalSettings)} />
-          <SummaryValue label="Quantity Out" value={formatNumber(totalQuantityOut, generalSettings)} />
-          <SummaryValue label="Cost In" value={formatMoney(totalCostIn, generalSettings)} />
-          <SummaryValue label="Cost Out" value={formatMoney(totalCostOut, generalSettings)} />
-        </aside>
+        <div className="panel-footer" style={{ justifyContent: 'flex-end', gap: 24, flexWrap: 'wrap' }}>
+          <Total label="Total Lines" value={String(lines.length)} />
+          <Total label="Quantity In" value={formatNumber(totalQuantityIn, generalSettings)} />
+          <Total label="Quantity Out" value={formatNumber(totalQuantityOut, generalSettings)} />
+          <Total label="Cost In" value={formatMoney(totalCostIn, generalSettings)} />
+          <Total label="Cost Out" value={formatMoney(totalCostOut, generalSettings)} />
+        </div>
       </section>
-      <ConfirmDialog open={confirmOpen} title="Process Stock Adjustment?" message="This will post stock movements and update stock balances. Posted adjustments cannot be edited directly." confirmLabel="Process" onConfirm={() => saveAdjustment(true)} onCancel={() => setConfirmOpen(false)} />
+      <ConfirmDialog open={confirmOpen} variant="primary" title="Process Stock Adjustment?" message="This posts the stock movements and updates stock balances. A posted adjustment cannot be edited." confirmLabel="Process" onConfirm={() => saveAdjustment(true)} onCancel={() => setConfirmOpen(false)} />
     </main>
   );
 }
@@ -432,102 +465,60 @@ function locationOptions(rows: any[], warehouseId: string) {
     .map(location => ({ value: location.id, label: `${location.code} - ${location.name}`, searchText: `${location.code} ${location.name}`, isDefault: location.is_default }));
 }
 
-function Toolbar({ title, subtitle, children }: { title: string; subtitle: string; children: ReactNode }) {
+function DetailPanel({ detail, loading, settings, onClose }: { detail: any; loading: boolean; settings: any; onClose: () => void }) {
   return (
-    <section style={toolbarStyle}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-        <div style={titleIconStyle}><IconAdjustmentsHorizontal size={20} /></div>
-        <div><h1 style={titleStyle}>{title}</h1><p style={subtitleStyle}>{subtitle}</p></div>
+    <aside className="panel side-panel" aria-label="Adjustment Detail">
+      <div className="panel-header">
+        <h2 className="panel-title">{detail?.adjustment_number ?? 'Adjustment Detail'}</h2>
+        <span className="row-actions">
+          {detail && <Button variant="ghost" size="sm" icon={<IconPrinter size={16} stroke={1.8} />} onClick={() => window.print()} aria-label="Print Adjustment" title="Print Adjustment" />}
+          <Button variant="ghost" size="sm" icon={<IconX size={16} stroke={1.8} />} onClick={onClose} aria-label="Close Detail" title="Close Detail" />
+        </span>
       </div>
-      <div style={{ display: 'flex', gap: 8 }}>{children}</div>
-    </section>
-  );
-}
-
-function DetailPanel({ detail, loading, settings }: { detail: any; loading: boolean; settings: any }) {
-  if (loading) return <aside style={detailStyle}>Loading Adjustment Detail...</aside>;
-  if (!detail) return <aside style={detailStyle}>Select a Stock Adjustment to view detail.</aside>;
-  return (
-    <aside style={detailStyle}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <h2 style={{ margin: 0, fontSize: '0.92rem' }}>Adjustment Detail</h2>
-        <button className="btn-ghost" style={iconButtonStyle} onClick={() => window.print()}><IconPrinter size={14} /></button>
+      <div className="panel-body">
+        {loading && <p className="form-hint">Loading Adjustment Detail…</p>}
+        {!loading && detail && (
+          <>
+            <dl className="detail-list">
+              <InfoRow label="Date" value={formatDate(detail.adjustment_date, settings)} />
+              <InfoRow label="Status" value={<Badge variant="success">{detail.status}</Badge>} />
+              <InfoRow label="Warehouse" value={`${detail.warehouse_code} - ${detail.warehouse_name}`} />
+              <InfoRow label="Location" value={detail.location_code ? `${detail.location_code} - ${detail.location_name}` : 'Not Set'} />
+              <InfoRow label="Reason" value={detail.reason || 'Not Set'} />
+            </dl>
+            <table className="data-table" style={{ tableLayout: 'fixed' }}>
+              <thead><tr><th className="num" style={{ width: 40 }}>No.</th><th style={{ width: 92 }}>Type</th><th>Item</th><th className="num" style={{ width: 80 }}>Qty</th><th className="num" style={{ width: 100 }}>Cost</th></tr></thead>
+              <tbody>
+                {(detail.lines ?? []).map((line: any, index: number) => (
+                  <tr key={line.id}>
+                    <td className="num cell-muted">{index + 1}</td>
+                    <td><TypeBadge type={line.adjustment_type} /></td>
+                    <td className="cell-strong">{line.item_code} - {line.item_name}</td>
+                    <td className="num">{formatNumber(line.quantity, settings)}</td>
+                    <td className="num">{formatMoney(line.total_cost, settings)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </>
+        )}
       </div>
-      <div style={detailGridStyle}>
-        <InfoBox label="Adjustment No." value={detail.adjustment_number} />
-        <InfoBox label="Date" value={formatDate(detail.adjustment_date, settings)} />
-        <InfoBox label="Warehouse" value={`${detail.warehouse_code} - ${detail.warehouse_name}`} />
-        <InfoBox label="Location" value={detail.location_code ? `${detail.location_code} - ${detail.location_name}` : '-'} />
-        <InfoBox label="Reason" value={detail.reason || '-'} />
-        <InfoBox label="Status" value={detail.status} />
-      </div>
-      <table style={{ ...tableStyle, marginTop: 10 }}>
-        <thead><tr><HeaderCell width={38}>No.</HeaderCell><HeaderCell width={82}>Type</HeaderCell><HeaderCell>Item</HeaderCell><HeaderCell width={90} right>Qty</HeaderCell><HeaderCell width={100} right>Cost</HeaderCell></tr></thead>
-        <tbody>
-          {(detail.lines ?? []).map((line: any, index: number) => (
-            <tr key={line.id}>
-              <td style={bodyCellStyle()}>{index + 1}</td>
-              <td style={bodyCellStyle()}><TypeBadge type={line.adjustment_type} /></td>
-              <td style={bodyCellStyle(true)}>{line.item_code} - {line.item_name}</td>
-              <td style={amountCellStyle}>{formatNumber(line.quantity, settings)}</td>
-              <td style={amountCellStyle}>{formatMoney(line.total_cost, settings)}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
     </aside>
   );
 }
 
-function InfoBox({ label, value }: { label: string; value: string }) {
-  return <div style={{ border: '1px solid var(--color-border)', padding: 8 }}><div style={{ fontSize: '0.68rem', fontWeight: 850, color: 'var(--color-text-muted)' }}>{label}</div><div style={{ fontSize: '0.78rem', fontWeight: 850 }}>{value}</div></div>;
+function InfoRow({ label, value }: { label: string; value: ReactNode }) {
+  return <div className="detail-row"><dt>{label}</dt><dd>{value}</dd></div>;
 }
 
-function SummaryValue({ label, value }: { label: string; value: string }) {
-  return <div><div style={{ fontSize: '0.7rem', fontWeight: 850, color: 'var(--color-text-muted)' }}>{label}</div><div style={{ ...numericFieldStyle('compact'), border: '1px solid var(--color-border)', background: 'var(--color-surface)', marginTop: 4 }}>{value}</div></div>;
-}
-
-function MessageBanner({ message }: { message: { kind: 'success' | 'error'; text: string } }) {
-  return <div style={{ color: message.kind === 'success' ? '#15803d' : 'var(--color-danger-text)', fontSize: '0.74rem', fontWeight: 750 }}>{message.text}</div>;
-}
-
-function HeaderCell({ children, width, right = false }: { children: ReactNode; width?: number; right?: boolean }) {
-  return <th style={{ ...headerCellStyle, width, textAlign: right ? 'right' : 'left' }}>{children}</th>;
-}
-
-function EmptyRow({ colSpan, text }: { colSpan: number; text: string }) {
-  return <tr><td colSpan={colSpan} style={{ ...bodyCellStyle(), height: 70, textAlign: 'center', color: 'var(--color-text-muted)', fontWeight: 800 }}>{text}</td></tr>;
-}
-
-function StatusBadge({ children }: { children: ReactNode }) {
-  return <span style={{ border: '1px solid rgba(22,163,74,0.24)', background: 'rgba(22,163,74,0.12)', color: '#15803d', borderRadius: 'var(--radius-full)', padding: '2px 8px', fontSize: '0.68rem', fontWeight: 850 }}>{children}</span>;
+function Total({ label, value }: { label: string; value: string }) {
+  return (
+    <span style={{ fontSize: 'var(--font-size-sm)', color: 'var(--color-text-muted)' }}>
+      {label} <strong style={{ color: 'var(--color-heading)', fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>{value}</strong>
+    </span>
+  );
 }
 
 function TypeBadge({ type }: { type: AdjustmentType }) {
-  const increase = type === 'Increase';
-  return <span style={{ border: `1px solid ${increase ? 'rgba(22,163,74,0.26)' : 'rgba(185,28,28,0.24)'}`, background: increase ? 'rgba(22,163,74,0.12)' : 'rgba(185,28,28,0.10)', color: increase ? '#15803d' : '#b91c1c', borderRadius: 'var(--radius-full)', padding: '2px 7px', fontSize: '0.67rem', fontWeight: 850 }}>{type}</span>;
+  return <Badge variant={type === 'Increase' ? 'success' : 'danger'}>{type}</Badge>;
 }
-
-const pageShellStyle: CSSProperties = { height: '100%', minHeight: 0, padding: 10, display: 'flex', flexDirection: 'column', gap: 8, overflow: 'hidden' };
-const toolbarStyle: CSSProperties = { border: '1px solid var(--color-border)', background: 'var(--color-surface)', padding: '9px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, flexShrink: 0 };
-const titleIconStyle: CSSProperties = { width: 36, height: 36, borderRadius: 'var(--radius)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', background: 'linear-gradient(135deg, #b45309, #0f766e)' };
-const titleStyle: CSSProperties = { margin: 0, fontSize: '1.05rem', lineHeight: 1.1, color: 'var(--color-heading)', fontWeight: 900 };
-const subtitleStyle: CSSProperties = { margin: '3px 0 0', fontSize: '0.73rem', color: 'var(--color-text-muted)', fontWeight: 750 };
-const entryCardStyle: CSSProperties = { border: '1px solid var(--color-border)', background: 'var(--color-surface)', padding: 10, flexShrink: 0 };
-const headerGridStyle: CSSProperties = { display: 'grid', gridTemplateColumns: '115px minmax(260px, 1fr) minmax(220px, 0.8fr) 180px minmax(260px, 1fr)', gap: 8, alignItems: 'end' };
-const lineEntryStyle: CSSProperties = { border: '1px solid var(--color-border)', background: 'var(--color-surface)', padding: 10, display: 'grid', gridTemplateColumns: '110px minmax(320px,1fr) 120px 120px minmax(240px,0.8fr) 220px', gap: 8, flexShrink: 0 };
-const lineActionGroupStyle: CSSProperties = { display: 'grid', gap: 8, alignSelf: 'end' };
-const linePrimaryButtonStyle: CSSProperties = { height: 28, minWidth: 110, whiteSpace: 'nowrap' };
-const lineCancelButtonStyle: CSSProperties = { height: 28, padding: '4px 8px', whiteSpace: 'nowrap', justifyContent: 'center' };
-const workspaceStyle: CSSProperties = { flex: 1, minHeight: 0, display: 'grid', gridTemplateColumns: '1fr 420px', gap: 8, overflow: 'hidden' };
-const detailStyle: CSSProperties = { border: '1px solid var(--color-border)', background: 'var(--color-surface)', padding: 10, overflow: 'auto', minWidth: 0 };
-const detailGridStyle: CSSProperties = { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 10 };
-const summaryStyle: CSSProperties = { border: '1px solid var(--color-border)', background: 'var(--color-surface)', padding: 10, display: 'flex', flexDirection: 'column', gap: 10 };
-const tableStyle: CSSProperties = { width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' };
-const headerCellStyle: CSSProperties = { background: 'var(--color-table-head-bg)', color: 'var(--color-table-head-text)', border: '1px solid var(--color-border)', padding: '7px 8px', fontSize: '0.74rem', fontWeight: 900 };
-function bodyCellStyle(strong = false): CSSProperties {
-  return { border: '1px solid var(--color-border-subtle)', padding: '7px 8px', fontSize: '0.76rem', color: 'var(--color-text)', fontWeight: strong ? 850 : 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' };
-}
-const amountCellStyle: CSSProperties = { ...bodyCellStyle(true), textAlign: 'right', fontFamily: 'var(--font-mono)' };
-const iconButtonStyle: CSSProperties = { height: 26, width: 28, minWidth: 28, padding: 0 };
-const dateMessageStyle: CSSProperties = { minHeight: 17, marginTop: 6, color: 'var(--color-danger-text)', fontSize: '0.72rem', fontWeight: 700 };

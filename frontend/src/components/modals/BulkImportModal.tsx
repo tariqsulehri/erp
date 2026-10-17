@@ -22,6 +22,9 @@ import { useState, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { accountsQueryKey, useBulkCreateAccounts } from '@/lib/api/accounts';
 import { ACCOUNT_CODE_PATTERN } from '@/modules/accounts/account-code';
+import { IconDownload, IconUpload, IconX } from '@tabler/icons-react';
+import { Badge } from '@/components/ui/Badge';
+import { Button } from '@/components/ui/Button';
 
 /* ── Types ───────────────────────────────────────────────────────────── */
 const VALID_TYPES    = ['Asset', 'Liability', 'Equity', 'Revenue', 'Expense'] as const;
@@ -177,102 +180,101 @@ export function BulkImportModal({ open, onClose, onDone }: BulkImportModalProps)
 
   const importedCount = results?.filter(r => r.success && r.message === 'Created').length ?? 0;
 
+  const skippedCount = results ? results.filter(r => r.success && r.message !== 'Created').length : 0;
+  const failedCount = results ? results.filter(r => !r.success).length : 0;
+
   return (
-    <>
-      {/* Backdrop */}
-      <div onClick={!importMutation.isPending ? handleClose : undefined}
-        style={{
-          position: 'fixed', inset: 0, zIndex: 60,
-          background: 'rgba(0,0,0,0.4)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          padding: 16, animation: 'fadeIn 0.15s ease',
-        }}
-      >
-        {/* Modal */}
-        <div onClick={e => e.stopPropagation()}
-          style={{
-            width: '100%', maxWidth: 760, maxHeight: '90vh',
-            background: 'var(--color-surface)',
-            borderRadius: 'var(--radius)',
-            boxShadow: '0 20px 60px rgba(0,0,0,0.25)',
-            display: 'flex', flexDirection: 'column',
-            animation: 'scaleIn 0.15s ease',
-          }}
-        >
-          {/* Header */}
-          <div style={{
-            padding: '20px 24px', borderBottom: '1px solid var(--color-border)',
-            display: 'flex', alignItems: 'center', gap: 12,
-          }}>
-            <div style={{ flex: 1 }}>
-              <h2 style={{ margin: 0, fontSize: 'var(--font-size-base)', fontWeight: 700 }}>
-                Bulk Import Accounts
-              </h2>
-              <p style={{ margin: '4px 0 0', fontSize: 'var(--font-size-xs)', color: 'var(--color-text-muted)' }}>
-                Upload a CSV file to create multiple accounts at once
-              </p>
-            </div>
-            <button onClick={handleClose} disabled={importMutation.isPending}
-              style={{
-                background: 'none', border: 'none', cursor: 'pointer',
-                color: 'var(--color-text-muted)', padding: 4, borderRadius: 4, display: 'flex',
-              }}>
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-              </svg>
-            </button>
+    <div className="dialog-backdrop" onMouseDown={event => { if (event.target === event.currentTarget && !importMutation.isPending) handleClose(); }}>
+      <div className="dialog dialog-lg" role="dialog" aria-modal="true" aria-labelledby="bulk-import-title" style={{ display: 'flex', flexDirection: 'column', maxHeight: '90vh' }}>
+        <div className="panel-header" style={{ padding: '14px 20px' }}>
+          <div>
+            <h2 id="bulk-import-title" className="dialog-title" style={{ margin: 0 }}>Bulk Import Accounts</h2>
+            <p className="dialog-message">Upload a CSV file to create many accounts at once.</p>
           </div>
+          <Button variant="ghost" size="sm" icon={<IconX size={16} stroke={1.8} />} onClick={handleClose} disabled={importMutation.isPending} aria-label="Close" title="Close" />
+        </div>
 
-          {/* Body */}
-          <div style={{ flex: 1, overflowY: 'auto', padding: 24 }}>
-
-            {/* Results view */}
-            {results ? (
-              <div>
-                {/* Summary pills */}
-                <div style={{ display: 'flex', gap: 12, marginBottom: 20 }}>
-                  {[
-                    { label: 'Created', value: importedCount, color: '#16a34a', bg: '#f0fdf4' },
-                    { label: 'Skipped', value: results.filter(r => r.success && r.message !== 'Created').length, color: '#d97706', bg: '#fffbeb' },
-                    { label: 'Failed',  value: results.filter(r => !r.success).length, color: '#dc2626', bg: '#fef2f2' },
-                  ].map(s => (
-                    <div key={s.label} style={{
-                      flex: 1, padding: '12px 16px', borderRadius: 'var(--radius)',
-                      background: s.bg, border: `1px solid ${s.color}30`,
-                      textAlign: 'center',
-                    }}>
-                      <div style={{ fontSize: '1.5rem', fontWeight: 800, color: s.color }}>{s.value}</div>
-                      <div style={{ fontSize: 'var(--font-size-xs)', color: s.color, fontWeight: 600 }}>{s.label}</div>
-                    </div>
-                  ))}
-                </div>
-
-                {/* Results table */}
-                <div style={{ border: '1px solid var(--color-border)', borderRadius: 'var(--radius)', overflow: 'hidden' }}>
-                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 'var(--font-size-xs)' }}>
+        <div style={{ flex: 1, overflowY: 'auto', padding: 20, display: 'flex', flexDirection: 'column', gap: 14 }}>
+          {results ? (
+            <>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                <Badge variant="success">{importedCount} Created</Badge>
+                <Badge variant="warning">{skippedCount} Skipped</Badge>
+                <Badge variant="danger">{failedCount} Failed</Badge>
+              </div>
+              <div className="panel" style={{ maxHeight: 360 }}>
+                <div className="table-scroll">
+                  <table className="data-table">
                     <thead>
-                      <tr style={{ background: '#f8fafc' }}>
-                        <th style={{ padding: '8px 12px', textAlign: 'left', borderBottom: '1px solid var(--color-border)' }}>Code</th>
-                        <th style={{ padding: '8px 12px', textAlign: 'left', borderBottom: '1px solid var(--color-border)' }}>Result</th>
-                        <th style={{ padding: '8px 12px', textAlign: 'left', borderBottom: '1px solid var(--color-border)' }}>Message</th>
-                      </tr>
+                      <tr><th style={{ width: 140 }}>Code</th><th style={{ width: 140 }}>Result</th><th>Message</th></tr>
                     </thead>
                     <tbody>
                       {results.map((r, i) => (
-                        <tr key={i} style={{ borderBottom: '1px solid var(--color-border)' }}>
-                          <td style={{ padding: '6px 12px', fontFamily: 'monospace', fontWeight: 700 }}>{r.code}</td>
-                          <td style={{ padding: '6px 12px' }}>
-                            <span style={{
-                              fontSize: '0.6875rem', fontWeight: 700,
-                              color: r.success ? '#16a34a' : '#dc2626',
-                              background: r.success ? '#f0fdf4' : '#fef2f2',
-                              padding: '2px 8px', borderRadius: 8,
-                            }}>
-                              {r.success ? '✓' : '✗'} {r.message}
-                            </span>
-                          </td>
-                          <td style={{ padding: '6px 12px', color: 'var(--color-text-muted)' }}>
-                            {!r.success && r.message}
+                        <tr key={i}>
+                          <td className="cell-strong">{r.code}</td>
+                          <td><Badge variant={r.success ? 'success' : 'danger'}>{r.success ? r.message : 'Failed'}</Badge></td>
+                          <td className="cell-muted">{!r.success && r.message}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </>
+          ) : rows.length === 0 ? (
+            <>
+              <button
+                type="button"
+                onDragOver={e => { e.preventDefault(); setDragOver(true); }}
+                onDragLeave={() => setDragOver(false)}
+                onDrop={handleDrop}
+                onClick={() => fileRef.current?.click()}
+                style={{
+                  display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
+                  width: '100%', padding: '36px 20px',
+                  border: `1px dashed ${dragOver ? 'var(--color-primary)' : 'var(--color-input-border)'}`,
+                  borderRadius: 'var(--radius-lg)',
+                  background: dragOver ? 'var(--color-primary-light)' : 'var(--color-surface-alt)',
+                  color: 'var(--color-text)',
+                  transition: 'background var(--transition), border-color var(--transition)',
+                }}
+              >
+                <IconUpload size={28} stroke={1.6} aria-hidden style={{ color: 'var(--color-text-light)' }} />
+                <span style={{ fontWeight: 600, fontSize: 'var(--font-size-md)' }}>{dragOver ? 'Drop Your CSV File Here' : 'Drop A CSV File Or Click To Browse'}</span>
+                <span style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-muted)' }}>Required columns: code, name, account_type, normal_balance, is_posting</span>
+              </button>
+              <input ref={fileRef} type="file" accept=".csv" style={{ display: 'none' }} onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f); }} />
+              <Button variant="secondary" icon={<IconDownload size={16} stroke={1.8} />} onClick={downloadTemplate} style={{ alignSelf: 'flex-start' }}>Download CSV Template</Button>
+            </>
+          ) : (
+            <>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                <Badge variant="success">{validRows.length} Valid</Badge>
+                {invalidRows.length > 0 && <Badge variant="danger">{invalidRows.length} Invalid</Badge>}
+                <Button variant="secondary" size="sm" style={{ marginLeft: 'auto' }} onClick={() => { setRows([]); if (fileRef.current) fileRef.current.value = ''; }}>Change File</Button>
+              </div>
+              <div className="panel" style={{ maxHeight: 360 }}>
+                <div className="table-scroll">
+                  <table className="data-table">
+                    <thead>
+                      <tr>
+                        <th className="num" style={{ width: 48 }}>No.</th><th style={{ width: 130 }}>Code</th><th>Name</th>
+                        <th style={{ width: 110 }}>Type</th><th style={{ width: 90 }}>Balance</th><th style={{ width: 80 }}>Posting</th><th style={{ width: 200 }}>Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {rows.map(row => (
+                        <tr key={row.line} style={row.errors.length ? { background: 'var(--color-danger-bg)' } : undefined}>
+                          <td className="num cell-muted">{row.line}</td>
+                          <td className="cell-strong">{row.code || 'Not Set'}</td>
+                          <td>{row.name || 'Not Set'}</td>
+                          <td>{row.account_type || 'Not Set'}</td>
+                          <td>{row.normal_balance || 'Not Set'}</td>
+                          <td>{row.is_posting ? 'Yes' : 'No'}</td>
+                          <td title={row.errors.join('\n') || undefined}>
+                            {row.errors.length === 0
+                              ? <Badge variant="success">Valid</Badge>
+                              : <span style={{ color: 'var(--color-danger-text)', fontWeight: 500 }}>{row.errors[0]}{row.errors.length > 1 ? ` (+${row.errors.length - 1} More)` : ''}</span>}
                           </td>
                         </tr>
                       ))}
@@ -280,156 +282,19 @@ export function BulkImportModal({ open, onClose, onDone }: BulkImportModalProps)
                   </table>
                 </div>
               </div>
-            ) : (
-              <>
-                {/* Upload area */}
-                {rows.length === 0 && (
-                  <>
-                    <div
-                      onDragOver={e => { e.preventDefault(); setDragOver(true); }}
-                      onDragLeave={() => setDragOver(false)}
-                      onDrop={handleDrop}
-                      onClick={() => fileRef.current?.click()}
-                      style={{
-                        border: `2px dashed ${dragOver ? 'var(--color-primary)' : 'var(--color-border)'}`,
-                        borderRadius: 'var(--radius)', padding: '40px 20px',
-                        textAlign: 'center', cursor: 'pointer',
-                        background: dragOver ? 'var(--color-primary-light)' : 'var(--color-bg)',
-                        transition: 'all 0.15s',
-                        marginBottom: 16,
-                      }}
-                    >
-                      <input ref={fileRef} type="file" accept=".csv"
-                        style={{ display: 'none' }}
-                        onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f); }}
-                      />
-                      <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="var(--color-text-muted)" strokeWidth="1.5"
-                        style={{ marginBottom: 12, opacity: 0.6 }}>
-                        <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12"/>
-                      </svg>
-                      <p style={{ fontWeight: 600, marginBottom: 4, color: 'var(--color-text)' }}>
-                        {dragOver ? 'Drop your CSV here' : 'Drop CSV or click to browse'}
-                      </p>
-                      <p style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-muted)' }}>
-                        Required columns: code, name, account_type, normal_balance, is_posting
-                      </p>
-                    </div>
+            </>
+          )}
+        </div>
 
-                    <button className="btn btn-secondary" onClick={downloadTemplate}
-                      style={{ width: '100%', justifyContent: 'center' }}>
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/>
-                      </svg>
-                      Download CSV Template
-                    </button>
-                  </>
-                )}
-
-                {/* Preview table */}
-                {rows.length > 0 && (
-                  <>
-                    {/* Stats */}
-                    <div style={{ display: 'flex', gap: 10, marginBottom: 16 }}>
-                      <span style={{
-                        fontSize: 'var(--font-size-xs)', fontWeight: 600,
-                        color: '#16a34a', background: '#f0fdf4',
-                        padding: '4px 12px', borderRadius: 8,
-                        border: '1px solid #bbf7d0',
-                      }}>
-                        ✓ {validRows.length} valid
-                      </span>
-                      {invalidRows.length > 0 && (
-                        <span style={{
-                          fontSize: 'var(--font-size-xs)', fontWeight: 600,
-                          color: '#dc2626', background: '#fef2f2',
-                          padding: '4px 12px', borderRadius: 8,
-                          border: '1px solid #fecaca',
-                        }}>
-                          ✗ {invalidRows.length} invalid
-                        </span>
-                      )}
-                      <button className="btn btn-secondary btn-sm"
-                        style={{ marginLeft: 'auto' }}
-                        onClick={() => { setRows([]); if (fileRef.current) fileRef.current.value = ''; }}>
-                        Change File
-                      </button>
-                    </div>
-
-                    {/* Preview */}
-                    <div style={{ border: '1px solid var(--color-border)', borderRadius: 'var(--radius)', overflow: 'hidden', maxHeight: 360, overflowY: 'auto' }}>
-                      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 'var(--font-size-xs)' }}>
-                        <thead style={{ position: 'sticky', top: 0 }}>
-                          <tr style={{ background: '#f8fafc' }}>
-                            <th style={{ padding: '8px 12px', textAlign: 'left', borderBottom: '1px solid var(--color-border)' }}>#</th>
-                            <th style={{ padding: '8px 12px', textAlign: 'left', borderBottom: '1px solid var(--color-border)' }}>Code</th>
-                            <th style={{ padding: '8px 12px', textAlign: 'left', borderBottom: '1px solid var(--color-border)' }}>Name</th>
-                            <th style={{ padding: '8px 12px', textAlign: 'left', borderBottom: '1px solid var(--color-border)' }}>Type</th>
-                            <th style={{ padding: '8px 12px', textAlign: 'left', borderBottom: '1px solid var(--color-border)' }}>Balance</th>
-                            <th style={{ padding: '8px 12px', textAlign: 'left', borderBottom: '1px solid var(--color-border)' }}>Posting</th>
-                            <th style={{ padding: '8px 12px', textAlign: 'left', borderBottom: '1px solid var(--color-border)' }}>Status</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {rows.map(row => (
-                            <tr key={row.line}
-                              style={{
-                                borderBottom: '1px solid var(--color-border)',
-                                background: row.errors.length ? '#fff5f5' : 'white',
-                              }}>
-                              <td style={{ padding: '6px 12px', color: 'var(--color-text-muted)' }}>{row.line}</td>
-                              <td style={{ padding: '6px 12px', fontFamily: 'monospace', fontWeight: 700 }}>{row.code || '—'}</td>
-                              <td style={{ padding: '6px 12px' }}>{row.name || '—'}</td>
-                              <td style={{ padding: '6px 12px' }}>{row.account_type || '—'}</td>
-                              <td style={{ padding: '6px 12px' }}>{row.normal_balance || '—'}</td>
-                              <td style={{ padding: '6px 12px' }}>{row.is_posting ? 'Yes' : 'No'}</td>
-                              <td style={{ padding: '6px 12px' }}>
-                                {row.errors.length === 0 ? (
-                                  <span style={{ color: '#16a34a', fontWeight: 600 }}>✓ Valid</span>
-                                ) : (
-                                  <span style={{ color: '#dc2626', fontWeight: 600 }} title={row.errors.join('\n')}>
-                                    ✗ {row.errors[0]}{row.errors.length > 1 ? ` (+${row.errors.length - 1})` : ''}
-                                  </span>
-                                )}
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </>
-                )}
-              </>
-            )}
-          </div>
-
-          {/* Footer */}
-          <div style={{
-            padding: '16px 24px', borderTop: '1px solid var(--color-border)',
-            display: 'flex', justifyContent: 'flex-end', gap: 10,
-            background: '#f8fafc',
-          }}>
-            <button className="btn btn-secondary" onClick={handleClose} disabled={importMutation.isPending}>
-              {results ? 'Close' : 'Cancel'}
-            </button>
-            {!results && rows.length > 0 && (
-              <button className="btn btn-primary"
-                onClick={handleImport}
-                disabled={validRows.length === 0 || importMutation.isPending}
-                style={{ display: 'flex', alignItems: 'center', gap: 6 }}
-              >
-                {importMutation.isPending
-                  ? <><div className="spinner" style={{ width: 14, height: 14, borderWidth: 2, borderColor: 'rgba(255,255,255,0.3)', borderTopColor: 'white' }} /> Importing…</>
-                  : `Import ${validRows.length} Account${validRows.length !== 1 ? 's' : ''}`}
-              </button>
-            )}
-          </div>
+        <div className="dialog-footer">
+          <Button variant="secondary" onClick={handleClose} disabled={importMutation.isPending}>{results ? 'Close' : 'Cancel'}</Button>
+          {!results && rows.length > 0 && (
+            <Button variant="primary" onClick={handleImport} disabled={validRows.length === 0} loading={importMutation.isPending}>
+              {importMutation.isPending ? 'Importing…' : `Import ${validRows.length} Account${validRows.length !== 1 ? 's' : ''}`}
+            </Button>
+          )}
         </div>
       </div>
-
-      <style>{`
-        @keyframes fadeIn  { from { opacity: 0 } to { opacity: 1 } }
-        @keyframes scaleIn { from { transform: scale(0.95); opacity: 0 } to { transform: scale(1); opacity: 1 } }
-      `}</style>
-    </>
+    </div>
   );
 }

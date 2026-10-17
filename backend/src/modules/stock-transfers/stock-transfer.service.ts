@@ -5,6 +5,8 @@ import type { ListStockTransfersQuery, ValidateStockTransferInput } from './stoc
 
 type TransactionClient = Prisma.TransactionClient;
 
+const POSTING_TRANSACTION_OPTIONS = { maxWait: 10_000, timeout: 30_000 };
+
 interface TransferHeaderRow {
   id: string;
   transfer_number: string;
@@ -284,120 +286,160 @@ export class StockTransferService {
   }
 
   async createDraft(input: ValidateStockTransferInput, userId?: string | null) {
-    return prisma.$transaction(async transaction => {
-      const errors: string[] = [];
-      await this.validateInput(input, errors, [], transaction);
-      if (errors.length) throw businessError(errors[0]);
-
-      const transferNumber = await this.nextTransferNumber(input.transfer_date.slice(0, 4), transaction);
-      const itemRows = await this.getItemsForLines(input.lines.map(line => line.item_id), transaction);
-      const itemMap = new Map(itemRows.map(item => [item.id, item]));
-      const postedBy = userIdOrNull(userId);
-      const totalQuantity = input.lines.reduce((sum, line) => sum.plus(line.quantity), new Decimal(0));
-
-      const headerRows = await transaction.$queryRaw<{ id: string }[]>`
-        INSERT INTO stock_transfers (
-          company_id, transfer_number, transfer_date, from_warehouse_id, from_location_id,
-          to_warehouse_id, to_location_id, reference_number, description, status,
-          total_quantity, total_cost, created_by_id, updated_by_id, updated_at
-        )
-        VALUES (
-          CAST(${this.companyId} AS uuid),
-          ${transferNumber},
-          CAST(${input.transfer_date} AS date),
-          CAST(${input.from_warehouse_id} AS uuid),
-          ${textOrNull(input.from_location_id)}::uuid,
-          CAST(${input.to_warehouse_id} AS uuid),
-          ${textOrNull(input.to_location_id)}::uuid,
-          ${textOrNull(input.reference_number)},
-          ${textOrNull(input.description)},
-          'Draft',
-          CAST(${totalQuantity.toFixed(4)} AS numeric),
-          0,
-          ${postedBy}::uuid,
-          ${postedBy}::uuid,
-          now()
-        )
-        RETURNING id
-      `;
-
-      for (const [index, line] of input.lines.entries()) {
-        const item = itemMap.get(line.item_id)!;
-        await transaction.$queryRaw`
-          INSERT INTO stock_transfer_lines (
-            company_id, stock_transfer_id, line_number, item_id, item_code, item_name,
-            uom_name, quantity, unit_cost, total_cost, description, updated_at
-          )
-          VALUES (
-            CAST(${this.companyId} AS uuid),
-            CAST(${headerRows[0].id} AS uuid),
-            ${index + 1},
-            CAST(${line.item_id} AS uuid),
-            ${item.item_code},
-            ${item.item_name},
-            ${item.uom_name},
-            CAST(${this.quantity(line.quantity).toFixed(4)} AS numeric),
-            0,
-            0,
-            ${textOrNull(line.description)},
-            now()
-          )
-        `;
-      }
-
-      return { id: headerRows[0].id, transfer_number: transferNumber, status: 'Draft' };
-    });
+    return prisma.$transaction(transaction => this.insertDraft(transaction, input, userId));
   }
 
   async createAndPost(input: ValidateStockTransferInput, userId?: string | null) {
-    const draft = await this.createDraft(input, userId);
-    return this.post(draft.id, userId);
+    return prisma.$transaction(async transaction => {
+      const draft = await this.insertDraft(transaction, input, userId);
+      return this.postInTransaction(transaction, draft.id, userId);
+    }, POSTING_TRANSACTION_OPTIONS);
   }
 
   async post(id: string, userId?: string | null) {
-    return prisma.$transaction(async transaction => {
-      const headerRows = await transaction.$queryRaw<TransferHeaderRow[]>`
-        SELECT *
-        FROM stock_transfers
-        WHERE company_id = CAST(${this.companyId} AS uuid)
-          AND id = CAST(${id} AS uuid)
-        FOR UPDATE
-      `;
-      const transfer = headerRows[0];
-      if (!transfer) throw businessError('Stock Transfer was not found.', 404);
-      if (transfer.status !== 'Draft') throw businessError('Only Draft Stock Transfers can be posted.');
+    return prisma.$transaction(transaction => this.postInTransaction(transaction, id, userId), POSTING_TRANSACTION_OPTIONS);
+  }
 
-      const dateText = this.databaseDateText(transfer.transfer_date);
-      await this.assertDateInOpenPeriod(transaction, dateText);
-      const lines = await transaction.$queryRaw<TransferLineRow[]>`
-        SELECT *
-        FROM stock_transfer_lines
-        WHERE company_id = CAST(${this.companyId} AS uuid)
-          AND stock_transfer_id = CAST(${id} AS uuid)
-          AND is_active = true
-        ORDER BY line_number ASC
-      `;
-      if (!lines.length) throw businessError('Stock Transfer has no items.');
+  private async insertDraft(transaction: TransactionClient, input: ValidateStockTransferInput, userId?: string | null) {
+    const errors: string[] = [];
+    await this.validateInput(input, errors, [], transaction);
+    if (errors.length) throw businessError(errors[0]);
 
-      let totalCost = new Decimal(0);
-      for (const line of lines) {
-        totalCost = totalCost.plus(await this.postLine(transaction, transfer, line, userIdOrNull(userId)));
-      }
+    const transferNumber = await this.nextTransferNumber(input.transfer_date.slice(0, 4), transaction);
+    const itemRows = await this.getItemsForLines(input.lines.map(line => line.item_id), transaction);
+    const itemMap = new Map(itemRows.map(item => [item.id, item]));
+    const postedBy = userIdOrNull(userId);
+    const totalQuantity = input.lines.reduce((sum, line) => sum.plus(line.quantity), new Decimal(0));
 
+    const headerRows = await transaction.$queryRaw<{ id: string }[]>`
+      INSERT INTO stock_transfers (
+        company_id, transfer_number, transfer_date, from_warehouse_id, from_location_id,
+        to_warehouse_id, to_location_id, reference_number, description, status,
+        total_quantity, total_cost, created_by_id, updated_by_id, updated_at
+      )
+      VALUES (
+        CAST(${this.companyId} AS uuid),
+        ${transferNumber},
+        CAST(${input.transfer_date} AS date),
+        CAST(${input.from_warehouse_id} AS uuid),
+        ${textOrNull(input.from_location_id)}::uuid,
+        CAST(${input.to_warehouse_id} AS uuid),
+        ${textOrNull(input.to_location_id)}::uuid,
+        ${textOrNull(input.reference_number)},
+        ${textOrNull(input.description)},
+        'Draft',
+        CAST(${totalQuantity.toFixed(4)} AS numeric),
+        0,
+        ${postedBy}::uuid,
+        ${postedBy}::uuid,
+        now()
+      )
+      RETURNING id
+    `;
+
+    for (const [index, line] of input.lines.entries()) {
+      const item = itemMap.get(line.item_id)!;
       await transaction.$queryRaw`
-        UPDATE stock_transfers
-        SET status = 'Posted',
-            total_cost = CAST(${totalCost.toFixed(4)} AS numeric),
-            posted_by_id = ${userIdOrNull(userId)}::uuid,
-            posted_at = now(),
-            updated_by_id = ${userIdOrNull(userId)}::uuid,
-            updated_at = now()
-        WHERE company_id = CAST(${this.companyId} AS uuid)
-          AND id = CAST(${id} AS uuid)
+        INSERT INTO stock_transfer_lines (
+          company_id, stock_transfer_id, line_number, item_id, item_code, item_name,
+          uom_name, quantity, unit_cost, total_cost, description, updated_at
+        )
+        VALUES (
+          CAST(${this.companyId} AS uuid),
+          CAST(${headerRows[0].id} AS uuid),
+          ${index + 1},
+          CAST(${line.item_id} AS uuid),
+          ${item.item_code},
+          ${item.item_name},
+          ${item.uom_name},
+          CAST(${this.quantity(line.quantity).toFixed(4)} AS numeric),
+          0,
+          0,
+          ${textOrNull(line.description)},
+          now()
+        )
       `;
+    }
 
-      return { id, transfer_number: transfer.transfer_number, status: 'Posted' };
-    });
+    return { id: headerRows[0].id, transfer_number: transferNumber, status: 'Draft' };
+  }
+
+  private async postInTransaction(transaction: TransactionClient, id: string, userId?: string | null) {
+    const headerRows = await transaction.$queryRaw<TransferHeaderRow[]>`
+      SELECT *
+      FROM stock_transfers
+      WHERE company_id = CAST(${this.companyId} AS uuid)
+        AND id = CAST(${id} AS uuid)
+      FOR UPDATE
+    `;
+    const transfer = headerRows[0];
+    if (!transfer) throw businessError('Stock Transfer was not found.', 404);
+    if (transfer.status !== 'Draft') throw businessError('Only Draft Stock Transfers can be posted.');
+
+    const dateText = this.databaseDateText(transfer.transfer_date);
+    await this.assertDateInOpenPeriod(transaction, dateText);
+    const lines = await transaction.$queryRaw<TransferLineRow[]>`
+      SELECT *
+      FROM stock_transfer_lines
+      WHERE company_id = CAST(${this.companyId} AS uuid)
+        AND stock_transfer_id = CAST(${id} AS uuid)
+        AND is_active = true
+      ORDER BY line_number ASC
+    `;
+    if (!lines.length) throw businessError('Stock Transfer has no items.');
+
+    await this.lockBalancesForTransfer(transaction, transfer, lines.map(line => line.item_id));
+
+    let totalCost = new Decimal(0);
+    for (const line of lines) {
+      totalCost = totalCost.plus(await this.postLine(transaction, transfer, line, userIdOrNull(userId)));
+    }
+
+    await transaction.$queryRaw`
+      UPDATE stock_transfers
+      SET status = 'Posted',
+          total_cost = CAST(${totalCost.toFixed(4)} AS numeric),
+          posted_by_id = ${userIdOrNull(userId)}::uuid,
+          posted_at = now(),
+          updated_by_id = ${userIdOrNull(userId)}::uuid,
+          updated_at = now()
+      WHERE company_id = CAST(${this.companyId} AS uuid)
+        AND id = CAST(${id} AS uuid)
+    `;
+
+    return { id, transfer_number: transfer.transfer_number, status: 'Posted' };
+  }
+
+  // Creates missing destination rows, then locks every affected balance row in id order so
+  // opposite-direction transfers running at the same time cannot deadlock each other.
+  private async lockBalancesForTransfer(transaction: TransactionClient, transfer: TransferHeaderRow, itemIds: string[]) {
+    const uniqueIds = [...new Set(itemIds)];
+    await transaction.$queryRaw`
+      INSERT INTO inventory_stock_balances (
+        company_id, item_id, warehouse_id, location_id, stock_on_hand, reserved_stock,
+        available_stock, average_cost, total_stock_value, is_active, updated_at
+      )
+      SELECT
+        CAST(${this.companyId} AS uuid),
+        item_id,
+        CAST(${transfer.to_warehouse_id} AS uuid),
+        ${transfer.to_location_id}::uuid,
+        0, 0, 0, 0, 0, true, now()
+      FROM unnest(${uniqueIds}::uuid[]) AS item_id
+      ON CONFLICT DO NOTHING
+    `;
+    await transaction.$queryRaw`
+      SELECT id
+      FROM inventory_stock_balances
+      WHERE company_id = CAST(${this.companyId} AS uuid)
+        AND item_id = ANY(${uniqueIds}::uuid[])
+        AND (
+          (warehouse_id = CAST(${transfer.from_warehouse_id} AS uuid) AND location_id IS NOT DISTINCT FROM ${transfer.from_location_id}::uuid)
+          OR (warehouse_id = CAST(${transfer.to_warehouse_id} AS uuid) AND location_id IS NOT DISTINCT FROM ${transfer.to_location_id}::uuid)
+        )
+      ORDER BY id
+      FOR UPDATE
+    `;
   }
 
   private async validateInput(input: ValidateStockTransferInput, errors: string[], warnings: string[], transaction: TransactionClient | typeof prisma = prisma) {
@@ -413,7 +455,7 @@ export class StockTransferService {
         AND id = ANY(${[input.from_warehouse_id, input.to_warehouse_id]}::uuid[])
         AND is_active = true
     `;
-    if (warehouses.length !== 2) errors.push('From Warehouse or To Warehouse was not found or is inactive.');
+    if (warehouses.length !== new Set([input.from_warehouse_id, input.to_warehouse_id]).size) errors.push('From Warehouse or To Warehouse was not found or is inactive.');
 
     const fromWarehouse = warehouses.find(warehouse => warehouse.id === input.from_warehouse_id);
     const toWarehouse = warehouses.find(warehouse => warehouse.id === input.to_warehouse_id);
@@ -473,18 +515,17 @@ export class StockTransferService {
   }
 
   private async nextTransferNumber(year: string, transaction: TransactionClient) {
-    const rows = await transaction.$queryRaw<{ transfer_number: string }[]>`
-      SELECT transfer_number
+    const prefix = `ST-${year}-`;
+    // Serializes numbering per company and year until this transaction ends, including the first number of a year.
+    await transaction.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`stock_transfers:${this.companyId}:${prefix}`}))`;
+    const rows = await transaction.$queryRaw<{ last_number: number | null }[]>`
+      SELECT MAX(CAST(split_part(transfer_number, '-', 3) AS integer)) AS last_number
       FROM stock_transfers
       WHERE company_id = CAST(${this.companyId} AS uuid)
-        AND transfer_number LIKE ${`ST-${year}-%`}
-      ORDER BY transfer_number DESC
-      LIMIT 1
-      FOR UPDATE
+        AND transfer_number ~ ${`^ST-${year}-[0-9]+$`}
     `;
-    const lastSegment = rows[0]?.transfer_number?.split('-').pop() ?? '0000';
-    const next = Number.parseInt(lastSegment, 10) + 1;
-    return `ST-${year}-${String(next).padStart(4, '0')}`;
+    const next = Number(rows[0]?.last_number ?? 0) + 1;
+    return `${prefix}${String(next).padStart(4, '0')}`;
   }
 
   private async getSourceBalance(transaction: TransactionClient | typeof prisma, itemId: string, warehouseId: string, locationId: string | null) {
@@ -512,9 +553,14 @@ export class StockTransferService {
     if (source.stockOnHand.lt(quantity)) throw businessError(`Not enough stock for ${line.item_code}.`);
 
     const unitCost = source.averageCost;
-    const transferCost = this.money(unitCost.times(quantity));
+    // Moving all remaining stock takes the full source value so no rounding residue stays behind,
+    // and a rounded-up average cost can never move more value than the source holds.
+    const sourceValue = Decimal.max(0, source.totalValue);
+    const transferCost = quantity.eq(source.stockOnHand)
+      ? sourceValue
+      : Decimal.min(this.money(unitCost.times(quantity)), sourceValue);
     const newSourceQuantity = this.quantity(source.stockOnHand.minus(quantity));
-    const newSourceValue = Decimal.max(0, source.totalValue.minus(transferCost)).toDecimalPlaces(4, Decimal.ROUND_HALF_UP);
+    const newSourceValue = this.money(sourceValue.minus(transferCost));
 
     await transaction.$queryRaw`
       UPDATE inventory_stock_balances
@@ -527,45 +573,25 @@ export class StockTransferService {
 
     await this.insertMovement(transaction, transfer, line, transfer.from_warehouse_id, transfer.from_location_id, 'TRANSFER_OUT', quantity, new Decimal(0), quantity, unitCost, transferCost, newSourceQuantity, userId);
 
+    // lockBalancesForTransfer has already created the destination row when it was missing.
     const destination = await this.getDestinationBalanceForUpdate(transaction, line.item_id, transfer.to_warehouse_id, transfer.to_location_id);
-    const oldDestinationQuantity = this.quantity(destination?.stock_on_hand ?? 0);
-    const oldDestinationValue = this.money(destination?.total_stock_value ?? 0);
+    if (!destination) throw businessError(`Destination stock balance could not be prepared for ${line.item_code}.`, 500);
+    const oldDestinationQuantity = this.quantity(destination.stock_on_hand ?? 0);
+    const oldDestinationValue = this.money(destination.total_stock_value ?? 0);
     const newDestinationQuantity = this.quantity(oldDestinationQuantity.plus(quantity));
     const newDestinationValue = this.money(oldDestinationValue.plus(transferCost));
     const newAverageCost = newDestinationQuantity.gt(0) ? newDestinationValue.div(newDestinationQuantity).toDecimalPlaces(4, Decimal.ROUND_HALF_UP) : new Decimal(0);
 
-    if (destination) {
-      await transaction.$queryRaw`
-        UPDATE inventory_stock_balances
-        SET stock_on_hand = CAST(${newDestinationQuantity.toFixed(4)} AS numeric),
-            available_stock = CAST(${newDestinationQuantity.toFixed(4)} AS numeric) - reserved_stock,
-            average_cost = CAST(${newAverageCost.toFixed(4)} AS numeric),
-            total_stock_value = CAST(${newDestinationValue.toFixed(4)} AS numeric),
-            is_active = true,
-            updated_at = now()
-        WHERE id = CAST(${destination.id} AS uuid)
-      `;
-    } else {
-      await transaction.$queryRaw`
-        INSERT INTO inventory_stock_balances (
-          company_id, item_id, warehouse_id, location_id, stock_on_hand, reserved_stock,
-          available_stock, average_cost, total_stock_value, is_active, updated_at
-        )
-        VALUES (
-          CAST(${this.companyId} AS uuid),
-          CAST(${line.item_id} AS uuid),
-          CAST(${transfer.to_warehouse_id} AS uuid),
-          ${transfer.to_location_id}::uuid,
-          CAST(${newDestinationQuantity.toFixed(4)} AS numeric),
-          0,
-          CAST(${newDestinationQuantity.toFixed(4)} AS numeric),
-          CAST(${newAverageCost.toFixed(4)} AS numeric),
-          CAST(${newDestinationValue.toFixed(4)} AS numeric),
-          true,
-          now()
-        )
-      `;
-    }
+    await transaction.$queryRaw`
+      UPDATE inventory_stock_balances
+      SET stock_on_hand = CAST(${newDestinationQuantity.toFixed(4)} AS numeric),
+          available_stock = CAST(${newDestinationQuantity.toFixed(4)} AS numeric) - reserved_stock,
+          average_cost = CAST(${newAverageCost.toFixed(4)} AS numeric),
+          total_stock_value = CAST(${newDestinationValue.toFixed(4)} AS numeric),
+          is_active = true,
+          updated_at = now()
+      WHERE id = CAST(${destination.id} AS uuid)
+    `;
 
     await this.insertMovement(transaction, transfer, line, transfer.to_warehouse_id, transfer.to_location_id, 'TRANSFER_IN', quantity, quantity, new Decimal(0), unitCost, transferCost, newDestinationQuantity, userId);
 

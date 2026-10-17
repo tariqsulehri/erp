@@ -46,10 +46,10 @@ export function PurchaseAnalyticsSummary({
   return (
     <>
       <div style={kpiGridStyle}>
-        <AnalyticsKpi label="Net Purchases" value={money(totalNetAmount)} detail={`Gross ${money(grossAmount)}`} accent="#2563eb" tone="blue" />
-        <AnalyticsKpi label="Purchase Count" value={formatNumber(totalPurchases, generalSettings)} detail={`Average ${money(averageInvoice)}`} accent="#0f766e" tone="teal" />
-        <AnalyticsKpi label="Credit Exposure" value={money(creditTotal)} detail={`${formatNumber(creditShare, generalSettings)}% Of Purchases`} accent="#7c3aed" tone="violet" />
-        <AnalyticsKpi label="Tax And Freight" value={money(taxFreightTotal)} detail={`Discount ${money(discountAmount)}`} accent="#c2410c" tone="orange" />
+        <AnalyticsKpi label="Net Purchases" value={money(totalNetAmount)} detail={`Gross ${money(grossAmount)}`} />
+        <AnalyticsKpi label="Purchase Count" value={formatNumber(totalPurchases, generalSettings)} detail={`Average ${money(averageInvoice)}`} />
+        <AnalyticsKpi label="Credit Exposure" value={money(creditTotal)} detail={`${formatNumber(creditShare, generalSettings)}% Of Purchases`} />
+        <AnalyticsKpi label="Tax And Freight" value={money(taxFreightTotal)} detail={`Discount ${money(discountAmount)}`} />
       </div>
 
       <div style={insightGridStyle}>
