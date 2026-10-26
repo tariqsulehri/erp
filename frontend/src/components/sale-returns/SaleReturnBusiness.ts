@@ -1,6 +1,6 @@
 import { numericValue } from '@/lib/erp-utils';
 import { validMoneyPattern } from '@/components/purchases/PurchaseVoucherHelpers';
-import type { CustomerOption, SaleLine, SalePaymentType, WarehouseOption } from '@/components/sales/SaleVoucherTypes';
+import type { BranchOption, CustomerOption, SaleLine, SalePaymentType } from '@/components/sales/SaleVoucherTypes';
 
 interface SaleReturnValidationInput {
   saleReturnDate: string;
@@ -8,9 +8,8 @@ interface SaleReturnValidationInput {
   postingDateError?: string;
   customerId: string;
   selectedCustomer?: CustomerOption;
-  warehouseId: string;
-  locationId: string;
-  selectedWarehouse?: WarehouseOption;
+  branchId: string;
+  selectedBranch?: BranchOption;
   customerReturnDate: string;
   lines: SaleLine[];
   freightAmount: string;
@@ -23,7 +22,7 @@ interface SaleReturnPayloadInput {
   customerReturnNumber: string;
   customerReturnDate: string;
   paymentType: SalePaymentType;
-  warehouseId: string;
+  branchId: string;
   locationId: string;
   referenceNumber: string;
   generatedVoucherDetails: string;
@@ -46,8 +45,8 @@ export function validateSaleReturnVoucher(input: SaleReturnValidationInput) {
   if (input.postingDateError) return input.postingDateError;
   if (!input.customerId || !input.selectedCustomer) return 'Customer is required.';
   if (!input.selectedCustomer.accountCode) return 'Selected Customer does not have a Linked Account.';
-  if (!input.warehouseId) return 'Warehouse is required.';
-  if (input.selectedWarehouse?.useLocations && !input.locationId) return 'Location is required for this Warehouse.';
+  if (!input.branchId) return 'Branch is required.';
+  if (!input.selectedBranch) return 'Selected Branch was not found or is Inactive. Please select it again.';
   if (input.customerReturnDate && input.customerReturnDate > input.saleReturnDate) {
     return 'Customer Return Date cannot be after Sale Return Date.';
   }
@@ -64,14 +63,13 @@ export function buildSaleReturnPayload(input: SaleReturnPayloadInput) {
     customer_return_number: input.customerReturnNumber || undefined,
     customer_return_date: input.customerReturnDate || undefined,
     payment_type: input.paymentType,
-    warehouse_id: input.warehouseId,
+    branch_id: input.branchId,
     location_id: input.locationId || undefined,
     reference_number: input.referenceNumber || undefined,
     description: input.generatedVoucherDetails,
     freight_amount: input.freight,
     lines: input.lines.map(line => ({
       item_id: line.itemId,
-      warehouse_id: input.warehouseId,
       quantity: numericValue(line.quantity),
       sale_price: numericValue(line.purchasePrice),
       discount_amount: numericValue(line.discountAmount),

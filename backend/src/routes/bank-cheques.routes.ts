@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { currentUserId, requirePermission } from '../http/access-context.js';
 import { resolveCompanyId } from '../http/company-context.js';
 import {
   AvailableChequesQuery,
@@ -32,11 +33,11 @@ bankChequesRouter.get('/books', async (req, res, next) => {
   }
 });
 
-bankChequesRouter.post('/books', async (req, res, next) => {
+bankChequesRouter.post('/books', requirePermission('accounts.manage'), async (req, res, next) => {
   try {
     const service = new BankChequeService(resolveCompanyId(req));
     const input = CreateChequeBookInput.parse(req.body);
-    res.status(201).json(await service.createBook(input, req.header('x-user-id')));
+    res.status(201).json(await service.createBook(input, currentUserId(req)));
   } catch (error) {
     next(error);
   }
@@ -62,23 +63,23 @@ bankChequesRouter.get('/', async (req, res, next) => {
   }
 });
 
-bankChequesRouter.patch('/:id/void', async (req, res, next) => {
+bankChequesRouter.patch('/:id/void', requirePermission('accounts.manage'), async (req, res, next) => {
   try {
     const service = new BankChequeService(resolveCompanyId(req));
     const { id } = idParams.parse(req.params);
     const input = VoidChequeInput.parse(req.body);
-    res.json(await service.voidCheque(id, input, req.header('x-user-id')));
+    res.json(await service.voidCheque(id, input, currentUserId(req)));
   } catch (error) {
     next(error);
   }
 });
 
-bankChequesRouter.patch('/:id/issue', async (req, res, next) => {
+bankChequesRouter.patch('/:id/issue', requirePermission('accounts.manage'), async (req, res, next) => {
   try {
     const service = new BankChequeService(resolveCompanyId(req));
     const { id } = idParams.parse(req.params);
     const input = IssueChequeInput.parse(req.body);
-    res.json(await service.issueCheque(id, input, req.header('x-user-id')));
+    res.json(await service.issueCheque(id, input, currentUserId(req)));
   } catch (error) {
     next(error);
   }

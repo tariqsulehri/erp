@@ -1,11 +1,12 @@
 import type { NextAuthOptions } from 'next-auth';
 import CredentialsProvider from 'next-auth/providers/credentials';
-import { JWT } from 'next-auth/jwt';
+import { backendInternalUrl } from './backend-internal-url';
+import type { AccessLevel, SessionBranch, SessionWarehouse, UserRole } from './session-user';
 
 /**
- * NextAuth v5 (Auth.js) Configuration
- * Using email/password authentication for development
- * Easily extensible to OAuth providers (Google, Microsoft, GitHub, etc.)
+ * Sign-in is checked by the backend (POST /auth/login). The backend token is kept only inside the
+ * encrypted NextAuth cookie and is attached to API calls by the /api/v1 proxy route on the server,
+ * so browser JavaScript never sees it.
  */
 
 declare module 'next-auth' {
@@ -14,7 +15,10 @@ declare module 'next-auth' {
       id: string;
       email: string;
       name: string;
-      role: 'admin' | 'accountant' | 'manager' | 'viewer';
+      role: UserRole;
+      accessLevel: AccessLevel;
+      branch: SessionBranch | null;
+      warehouse: SessionWarehouse | null;
       companies: string[];
       currentCompanyId: string;
     };
@@ -24,9 +28,13 @@ declare module 'next-auth' {
     id: string;
     email: string;
     name: string;
-    role: 'admin' | 'accountant' | 'manager' | 'viewer';
+    role: UserRole;
+    accessLevel: AccessLevel;
+    branch: SessionBranch | null;
+    warehouse: SessionWarehouse | null;
     companies: string[];
     currentCompanyId: string;
+    backendToken: string;
   }
 }
 
@@ -35,83 +43,111 @@ declare module 'next-auth/jwt' {
     id: string;
     email: string;
     name: string;
-    role: 'admin' | 'accountant' | 'manager' | 'viewer';
+    role: UserRole;
+    accessLevel: AccessLevel;
+    branch: SessionBranch | null;
+    warehouse: SessionWarehouse | null;
     companies: string[];
     currentCompanyId: string;
+    backendToken: string;
   }
 }
 
-/**
- * Mock database of users (for development)
- * In production, query against your actual user table
- */
-const mockUsers = [
-  {
-    id: '00000000-0000-0000-0000-000000000011',
-    email: 'admin@example.com',
-    name: 'Admin User',
-    password: 'admin123', // NEVER hardcode in production
-    role: 'admin' as const,
-    companies: ['00000000-0000-0000-0000-000000000001'],
-    currentCompanyId: '00000000-0000-0000-0000-000000000001',
-  },
-  {
-    id: '00000000-0000-0000-0000-000000000012',
-    email: 'accountant@example.com',
-    name: 'Accountant User',
-    password: 'accountant123',
-    role: 'accountant' as const,
-    companies: ['00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000002'],
-    currentCompanyId: '00000000-0000-0000-0000-000000000001',
-  },
-];
+interface BackendLoginResponse {
+  token: string;
+  user: {
+    id: string;
+    email: string;
+    full_name: string;
+    role: UserRole;
+    access: Array<{
+      company_id: string;
+      access_level: AccessLevel;
+      branch: SessionBranch | null;
+      warehouse: SessionWarehouse | null;
+    }>;
+  };
+}
+
+// Matches the backend JWT_EXPIRES_IN default (12h), so the app session never outlives the backend token.
+const SESSION_MAX_AGE_SECONDS = 12 * 60 * 60;
+
+/** Session encryption secret. Read when a request needs it, so builds work without it but servers never run without it. */
+export function nextAuthSecret() {
+  const secret = process.env.NEXTAUTH_SECRET;
+  if (!secret || secret.length < 32) {
+    throw new Error('NEXTAUTH_SECRET must be set to a private value of at least 32 characters.');
+  }
+  return secret;
+}
+
+function forwardedClientIp(headers: Record<string, string | string[] | undefined> | undefined) {
+  const forwarded = headers?.['x-forwarded-for'];
+  const first = (Array.isArray(forwarded) ? forwarded[0] : forwarded)?.split(',')[0]?.trim();
+  return first || undefined;
+}
+
+async function signInWithBackend(email: string, password: string, clientIp?: string) {
+  let response: Response;
+  try {
+    response = await fetch(`${backendInternalUrl()}/auth/login`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+        // Lets the backend limit failed sign-ins per browser IP instead of per frontend server.
+        ...(clientIp ? { 'x-forwarded-for': clientIp } : {}),
+      },
+      body: JSON.stringify({ email, password }),
+      cache: 'no-store',
+    });
+  } catch {
+    throw new Error('The server is not available. Please try again in a moment.');
+  }
+
+  const body = await response.json().catch(() => null) as (BackendLoginResponse & { error?: { message?: string } }) | null;
+  // Wrong email or password returns null, which NextAuth reports as CredentialsSignin.
+  if (response.status === 401) return null;
+  if (!response.ok || !body?.token) {
+    throw new Error(body?.error?.message || 'Sign in failed. Please try again.');
+  }
+  return body;
+}
 
 export const authOptions: NextAuthOptions = {
+  get secret() {
+    return nextAuthSecret();
+  },
   providers: [
     CredentialsProvider({
       name: 'Credentials',
       credentials: {
-        email: { label: 'Email', type: 'email', placeholder: 'admin@example.com' },
+        email: { label: 'Email', type: 'email' },
         password: { label: 'Password', type: 'password' },
       },
-      async authorize(credentials) {
-        if (!credentials?.email || !credentials?.password) {
-          return null;
-        }
+      async authorize(credentials, request) {
+        if (!credentials?.email || !credentials?.password) return null;
 
-        // In production, query your database
-        // const user = await getUserFromDatabase(credentials.email);
-        // const isPasswordValid = await bcrypt.compare(credentials.password, user.hashedPassword);
+        const result = await signInWithBackend(credentials.email, credentials.password, forwardedClientIp(request?.headers));
+        if (!result) return null;
 
-        // Mock authentication (for development only)
-        const user = mockUsers.find(
-          u => u.email === credentials.email && u.password === credentials.password,
-        );
-
-        if (!user) {
-          return null;
-        }
+        const defaultCompanyId = process.env.NEXT_PUBLIC_DEFAULT_COMPANY_ID;
+        const access = result.user.access.find(row => row.company_id === defaultCompanyId) ?? result.user.access[0];
 
         return {
-          id: user.id,
-          email: user.email,
-          name: user.name,
-          role: user.role,
-          companies: user.companies,
-          currentCompanyId: user.currentCompanyId,
+          id: result.user.id,
+          email: result.user.email,
+          name: result.user.full_name,
+          role: result.user.role,
+          accessLevel: access?.access_level ?? 'ALL_BRANCHES',
+          branch: access?.branch ?? null,
+          warehouse: access?.warehouse ?? null,
+          companies: result.user.access.map(row => row.company_id),
+          currentCompanyId: access?.company_id ?? defaultCompanyId ?? '',
+          backendToken: result.token,
         };
       },
     }),
-
-    // Uncomment to add OAuth providers
-    // GoogleProvider({
-    //   clientId: process.env.GOOGLE_CLIENT_ID!,
-    //   clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
-    // }),
-    // MicrosoftProvider({
-    //   clientId: process.env.MICROSOFT_CLIENT_ID!,
-    //   clientSecret: process.env.MICROSOFT_CLIENT_SECRET!,
-    // }),
   ],
 
   pages: {
@@ -121,13 +157,11 @@ export const authOptions: NextAuthOptions = {
 
   session: {
     strategy: 'jwt',
-    maxAge: 24 * 60 * 60, // 24 hours
-    updateAge: 60 * 60, // Update session every hour
+    maxAge: SESSION_MAX_AGE_SECONDS,
   },
 
   jwt: {
-    secret: process.env.NEXTAUTH_SECRET,
-    maxAge: 24 * 60 * 60, // 24 hours
+    maxAge: SESSION_MAX_AGE_SECONDS,
   },
 
   callbacks: {
@@ -137,40 +171,36 @@ export const authOptions: NextAuthOptions = {
         token.email = user.email;
         token.name = user.name;
         token.role = user.role;
+        token.accessLevel = user.accessLevel;
+        token.branch = user.branch;
+        token.warehouse = user.warehouse;
         token.companies = user.companies;
         token.currentCompanyId = user.currentCompanyId;
+        token.backendToken = user.backendToken;
       }
       return token;
     },
 
+    // The backend token is deliberately left out of the session the browser can read.
     async session({ session, token }) {
-      if (session.user) {
-        session.user.id = token.id;
-        session.user.email = token.email;
-        session.user.name = token.name;
-        session.user.role = token.role;
-        session.user.companies = token.companies;
-        session.user.currentCompanyId = token.currentCompanyId;
-      }
+      session.user = {
+        id: token.id,
+        email: token.email,
+        name: token.name,
+        role: token.role,
+        accessLevel: token.accessLevel,
+        branch: token.branch,
+        warehouse: token.warehouse,
+        companies: token.companies,
+        currentCompanyId: token.currentCompanyId,
+      };
       return session;
     },
 
     async redirect({ url, baseUrl }) {
-      // Redirect to dashboard after login
       if (url.startsWith('/')) return `${baseUrl}${url}`;
       if (new URL(url).origin === baseUrl) return url;
       return baseUrl;
     },
   },
-
-  events: {
-    async signIn({ user }) {
-      console.log(`User signed in: ${user?.email}`);
-    },
-    async signOut() {
-      console.log('User signed out');
-    },
-  },
-
-  debug: process.env.NODE_ENV === 'development',
 };

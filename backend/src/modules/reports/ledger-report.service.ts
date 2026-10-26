@@ -1,5 +1,6 @@
 import { Decimal } from 'decimal.js';
 import { prisma } from '../../db/prisma.js';
+import { openingBalanceForRange } from '../accounts/account-balance.js';
 import type { LedgerReportQuery } from './ledger-report.schema.js';
 
 function businessError(message: string) {
@@ -16,11 +17,6 @@ function databaseDate(dateText: string) {
 
 function decimalText(value: unknown) {
   return new Decimal(String(value ?? '0')).toFixed(2);
-}
-
-function signedOpeningBalance(openingBalance: unknown, normalBalance: string) {
-  const amount = new Decimal(String(openingBalance ?? '0'));
-  return normalBalance === 'Credit' ? amount.negated() : amount;
 }
 
 function balanceSide(balance: Decimal) {
@@ -58,10 +54,7 @@ export class LedgerReportService {
     if (!account) throw businessError('Account was not found.');
     if (!account.isPosting) throw businessError('Please select a Posting Account for Ledger Report.');
 
-    const shouldIncludeOpeningBalance = !account.openingBalanceDate || account.openingBalanceDate <= dateFrom;
-    const accountOpening = shouldIncludeOpeningBalance
-      ? signedOpeningBalance(account.openingBalance, account.normalBalance)
-      : new Decimal(0);
+    const accountOpening = openingBalanceForRange(account, query.date_from, query.date_to);
 
     const previousTotals = await prisma.voucherLine.aggregate({
       where: {
@@ -81,7 +74,7 @@ export class LedgerReportService {
 
     const previousDebit = new Decimal(String(previousTotals._sum.debitAmount ?? '0'));
     const previousCredit = new Decimal(String(previousTotals._sum.creditAmount ?? '0'));
-    const openingBalance = accountOpening.plus(previousDebit).minus(previousCredit);
+    const openingBalance = accountOpening.opening.plus(previousDebit).minus(previousCredit);
 
     const lines = await prisma.voucherLine.findMany({
       where: {
@@ -114,30 +107,63 @@ export class LedgerReportService {
       ],
     });
 
+    // An opening balance dated inside the report range is shown as its own row on that date.
+    const openingRow = !accountOpening.periodDebit.isZero() || !accountOpening.periodCredit.isZero()
+      ? {
+          id: `opening-balance-${account.id}`,
+          voucher_id: null,
+          voucher_number: 'Opening Balance',
+          voucher_type: 'OB',
+          voucher_date: new Date(`${accountOpening.openingDateText}T00:00:00Z`),
+          reference: null,
+          description: 'Account Opening Balance',
+          debit: accountOpening.periodDebit,
+          credit: accountOpening.periodCredit,
+          line_no: 0,
+        }
+      : null;
+    const voucherRows = lines.map(line => ({
+      id: line.id,
+      voucher_id: line.voucherId as string | null,
+      voucher_number: line.voucher.voucherNumber,
+      voucher_type: line.voucher.voucherType,
+      voucher_date: line.voucher.voucherDate,
+      reference: line.voucher.reference,
+      description: line.narration || line.voucher.narration || '',
+      debit: new Decimal(String(line.debitAmount ?? '0')),
+      credit: new Decimal(String(line.creditAmount ?? '0')),
+      line_no: line.lineNo,
+    }));
+    const orderedRows = openingRow
+      ? [
+          ...voucherRows.filter(row => row.voucher_date < openingRow.voucher_date),
+          openingRow,
+          ...voucherRows.filter(row => row.voucher_date >= openingRow.voucher_date),
+        ]
+      : voucherRows;
+
     let runningBalance = openingBalance;
     let totalDebit = new Decimal(0);
     let totalCredit = new Decimal(0);
 
-    const reportLines = lines.map(line => {
-      const debit = new Decimal(String(line.debitAmount ?? '0'));
-      const credit = new Decimal(String(line.creditAmount ?? '0'));
-      totalDebit = totalDebit.plus(debit);
-      totalCredit = totalCredit.plus(credit);
-      runningBalance = runningBalance.plus(debit).minus(credit);
+    const reportLines = orderedRows.map(row => {
+      totalDebit = totalDebit.plus(row.debit);
+      totalCredit = totalCredit.plus(row.credit);
+      runningBalance = runningBalance.plus(row.debit).minus(row.credit);
 
       return {
-        id: line.id,
-        voucher_id: line.voucherId,
-        voucher_number: line.voucher.voucherNumber,
-        voucher_type: line.voucher.voucherType,
-        voucher_date: line.voucher.voucherDate,
-        reference: line.voucher.reference,
-        description: line.narration || line.voucher.narration || '',
-        debit_amount: debit.toFixed(2),
-        credit_amount: credit.toFixed(2),
+        id: row.id,
+        voucher_id: row.voucher_id,
+        voucher_number: row.voucher_number,
+        voucher_type: row.voucher_type,
+        voucher_date: row.voucher_date,
+        reference: row.reference,
+        description: row.description,
+        debit_amount: row.debit.toFixed(2),
+        credit_amount: row.credit.toFixed(2),
         running_balance: runningBalance.abs().toFixed(2),
         running_balance_side: balanceSide(runningBalance),
-        line_no: line.lineNo,
+        line_no: row.line_no,
       };
     });
 

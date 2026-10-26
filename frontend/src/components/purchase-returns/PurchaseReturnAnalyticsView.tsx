@@ -32,10 +32,12 @@ export function PurchaseReturnAnalyticsView({ settings, onNewReturn, onPostedRet
     <TransactionAnalyticsView
       title="Purchase Return Analysis"
       documentLabel="Purchase Returns"
+      partyLabel="Supplier"
       postedListLabel="Posted Returns"
       rows={rows}
       totalRecords={query.data?.total ?? 0}
       loading={query.isLoading}
+      fetching={query.isFetching}
       error={query.error}
       settings={settings}
       onNew={onNewReturn}

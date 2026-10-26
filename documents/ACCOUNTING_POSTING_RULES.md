@@ -128,6 +128,8 @@ Voucher Total Credit                    527.50
 
 Do not hide purchase discount by reducing only the Inventory debit if the business needs `Purchase Discount Received` to appear in ledger reports.
 
+Stock valuation must use the same before-discount amount: each purchase line adds `quantity × purchase price` to `inventory_stock_movements.total_cost` and `inventory_stock_balances.total_stock_value`. The Inventory debit is the sum of these line costs, so the Inventory account always equals total stock value. Purchase returns remove stock at the same before-discount line cost.
+
 ## Sale Invoice Posting
 
 For a posted sale invoice:
@@ -147,6 +149,10 @@ If stock costing is enabled, also post cost of goods sold and inventory reductio
 | --- | --- | --- | --- |
 | Dr | `0501100101` | Cost Of Goods Sold | Cost Amount |
 | Cr | `0101300301` | Inventory Finished Goods | Cost Amount |
+
+Cost Amount is worked out when the sale is posted, not when the draft is saved. Each line uses the weighted-average value of the locked stock balance (`total_stock_value × quantity ÷ stock_on_hand`, rounded to 2 decimals). Selling the whole remaining quantity takes the whole remaining value. The posted line cost and header `cost_amount` are saved on the sale, and the Cost Of Goods Sold and Inventory lines use their sum. Stock value is never forced to zero; if a posting would make it negative, posting stops with an error.
+
+Sale returns use the same rule: returned stock is valued at the current average of the locked balance, or at the saved line cost when that holder has no stock.
 
 ## Purchase Return Posting
 
@@ -305,7 +311,43 @@ Minimum account rule:
 
 Do not implement generic Debit Note or Credit Note posting without a selected account, reason, and balanced voucher lines.
 
+## Reversal Voucher
+
+Posted vouchers are never voided or edited. Void is allowed only for Draft vouchers.
+
+To correct a Posted manual voucher (`BRV`, `BPV`, `CRV`, `CPV`, `JV`, `CV`, `DN`, `CN`), post a Reversal Voucher:
+
+- Voucher type `RV`, number `RV-YYYY-NNNN`, dated in an open period on or after the original voucher date.
+- Every line of the original is copied with Debit and Credit swapped, using the same Account Code and Account Title.
+- The original stays Posted. It stores `reversal_voucher_id`, `reversal_status = Reversed`, `reversed_by`, `reversed_at`, and `reversal_reason`. The Reversal Voucher stores `reversal_of_id` and `reversal_status = Reversal`.
+- A voucher can be reversed only once, and a Reversal Voucher cannot be reversed.
+- Vouchers created by Purchase, Sale, Purchase Return, Sale Return, Stock Adjustment, and Bank Deposit documents cannot be reversed from the Voucher screen. Correct them from their own document with a return or adjustment.
+
+## Year-End Closing Voucher
+
+Closing a Fiscal Year posts one Year-End Closing voucher (type `CL`, number `CL-YYYY-NNNN`) dated the last day of the year, inside the same database transaction that closes the year:
+
+| Dr / Cr | Account | Amount |
+| --- | --- | --- |
+| Dr | Each Revenue account with a credit balance for the year | Its balance |
+| Cr | Each Expense account with a debit balance for the year | Its balance |
+| Cr / Dr | Retained Earnings Account from Posting Account Settings (default `0302100101` Retained Earnings — Prior Years) | Year profit (Cr) or loss (Dr) |
+
+Rules:
+
+- The Retained Earnings Account must be an active Equity posting account and is set in Posting Account Settings → Year-End Closing Account.
+- The fiscal year stores `closing_voucher_id`.
+- Profit And Loss reports leave out `CL` vouchers, so a closed year still shows its profit or loss.
+- Balance Sheet includes `CL` vouchers. A closed year's result appears only in Retained Earnings. Results of earlier years that were never closed appear as `Retained Earnings (Prior Years Not Closed)` so the Balance Sheet always balances.
+- The pre-close check compares closing Debit and Credit totals of the full Trial Balance, including account opening balances.
+
+## Report Opening Balances
+
+An account opening balance dated on or before Date From is part of the Opening column. One dated inside the report range is shown as a period movement on that date (an `Opening Balance` row in the Ledger Report). One dated after Date To is not included yet.
+
 ## Posting Safety
+
+- Every posting path builds its voucher lines first and then saves them through the shared posting helper, which rounds each line to 2 decimals, requires total Debit to equal total Credit exactly, and sets `vouchers.total_debit` and `total_credit` from the lines.
 
 - Draft documents must not create ledger impact.
 - Posted documents should not be edited directly.

@@ -19,10 +19,10 @@ import {
   PurchaseHeaderForm,
   PurchaseLineEntry,
   PurchaseLineTable,
-  PurchaseMessageBanner,
   PurchaseSummaryFooter,
   PurchaseToolbar,
 } from '@/components/purchases/components';
+import { DocumentMessage, DocumentPage, LineShortcutHint, LinesPanel, useLineEntryKeyboard } from '@/components/documents';
 import { usePurchaseLineEditor } from '@/components/purchases/hooks/usePurchaseLineEditor';
 import { usePurchaseSupportOptions } from '@/components/purchases/hooks/usePurchaseSupportOptions';
 import { usePurchaseTotals } from '@/components/purchases/hooks/usePurchaseTotals';
@@ -36,7 +36,7 @@ export default function PurchaseReturnPage() {
   const createAndPost = useCreateAndPostPurchaseReturn();
   const invalidateReturnQueries = useInvalidatePurchaseReturnQueries();
 
-  const [viewMode, setViewMode] = useState<'posted' | 'entry' | 'analytics'>('posted');
+  const [viewMode, setViewMode] = useState<'posted' | 'entry' | 'analytics'>('analytics');
   const [purchaseReturnDate, setPurchaseReturnDate] = useState(today());
   const [supplierId, setSupplierId] = useState('');
   const [paymentType, setPaymentType] = useState<PaymentType>('Credit');
@@ -224,6 +224,14 @@ export default function PurchaseReturnPage() {
   }
 
   const actionDisabled = saving || supportQuery.isLoading || supportQuery.isError || postingDateGuard.disabled;
+  const lineKeyboard = useLineEntryKeyboard({
+    enabled: viewMode === 'entry',
+    onSave: () => savePurchaseReturn(false),
+    saveDisabled: actionDisabled,
+    onCommitLine: addItemLine,
+    commitDisabled: supportQuery.isLoading || supportQuery.isError,
+    onNewLine: cancelLineEdit,
+  });
 
   if (viewMode === 'posted') {
     return (
@@ -253,7 +261,7 @@ export default function PurchaseReturnPage() {
   }
 
   return (
-    <main style={{ height: '100%', minHeight: 0, boxSizing: 'border-box', padding: 10, display: 'flex', flexDirection: 'column', gap: 8, overflow: 'hidden' }}>
+    <DocumentPage>
       <PurchaseToolbar
         title="Purchase Return"
         documentCode="PR"
@@ -286,51 +294,55 @@ export default function PurchaseReturnPage() {
         onCancel={() => setProcessConfirmOpen(false)}
       />
 
-      {message && <PurchaseMessageBanner message={message} />}
+      <DocumentMessage message={message} onDismiss={() => setMessage(null)} />
 
-      <section className="workspace-card" style={{ padding: 10, flex: 1, minHeight: 0, display: 'grid', gridTemplateRows: 'auto auto auto 1fr auto', gap: 7, overflow: 'hidden' }}>
-        <PurchaseHeaderForm
-          documentNumberLabel="Return Number"
-          documentDateLabel="Return Date"
-          supplierDocumentDateLabel="Supplier Return Date"
-          supplierDocumentNumberLabel="Supplier Return No."
-          supplierDocumentPlaceholder="Return No."
-          showDueDate={false}
-          balanceLabel="Return Amount"
-          balanceValue={money(totals.netAmount)}
-          purchaseDate={purchaseReturnDate}
-          paymentType={paymentType}
-          supplierInvoiceDate={supplierReturnDate}
-          supplierInvoiceNumber={supplierReturnNumber}
-          supplierId={supplierId}
-          warehouseId={warehouseId}
-          locationId={locationId}
-          showLocation={Boolean(selectedWarehouse?.useLocations)}
-          referenceNumber={referenceNumber}
-          dueDate={purchaseReturnDate}
-          generatedVoucherDetails={generatedVoucherDetails}
-          dateStatusMessage={dateStatusMessage}
-          suppliers={suppliers}
-          warehouses={warehouses}
-          locations={warehouseLocations}
-          loadingSupportData={supportQuery.isLoading}
-          supportDataHasError={supportQuery.isError}
-          money={money}
-          onPurchaseDateChange={setPurchaseReturnDate}
-          onPaymentTypeChange={setPaymentType}
-          onSupplierInvoiceDateChange={setSupplierReturnDate}
-          onSupplierInvoiceNumberChange={setSupplierReturnNumber}
-          onSupplierChange={setSupplierId}
-          onWarehouseChange={value => {
-            setWarehouseId(value);
-            setLocationId('');
-          }}
-          onLocationChange={setLocationId}
-          onReferenceNumberChange={setReferenceNumber}
-          onDueDateChange={() => undefined}
-        />
+      <PurchaseHeaderForm
+        documentNumberLabel="Return Number"
+        documentDateLabel="Return Date"
+        supplierDocumentDateLabel="Supplier Return Date"
+        supplierDocumentNumberLabel="Supplier Return No."
+        supplierDocumentPlaceholder="Return No."
+        showDueDate={false}
+        balanceLabel="Return Amount"
+        balanceValue={money(totals.netAmount)}
+        purchaseDate={purchaseReturnDate}
+        paymentType={paymentType}
+        supplierInvoiceDate={supplierReturnDate}
+        supplierInvoiceNumber={supplierReturnNumber}
+        supplierId={supplierId}
+        warehouseId={warehouseId}
+        locationId={locationId}
+        showLocation={Boolean(selectedWarehouse?.useLocations)}
+        referenceNumber={referenceNumber}
+        dueDate={purchaseReturnDate}
+        generatedVoucherDetails={generatedVoucherDetails}
+        dateStatusMessage={dateStatusMessage}
+        suppliers={suppliers}
+        warehouses={warehouses}
+        locations={warehouseLocations}
+        loadingSupportData={supportQuery.isLoading}
+        supportDataHasError={supportQuery.isError}
+        money={money}
+        onPurchaseDateChange={setPurchaseReturnDate}
+        onPaymentTypeChange={setPaymentType}
+        onSupplierInvoiceDateChange={setSupplierReturnDate}
+        onSupplierInvoiceNumberChange={setSupplierReturnNumber}
+        onSupplierChange={setSupplierId}
+        onWarehouseChange={value => {
+          setWarehouseId(value);
+          setLocationId('');
+        }}
+        onLocationChange={setLocationId}
+        onReferenceNumberChange={setReferenceNumber}
+        onDueDateChange={() => undefined}
+      />
 
-        <div style={{ minHeight: 0, display: 'grid', gridTemplateRows: 'auto 1fr', overflow: 'visible' }}>
+      <LinesPanel
+        title="Lines"
+        hint={<LineShortcutHint mode="entry" />}
+        linesRef={lineKeyboard.linesRef}
+        onKeyDown={lineKeyboard.onLinesKeyDown}
+        entry={(
           <PurchaseLineEntry
             priceLabel="Return Price"
             lineDraft={lineDraft}
@@ -345,32 +357,34 @@ export default function PurchaseReturnPage() {
             onAddOrUpdate={addItemLine}
             onCancelEdit={cancelLineEdit}
           />
-
-          <PurchaseLineTable
-            lines={lines}
+        )}
+        summary={(
+          <PurchaseSummaryFooter
+            freightLabel="Freight Reversal"
+            balanceLabel="Return Amount"
+            totalItems={lines.length}
+            grossAmount={totals.grossAmount}
+            discountAmount={totals.discountAmount}
+            taxAmount={totals.taxAmount}
+            freightAmount={freightAmount}
+            netAmount={totals.netAmount}
+            balanceDue={totals.netAmount}
             generalSettings={generalSettings}
             money={money}
-            onMoveLine={moveLine}
-            onEditLine={editLine}
-            onRemoveLine={removeLine}
+            onFreightAmountChange={setFreightAmount}
           />
-        </div>
-
-        <PurchaseSummaryFooter
-          freightLabel="Freight Reversal"
-          balanceLabel="Return Amount"
-          totalItems={lines.length}
-          grossAmount={totals.grossAmount}
-          discountAmount={totals.discountAmount}
-          taxAmount={totals.taxAmount}
-          freightAmount={freightAmount}
-          netAmount={totals.netAmount}
-          balanceDue={totals.netAmount}
+        )}
+      >
+        <PurchaseLineTable
+          lines={lines}
+          editingLineId={editingLineId}
           generalSettings={generalSettings}
           money={money}
-          onFreightAmountChange={setFreightAmount}
+          onMoveLine={moveLine}
+          onEditLine={editLine}
+          onRemoveLine={removeLine}
         />
-      </section>
-    </main>
+      </LinesPanel>
+    </DocumentPage>
   );
 }

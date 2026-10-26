@@ -1,21 +1,21 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import { IconRefresh, IconSearch } from '@tabler/icons-react';
-import { FieldLabel } from '@/components/ui/FieldLabel';
-import { DateField } from '@/components/ui/FormFields';
+import { Button } from '@/components/ui/Button';
+import { CheckboxField, DateField } from '@/components/ui/FormFields';
+import { InlineAlert } from '@/components/ui/InlineAlert';
+import { PageHeader } from '@/components/ui/PageHeader';
+import { TableMessageRow } from '@/components/ui/TableMessageRow';
 import { formatDate, formatMoney } from '@/lib/app-settings';
 import { BalanceSheetLine, useBalanceSheetReport } from '@/lib/api/reports';
 import { useGeneralSettings } from '@/lib/api/settings';
 import { friendlyErrorMessage, isValidDateInput } from '@/lib/erp-utils';
 import { todayInputDate } from './LedgerReportHelpers';
-import {
-  compactButtonStyle,
-  reportTableCellStyle,
-  reportTableHeadStyle,
-  reportTableTotalCellStyle,
-  summaryBoxStyle,
-} from './LedgerReportStyles';
+import { amountStyle, embeddedReportStyle, reportFilterGridStyle, reportGroupRowStyle, reportIndentStyle } from './LedgerReportStyles';
+import { ReportActions } from './ReportActions';
+import type { ReportDocument } from './report-output';
 
 interface BalanceSheetReportPageProps {
   embedded?: boolean;
@@ -36,6 +36,8 @@ type BalanceSheetDisplayRow =
       line: BalanceSheetLine;
     };
 
+const linkStyle = { color: 'var(--color-primary-text)' };
+
 const sections: BalanceSheetLine['section'][] = ['Assets', 'Liabilities', 'Equity'];
 
 function amountCents(value: string | number) {
@@ -50,8 +52,9 @@ function totalAmount(lines: BalanceSheetLine[]) {
   return centsText(lines.reduce((sum, line) => sum + amountCents(line.amount), 0));
 }
 
-function moneyOrDash(value: string | number, settings: Parameters<typeof formatMoney>[1]) {
-  return Number(value) === 0 ? '-' : formatMoney(value, settings);
+/** Zero amounts are left blank so the figures that matter stand out. */
+function moneyOrBlank(value: string | number, settings: Parameters<typeof formatMoney>[1]) {
+  return Number(value) === 0 ? '' : formatMoney(value, settings);
 }
 
 function buildGroupedRows(lines: BalanceSheetLine[], includeZeroBalances: boolean): BalanceSheetDisplayRow[] {
@@ -161,141 +164,151 @@ export function BalanceSheetReportPage({ embedded = false }: BalanceSheetReportP
   const resultLabel = totals?.result === 'Loss' ? 'Current Year Loss' : totals?.result === 'Profit' ? 'Current Year Profit' : 'Current Year Result';
   const resultAmount = totals?.result === 'Loss' ? totals.current_year_loss : totals?.current_year_profit ?? '0.00';
 
-  const summaryBoxes = [
-    { label: 'Total Assets', value: totals?.assets ?? '0.00', accent: difference === 0 },
-    { label: 'Total Liabilities', value: totals?.liabilities ?? '0.00' },
-    { label: 'Total Equity', value: totals?.equity ?? '0.00' },
-    { label: 'Liabilities + Equity', value: totals?.liabilities_and_equity ?? '0.00', accent: difference === 0 },
-    { label: 'Difference', value: totals?.difference ?? '0.00', accent: difference !== 0 },
+  const totalRows = totals ? [
+    { label: 'Total Assets', value: totals.assets },
+    { label: 'Total Liabilities', value: totals.liabilities },
+    { label: 'Total Equity', value: totals.equity },
     { label: resultLabel, value: resultAmount },
-    { label: 'As Of Date', value: formatDate(asOfDate, generalSettings), text: true },
-  ];
+    { label: 'Total Liabilities And Equity', value: totals.liabilities_and_equity },
+  ] : [];
+
+  function buildReport(): ReportDocument | null {
+    if (!report || !totals) return null;
+    return {
+      title: 'Balance Sheet',
+      subtitle: `As of ${formatDate(report.as_of_date, generalSettings)}`,
+      columns: [
+        { label: 'Account Code' },
+        { label: 'Account Name' },
+        { label: 'Debit Balance', kind: 'money' },
+        { label: 'Credit Balance', kind: 'money' },
+        { label: 'Report Amount', kind: 'money' },
+      ],
+      rows: [
+        ...displayRows.map(row => (row.kind !== 'account'
+          ? { style: 'group' as const, cells: [row.code, row.name, '', '', row.amount] }
+          : { cells: [row.line.account_code, row.line.account_name, row.line.debit_balance, row.line.credit_balance, row.line.amount] })),
+        ...totalRows.map(total => ({ style: 'total' as const, cells: ['', total.label, '', '', total.value] })),
+        { style: 'total' as const, cells: ['', 'Difference', '', '', totals.difference] },
+      ],
+      note: report.fiscal_year
+        ? `Fiscal Year ${report.fiscal_year.fiscal_year}: ${formatDate(report.fiscal_year.start_date, generalSettings)} to ${formatDate(report.fiscal_year.end_date, generalSettings)}`
+        : undefined,
+      fileName: `balance-sheet-${report.as_of_date}`,
+    };
+  }
+
+  const ledgerFrom = report?.fiscal_year?.start_date ?? `${(report?.as_of_date ?? asOfDate).slice(0, 4)}-01-01`;
+  const ledgerHref = (accountId: string) => `/reports?report=ledger&account=${accountId}&from=${ledgerFrom}&to=${report?.as_of_date ?? asOfDate}`;
+
+  const Root = embedded ? 'div' : 'main';
 
   return (
-    <main style={{ height: '100%', minHeight: 0, boxSizing: 'border-box', padding: embedded ? 0 : 10, display: 'flex', flexDirection: 'column', gap: 8, overflow: 'hidden' }}>
-      <section className="workspace-card" style={{ padding: 10, overflow: 'visible' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: '132px minmax(190px, auto) auto', gap: 8, alignItems: 'end' }}>
-          <DateField label="As Of Date" value={asOfDate} onChange={value => updateFilter(() => setAsOfDate(value))} required />
-          <FieldLabel label="Options">
-            <label style={{ minHeight: 28, display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.74rem', fontWeight: 800, color: 'var(--color-text)' }}>
-              <input
-                type="checkbox"
-                checked={includeZeroBalances}
-                onChange={event => updateZeroBalanceFilter(event.currentTarget.checked)}
-              />
-              Show Zero Balances
-            </label>
-          </FieldLabel>
-          <div style={{ display: 'flex', gap: 6, alignItems: 'end' }}>
-            <button type="button" className="btn-primary" onClick={viewReport} disabled={reportQuery.isFetching} style={compactButtonStyle}>
-              <IconSearch size={15} /> View Report
-            </button>
-            <button type="button" className="btn-secondary" onClick={refreshReport} disabled={reportQuery.isFetching} style={compactButtonStyle}>
-              <IconRefresh size={15} /> Refresh
-            </button>
-          </div>
-        </div>
-      </section>
-
-      {errorMessage && (
-        <div style={{ color: 'var(--color-danger-text)', fontSize: '0.72rem', fontWeight: 800 }}>
-          {errorMessage}
-        </div>
+    <Root className={embedded ? undefined : 'page-shell'} style={embedded ? embeddedReportStyle : undefined}>
+      {!embedded && (
+        <PageHeader title="Balance Sheet" description={`Assets, liabilities, and equity as of ${formatDate(asOfDate, generalSettings)}.`} />
       )}
 
-      <section style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(130px, 1fr))', gap: 8 }}>
-        {summaryBoxes.map(box => (
-          <div key={box.label} style={summaryBoxStyle(box.accent)}>
-            <span style={{ color: 'var(--color-heading)', fontSize: '0.68rem', fontWeight: 900 }}>{box.label}</span>
-            <strong style={{ textAlign: 'right', fontFamily: box.text ? undefined : 'var(--font-mono)', color: 'var(--color-heading)', fontSize: box.text ? '0.72rem' : '0.84rem', fontWeight: 900 }}>
-              {box.text ? box.value : formatMoney(box.value, generalSettings)}
-            </strong>
-          </div>
-        ))}
-      </section>
-
-      {report?.fiscal_year && (
-        <div style={{ color: 'var(--color-text-muted)', fontSize: '0.72rem', fontWeight: 800 }}>
-          Fiscal Year: {report.fiscal_year.fiscal_year} ({formatDate(report.fiscal_year.start_date, generalSettings)} To {formatDate(report.fiscal_year.end_date, generalSettings)})
-        </div>
+      {errorMessage && <InlineAlert tone="danger">{errorMessage}</InlineAlert>}
+      {report && difference !== 0 && (
+        <InlineAlert tone="warning">
+          Total Assets and Total Liabilities And Equity differ by {formatMoney(totals?.difference ?? 0, generalSettings)}. Check the account balances before sharing this report.
+        </InlineAlert>
       )}
 
-      <section className="workspace-card" style={{ padding: 10, flex: 1, minHeight: 0, display: 'grid', gridTemplateRows: '1fr', overflow: 'hidden' }}>
-        <div style={{ minHeight: 0, overflow: 'auto', border: '1px solid var(--color-border)', borderRadius: 'var(--radius)' }}>
-          <table style={{ width: '100%', minWidth: 980, borderCollapse: 'collapse', tableLayout: 'fixed', fontSize: '0.74rem' }}>
+      <section className="panel panel-fill">
+        <div className="filter-bar">
+          <div className="filter-grid" style={reportFilterGridStyle}>
+            <DateField label="As Of Date" value={asOfDate} onChange={value => updateFilter(() => setAsOfDate(value))} required />
+            <CheckboxField label="Show Zero Balances" checked={includeZeroBalances} onChange={updateZeroBalanceFilter} />
+            <Button variant="primary" icon={<IconSearch size={16} stroke={1.8} />} onClick={viewReport} loading={reportQuery.isFetching}>View Report</Button>
+            <Button icon={<IconRefresh size={16} stroke={1.8} />} onClick={refreshReport} disabled={reportQuery.isFetching}>Refresh</Button>
+            <ReportActions buildReport={buildReport} disabled={!report} onError={setMessage} />
+          </div>
+          {report?.fiscal_year && (
+            <div className="filter-bar-end">
+              Fiscal Year {report.fiscal_year.fiscal_year}: {formatDate(report.fiscal_year.start_date, generalSettings)} to {formatDate(report.fiscal_year.end_date, generalSettings)}
+            </div>
+          )}
+        </div>
+
+        <div className="table-scroll">
+          <table className="data-table" style={{ tableLayout: 'fixed', minWidth: 980 }}>
             <colgroup>
-              <col style={{ width: 130 }} />
+              <col style={{ width: 140 }} />
               <col />
-              <col style={{ width: 130 }} />
-              <col style={{ width: 130 }} />
-              <col style={{ width: 150 }} />
+              <col style={{ width: 140 }} />
+              <col style={{ width: 140 }} />
+              <col style={{ width: 160 }} />
             </colgroup>
             <thead>
               <tr>
-                <th style={reportTableHeadStyle()}>Account Code</th>
-                <th style={reportTableHeadStyle()}>Account Name</th>
-                <th style={reportTableHeadStyle(true)}>Debit Balance</th>
-                <th style={reportTableHeadStyle(true)}>Credit Balance</th>
-                <th style={reportTableHeadStyle(true)}>Report Amount</th>
+                <th>Account Code</th>
+                <th>Account Name</th>
+                <th className="num">Debit Balance</th>
+                <th className="num">Credit Balance</th>
+                <th className="num">Report Amount</th>
               </tr>
             </thead>
             <tbody>
-              {reportQuery.isFetching && (
-                <tr>
-                  <td colSpan={5} style={{ ...reportTableCellStyle(), height: 90, textAlign: 'center', color: 'var(--color-text-muted)', fontWeight: 900 }}>
-                    Loading Balance Sheet...
-                  </td>
-                </tr>
-              )}
+              {reportQuery.isFetching && <TableMessageRow colSpan={5} title="Loading Balance Sheet…" loading />}
               {!reportQuery.isFetching && !errorMessage && !report && (
-                <tr>
-                  <td colSpan={5} style={{ ...reportTableCellStyle(), height: 90, textAlign: 'center', color: 'var(--color-text-muted)', fontWeight: 900 }}>
-                    Select As Of Date, then click View Report.
-                  </td>
-                </tr>
+                <TableMessageRow colSpan={5} title="Choose The Date" description="Select the As Of Date, then click View Report." />
               )}
               {!reportQuery.isFetching && !errorMessage && report && displayRows.length === 0 && (
-                <tr>
-                  <td colSpan={5} style={{ ...reportTableCellStyle(), height: 90, textAlign: 'center', color: 'var(--color-text-muted)', fontWeight: 900 }}>
-                    No Balance Sheet accounts found for the selected date.
-                  </td>
-                </tr>
+                <TableMessageRow colSpan={5} title="No Balances Found" description="No Balance Sheet accounts have a balance on this date. Pick a later date or tick Show Zero Balances." />
               )}
-              {displayRows.map(row => {
+              {!reportQuery.isFetching && displayRows.map(row => {
                 if (row.kind !== 'account') {
                   const level = row.kind === 'section' ? 1 : row.kind === 'group' ? 2 : 3;
-                  const background = level === 1
-                    ? 'var(--color-primary-light)'
-                    : level === 2
-                      ? 'var(--color-surface-alt)'
-                      : 'var(--color-table-row-odd)';
+                  const groupStyle = reportGroupRowStyle(level);
                   return (
                     <tr key={row.key}>
-                      <td style={{ ...reportTableTotalCellStyle(true), background, paddingLeft: level === 1 ? 8 : level === 2 ? 18 : 30 }}>{row.code}</td>
-                      <td style={{ ...reportTableTotalCellStyle(true), background }}>{row.name}</td>
-                      <td style={{ ...reportTableTotalCellStyle(true), background, textAlign: 'right' }}>-</td>
-                      <td style={{ ...reportTableTotalCellStyle(true), background, textAlign: 'right' }}>-</td>
-                      <td style={{ ...reportTableTotalCellStyle(true), background, textAlign: 'right' }}>{formatMoney(row.amount, generalSettings)}</td>
+                      <td style={{ ...groupStyle, ...reportIndentStyle(level - 1) }}>{row.code}</td>
+                      <td style={groupStyle}>{row.name}</td>
+                      <td style={groupStyle} />
+                      <td style={groupStyle} />
+                      <td className="num" style={{ ...groupStyle, ...amountStyle(row.amount) }}>{formatMoney(row.amount, generalSettings)}</td>
                     </tr>
                   );
                 }
 
                 return (
                   <tr key={row.key}>
-                    <td style={reportTableCellStyle()}>{row.line.account_code}</td>
-                    <td style={{ ...reportTableCellStyle(), paddingLeft: row.line.is_system_line ? 42 : 38, fontWeight: row.line.is_system_line ? 850 : 700 }}>
-                      {row.line.account_name}
+                    <td className="cell-muted" style={reportIndentStyle(3)}>
+                      {row.line.is_system_line
+                        ? row.line.account_code
+                        : <Link href={ledgerHref(row.line.account_id)} style={linkStyle}>{row.line.account_code}</Link>}
                     </td>
-                    <td style={reportTableCellStyle(true)}>{moneyOrDash(row.line.debit_balance, generalSettings)}</td>
-                    <td style={reportTableCellStyle(true)}>{moneyOrDash(row.line.credit_balance, generalSettings)}</td>
-                    <td style={reportTableCellStyle(true)}>{moneyOrDash(row.line.amount, generalSettings)}</td>
+                    <td style={row.line.is_system_line ? { fontWeight: 600, color: 'var(--color-heading)' } : undefined}>
+                      {row.line.is_system_line
+                        ? row.line.account_name
+                        : <Link href={ledgerHref(row.line.account_id)} style={linkStyle}>{row.line.account_name}</Link>}
+                    </td>
+                    <td className="num" style={amountStyle(row.line.debit_balance)}>{moneyOrBlank(row.line.debit_balance, generalSettings)}</td>
+                    <td className="num" style={amountStyle(row.line.credit_balance)}>{moneyOrBlank(row.line.credit_balance, generalSettings)}</td>
+                    <td className="num" style={amountStyle(row.line.amount)}>{moneyOrBlank(row.line.amount, generalSettings)}</td>
                   </tr>
                 );
               })}
             </tbody>
+            {totals && (
+              <tfoot>
+                {totalRows.map(total => (
+                  <tr key={total.label}>
+                    <td colSpan={4}>{total.label}</td>
+                    <td className="num" style={amountStyle(total.value)}>{formatMoney(total.value, generalSettings)}</td>
+                  </tr>
+                ))}
+                <tr>
+                  <td colSpan={4}>Difference</td>
+                  <td className="num" style={difference !== 0 ? { color: 'var(--color-negative)' } : undefined}>{formatMoney(totals.difference, generalSettings)}</td>
+                </tr>
+              </tfoot>
+            )}
           </table>
         </div>
       </section>
-    </main>
+    </Root>
   );
 }

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { queryBoolean } from '../../http/query-boolean.js';
 
 export const partyBusinessTypeSchema = z.enum(['individual', 'company', 'government']);
 export const partyRoleSchema = z.enum(['Customer', 'Supplier', 'Customer And Supplier']);
@@ -10,7 +11,7 @@ const optionalEmail = z.string().trim().email().optional().or(z.literal(''));
 export const partyListQuerySchema = z.object({
   search: z.string().trim().optional(),
   type: partyBusinessTypeSchema.optional(),
-  is_active: z.coerce.boolean().optional(),
+  is_active: queryBoolean.optional(),
   page: z.coerce.number().int().min(1).default(1),
   limit: z.coerce.number().int().min(1).max(200).default(50),
 });

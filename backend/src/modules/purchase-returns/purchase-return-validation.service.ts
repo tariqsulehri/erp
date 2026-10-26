@@ -97,6 +97,7 @@ export class PurchaseReturnValidationService {
         AND fy.is_deleted = false
         AND fy.start_date <= CAST(${dateText} AS date)
         AND fy.end_date >= CAST(${dateText} AS date)
+      ORDER BY (fp.end_date >= CAST(${dateText} AS date)) DESC NULLS LAST
       LIMIT 1
     `;
 

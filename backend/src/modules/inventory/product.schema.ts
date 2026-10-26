@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { queryBoolean } from '../../http/query-boolean.js';
 
 export const productTypeEnum = z.enum(['Finished', 'RawMaterial', 'SemiFinished', 'Service', 'Consumable']);
 export const productStatusEnum = z.enum(['Active', 'Inactive', 'Discontinued']);
@@ -13,8 +14,8 @@ export const listProductsQuery = z.object({
   brand_id: z.string().uuid().optional(),
   product_type: productTypeEnum.optional(),
   status: productStatusEnum.optional(),
-  is_sellable: z.coerce.boolean().optional(),
-  low_stock: z.coerce.boolean().optional(),
+  is_sellable: queryBoolean.optional(),
+  low_stock: queryBoolean.optional(),
   stock_filter: z.enum(['need_order', 'below_minimum', 'at_or_below_reorder', 'out_of_stock']).optional(),
   sort_by: z.enum(['name', 'sku', 'sale_price', 'qty_on_hand', 'created_at']).default('name'),
   sort_dir: z.enum(['ASC', 'DESC']).default('ASC'),

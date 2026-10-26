@@ -79,6 +79,8 @@ export class ProfitAndLossReportService {
       WHERE vl.company_id = CAST(${this.companyId} AS uuid)
         AND v.company_id = CAST(${this.companyId} AS uuid)
         AND v.status = 'Posted'
+        -- Year-End Closing vouchers only move the result to Retained Earnings; they are not income or expense.
+        AND v.voucher_type <> 'CL'
         AND v.voucher_date >= CAST(${query.date_from} AS date)
         AND v.voucher_date <= CAST(${query.date_to} AS date)
       GROUP BY vl.account_id

@@ -1,6 +1,7 @@
 import { Prisma } from '@prisma/client';
 import { prisma } from '../../db/prisma.js';
 import { PartyAccountService } from './party-account.service.js';
+import { assertLinkedAccount, nextPartyCode, partyError } from './party-rules.js';
 import type { PartyListQuery, SupplierInput, UpdateSupplierInput } from './party.schema.js';
 
 const supplierAccountService = new PartyAccountService();
@@ -44,14 +45,7 @@ function supplierToResponse(supplier: any) {
 
 export class SupplierService {
   async nextCode(companyId: string) {
-    const last = await prisma.supplier.findFirst({
-      where: { companyId, code: { startsWith: 'SUP-', mode: 'insensitive' } },
-      orderBy: { code: 'desc' },
-      select: { code: true },
-    });
-
-    const nextNumber = last ? Number.parseInt(last.code.split('-').pop() ?? '0', 10) + 1 : 1;
-    return `SUP-${String(Number.isFinite(nextNumber) ? nextNumber : 1).padStart(4, '0')}`;
+    return nextPartyCode(companyId, 'suppliers', 'SUP');
   }
 
   async list(companyId: string, query: PartyListQuery) {
@@ -129,9 +123,10 @@ export class SupplierService {
         select: { id: true },
       });
 
-      if (existing) throw new Error(`Supplier Code "${code}" already exists.`);
+      if (existing) throw partyError(`Supplier Code "${code}" already exists.`);
 
       let linkedAccountId = input.ap_account_id;
+      if (linkedAccountId) await assertLinkedAccount(transaction, companyId, linkedAccountId, 'supplier');
       if (!linkedAccountId) {
         const linkedAccount = await supplierAccountService.createLinkedAccount(companyId, 'supplier', input.name, transaction);
         linkedAccountId = linkedAccount.id;
@@ -172,7 +167,7 @@ export class SupplierService {
 
   async update(companyId: string, id: string, input: UpdateSupplierInput) {
     const existingSupplier = await prisma.supplier.findFirst({ where: { id, companyId } });
-    if (!existingSupplier) throw new Error('Supplier was not found.');
+    if (!existingSupplier) throw partyError('Supplier was not found.', 404);
 
     return prisma.$transaction(async transaction => {
       const code = input.code?.trim().toUpperCase();
@@ -181,12 +176,14 @@ export class SupplierService {
           where: { companyId, code },
           select: { id: true },
         });
-        if (conflict) throw new Error(`Supplier Code "${code}" already exists.`);
+        if (conflict) throw partyError(`Supplier Code "${code}" already exists.`);
       }
 
       if (input.name && input.name !== existingSupplier.name) {
         await supplierAccountService.syncLinkedAccountName(companyId, existingSupplier.apAccountId, 'supplier', input.name, transaction);
       }
+
+      if (input.ap_account_id) await assertLinkedAccount(transaction, companyId, input.ap_account_id, 'supplier');
 
       const supplier = await transaction.supplier.update({
         where: { id },

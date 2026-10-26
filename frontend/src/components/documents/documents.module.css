@@ -1,0 +1,274 @@
+/* Shared layout for document screens (vouchers, purchases, sales, returns).
+   Built only from Calm Ledger tokens (see DESIGN.md). */
+
+/* The page scrolls as a whole when the window is too short, instead of clipping panels. */
+.page:global(.page-shell) {
+  overflow-y: auto;
+}
+
+.head:global(.page-head) {
+  flex-wrap: wrap;
+}
+
+/* Header badges next to the page title */
+.titleRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.headerActions:global(.page-head-actions) {
+  flex-wrap: wrap;
+  flex-shrink: 1;
+  min-width: 0;
+  justify-content: flex-end;
+}
+
+/* Header fields panel: lets dropdowns open past the panel edge. */
+.formPanel:global(.panel) {
+  flex-shrink: 0;
+  overflow: visible;
+}
+.formPanel > :global(.panel-body) {
+  overflow: visible;
+}
+.statusMessage {
+  margin: 8px 0 0;
+}
+
+/* Lines panel: fills the remaining height; the table scrolls inside it. */
+.linesPanel:global(.panel) {
+  flex: 1 1 auto;
+  min-height: 280px;
+}
+.linesHeading {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+.linesActions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Keyboard shortcut hint near the lines */
+.hint {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+}
+.hint kbd {
+  display: inline-block;
+  min-width: 18px;
+  padding: 0 4px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-alt);
+  color: var(--color-text-secondary);
+  font-family: inherit;
+  font-size: var(--font-size-2xs);
+  font-weight: 600;
+  line-height: 18px;
+  text-align: center;
+}
+
+/* Line entry row above the lines table: wraps instead of clipping. */
+.entryRow {
+  position: relative;
+  z-index: 5;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--color-border-subtle);
+  flex-shrink: 0;
+}
+.entryItem { flex: 3 1 200px; min-width: 0; }
+.entryNumber { flex: 1 1 88px; min-width: 0; }
+.entryAmount { flex: 1 1 104px; min-width: 0; }
+.entryText { flex: 2 1 140px; min-width: 0; }
+.entryActions {
+  flex: 0 0 auto;
+  display: flex;
+  gap: 4px;
+  /* Lines the buttons up with the fields under their labels. */
+  padding-top: calc(var(--font-size-xs) * 1.3 + 4px);
+}
+
+/* Lines table */
+.linesTable {
+  table-layout: fixed;
+}
+.linesTable :global(.row-actions) {
+  justify-content: flex-end;
+}
+
+/* Editable grid: one input per cell. */
+.gridTable:global(.data-table) tbody td {
+  padding: 0 4px;
+  overflow: visible;
+}
+.gridTable:global(.data-table) tbody td:first-child {
+  padding-left: 12px;
+}
+.gridTable :global(.form-input) {
+  width: 100%;
+}
+
+/* Summary area at the bottom-right of the lines panel */
+.summary:global(.panel-footer) {
+  justify-content: space-between;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.summaryCount {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+  white-space: nowrap;
+  padding-bottom: 6px;
+}
+.summaryCount strong {
+  color: var(--color-heading);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.summaryItems {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-left: auto;
+}
+.summaryItem {
+  width: 128px;
+  min-width: 0;
+}
+.summaryValue {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  height: var(--control-h);
+  padding: 0 10px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-input-readonly-bg);
+  color: var(--color-amount);
+  font-size: var(--font-size-sm);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+}
+.summaryStrong {
+  font-weight: 600;
+  color: var(--color-heading);
+}
+.summaryDanger {
+  border-color: var(--color-danger-border);
+  background: var(--color-danger-bg);
+  color: var(--color-danger-text);
+}
+.numInput:global(.form-input) {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
+}
+
+/* Posted document lists */
+.listPanel:global(.panel) {
+  flex: 1 1 auto;
+  min-height: 320px;
+}
+.listFilters {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--color-border-subtle);
+  flex-shrink: 0;
+}
+.listRow {
+  cursor: pointer;
+}
+.listBody {
+  flex: 1;
+  min-height: 0;
+}
+.listBody > :global(.panel) {
+  min-width: 0;
+}
+
+/* Detail side panel */
+.detailTable {
+  table-layout: fixed;
+  margin-bottom: 14px;
+}
+.detailTable:global(.data-table) tbody td,
+.detailTable:global(.data-table) thead th {
+  padding-left: 8px;
+  padding-right: 8px;
+}
+.detailTotals {
+  display: grid;
+  gap: 6px;
+  margin: 0 0 14px;
+}
+.detailTotals > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+.detailTotals dt {
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  color: var(--color-text-secondary);
+}
+.detailTotals dd {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  font-variant-numeric: tabular-nums;
+  color: var(--color-amount);
+}
+.detailTotalsStrong dd,
+.detailTotalsStrong dt {
+  font-weight: 600;
+  color: var(--color-heading);
+}
+.detailNote {
+  display: grid;
+  gap: 8px;
+  padding: 10px 12px;
+  margin-bottom: 12px;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius);
+  background: var(--color-surface-alt);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+}
+.detailActions {
+  display: grid;
+  gap: 8px;
+}
+.detailActions > :global(a) {
+  justify-content: center;
+  text-decoration: none;
+}
+
+/* Review dialog */
+.reviewTable {
+  max-height: 50vh;
+  overflow: auto;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+}
+.reviewBody {
+  display: block;
+  padding: 20px;
+  min-height: 0;
+  overflow: auto;
+}
+.reviewContent {
+  margin-top: 14px;
+}

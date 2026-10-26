@@ -2,6 +2,7 @@
 
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { backendGet, backendPatch, backendPost } from './backend-client';
+import type { ListWarehouseStockParams, PaginatedResponse, WarehouseStockRow } from './warehouses';
 
 export const branchesQueryKey = ['backend', 'branches'] as const;
 
@@ -17,7 +18,6 @@ export interface BranchRow {
   manager_name?: string | null;
   is_default: boolean;
   is_active: boolean;
-  active_warehouse_count?: number;
 }
 
 export interface BranchPayload {
@@ -73,5 +73,16 @@ export function useCreateBranch() {
 export function useUpdateBranch() {
   return useMutation<BranchRow, Error, { id: string; data: BranchPayload }>({
     mutationFn: ({ id, data }) => backendPatch<BranchRow, BranchPayload>(`/branches/${id}`, data),
+  });
+}
+
+/** Item stock held at one Branch. Branch users can open only their own Branch. */
+export function useBranchStockSummary(branchId: string | undefined, params: ListWarehouseStockParams) {
+  return useQuery<PaginatedResponse<WarehouseStockRow>>({
+    queryKey: [...branchesQueryKey, 'stock-summary', branchId, params],
+    queryFn: () => backendGet<PaginatedResponse<WarehouseStockRow>>(`/branches/${encodeURIComponent(branchId ?? '')}/stock-summary${queryString(params)}`),
+    enabled: Boolean(branchId),
+    placeholderData: previous => previous,
+    retry: false,
   });
 }

@@ -17,17 +17,17 @@ export interface SaleItemOption extends SelectOption {
   purchasePrice: string;
   taxRate: string;
   uomName?: string | null;
-  defaultWarehouseId?: string | null;
   stockOnHand: string;
 }
 
-export interface WarehouseOption extends SelectOption {
+/** Sales happen at a Branch; the Branch holds the stock that is sold or returned. */
+export interface BranchOption extends SelectOption {
   isDefault?: boolean;
-  useLocations?: boolean;
 }
 
+/** Optional Branch shelf / rack. */
 export interface LocationOption extends SelectOption {
-  warehouseId: string;
+  branchId: string;
   isDefault?: boolean;
 }
 
@@ -49,6 +49,10 @@ export interface SaleListRow {
   customer_reference_number?: string | null;
   delivery_note_number?: string | null;
   posted_at?: string | null;
+  branch_id?: string | null;
+  branch_code?: string | null;
+  branch_name?: string | null;
+  /** Only set on documents saved before sales moved to Branch stock. */
   warehouse_code?: string | null;
   warehouse_name?: string | null;
   location_id?: string | null;

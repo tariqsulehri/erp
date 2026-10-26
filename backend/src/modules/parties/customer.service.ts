@@ -1,6 +1,7 @@
 import { Prisma } from '@prisma/client';
 import { prisma } from '../../db/prisma.js';
 import { PartyAccountService } from './party-account.service.js';
+import { assertLinkedAccount, nextPartyCode, partyError } from './party-rules.js';
 import type { CustomerInput, PartyListQuery, UpdateCustomerInput } from './party.schema.js';
 
 const customerAccountService = new PartyAccountService();
@@ -44,14 +45,7 @@ function customerToResponse(customer: any, linkedAccount?: { code: string; name:
 
 export class CustomerService {
   async nextCode(companyId: string) {
-    const last = await prisma.customer.findFirst({
-      where: { companyId, code: { startsWith: 'CUS-', mode: 'insensitive' } },
-      orderBy: { code: 'desc' },
-      select: { code: true },
-    });
-
-    const nextNumber = last ? Number.parseInt(last.code.split('-').pop() ?? '0', 10) + 1 : 1;
-    return `CUS-${String(Number.isFinite(nextNumber) ? nextNumber : 1).padStart(4, '0')}`;
+    return nextPartyCode(companyId, 'customers', 'CUS');
   }
 
   async list(companyId: string, query: PartyListQuery) {
@@ -141,9 +135,10 @@ export class CustomerService {
         select: { id: true },
       });
 
-      if (existing) throw new Error(`Customer Code "${code}" already exists.`);
+      if (existing) throw partyError(`Customer Code "${code}" already exists.`);
 
       let linkedAccountId = input.ar_account_id;
+      if (linkedAccountId) await assertLinkedAccount(transaction, companyId, linkedAccountId, 'customer');
       if (!linkedAccountId) {
         const linkedAccount = await customerAccountService.createLinkedAccount(companyId, 'customer', input.name, transaction);
         linkedAccountId = linkedAccount.id;
@@ -182,7 +177,7 @@ export class CustomerService {
 
   async update(companyId: string, id: string, input: UpdateCustomerInput) {
     const existingCustomer = await prisma.customer.findFirst({ where: { id, companyId } });
-    if (!existingCustomer) throw new Error('Customer was not found.');
+    if (!existingCustomer) throw partyError('Customer was not found.', 404);
 
     return prisma.$transaction(async transaction => {
       const code = input.code?.trim().toUpperCase();
@@ -191,12 +186,14 @@ export class CustomerService {
           where: { companyId, code },
           select: { id: true },
         });
-        if (conflict) throw new Error(`Customer Code "${code}" already exists.`);
+        if (conflict) throw partyError(`Customer Code "${code}" already exists.`);
       }
 
       if (input.name && input.name !== existingCustomer.name) {
         await customerAccountService.syncLinkedAccountName(companyId, existingCustomer.arAccountId, 'customer', input.name, transaction);
       }
+
+      if (input.ar_account_id) await assertLinkedAccount(transaction, companyId, input.ar_account_id, 'customer');
 
       const customer = await transaction.customer.update({
         where: { id },

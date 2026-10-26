@@ -1,9 +1,17 @@
 'use client';
 
-import { useMemo, useState, type CSSProperties } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { useSession } from 'next-auth/react';
 import {
+  IconBook,
+  IconCalendarTime,
   IconChartInfographic,
+  IconCash,
+  IconBuildingBank,
   IconFileAnalytics,
+  IconHourglass,
+  IconReceiptTax,
+  IconUsers,
   IconPackage,
   IconRefresh,
   IconReportMoney,
@@ -18,27 +26,53 @@ import { useSaleInvoicesList, useSaleSupportData } from '@/lib/api/sales';
 import { useSaleReturnsList, useSaleReturnSupportData } from '@/lib/api/sale-returns';
 import { useWarehouseStockSummary, useWarehousesList } from '@/lib/api/warehouses';
 import { useGeneralSettings } from '@/lib/api/settings';
+import { Button } from '@/components/ui/Button';
+import { FieldLabel } from '@/components/ui/FieldLabel';
 import { DateField, NumericField, TextField } from '@/components/ui/FormFields';
+import { InlineAlert } from '@/components/ui/InlineAlert';
+import { PageHeader } from '@/components/ui/PageHeader';
 import { PaginationBar as SharedPaginationBar } from '@/components/ui/PaginationBar';
 import { SearchableSelect, type SelectOption } from '@/components/ui/SearchableSelect';
+import { SegmentedControl } from '@/components/ui/SegmentedControl';
+import { TableMessageRow } from '@/components/ui/TableMessageRow';
+import { Tabs } from '@/components/ui/Tabs';
 import { LedgerReportPage } from './LedgerReportPage';
 import { BalanceSheetReportPage } from './BalanceSheetReportPage';
 import { ProfitAndLossReportPage } from './ProfitAndLossReportPage';
 import { TrialBalanceReportPage } from './TrialBalanceReportPage';
-import { compactButtonStyle, reportToolbarStyle, reportTitleIconStyle } from './LedgerReportStyles';
-import { firstDayOfCurrentYear, todayInputDate } from './LedgerReportHelpers';
+import { AgingReportPage } from './AgingReportPage';
+import { DayBookReportPage } from './DayBookReportPage';
+import { SalesTaxReportPage } from './SalesTaxReportPage';
+import { StockLedgerReportPage } from './StockLedgerReportPage';
+import { StockValuationReportPage } from './StockValuationReportPage';
+import { hasPermission } from '@/lib/auth/session-user';
+import { amountStyle, embeddedReportStyle, reportFilterGridStyle } from './LedgerReportStyles';
+import { useReportDateRange } from './LedgerReportHelpers';
+import { ReportActions } from './ReportActions';
+import type { ReportDocument } from './report-output';
+import type { DocumentListTotals } from '@/lib/api/document-totals';
 
-type ReportGroupKey = 'purchase' | 'sales' | 'inventory' | 'accounts';
-type ReportKey =
+type ReportGroupKey = 'purchase' | 'sales' | 'inventory' | 'accounts' | 'parties' | 'tax';
+export type ReportKey =
   | 'purchase-summary'
   | 'purchase-return-summary'
   | 'sales-summary'
   | 'sale-return-summary'
   | 'stock-summary'
+  | 'stock-ledger'
+  | 'stock-valuation'
   | 'ledger'
+  | 'cash-book'
+  | 'bank-book'
+  | 'day-book'
   | 'trial-balance'
   | 'balance-sheet'
-  | 'profit-and-loss';
+  | 'profit-and-loss'
+  | 'customer-ledger'
+  | 'supplier-ledger'
+  | 'receivables-aging'
+  | 'payables-aging'
+  | 'sales-tax';
 
 interface ReportDefinition {
   key: ReportKey;
@@ -51,6 +85,8 @@ interface ReportGroup {
   title: string;
   Icon: typeof IconFileAnalytics;
   reports: ReportDefinition[];
+  /** Ledger-based groups need the financial reports permission (the backend checks it too). */
+  financial?: boolean;
 }
 
 interface FilterState {
@@ -105,17 +141,44 @@ const reportGroups: ReportGroup[] = [
     Icon: IconPackage,
     reports: [
       { key: 'stock-summary', title: 'Stock Summary', Icon: IconPackage },
+      { key: 'stock-ledger', title: 'Stock Ledger', Icon: IconBook },
+      { key: 'stock-valuation', title: 'Stock Valuation', Icon: IconScale },
     ],
   },
   {
     key: 'accounts',
     title: 'Accounts',
     Icon: IconReportMoney,
+    financial: true,
     reports: [
       { key: 'ledger', title: 'Ledger Report', Icon: IconReportMoney },
+      { key: 'cash-book', title: 'Cash Book', Icon: IconCash },
+      { key: 'bank-book', title: 'Bank Book', Icon: IconBuildingBank },
+      { key: 'day-book', title: 'Day Book', Icon: IconCalendarTime },
       { key: 'trial-balance', title: 'Trial Balance', Icon: IconFileAnalytics },
       { key: 'balance-sheet', title: 'Balance Sheet', Icon: IconScale },
       { key: 'profit-and-loss', title: 'Profit And Loss', Icon: IconChartInfographic },
+    ],
+  },
+  {
+    key: 'parties',
+    title: 'Customers And Suppliers',
+    Icon: IconUsers,
+    financial: true,
+    reports: [
+      { key: 'customer-ledger', title: 'Customer Ledger', Icon: IconUsers },
+      { key: 'supplier-ledger', title: 'Supplier Ledger', Icon: IconTruckDelivery },
+      { key: 'receivables-aging', title: 'Receivables Aging', Icon: IconHourglass },
+      { key: 'payables-aging', title: 'Payables Aging', Icon: IconHourglass },
+    ],
+  },
+  {
+    key: 'tax',
+    title: 'Tax',
+    Icon: IconReceiptTax,
+    financial: true,
+    reports: [
+      { key: 'sales-tax', title: 'Sales Tax Report', Icon: IconReceiptTax },
     ],
   },
 ];
@@ -125,104 +188,136 @@ const defaultReportByGroup: Record<ReportGroupKey, ReportKey> = {
   sales: 'sales-summary',
   inventory: 'stock-summary',
   accounts: 'ledger',
+  parties: 'customer-ledger',
+  tax: 'sales-tax',
 };
+
+/** Opens a report directly, e.g. /reports?report=ledger&account=<id>&from=2026-07-01&to=2026-10-26. */
+export interface ReportLink {
+  report?: string | null;
+  account?: string | null;
+  from?: string | null;
+  to?: string | null;
+}
+
+function groupOfReport(reportKey: string | null | undefined, groups: ReportGroup[]) {
+  return groups.find(group => group.reports.some(report => report.key === reportKey));
+}
 
 const defaultFilters = (): FilterState => ({
   search: '',
   partyId: '',
   warehouseId: '',
-  dateFrom: firstDayOfCurrentYear(),
-  dateTo: todayInputDate(),
+  dateFrom: '',
+  dateTo: '',
   amountFrom: '',
   amountTo: '',
   page: 1,
   limit: 50,
 });
 
-export function ReportsWorkspace() {
-  const [activeGroupKey, setActiveGroupKey] = useState<ReportGroupKey>('purchase');
-  const [activeReportKey, setActiveReportKey] = useState<ReportKey>('purchase-summary');
-  const activeGroup = reportGroups.find(group => group.key === activeGroupKey) ?? reportGroups[0];
+export function ReportsWorkspace({ link }: { link?: ReportLink }) {
+  const { data: session } = useSession();
+  const canSeeFinancial = hasPermission(session?.user.role, 'reports.financial');
+  const visibleGroups = useMemo(() => reportGroups.filter(group => !group.financial || canSeeFinancial), [canSeeFinancial]);
+  const linkedGroup = groupOfReport(link?.report, visibleGroups);
+  const [activeGroupKey, setActiveGroupKey] = useState<ReportGroupKey>(linkedGroup?.key ?? 'purchase');
+  const [activeReportKey, setActiveReportKey] = useState<ReportKey>((linkedGroup ? link?.report : 'purchase-summary') as ReportKey);
+  const activeGroup = visibleGroups.find(group => group.key === activeGroupKey) ?? visibleGroups[0];
   const activeReport = activeGroup.reports.find(report => report.key === activeReportKey) ?? activeGroup.reports[0];
-  const ActiveGroupIcon = activeGroup.Icon;
 
-  function selectGroup(group: ReportGroup) {
-    setActiveGroupKey(group.key);
-    setActiveReportKey(defaultReportByGroup[group.key]);
+  // A link to another report (e.g. Trial Balance -> Ledger) changes the URL without leaving this page.
+  useEffect(() => {
+    const group = groupOfReport(link?.report, visibleGroups);
+    if (group && link?.report) {
+      setActiveGroupKey(group.key);
+      setActiveReportKey(link.report as ReportKey);
+    }
+  }, [link?.report, link?.account, link?.from, link?.to, visibleGroups]);
+
+  function selectGroup(groupKey: ReportGroupKey) {
+    setActiveGroupKey(groupKey);
+    setActiveReportKey(defaultReportByGroup[groupKey]);
   }
 
+  const linkForActive = link?.report === activeReport.key ? link : undefined;
+
   return (
-    <main style={pageStyle}>
-      <section style={reportToolbarStyle}>
-        <div style={toolbarInnerStyle}>
-          <div style={{ display: 'flex', gap: 10, alignItems: 'center', minWidth: 0 }}>
-            <div style={reportTitleIconStyle}><ActiveGroupIcon size={20} stroke={1.8} /></div>
-            <div style={{ minWidth: 0 }}>
-              <h1 style={titleStyle}>Reports</h1>
-              <p style={subtitleStyle}>{activeGroup.title} Reports</p>
-            </div>
-          </div>
-          <div style={groupButtonWrapStyle}>
-            {reportGroups.map(group => {
-              const GroupIcon = group.Icon;
-              return (
-                <button
-                  key={group.key}
-                  type="button"
-                  className={activeGroupKey === group.key ? 'btn-primary' : 'btn-secondary'}
-                  onClick={() => selectGroup(group)}
-                  style={smallButtonStyle}
-                >
-                  <GroupIcon size={14} /> {group.title}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      </section>
+    <main className="page-shell">
+      <PageHeader title="Reports" description={`${activeGroup.title} Reports · ${activeReport.title}`} />
 
-      <section style={workspaceStyle}>
-        <div style={reportTabsStyle}>
-          {activeGroup.reports.map(report => {
-            const ReportIcon = report.Icon;
-            return (
-              <button
-                key={report.key}
-                type="button"
-                className={activeReport.key === report.key ? 'btn-primary' : 'btn-secondary'}
-                onClick={() => setActiveReportKey(report.key)}
-                style={smallButtonStyle}
-              >
-                <ReportIcon size={14} /> {report.title}
-              </button>
-            );
-          })}
-        </div>
+      <Tabs
+        label="Report Groups"
+        value={activeGroup.key}
+        onChange={selectGroup}
+        items={visibleGroups.map(group => {
+          const GroupIcon = group.Icon;
+          return { value: group.key, label: group.title, icon: <GroupIcon size={16} stroke={1.8} /> };
+        })}
+      />
 
-        <section style={reportPanelStyle}>
-          {renderReport(activeReportKey)}
-        </section>
-      </section>
+      {activeGroup.reports.length > 1 && (
+        <div>
+          <SegmentedControl
+            label={`${activeGroup.title} Reports`}
+            value={activeReport.key}
+            options={activeGroup.reports.map(report => ({ value: report.key, label: report.title }))}
+            onChange={setActiveReportKey}
+          />
+        </div>
+      )}
+
+      <div role="tabpanel" aria-labelledby={`tab-${activeGroup.key}`} style={embeddedReportStyle}>
+        {renderReport(activeReport.key, linkForActive)}
+      </div>
     </main>
   );
 }
 
-function renderReport(reportKey: ReportKey) {
-  if (reportKey === 'purchase-summary') return <PurchaseSummaryReport />;
-  if (reportKey === 'purchase-return-summary') return <PurchaseReturnSummaryReport />;
-  if (reportKey === 'sales-summary') return <SalesSummaryReport />;
-  if (reportKey === 'sale-return-summary') return <SaleReturnSummaryReport />;
-  if (reportKey === 'stock-summary') return <StockSummaryReport />;
-  if (reportKey === 'trial-balance') return <TrialBalanceReportPage embedded />;
-  if (reportKey === 'balance-sheet') return <BalanceSheetReportPage embedded />;
-  if (reportKey === 'profit-and-loss') return <ProfitAndLossReportPage embedded />;
-  return <LedgerReportPage embedded />;
+function renderReport(reportKey: ReportKey, link?: ReportLink) {
+  // The key makes the ledger open fresh with the linked account and dates.
+  const ledgerKey = `${reportKey}-${link?.account ?? ''}-${link?.from ?? ''}-${link?.to ?? ''}`;
+  const ledgerProps = {
+    embedded: true,
+    initialAccountId: link?.account ?? undefined,
+    initialDateFrom: link?.from ?? undefined,
+    initialDateTo: link?.to ?? undefined,
+  };
+  switch (reportKey) {
+    case 'purchase-summary': return <PurchaseSummaryReport />;
+    case 'purchase-return-summary': return <PurchaseReturnSummaryReport />;
+    case 'sales-summary': return <SalesSummaryReport />;
+    case 'sale-return-summary': return <SaleReturnSummaryReport />;
+    case 'stock-summary': return <StockSummaryReport />;
+    case 'stock-ledger': return <StockLedgerReportPage embedded />;
+    case 'stock-valuation': return <StockValuationReportPage embedded />;
+    case 'cash-book': return <LedgerReportPage key={ledgerKey} {...ledgerProps} bookKind="cash" />;
+    case 'bank-book': return <LedgerReportPage key={ledgerKey} {...ledgerProps} bookKind="bank" />;
+    case 'customer-ledger': return <LedgerReportPage key={ledgerKey} {...ledgerProps} bookKind="customer" />;
+    case 'supplier-ledger': return <LedgerReportPage key={ledgerKey} {...ledgerProps} bookKind="supplier" />;
+    case 'day-book': return <DayBookReportPage embedded />;
+    case 'trial-balance': return <TrialBalanceReportPage embedded />;
+    case 'balance-sheet': return <BalanceSheetReportPage embedded />;
+    case 'profit-and-loss': return <ProfitAndLossReportPage embedded />;
+    case 'receivables-aging': return <AgingReportPage embedded kind="receivables" />;
+    case 'payables-aging': return <AgingReportPage embedded kind="payables" />;
+    case 'sales-tax': return <SalesTaxReportPage embedded />;
+    default: return <LedgerReportPage key={ledgerKey} {...ledgerProps} />;
+  }
+}
+
+/** Filters for the document summaries; empty dates fall back to the fiscal year start and today. */
+function useSummaryFilters() {
+  const range = useReportDateRange();
+  const [filters, setFilters] = useState<FilterState>(defaultFilters);
+  const effective: FilterState = { ...filters, dateFrom: filters.dateFrom || range.dateFrom, dateTo: filters.dateTo || range.dateTo };
+  return [effective, setFilters] as const;
 }
 
 function PurchaseSummaryReport() {
   const { data: settings } = useGeneralSettings();
   const supportQuery = usePurchaseSupportData();
-  const [filters, setFilters] = useState<FilterState>(defaultFilters);
+  const [filters, setFilters] = useSummaryFilters();
   const query = usePurchaseInvoicesList({
     page: filters.page,
     limit: filters.limit,
@@ -261,6 +356,7 @@ function PurchaseSummaryReport() {
       rows={rows}
       total={query.data?.total ?? 0}
       totalPages={query.data?.totalPages ?? 1}
+      grandTotals={query.data?.totals}
       loading={query.isLoading}
       error={query.error}
       settings={settings}
@@ -273,7 +369,7 @@ function PurchaseSummaryReport() {
 function PurchaseReturnSummaryReport() {
   const { data: settings } = useGeneralSettings();
   const supportQuery = usePurchaseReturnSupportData();
-  const [filters, setFilters] = useState<FilterState>(defaultFilters);
+  const [filters, setFilters] = useSummaryFilters();
   const query = usePurchaseReturnsList({
     page: filters.page,
     limit: filters.limit,
@@ -312,6 +408,7 @@ function PurchaseReturnSummaryReport() {
       rows={rows}
       total={query.data?.total ?? 0}
       totalPages={query.data?.totalPages ?? 1}
+      grandTotals={query.data?.totals}
       loading={query.isLoading}
       error={query.error}
       settings={settings}
@@ -324,14 +421,14 @@ function PurchaseReturnSummaryReport() {
 function SalesSummaryReport() {
   const { data: settings } = useGeneralSettings();
   const supportQuery = useSaleSupportData();
-  const [filters, setFilters] = useState<FilterState>(defaultFilters);
+  const [filters, setFilters] = useSummaryFilters();
   const query = useSaleInvoicesList({
     page: filters.page,
     limit: filters.limit,
     status: 'Posted',
     search: filters.search,
     customer_id: filters.partyId,
-    warehouse_id: filters.warehouseId,
+    branch_id: filters.warehouseId,
     date_from: filters.dateFrom,
     date_to: filters.dateTo,
     amount_from: toOptionalNumber(filters.amountFrom),
@@ -343,7 +440,7 @@ function SalesSummaryReport() {
     documentDate: row.sale_date,
     partyName: joinCodeName(row.customer_code, row.customer_name),
     paymentType: row.payment_type,
-    warehouseName: joinCodeName(row.warehouse_code, row.warehouse_name),
+    warehouseName: row.branch_name ? joinCodeName(row.branch_code, row.branch_name) : joinCodeName(row.warehouse_code, row.warehouse_name),
     locationName: joinCodeName(row.location_code, row.location_name),
     grossAmount: row.gross_amount,
     discountAmount: row.discount_amount,
@@ -358,11 +455,13 @@ function SalesSummaryReport() {
       partyLabel="Customer"
       partyPlaceholder="All Customers"
       partyOptions={mapOptions(supportQuery.data?.customers)}
-      warehouseOptions={mapOptions(supportQuery.data?.warehouses)}
+      warehouseOptions={mapOptions(supportQuery.data?.branches)}
+      placeLabel="Branch"
       filters={filters}
       rows={rows}
       total={query.data?.total ?? 0}
       totalPages={query.data?.totalPages ?? 1}
+      grandTotals={query.data?.totals}
       loading={query.isLoading}
       error={query.error}
       settings={settings}
@@ -375,14 +474,14 @@ function SalesSummaryReport() {
 function SaleReturnSummaryReport() {
   const { data: settings } = useGeneralSettings();
   const supportQuery = useSaleReturnSupportData();
-  const [filters, setFilters] = useState<FilterState>(defaultFilters);
+  const [filters, setFilters] = useSummaryFilters();
   const query = useSaleReturnsList({
     page: filters.page,
     limit: filters.limit,
     status: 'Posted',
     search: filters.search,
     customer_id: filters.partyId,
-    warehouse_id: filters.warehouseId,
+    branch_id: filters.warehouseId,
     date_from: filters.dateFrom,
     date_to: filters.dateTo,
     amount_from: toOptionalNumber(filters.amountFrom),
@@ -394,7 +493,7 @@ function SaleReturnSummaryReport() {
     documentDate: row.sale_return_date,
     partyName: joinCodeName(row.customer_code, row.customer_name),
     paymentType: row.payment_type,
-    warehouseName: joinCodeName(row.warehouse_code, row.warehouse_name),
+    warehouseName: row.branch_name ? joinCodeName(row.branch_code, row.branch_name) : joinCodeName(row.warehouse_code, row.warehouse_name),
     locationName: joinCodeName(row.location_code, row.location_name),
     grossAmount: row.gross_amount,
     discountAmount: row.discount_amount,
@@ -409,11 +508,13 @@ function SaleReturnSummaryReport() {
       partyLabel="Customer"
       partyPlaceholder="All Customers"
       partyOptions={mapOptions(supportQuery.data?.customers)}
-      warehouseOptions={mapOptions(supportQuery.data?.warehouses)}
+      warehouseOptions={mapOptions(supportQuery.data?.branches)}
+      placeLabel="Branch"
       filters={filters}
       rows={rows}
       total={query.data?.total ?? 0}
       totalPages={query.data?.totalPages ?? 1}
+      grandTotals={query.data?.totals}
       loading={query.isLoading}
       error={query.error}
       settings={settings}
@@ -429,10 +530,12 @@ function TransactionReport({
   partyPlaceholder,
   partyOptions,
   warehouseOptions,
+  placeLabel = 'Warehouse',
   filters,
   rows,
   total,
   totalPages,
+  grandTotals,
   loading,
   error,
   settings,
@@ -444,10 +547,14 @@ function TransactionReport({
   partyPlaceholder: string;
   partyOptions: SelectOption[];
   warehouseOptions: SelectOption[];
+  /** Where stock moved: Warehouse for purchases, Branch for sales. */
+  placeLabel?: 'Warehouse' | 'Branch';
   filters: FilterState;
   rows: TransactionRow[];
   total: number;
   totalPages: number;
+  /** Totals of every record that matches the filters (all pages). */
+  grandTotals?: DocumentListTotals;
   loading: boolean;
   error: unknown;
   settings?: AppFormatSettingsSource | null;
@@ -466,87 +573,122 @@ function TransactionReport({
     onChangeFilters({ ...filters, ...patch, page: patch.page ?? 1 });
   }
 
+  function buildReport(): ReportDocument | null {
+    if (loading || error) return null;
+    const columns: ReportDocument['columns'] = [
+      { label: 'Date', kind: 'date' }, { label: 'Document Number' }, { label: partyLabel }, { label: 'Type' }, { label: placeLabel },
+      { label: 'Gross', kind: 'money' }, { label: 'Discount', kind: 'money' }, { label: 'Tax', kind: 'money' },
+      { label: 'Freight', kind: 'money' }, { label: 'Net Amount', kind: 'money' },
+    ];
+    return {
+      title,
+      subtitle: `${formatDate(filters.dateFrom, settings)} to ${formatDate(filters.dateTo, settings)} · Posted documents`,
+      columns,
+      rows: [
+        ...rows.map(row => ({
+          cells: [row.documentDate?.slice(0, 10), row.documentNumber, row.partyName, row.paymentType, row.warehouseName ?? '',
+            row.grossAmount, row.discountAmount, row.taxAmount, row.freightAmount, row.netAmount],
+        })),
+        ...(grandTotals ? [{
+          cells: ['', `Totals For All ${total} Records`, '', '', '', grandTotals.gross_amount, grandTotals.discount_amount,
+            grandTotals.tax_amount, grandTotals.freight_amount, grandTotals.net_amount],
+          style: 'total' as const,
+        }] : []),
+      ],
+      note: totalPages > 1 ? `This file lists page ${filters.page} of ${totalPages}. The totals row covers all matching records.` : undefined,
+      fileName: `${title.toLowerCase()}-${filters.dateFrom}-to-${filters.dateTo}`,
+    };
+  }
+
   return (
-    <div style={reportPageStyle}>
-      <ReportHeader title={title} count={total} onRefresh={onRefresh} />
+    <div style={embeddedReportStyle}>
+      {Boolean(error) && <InlineAlert tone="danger">Unable to load {title}. Click Refresh to try again.</InlineAlert>}
 
-      <div style={transactionFilterGridStyle}>
-        <TextField label="Search" value={filters.search} placeholder="Document No., Party, Reference" onChange={search => updateFilter({ search })} />
-        <SearchFilter label={partyLabel} value={filters.partyId} options={partyOptions} placeholder={partyPlaceholder} onChange={partyId => updateFilter({ partyId })} />
-        <SearchFilter label="Warehouse" value={filters.warehouseId} options={warehouseOptions} placeholder="All Warehouses" onChange={warehouseId => updateFilter({ warehouseId })} />
-        <DateField label="Date From" value={filters.dateFrom} onChange={dateFrom => updateFilter({ dateFrom })} />
-        <DateField label="Date To" value={filters.dateTo} onChange={dateTo => updateFilter({ dateTo })} />
-        <NumericField label="Amount From" value={filters.amountFrom} onChange={amountFrom => updateFilter({ amountFrom })} />
-        <NumericField label="Amount To" value={filters.amountTo} onChange={amountTo => updateFilter({ amountTo })} />
-      </div>
+      <section className="panel panel-fill">
+        <ReportHeader title={title} count={total} onRefresh={onRefresh} />
 
-      <SummaryTiles
-        settings={settings}
-        tiles={[
-          { label: 'Gross Amount', value: totals.gross },
-          { label: 'Discount', value: totals.discount },
-          { label: 'Tax', value: totals.tax },
-          { label: 'Freight', value: totals.freight },
-          { label: 'Net Amount', value: totals.net, strong: true },
-        ]}
-      />
+        <div className="filter-bar">
+          <div className="filter-grid" style={reportFilterGridStyle}>
+            <TextField label="Search" value={filters.search} placeholder="Document Number, Party, Or Reference" onChange={search => updateFilter({ search })} />
+            <SearchFilter label={partyLabel} value={filters.partyId} options={partyOptions} placeholder={partyPlaceholder} onChange={partyId => updateFilter({ partyId })} />
+            <SearchFilter label={placeLabel} value={filters.warehouseId} options={warehouseOptions} placeholder={placeLabel === 'Branch' ? 'All Branches' : 'All Warehouses'} onChange={warehouseId => updateFilter({ warehouseId })} />
+            <DateField label="Date From" value={filters.dateFrom} onChange={dateFrom => updateFilter({ dateFrom })} />
+            <DateField label="Date To" value={filters.dateTo} onChange={dateTo => updateFilter({ dateTo })} />
+            <NumericField label="Amount From" value={filters.amountFrom} onChange={amountFrom => updateFilter({ amountFrom })} />
+            <NumericField label="Amount To" value={filters.amountTo} onChange={amountTo => updateFilter({ amountTo })} />
+            <ReportActions buildReport={buildReport} disabled={loading || rows.length === 0} />
+          </div>
+        </div>
 
-      {Boolean(error) && <div style={errorStyle}>Unable to load {title}. Please refresh and try again.</div>}
-
-      <div style={tableWrapStyle}>
-        <table style={tableStyle}>
-          <thead>
-            <tr>
-              <th style={thStyle}>Date</th>
-              <th style={thStyle}>Document Number</th>
-              <th style={thStyle}>{partyLabel}</th>
-              <th style={thStyle}>Type</th>
-              <th style={thStyle}>Warehouse</th>
-              <th style={moneyThStyle}>Gross</th>
-              <th style={moneyThStyle}>Discount</th>
-              <th style={moneyThStyle}>Tax</th>
-              <th style={moneyThStyle}>Freight</th>
-              <th style={moneyThStyle}>Net Amount</th>
-            </tr>
-          </thead>
-          <tbody>
-            {loading && <EmptyRow text="Loading Report..." columns={10} />}
-            {!loading && rows.length === 0 && <EmptyRow text="No posted records found for selected filters." columns={10} />}
-            {!loading && rows.map(row => (
-              <tr key={row.id}>
-                <td style={tdStyle}>{formatDate(row.documentDate, settings)}</td>
-                <td style={strongTdStyle}>{row.documentNumber}</td>
-                <td style={tdStyle}>{row.partyName}</td>
-                <td style={tdStyle}>{row.paymentType}</td>
-                <td style={tdStyle}>{row.locationName ? `${row.warehouseName} / ${row.locationName}` : row.warehouseName}</td>
-                <td style={moneyTdStyle}>{formatMoney(row.grossAmount, settings)}</td>
-                <td style={moneyTdStyle}>{formatMoney(row.discountAmount, settings)}</td>
-                <td style={moneyTdStyle}>{formatMoney(row.taxAmount, settings)}</td>
-                <td style={moneyTdStyle}>{formatMoney(row.freightAmount, settings)}</td>
-                <td style={moneyStrongTdStyle}>{formatMoney(row.netAmount, settings)}</td>
+        <div className="table-scroll">
+          <table className="data-table" style={{ minWidth: 1080 }}>
+            <thead>
+              <tr>
+                <th style={{ width: 110 }}>Date</th>
+                <th style={{ width: 150 }}>Document Number</th>
+                <th>{partyLabel}</th>
+                <th style={{ width: 90 }}>Type</th>
+                <th>{placeLabel}</th>
+                <th className="num">Gross</th>
+                <th className="num">Discount</th>
+                <th className="num">Tax</th>
+                <th className="num">Freight</th>
+                <th className="num">Net Amount</th>
               </tr>
-            ))}
-          </tbody>
-          <tfoot>
-            <tr>
-              <td colSpan={5} style={totalLabelStyle}>Totals</td>
-              <td style={totalMoneyStyle}>{formatMoney(totals.gross, settings)}</td>
-              <td style={totalMoneyStyle}>{formatMoney(totals.discount, settings)}</td>
-              <td style={totalMoneyStyle}>{formatMoney(totals.tax, settings)}</td>
-              <td style={totalMoneyStyle}>{formatMoney(totals.freight, settings)}</td>
-              <td style={totalMoneyStyle}>{formatMoney(totals.net, settings)}</td>
-            </tr>
-          </tfoot>
-        </table>
-      </div>
+            </thead>
+            <tbody>
+              {loading && <TableMessageRow colSpan={10} title={`Loading ${title}…`} loading />}
+              {!loading && rows.length === 0 && (
+                <TableMessageRow colSpan={10} title="No Posted Records Found" description="Change the search text, the dates, or the filters to see more records." />
+              )}
+              {!loading && rows.map(row => (
+                <tr key={row.id}>
+                  <td className="cell-muted">{formatDate(row.documentDate, settings)}</td>
+                  <td className="cell-strong">{row.documentNumber}</td>
+                  <td>{row.partyName || 'Not Set'}</td>
+                  <td className="cell-muted">{row.paymentType || 'Not Set'}</td>
+                  <td className={row.warehouseName ? undefined : 'cell-muted'}>{row.locationName ? `${row.warehouseName} / ${row.locationName}` : row.warehouseName || 'Not Set'}</td>
+                  <td className="num">{formatMoney(row.grossAmount, settings)}</td>
+                  <td className="num">{formatMoney(row.discountAmount, settings)}</td>
+                  <td className="num">{formatMoney(row.taxAmount, settings)}</td>
+                  <td className="num">{formatMoney(row.freightAmount, settings)}</td>
+                  <td className="num" style={{ fontWeight: 600, color: 'var(--color-heading)' }}>{formatMoney(row.netAmount, settings)}</td>
+                </tr>
+              ))}
+            </tbody>
+            <tfoot>
+              {totalPages > 1 && (
+                <tr>
+                  <td colSpan={5}>Totals For This Page</td>
+                  <td className="num">{formatMoney(totals.gross, settings)}</td>
+                  <td className="num">{formatMoney(totals.discount, settings)}</td>
+                  <td className="num">{formatMoney(totals.tax, settings)}</td>
+                  <td className="num">{formatMoney(totals.freight, settings)}</td>
+                  <td className="num">{formatMoney(totals.net, settings)}</td>
+                </tr>
+              )}
+              {grandTotals && (
+                <tr>
+                  <td colSpan={5}>Totals For All {total} {total === 1 ? 'Record' : 'Records'}</td>
+                  <td className="num">{formatMoney(grandTotals.gross_amount, settings)}</td>
+                  <td className="num">{formatMoney(grandTotals.discount_amount, settings)}</td>
+                  <td className="num">{formatMoney(grandTotals.tax_amount, settings)}</td>
+                  <td className="num">{formatMoney(grandTotals.freight_amount, settings)}</td>
+                  <td className="num">{formatMoney(grandTotals.net_amount, settings)}</td>
+                </tr>
+              )}
+            </tfoot>
+          </table>
+        </div>
 
-      <PaginationBar
-        page={filters.page}
-        limit={filters.limit}
-        total={total}
-        totalPages={totalPages}
-        onChange={patch => onChangeFilters({ ...filters, ...patch })}
-      />
+        <PaginationBar
+          page={filters.page}
+          limit={filters.limit}
+          total={total}
+          totalPages={totalPages}
+          onChange={patch => onChangeFilters({ ...filters, ...patch })}
+        />
+      </section>
     </div>
   );
 }
@@ -564,6 +706,25 @@ function StockSummaryReport() {
   const rows = stockQuery.data?.data ?? [];
   const total = stockQuery.data?.pagination.total ?? 0;
   const totalPages = stockQuery.data?.pagination.pages ?? 1;
+  const selectedWarehouseName = warehouseOptions.find(option => option.value === selectedWarehouseId)?.label ?? '';
+  function buildReport(): ReportDocument | null {
+    if (!rows.length) return null;
+    return {
+      title: 'Stock Summary',
+      subtitle: `${selectedWarehouseName} · Current stock`,
+      columns: [
+        { label: 'Item Code' }, { label: 'SKU' }, { label: 'Item Name' }, { label: 'Location' },
+        { label: 'Stock On Hand', kind: 'quantity' }, { label: 'Reserved', kind: 'quantity' }, { label: 'Available', kind: 'quantity' },
+        { label: 'Average Cost', kind: 'money' }, { label: 'Stock Value', kind: 'money' },
+      ],
+      rows: rows.map(row => ({
+        cells: [row.item_code, row.sku ?? '', row.item_name, joinCodeName(row.location_code, row.location_name),
+          row.stock_on_hand, row.reserved_stock, row.available_stock, row.average_cost, row.total_stock_value],
+      })),
+      note: totalPages > 1 ? `This file lists page ${page} of ${totalPages}. Use Stock Valuation for a full list on any date.` : undefined,
+      fileName: `stock-summary-${selectedWarehouseName}`,
+    };
+  }
   const totals = rows.reduce((sum, row) => ({
     stock: sum.stock + Number(row.stock_on_hand || 0),
     reserved: sum.reserved + Number(row.reserved_stock || 0),
@@ -572,115 +733,110 @@ function StockSummaryReport() {
   }), { stock: 0, reserved: 0, available: 0, value: 0 });
 
   return (
-    <div style={reportPageStyle}>
-      <ReportHeader title="Stock Summary" count={total} onRefresh={() => stockQuery.refetch()} />
+    <div style={embeddedReportStyle}>
+      {stockQuery.error && <InlineAlert tone="danger">Unable to load Stock Summary. Click Refresh to try again.</InlineAlert>}
 
-      <div style={stockFilterGridStyle}>
-        <SearchFilter
-          label="Warehouse"
-          value={selectedWarehouseId}
-          options={warehouseOptions}
-          placeholder="Select Warehouse"
-          onChange={value => {
-            setWarehouseId(value);
-            setPage(1);
-          }}
-        />
-        <TextField
-          label="Search"
-          value={search}
-          placeholder="Item Code, SKU, Item Name"
-          onChange={value => {
-            setSearch(value);
-            setPage(1);
-          }}
-        />
-      </div>
+      <section className="panel panel-fill">
+        <ReportHeader title="Stock Summary" count={total} onRefresh={() => stockQuery.refetch()} />
 
-      <SummaryTiles
-        settings={settings}
-        tiles={[
-          { label: 'Stock On Hand', value: totals.stock, numberOnly: true },
-          { label: 'Reserved Stock', value: totals.reserved, numberOnly: true },
-          { label: 'Available Stock', value: totals.available, numberOnly: true },
-          { label: 'Stock Value', value: totals.value, strong: true },
-        ]}
-      />
+        <div className="filter-bar">
+          <div className="filter-grid" style={reportFilterGridStyle}>
+            <SearchFilter
+              label="Warehouse"
+              value={selectedWarehouseId}
+              options={warehouseOptions}
+              placeholder="Select Warehouse"
+              onChange={value => {
+                setWarehouseId(value);
+                setPage(1);
+              }}
+            />
+            <TextField
+              label="Search"
+              value={search}
+              placeholder="Item Code, SKU, Or Item Name"
+              onChange={value => {
+                setSearch(value);
+                setPage(1);
+              }}
+            />
+            <ReportActions buildReport={buildReport} disabled={stockQuery.isLoading || rows.length === 0} />
+          </div>
+        </div>
 
-      {stockQuery.error && <div style={errorStyle}>Unable to load Stock Summary. Please refresh and try again.</div>}
-
-      <div style={tableWrapStyle}>
-        <table style={tableStyle}>
-          <thead>
-            <tr>
-              <th style={thStyle}>Item Code</th>
-              <th style={thStyle}>SKU</th>
-              <th style={thStyle}>Item Name</th>
-              <th style={thStyle}>Location</th>
-              <th style={moneyThStyle}>Stock On Hand</th>
-              <th style={moneyThStyle}>Reserved</th>
-              <th style={moneyThStyle}>Available</th>
-              <th style={moneyThStyle}>Average Cost</th>
-              <th style={moneyThStyle}>Stock Value</th>
-            </tr>
-          </thead>
-          <tbody>
-            {stockQuery.isLoading && <EmptyRow text="Loading Stock Summary..." columns={9} />}
-            {!stockQuery.isLoading && rows.length === 0 && <EmptyRow text="No stock found for selected filters." columns={9} />}
-            {!stockQuery.isLoading && rows.map(row => (
-              <tr key={row.id}>
-                <td style={strongTdStyle}>{row.item_code}</td>
-                <td style={tdStyle}>{row.sku}</td>
-                <td style={tdStyle}>{row.item_name}</td>
-                <td style={tdStyle}>{joinCodeName(row.location_code, row.location_name) || '-'}</td>
-                <td style={moneyTdStyle}>{formatNumber(row.stock_on_hand, settings)}</td>
-                <td style={moneyTdStyle}>{formatNumber(row.reserved_stock, settings)}</td>
-                <td style={moneyStrongTdStyle}>{formatNumber(row.available_stock, settings)}</td>
-                <td style={moneyTdStyle}>{formatMoney(row.average_cost, settings)}</td>
-                <td style={moneyStrongTdStyle}>{formatMoney(row.total_stock_value, settings)}</td>
+        <div className="table-scroll">
+          <table className="data-table" style={{ minWidth: 1000 }}>
+            <thead>
+              <tr>
+                <th style={{ width: 120 }}>Item Code</th>
+                <th style={{ width: 120 }}>SKU</th>
+                <th>Item Name</th>
+                <th>Location</th>
+                <th className="num">Stock On Hand</th>
+                <th className="num">Reserved</th>
+                <th className="num">Available</th>
+                <th className="num">Average Cost</th>
+                <th className="num">Stock Value</th>
               </tr>
-            ))}
-          </tbody>
-          <tfoot>
-            <tr>
-              <td colSpan={4} style={totalLabelStyle}>Totals</td>
-              <td style={totalMoneyStyle}>{formatNumber(totals.stock, settings)}</td>
-              <td style={totalMoneyStyle}>{formatNumber(totals.reserved, settings)}</td>
-              <td style={totalMoneyStyle}>{formatNumber(totals.available, settings)}</td>
-              <td style={totalMoneyStyle}>-</td>
-              <td style={totalMoneyStyle}>{formatMoney(totals.value, settings)}</td>
-            </tr>
-          </tfoot>
-        </table>
-      </div>
+            </thead>
+            <tbody>
+              {stockQuery.isLoading && <TableMessageRow colSpan={9} title="Loading Stock Summary…" loading />}
+              {!stockQuery.isLoading && rows.length === 0 && (
+                <TableMessageRow colSpan={9} title="No Stock Found" description="Choose another Warehouse or change the search text." />
+              )}
+              {!stockQuery.isLoading && rows.map(row => (
+                <tr key={row.id}>
+                  <td className="cell-strong">{row.item_code}</td>
+                  <td className="cell-muted">{row.sku || 'Not Set'}</td>
+                  <td>{row.item_name}</td>
+                  <td className={joinCodeName(row.location_code, row.location_name) ? undefined : 'cell-muted'}>{joinCodeName(row.location_code, row.location_name) || 'Not Set'}</td>
+                  <td className="num" style={amountStyle(row.stock_on_hand)}>{formatNumber(row.stock_on_hand, settings)}</td>
+                  <td className="num">{formatNumber(row.reserved_stock, settings)}</td>
+                  <td className="num" style={{ fontWeight: 600, color: 'var(--color-heading)', ...amountStyle(row.available_stock) }}>{formatNumber(row.available_stock, settings)}</td>
+                  <td className="num">{formatMoney(row.average_cost, settings)}</td>
+                  <td className="num" style={{ fontWeight: 600, color: 'var(--color-heading)' }}>{formatMoney(row.total_stock_value, settings)}</td>
+                </tr>
+              ))}
+            </tbody>
+            <tfoot>
+              <tr>
+                <td colSpan={4}>Totals For This Page</td>
+                <td className="num">{formatNumber(totals.stock, settings)}</td>
+                <td className="num">{formatNumber(totals.reserved, settings)}</td>
+                <td className="num">{formatNumber(totals.available, settings)}</td>
+                <td className="num" />
+                <td className="num">{formatMoney(totals.value, settings)}</td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
 
-      <PaginationBar
-        page={page}
-        limit={limit}
-        total={total}
-        totalPages={totalPages}
-        onChange={patch => {
-          if (patch.page) setPage(patch.page);
-          if (patch.limit) {
-            setLimit(patch.limit);
-            setPage(1);
-          }
-        }}
-      />
+        <PaginationBar
+          page={page}
+          limit={limit}
+          total={total}
+          totalPages={totalPages}
+          onChange={patch => {
+            if (patch.page) setPage(patch.page);
+            if (patch.limit) {
+              setLimit(patch.limit);
+              setPage(1);
+            }
+          }}
+        />
+      </section>
     </div>
   );
 }
 
 function ReportHeader({ title, count, onRefresh }: { title: string; count: number; onRefresh: () => void }) {
   return (
-    <div style={reportHeaderStyle}>
-      <div>
-        <h2 style={reportTitleStyle}>{title}</h2>
-        <span style={recordBadgeStyle}>{count} Records</span>
+    <div className="panel-header">
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, minWidth: 0 }}>
+        <h2 className="panel-title">{title}</h2>
+        <span style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-muted)' }}>{count} {count === 1 ? 'Record' : 'Records'}</span>
       </div>
-      <button type="button" className="btn-secondary" style={smallButtonStyle} onClick={onRefresh}>
-        <IconRefresh size={14} /> Refresh
-      </button>
+      <Button size="sm" icon={<IconRefresh size={16} stroke={1.8} />} onClick={onRefresh}>Refresh</Button>
     </div>
   );
 }
@@ -699,29 +855,9 @@ function SearchFilter({
   onChange: (value: string) => void;
 }) {
   return (
-    <label style={filterLabelStyle}>
-      <span>{label}</span>
+    <FieldLabel label={label}>
       <SearchableSelect value={value} options={options} placeholder={placeholder} onChange={onChange} />
-    </label>
-  );
-}
-
-function SummaryTiles({
-  tiles,
-  settings,
-}: {
-  tiles: Array<{ label: string; value: number; strong?: boolean; numberOnly?: boolean }>;
-  settings?: AppFormatSettingsSource | null;
-}) {
-  return (
-    <div style={summaryGridStyle}>
-      {tiles.map(tile => (
-        <div key={tile.label} style={summaryTileStyle(tile.strong)}>
-          <span>{tile.label}</span>
-          <strong>{tile.numberOnly ? formatNumber(tile.value, settings) : formatMoney(tile.value, settings)}</strong>
-        </div>
-      ))}
-    </div>
+    </FieldLabel>
   );
 }
 
@@ -750,14 +886,6 @@ function PaginationBar({
   );
 }
 
-function EmptyRow({ text, columns }: { text: string; columns: number }) {
-  return (
-    <tr>
-      <td colSpan={columns} style={emptyTdStyle}>{text}</td>
-    </tr>
-  );
-}
-
 function mapOptions(rows?: any[]): SelectOption[] {
   return (rows ?? []).map(row => ({
     value: row.value ?? row.id,
@@ -774,242 +902,3 @@ function joinCodeName(code?: string | null, name?: string | null) {
 function toOptionalNumber(value: string) {
   return value === '' ? undefined : Number(value);
 }
-
-const pageStyle: CSSProperties = {
-  height: '100%',
-  minHeight: 0,
-  boxSizing: 'border-box',
-  padding: 10,
-  display: 'flex',
-  flexDirection: 'column',
-  gap: 8,
-  overflow: 'hidden',
-};
-
-const toolbarInnerStyle: CSSProperties = {
-  display: 'flex',
-  justifyContent: 'space-between',
-  gap: 10,
-  alignItems: 'center',
-  flexWrap: 'wrap',
-};
-
-const groupButtonWrapStyle: CSSProperties = {
-  display: 'flex',
-  gap: 6,
-  flexWrap: 'wrap',
-};
-
-const titleStyle: CSSProperties = {
-  margin: 0,
-  fontSize: '1.05rem',
-  lineHeight: 1.1,
-  color: 'var(--color-heading)',
-};
-
-const subtitleStyle: CSSProperties = {
-  margin: '3px 0 0',
-  color: 'var(--color-text-muted)',
-  fontSize: '0.73rem',
-  fontWeight: 800,
-};
-
-const workspaceStyle: CSSProperties = {
-  flex: 1,
-  minHeight: 0,
-  display: 'grid',
-  gridTemplateRows: 'auto minmax(0, 1fr)',
-  gap: 8,
-  overflow: 'hidden',
-};
-
-const reportTabsStyle: CSSProperties = {
-  border: '1px solid var(--color-border)',
-  background: 'var(--color-surface)',
-  borderRadius: 'var(--radius-md)',
-  padding: 8,
-  display: 'flex',
-  gap: 6,
-  flexWrap: 'wrap',
-  alignItems: 'center',
-};
-
-const reportPanelStyle: CSSProperties = {
-  minHeight: 0,
-  overflow: 'hidden',
-  border: '1px solid var(--color-border)',
-  borderRadius: 'var(--radius-md)',
-  background: 'var(--color-surface)',
-  display: 'grid',
-};
-
-const smallButtonStyle: CSSProperties = {
-  ...compactButtonStyle,
-  minHeight: 28,
-  padding: '4px 9px',
-  fontSize: '0.74rem',
-};
-
-const reportPageStyle: CSSProperties = {
-  height: '100%',
-  minHeight: 0,
-  padding: 10,
-  display: 'grid',
-  gridTemplateRows: 'auto auto auto auto minmax(0, 1fr) 40px',
-  gap: 8,
-  overflow: 'hidden',
-};
-
-const reportHeaderStyle: CSSProperties = {
-  display: 'flex',
-  justifyContent: 'space-between',
-  alignItems: 'center',
-  gap: 8,
-  paddingBottom: 7,
-  borderBottom: '1px solid var(--color-border-subtle)',
-};
-
-const reportTitleStyle: CSSProperties = {
-  margin: 0,
-  color: 'var(--color-heading)',
-  fontSize: '0.95rem',
-  fontWeight: 900,
-};
-
-const recordBadgeStyle: CSSProperties = {
-  display: 'inline-block',
-  marginTop: 3,
-  color: 'var(--color-success-text)',
-  background: 'var(--color-success-bg)',
-  border: '1px solid var(--color-success-border)',
-  borderRadius: 'var(--radius-pill)',
-  padding: '2px 8px',
-  fontSize: '0.68rem',
-  fontWeight: 900,
-};
-
-const transactionFilterGridStyle: CSSProperties = {
-  display: 'grid',
-  gridTemplateColumns: 'minmax(210px, 1.2fr) minmax(210px, 1fr) minmax(190px, 0.9fr) 118px 118px 112px 112px',
-  gap: 8,
-  alignItems: 'end',
-  overflow: 'visible',
-  position: 'relative',
-  zIndex: 10,
-};
-
-const stockFilterGridStyle: CSSProperties = {
-  display: 'grid',
-  gridTemplateColumns: 'minmax(240px, 320px) minmax(260px, 1fr)',
-  gap: 8,
-  alignItems: 'end',
-  position: 'relative',
-  zIndex: 10,
-};
-
-const filterLabelStyle: CSSProperties = {
-  display: 'grid',
-  gap: 3,
-  color: 'var(--color-heading)',
-  fontSize: '0.68rem',
-  fontWeight: 900,
-};
-
-const summaryGridStyle: CSSProperties = {
-  display: 'grid',
-  gridTemplateColumns: 'repeat(5, minmax(130px, 1fr))',
-  gap: 8,
-};
-
-function summaryTileStyle(strong?: boolean): CSSProperties {
-  return {
-    border: `1px solid ${strong ? 'var(--color-primary)' : 'var(--color-border)'}`,
-    background: strong ? 'var(--color-primary-light)' : 'var(--color-surface-alt)',
-    borderRadius: 'var(--radius)',
-    padding: '7px 9px',
-    display: 'grid',
-    gap: 5,
-  };
-}
-
-const tableWrapStyle: CSSProperties = {
-  minHeight: 0,
-  overflow: 'auto',
-  border: '1px solid var(--color-border)',
-  borderRadius: 'var(--radius)',
-};
-
-const tableStyle: CSSProperties = {
-  width: '100%',
-  borderCollapse: 'collapse',
-  fontSize: '0.74rem',
-};
-
-const thStyle: CSSProperties = {
-  background: 'var(--color-table-header-bg)',
-  color: 'var(--color-table-header-text)',
-  padding: '7px 8px',
-  border: '1px solid var(--color-border)',
-  textAlign: 'left',
-  fontWeight: 900,
-  whiteSpace: 'nowrap',
-};
-
-const moneyThStyle: CSSProperties = {
-  ...thStyle,
-  textAlign: 'right',
-};
-
-const tdStyle: CSSProperties = {
-  padding: '6px 8px',
-  border: '1px solid var(--color-border-subtle)',
-  color: 'var(--color-text)',
-  whiteSpace: 'nowrap',
-};
-
-const strongTdStyle: CSSProperties = {
-  ...tdStyle,
-  fontWeight: 900,
-  color: 'var(--color-heading)',
-};
-
-const moneyTdStyle: CSSProperties = {
-  ...tdStyle,
-  textAlign: 'right',
-  fontFamily: 'var(--font-mono)',
-  fontWeight: 800,
-};
-
-const moneyStrongTdStyle: CSSProperties = {
-  ...moneyTdStyle,
-  fontWeight: 950,
-  color: 'var(--color-heading)',
-};
-
-const totalLabelStyle: CSSProperties = {
-  ...tdStyle,
-  background: 'var(--color-primary-light)',
-  textAlign: 'right',
-  fontWeight: 950,
-  color: 'var(--color-heading)',
-};
-
-const totalMoneyStyle: CSSProperties = {
-  ...moneyStrongTdStyle,
-  background: 'var(--color-primary-light)',
-  borderTop: '2px solid var(--color-primary)',
-};
-
-const emptyTdStyle: CSSProperties = {
-  ...tdStyle,
-  height: 130,
-  textAlign: 'center',
-  color: 'var(--color-text-muted)',
-  fontWeight: 850,
-};
-
-const errorStyle: CSSProperties = {
-  color: 'var(--color-danger-text)',
-  fontSize: '0.74rem',
-  fontWeight: 800,
-};

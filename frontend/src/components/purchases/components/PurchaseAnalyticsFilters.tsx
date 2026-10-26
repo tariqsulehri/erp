@@ -1,6 +1,5 @@
 'use client';
 
-import type { CSSProperties } from 'react';
 import { FieldLabel } from '@/components/ui/FieldLabel';
 import { DateField, SelectField } from '@/components/ui/FormFields';
 import { SearchableSelect } from '@/components/ui/SearchableSelect';
@@ -14,8 +13,6 @@ interface PurchaseAnalyticsFiltersProps {
   dateTo: string;
   suppliers: SupplierOption[];
   warehouses: WarehouseOption[];
-  gridStyle: CSSProperties;
-  buttonStyle: CSSProperties;
   onSupplierChange: (value: string) => void;
   onPaymentTypeChange: (value: string) => void;
   onWarehouseChange: (value: string) => void;
@@ -32,8 +29,6 @@ export function PurchaseAnalyticsFilters({
   dateTo,
   suppliers,
   warehouses,
-  gridStyle,
-  buttonStyle,
   onSupplierChange,
   onPaymentTypeChange,
   onWarehouseChange,
@@ -42,7 +37,7 @@ export function PurchaseAnalyticsFilters({
   onResetFilters,
 }: PurchaseAnalyticsFiltersProps) {
   return (
-    <div style={gridStyle}>
+    <div className="filter-grid">
       <FieldLabel label="Supplier">
         <SearchableSelect value={supplierId} options={suppliers} onChange={onSupplierChange} placeholder="All Suppliers" />
       </FieldLabel>
@@ -58,7 +53,7 @@ export function PurchaseAnalyticsFilters({
       </FieldLabel>
       <DateField label="Date From" value={dateFrom} onChange={onDateFromChange} />
       <DateField label="Date To" value={dateTo} onChange={onDateToChange} />
-      <button type="button" className="btn-secondary" onClick={onResetFilters} style={{ ...buttonStyle, alignSelf: 'end' }}>
+      <button type="button" className="btn-secondary" onClick={onResetFilters} style={{ flex: '0 0 auto', minWidth: 0 }}>
         Clear Filters
       </button>
     </div>

@@ -1,15 +1,31 @@
 'use client';
 
 import { signIn } from 'next-auth/react';
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useEffect, useState } from 'react';
+import { IconCheck, IconLogin } from '@tabler/icons-react';
+import { Button } from '@/components/ui/Button';
+import { FieldLabel } from '@/components/ui/FieldLabel';
+import { InlineAlert } from '@/components/ui/InlineAlert';
+
+const FEATURES = [
+  'Chart Of Accounts With A 10-Digit Code Structure',
+  'Fiscal Years And Accounting Periods',
+  'Journal Vouchers Posted To The General Ledger',
+  'Trial Balance And Financial Statements',
+  'Several Companies In One System',
+];
 
 export default function LoginPage() {
-  const router = useRouter();
-  const [email, setEmail] = useState('admin@example.com');
-  const [password, setPassword] = useState('admin123');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+
+  // Shows why the user was signed out, e.g. an expired session or a password reset.
+  useEffect(() => {
+    const reason = new URLSearchParams(window.location.search).get('reason');
+    if (reason) setError(reason);
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -17,11 +33,19 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      const result = await signIn('credentials', { email, password, redirect: false });
+      const result = await signIn('credentials', {
+        email,
+        password,
+        redirect: false,
+        callbackUrl: '/accounts',
+      });
       if (result?.error) {
-        setError('Invalid email or password. Please try again.');
+        // Wrong email or password comes back as CredentialsSignin; other problems carry the backend message.
+        setError(result.error === 'CredentialsSignin' ? 'Email or Password is not correct. Please try again.' : result.error);
+      } else if (result?.ok) {
+        window.location.href = result.url || '/accounts';
       } else {
-        router.push('/accounts');
+        window.location.href = '/accounts';
       }
     } catch {
       setError('Something went wrong. Please try again.');
@@ -32,86 +56,68 @@ export default function LoginPage() {
 
   return (
     <div className="login-page">
-      {/* Left — Branding */}
+      {/* Left: product summary on the solid navy login panel */}
       <div className="login-left">
-        <div className="login-left-content">
-          <div className="login-logo">
-            <div className="login-logo-icon">
-              <svg width="28" height="28" viewBox="0 0 24 24" fill="none">
-                <rect x="3" y="3" width="18" height="4" rx="1" fill="white" />
-                <rect x="3" y="9" width="11" height="4" rx="1" fill="white" opacity="0.8" />
-                <rect x="3" y="15" width="14" height="4" rx="1" fill="white" opacity="0.6" />
+        <div style={{ maxWidth: 400 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 40 }}>
+            <span className="sidebar-brand-mark" aria-hidden>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                <rect x="3" y="3" width="18" height="4" rx="1" fill="currentColor" />
+                <rect x="3" y="9" width="11" height="4" rx="1" fill="currentColor" opacity="0.8" />
+                <rect x="3" y="15" width="14" height="4" rx="1" fill="currentColor" opacity="0.6" />
               </svg>
-            </div>
-            <span className="login-logo-text">ERP Finance</span>
+            </span>
+            <span style={{ fontSize: 'var(--font-size-lg)', fontWeight: 600, color: 'var(--color-sidebar-text-active)' }}>ERP Finance</span>
           </div>
 
-          <h1 className="login-tagline">Complete Financial Control for Your Business</h1>
-          <p className="login-desc">
-            Multi-company ERP with double-entry accounting, real-time reporting, and IFRS/GAAP compliance.
+          <h1 style={{ margin: '0 0 12px', fontSize: 'var(--font-size-3xl)', fontWeight: 600, lineHeight: 1.2, letterSpacing: '-0.02em', color: 'var(--color-sidebar-text-active)' }}>
+            Complete Financial Control For Your Business
+          </h1>
+          <p style={{ margin: '0 0 28px', fontSize: 'var(--font-size-md)', lineHeight: 1.6, color: 'var(--color-sidebar-text)' }}>
+            Multi-company ERP with double-entry accounting, real-time reporting, and IFRS and GAAP support.
           </p>
 
-          <div className="login-features">
-            {[
-              'Chart of Accounts with 10-digit hierarchy',
-              'Fiscal Year & Period Management',
-              'Journal Vouchers with GL posting',
-              'Trial Balance & Financial Statements',
-              'Multi-company with automatic scoping',
-            ].map((f) => (
-              <div key={f} className="login-feature">
-                <div className="login-feature-dot" />
-                <span>{f}</span>
-              </div>
+          <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {FEATURES.map(feature => (
+              <li key={feature} style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 'var(--font-size-md)', color: 'var(--color-sidebar-text)' }}>
+                <IconCheck size={16} stroke={1.8} aria-hidden style={{ color: 'var(--color-sidebar-active)', flexShrink: 0 }} />
+                <span>{feature}</span>
+              </li>
             ))}
-          </div>
+          </ul>
         </div>
       </div>
 
-      {/* Right — Form */}
+      {/* Right: sign-in form */}
       <div className="login-right">
-        <h2 className="login-form-title">Sign in to your account</h2>
-        <p className="login-form-sub">Enter your credentials to continue</p>
+        <h2 style={{ margin: '0 0 4px', fontSize: 'var(--font-size-xl)', fontWeight: 600, color: 'var(--color-heading)' }}>Sign In To Your Account</h2>
+        <p style={{ margin: '0 0 24px', fontSize: 'var(--font-size-md)', color: 'var(--color-text-muted)' }}>Enter your email address and password to continue.</p>
 
-        {error && (
-          <div className="alert alert-danger">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style={{ flexShrink: 0 }}>
-              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z" />
-            </svg>
-            {error}
-          </div>
-        )}
+        {error && <div style={{ marginBottom: 16 }}><InlineAlert tone="danger">{error}</InlineAlert></div>}
 
-        <form onSubmit={handleSubmit}>
-          <div className="form-group">
-            <label className="form-label" htmlFor="email">Email address</label>
+        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <FieldLabel label="Email Address" htmlFor="email" required>
             <input
               id="email" type="email" className="form-input"
               placeholder="you@company.com" value={email}
               onChange={(e) => setEmail(e.target.value)} required autoFocus
+              autoComplete="email"
             />
-          </div>
-          <div className="form-group">
-            <label className="form-label" htmlFor="password">Password</label>
+          </FieldLabel>
+          <FieldLabel label="Password" htmlFor="password" required>
             <input
               id="password" type="password" className="form-input"
-              placeholder="••••••••" value={password}
+              placeholder="Enter your password" value={password}
               onChange={(e) => setPassword(e.target.value)} required
+              autoComplete="current-password"
             />
-          </div>
+          </FieldLabel>
 
-          <button type="submit" className="btn btn-primary btn-lg" disabled={loading} style={{ width: '100%', marginTop: 8 }}>
-            {loading ? (
-              <><span className="spinner" style={{ borderTopColor: 'white', borderColor: 'rgba(255,255,255,0.3)' }} />Signing in...</>
-            ) : 'Sign in'}
-          </button>
+          <Button type="submit" variant="primary" size="lg" loading={loading} icon={<IconLogin size={16} stroke={1.8} />} style={{ width: '100%', marginTop: 4 }}>
+            {loading ? 'Signing In…' : 'Sign In'}
+          </Button>
         </form>
 
-        <div className="login-demo-hint" style={{ marginTop: 24 }}>
-          <p style={{ fontWeight: 600, marginBottom: 8, fontSize: '0.8125rem' }}>Demo credentials</p>
-          <p style={{ fontSize: '0.8125rem', color: '#64748b' }}>Email: <strong style={{ color: '#0f172a' }}>admin@example.com</strong></p>
-          <p style={{ fontSize: '0.8125rem', color: '#64748b' }}>Password: <strong style={{ color: '#0f172a' }}>admin123</strong></p>
-        </div>
       </div>
     </div>
   );

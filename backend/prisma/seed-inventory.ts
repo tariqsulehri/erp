@@ -438,12 +438,14 @@ async function seedItems() {
       ],
     });
 
+    const seedLocationId = lookups.warehouse.useLocations ? lookups.location.id : null;
+
     await prisma.stockBalance.create({
       data: {
         companyId,
         itemId: item.id,
         warehouseId: lookups.warehouse.id,
-        locationId: lookups.location.id,
+        locationId: seedLocationId,
         stockOnHand: quantity.toFixed(4),
         reservedStock: "0.0000",
         availableStock: quantity.toFixed(4),
@@ -458,7 +460,7 @@ async function seedItems() {
         companyId,
         itemId: item.id,
         warehouseId: lookups.warehouse.id,
-        locationId: lookups.location.id,
+        locationId: seedLocationId,
         movementDate: new Date("2026-06-19T00:00:00.000Z"),
         movementKind: "OPENING_BALANCE",
         sourceKind: "OPENING_BALANCE",

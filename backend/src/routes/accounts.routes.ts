@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
+import { requirePermission } from '../http/access-context.js';
 import { resolveCompanyId } from '../http/company-context.js';
 import { AccountListService } from '../modules/accounts/account-list.service.js';
 import {
@@ -25,6 +26,15 @@ accountsRouter.get('/', async (req, res, next) => {
     const companyId = resolveCompanyId(req);
     const query = accountListQuerySchema.parse(req.query);
     res.json(await accountListService.list(companyId, query));
+  } catch (error) {
+    next(error);
+  }
+});
+
+accountsRouter.get('/opening-balance-summary', async (req, res, next) => {
+  try {
+    const companyId = resolveCompanyId(req);
+    res.json(await accountListService.openingBalanceSummary(companyId));
   } catch (error) {
     next(error);
   }
@@ -96,7 +106,7 @@ accountsRouter.get('/:id/history', async (req, res, next) => {
   }
 });
 
-accountsRouter.post('/', async (req, res, next) => {
+accountsRouter.post('/', requirePermission('accounts.manage'), async (req, res, next) => {
   try {
     const companyId = resolveCompanyId(req);
     const input = createAccountSchema.parse(req.body);
@@ -106,7 +116,7 @@ accountsRouter.post('/', async (req, res, next) => {
   }
 });
 
-accountsRouter.post('/bulk-create', async (req, res, next) => {
+accountsRouter.post('/bulk-create', requirePermission('accounts.manage'), async (req, res, next) => {
   try {
     const companyId = resolveCompanyId(req);
     const input = bulkCreateAccountSchema.parse(req.body);
@@ -119,7 +129,7 @@ accountsRouter.post('/bulk-create', async (req, res, next) => {
   }
 });
 
-accountsRouter.post('/templates/import', async (req, res, next) => {
+accountsRouter.post('/templates/import', requirePermission('accounts.manage'), async (req, res, next) => {
   try {
     const companyId = resolveCompanyId(req);
     const input = importAccountTemplateSchema.parse(req.body);
@@ -139,7 +149,7 @@ accountsRouter.get('/:id', async (req, res, next) => {
   }
 });
 
-accountsRouter.patch('/bulk-active', async (req, res, next) => {
+accountsRouter.patch('/bulk-active', requirePermission('accounts.manage'), async (req, res, next) => {
   try {
     const companyId = resolveCompanyId(req);
     const input = bulkSetAccountActiveSchema.parse(req.body);
@@ -149,7 +159,7 @@ accountsRouter.patch('/bulk-active', async (req, res, next) => {
   }
 });
 
-accountsRouter.patch('/:id', async (req, res, next) => {
+accountsRouter.patch('/:id', requirePermission('accounts.manage'), async (req, res, next) => {
   try {
     const companyId = resolveCompanyId(req);
     const id = z.string().uuid().parse(req.params.id);
@@ -164,7 +174,7 @@ accountsRouter.patch('/:id', async (req, res, next) => {
   }
 });
 
-accountsRouter.patch('/:id/active', async (req, res, next) => {
+accountsRouter.patch('/:id/active', requirePermission('accounts.manage'), async (req, res, next) => {
   try {
     const companyId = resolveCompanyId(req);
     const id = z.string().uuid().parse(req.params.id);
@@ -179,7 +189,7 @@ accountsRouter.patch('/:id/active', async (req, res, next) => {
   }
 });
 
-accountsRouter.post('/:id/clone', async (req, res, next) => {
+accountsRouter.post('/:id/clone', requirePermission('accounts.manage'), async (req, res, next) => {
   try {
     const companyId = resolveCompanyId(req);
     const id = z.string().uuid().parse(req.params.id);

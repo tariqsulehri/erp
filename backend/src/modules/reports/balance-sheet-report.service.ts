@@ -1,5 +1,6 @@
 import { Decimal } from 'decimal.js';
 import { prisma } from '../../db/prisma.js';
+import { dateOnlyText, openingBalanceAsOf, signedOpeningBalance } from '../accounts/account-balance.js';
 import type { BalanceSheetReportQuery } from './balance-sheet-report.schema.js';
 
 function businessError(message: string) {
@@ -15,12 +16,7 @@ function databaseDate(dateText: string) {
 }
 
 function toDateText(value: Date) {
-  return value.toISOString().slice(0, 10);
-}
-
-function signedOpeningBalance(openingBalance: unknown, normalBalance: string) {
-  const amount = new Decimal(String(openingBalance ?? '0'));
-  return normalBalance === 'Credit' ? amount.negated() : amount;
+  return dateOnlyText(value);
 }
 
 function hierarchyCodes(accountCode: string) {
@@ -40,10 +36,10 @@ interface BalanceMovementRow {
 }
 
 interface ProfitLossRow {
-  revenue_debit: string;
-  revenue_credit: string;
-  expense_debit: string;
-  expense_credit: string;
+  current_debit: string;
+  current_credit: string;
+  prior_debit: string;
+  prior_credit: string;
 }
 
 function sectionForCode(accountCode: string): BalanceSheetSection | null {
@@ -131,12 +127,14 @@ export class BalanceSheetReportService {
     `;
     const movementMap = new Map(movements.map(row => [row.account_id, row]));
 
+    // Revenue and Expense results that are not yet closed into Retained Earnings. Closing vouchers are
+    // included here, so a closed year nets to zero and its result appears only in Retained Earnings.
     const profitRows = await prisma.$queryRaw<ProfitLossRow[]>`
       SELECT
-        COALESCE(SUM(vl.dr_amount) FILTER (WHERE a.code LIKE '04%'), 0)::text AS revenue_debit,
-        COALESCE(SUM(vl.cr_amount) FILTER (WHERE a.code LIKE '04%'), 0)::text AS revenue_credit,
-        COALESCE(SUM(vl.dr_amount) FILTER (WHERE a.code LIKE '05%'), 0)::text AS expense_debit,
-        COALESCE(SUM(vl.cr_amount) FILTER (WHERE a.code LIKE '05%'), 0)::text AS expense_credit
+        COALESCE(SUM(vl.dr_amount) FILTER (WHERE v.voucher_date >= CAST(${profitDateFrom} AS date)), 0)::text AS current_debit,
+        COALESCE(SUM(vl.cr_amount) FILTER (WHERE v.voucher_date >= CAST(${profitDateFrom} AS date)), 0)::text AS current_credit,
+        COALESCE(SUM(vl.dr_amount) FILTER (WHERE v.voucher_date < CAST(${profitDateFrom} AS date)), 0)::text AS prior_debit,
+        COALESCE(SUM(vl.cr_amount) FILTER (WHERE v.voucher_date < CAST(${profitDateFrom} AS date)), 0)::text AS prior_credit
       FROM voucher_lines vl
       JOIN vouchers v ON v.id = vl.voucher_id
       JOIN accounts a ON a.id = vl.account_id
@@ -144,14 +142,33 @@ export class BalanceSheetReportService {
         AND v.company_id = CAST(${this.companyId} AS uuid)
         AND a.company_id = CAST(${this.companyId} AS uuid)
         AND v.status = 'Posted'
-        AND v.voucher_date >= CAST(${profitDateFrom} AS date)
         AND v.voucher_date <= CAST(${query.as_of_date} AS date)
-        AND (a.code LIKE '04%' OR a.code LIKE '05%')
+        AND a.account_type IN ('Revenue', 'Expense')
     `;
     const profitRow = profitRows[0];
-    const revenue = new Decimal(profitRow?.revenue_credit ?? '0').minus(profitRow?.revenue_debit ?? '0');
-    const expenses = new Decimal(profitRow?.expense_debit ?? '0').minus(profitRow?.expense_credit ?? '0');
-    const currentProfit = revenue.minus(expenses);
+    let currentDebitBalance = new Decimal(profitRow?.current_debit ?? '0').minus(profitRow?.current_credit ?? '0');
+    let priorDebitBalance = new Decimal(profitRow?.prior_debit ?? '0').minus(profitRow?.prior_credit ?? '0');
+
+    const resultAccounts = await prisma.account.findMany({
+      where: {
+        companyId: this.companyId,
+        isDeleted: false,
+        isPosting: true,
+        accountType: { in: ['Revenue', 'Expense'] },
+        NOT: { openingBalance: 0 },
+      },
+      select: { openingBalance: true, normalBalance: true, openingBalanceDate: true },
+    });
+    for (const account of resultAccounts) {
+      const openingDateText = account.openingBalanceDate ? toDateText(account.openingBalanceDate) : null;
+      if (openingDateText && openingDateText > query.as_of_date) continue;
+      const signed = signedOpeningBalance(account.openingBalance, account.normalBalance);
+      if (openingDateText && openingDateText >= profitDateFrom) currentDebitBalance = currentDebitBalance.plus(signed);
+      else priorDebitBalance = priorDebitBalance.plus(signed);
+    }
+    // A debit balance on Revenue and Expense together means a loss, so profit is its negative.
+    const currentProfit = currentDebitBalance.negated();
+    const unclosedPriorProfit = priorDebitBalance.negated();
 
     let totalAssets = new Decimal(0);
     let totalLiabilities = new Decimal(0);
@@ -162,8 +179,7 @@ export class BalanceSheetReportService {
       if (!section) return null;
 
       const movement = movementMap.get(account.id);
-      const includeOpening = !account.openingBalanceDate || account.openingBalanceDate <= asOfDate;
-      const baseOpening = includeOpening ? signedOpeningBalance(account.openingBalance, account.normalBalance) : new Decimal(0);
+      const baseOpening = openingBalanceAsOf(account, query.as_of_date);
       const balance = baseOpening
         .plus(movement?.debit_amount ?? '0')
         .minus(movement?.credit_amount ?? '0');
@@ -195,6 +211,28 @@ export class BalanceSheetReportService {
       if (query.include_zero_balances) return true;
       return !new Decimal(line.amount).isZero();
     });
+
+    if (!unclosedPriorProfit.isZero()) {
+      totalEquity = totalEquity.plus(unclosedPriorProfit);
+      lines.push({
+        account_id: 'unclosed-prior-years-result',
+        account_code: '3999999998',
+        account_name: 'Retained Earnings (Prior Years Not Closed)',
+        account_type: 'Equity',
+        normal_balance: 'Credit',
+        section: 'Equity',
+        main_code: '0300000000',
+        main_name: headerNameByCode.get('0300000000') ?? 'Equity',
+        group_code: '0399000000',
+        group_name: 'Current Year Result',
+        sub_group_code: '0399990000',
+        sub_group_name: 'Current Year Result',
+        debit_balance: unclosedPriorProfit.lt(0) ? unclosedPriorProfit.abs().toFixed(2) : '0.00',
+        credit_balance: unclosedPriorProfit.gt(0) ? unclosedPriorProfit.toFixed(2) : '0.00',
+        amount: unclosedPriorProfit.toFixed(2),
+        is_system_line: true,
+      });
+    }
 
     if (query.include_zero_balances || !currentProfit.isZero()) {
       totalEquity = totalEquity.plus(currentProfit);

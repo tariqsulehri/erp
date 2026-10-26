@@ -1,28 +1,29 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import { IconRefresh, IconSearch } from '@tabler/icons-react';
-import { DateField } from '@/components/ui/FormFields';
-import { FieldLabel } from '@/components/ui/FieldLabel';
-import { formatDate, formatMoney, formatNumber } from '@/lib/app-settings';
+import { Button } from '@/components/ui/Button';
+import { CheckboxField, DateField } from '@/components/ui/FormFields';
+import { InlineAlert } from '@/components/ui/InlineAlert';
+import { PageHeader } from '@/components/ui/PageHeader';
+import { TableMessageRow } from '@/components/ui/TableMessageRow';
+import { formatDate, formatMoney } from '@/lib/app-settings';
 import { TrialBalanceLine, useTrialBalanceReport } from '@/lib/api/reports';
 import { useGeneralSettings } from '@/lib/api/settings';
 import { friendlyErrorMessage, isValidDateInput } from '@/lib/erp-utils';
-import { firstDayOfCurrentYear, todayInputDate } from './LedgerReportHelpers';
-import {
-  compactButtonStyle,
-  reportTableCellStyle,
-  reportTableHeadStyle,
-  reportTableTotalCellStyle,
-  summaryBoxStyle,
-} from './LedgerReportStyles';
+import { useReportDateRange } from './LedgerReportHelpers';
+import { amountStyle, embeddedReportStyle, reportFilterGridStyle, reportGroupRowStyle, reportIndentStyle } from './LedgerReportStyles';
+import { ReportActions } from './ReportActions';
+import type { ReportDocument } from './report-output';
 
 interface TrialBalanceReportPageProps {
   embedded?: boolean;
 }
 
-function moneyOrDash(value: string | number, settings: Parameters<typeof formatMoney>[1]) {
-  return Number(value) === 0 ? '-' : formatMoney(value, settings);
+/** Zero amounts are left blank so the figures that matter stand out. */
+function moneyOrBlank(value: string | number, settings: Parameters<typeof formatMoney>[1]) {
+  return Number(value) === 0 ? '' : formatMoney(value, settings);
 }
 
 type AmountKey = 'opening_debit' | 'opening_credit' | 'period_debit' | 'period_credit' | 'closing_debit' | 'closing_credit';
@@ -41,6 +42,8 @@ type TrialBalanceDisplayRow =
       key: string;
       line: TrialBalanceLine;
     };
+
+const linkStyle = { color: 'var(--color-primary-text)' };
 
 const amountKeys: AmountKey[] = ['opening_debit', 'opening_credit', 'period_debit', 'period_credit', 'closing_debit', 'closing_credit'];
 
@@ -112,8 +115,7 @@ function buildGroupedRows(lines: TrialBalanceLine[], includeZeroBalances: boolea
 
 export function TrialBalanceReportPage({ embedded = false }: TrialBalanceReportPageProps) {
   const { data: generalSettings } = useGeneralSettings();
-  const [dateFrom, setDateFrom] = useState(firstDayOfCurrentYear());
-  const [dateTo, setDateTo] = useState(todayInputDate());
+  const { dateFrom, setDateFrom, dateTo, setDateTo } = useReportDateRange();
   const [includeZeroBalances, setIncludeZeroBalances] = useState(false);
   const [shouldLoad, setShouldLoad] = useState(false);
   const [message, setMessage] = useState('');
@@ -174,125 +176,115 @@ export function TrialBalanceReportPage({ embedded = false }: TrialBalanceReportP
   const displayRows = buildGroupedRows(rows, includeZeroBalances);
   const difference = Number(totals?.difference ?? 0);
 
-  const summaryBoxes = [
-    { label: 'Opening Debit', value: totals?.opening_debit ?? '0.00' },
-    { label: 'Opening Credit', value: totals?.opening_credit ?? '0.00' },
-    { label: 'Period Debit', value: totals?.period_debit ?? '0.00' },
-    { label: 'Period Credit', value: totals?.period_credit ?? '0.00' },
-    { label: 'Closing Debit', value: totals?.closing_debit ?? '0.00', accent: difference === 0 },
-    { label: 'Closing Credit', value: totals?.closing_credit ?? '0.00', accent: difference === 0 },
-    { label: 'Difference', value: totals?.difference ?? '0.00', accent: difference !== 0 },
-  ];
+  const accountCount = displayRows.filter(row => row.kind === 'account').length;
+
+  function buildReport(): ReportDocument | null {
+    if (!report) return null;
+    return {
+      title: 'Trial Balance',
+      subtitle: `${formatDate(dateFrom, generalSettings)} to ${formatDate(dateTo, generalSettings)}`,
+      columns: [
+        { label: 'Account Code' },
+        { label: 'Account Name' },
+        { label: 'Account Type' },
+        { label: 'Opening Debit', kind: 'money' },
+        { label: 'Opening Credit', kind: 'money' },
+        { label: 'Period Debit', kind: 'money' },
+        { label: 'Period Credit', kind: 'money' },
+        { label: 'Closing Debit', kind: 'money' },
+        { label: 'Closing Credit', kind: 'money' },
+      ],
+      rows: [
+        ...displayRows.map(row => (row.kind === 'group'
+          ? { style: 'group' as const, cells: [row.code, row.name, '', ...amountKeys.map(key => row.totals[key])] }
+          : { cells: [row.line.account_code, row.line.account_name, row.line.account_type, ...amountKeys.map(key => row.line[key])] })),
+        {
+          style: 'total' as const,
+          cells: ['', `Totals (${accountCount} Accounts)`, '', ...amountKeys.map(key => report.totals[key])],
+        },
+      ],
+      note: difference !== 0 ? `Closing Debit and Closing Credit differ by ${formatMoney(report.totals.difference, generalSettings)}.` : undefined,
+      fileName: `trial-balance-${dateFrom}-to-${dateTo}`,
+    };
+  }
+
+  const ledgerHref = (accountId: string) => `/reports?report=ledger&account=${accountId}&from=${dateFrom}&to=${dateTo}`;
+
+  const Root = embedded ? 'div' : 'main';
 
   return (
-    <main style={{ height: '100%', minHeight: 0, boxSizing: 'border-box', padding: embedded ? 0 : 10, display: 'flex', flexDirection: 'column', gap: 8, overflow: 'hidden' }}>
-      <section className="workspace-card" style={{ padding: 10, overflow: 'visible' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: '132px 132px minmax(190px, auto) auto', gap: 8, alignItems: 'end' }}>
-          <DateField label="Date From" value={dateFrom} onChange={value => updateFilter(() => setDateFrom(value))} required />
-          <DateField label="Date To" value={dateTo} onChange={value => updateFilter(() => setDateTo(value))} required />
-          <FieldLabel label="Options">
-            <label style={{ minHeight: 28, display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.74rem', fontWeight: 800, color: 'var(--color-text)' }}>
-              <input
-                type="checkbox"
-                checked={includeZeroBalances}
-                onChange={event => updateZeroBalanceFilter(event.currentTarget.checked)}
-              />
-              Show Zero Balances
-            </label>
-          </FieldLabel>
-          <div style={{ display: 'flex', gap: 6, alignItems: 'end' }}>
-            <button type="button" className="btn-primary" onClick={viewReport} disabled={reportQuery.isFetching} style={compactButtonStyle}>
-              <IconSearch size={15} /> View Report
-            </button>
-            <button type="button" className="btn-secondary" onClick={refreshReport} disabled={reportQuery.isFetching} style={compactButtonStyle}>
-              <IconRefresh size={15} /> Refresh
-            </button>
-          </div>
-        </div>
-      </section>
-
-      {errorMessage && (
-        <div style={{ color: 'var(--color-danger-text)', fontSize: '0.72rem', fontWeight: 800 }}>
-          {errorMessage}
-        </div>
+    <Root className={embedded ? undefined : 'page-shell'} style={embedded ? embeddedReportStyle : undefined}>
+      {!embedded && (
+        <PageHeader
+          title="Trial Balance"
+          description={`Posted balances from ${formatDate(dateFrom, generalSettings)} to ${formatDate(dateTo, generalSettings)}.`}
+        />
       )}
 
-      <section style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(130px, 1fr))', gap: 8 }}>
-        {summaryBoxes.map(box => (
-          <div key={box.label} style={summaryBoxStyle(box.accent)}>
-            <span style={{ color: 'var(--color-heading)', fontSize: '0.68rem', fontWeight: 900 }}>{box.label}</span>
-            <strong style={{ textAlign: 'right', fontFamily: 'var(--font-mono)', color: 'var(--color-heading)', fontSize: '0.84rem', fontWeight: 900 }}>
-              {formatMoney(box.value, generalSettings)}
-            </strong>
-          </div>
-        ))}
-      </section>
+      {errorMessage && <InlineAlert tone="danger">{errorMessage}</InlineAlert>}
+      {report && difference !== 0 && (
+        <InlineAlert tone="warning">
+          Closing Debit and Closing Credit differ by {formatMoney(totals?.difference ?? 0, generalSettings)}. Check the unbalanced vouchers before closing the period.
+        </InlineAlert>
+      )}
 
-      <section className="workspace-card" style={{ padding: 10, flex: 1, minHeight: 0, display: 'grid', gridTemplateRows: '1fr', overflow: 'hidden' }}>
-        <div style={{ minHeight: 0, overflow: 'auto', border: '1px solid var(--color-border)', borderRadius: 'var(--radius)' }}>
-          <table style={{ width: '100%', minWidth: 1080, borderCollapse: 'collapse', tableLayout: 'fixed', fontSize: '0.74rem' }}>
+      <section className="panel panel-fill">
+        <div className="filter-bar">
+          <div className="filter-grid" style={reportFilterGridStyle}>
+            <DateField label="Date From" value={dateFrom} onChange={value => updateFilter(() => setDateFrom(value))} required />
+            <DateField label="Date To" value={dateTo} onChange={value => updateFilter(() => setDateTo(value))} required />
+            <CheckboxField label="Show Zero Balances" checked={includeZeroBalances} onChange={updateZeroBalanceFilter} />
+            <Button variant="primary" icon={<IconSearch size={16} stroke={1.8} />} onClick={viewReport} loading={reportQuery.isFetching}>View Report</Button>
+            <Button icon={<IconRefresh size={16} stroke={1.8} />} onClick={refreshReport} disabled={reportQuery.isFetching}>Refresh</Button>
+            <ReportActions buildReport={buildReport} disabled={!report} onError={setMessage} />
+          </div>
+        </div>
+
+        <div className="table-scroll">
+          <table className="data-table" style={{ tableLayout: 'fixed', minWidth: 1080 }}>
             <colgroup>
-              <col style={{ width: 112 }} />
+              <col style={{ width: 120 }} />
               <col />
-              <col style={{ width: 130 }} />
-              <col style={{ width: 118 }} />
-              <col style={{ width: 118 }} />
-              <col style={{ width: 118 }} />
-              <col style={{ width: 118 }} />
-              <col style={{ width: 118 }} />
-              <col style={{ width: 118 }} />
+              <col style={{ width: 120 }} />
+              <col style={{ width: 124 }} />
+              <col style={{ width: 124 }} />
+              <col style={{ width: 124 }} />
+              <col style={{ width: 124 }} />
+              <col style={{ width: 124 }} />
+              <col style={{ width: 124 }} />
             </colgroup>
             <thead>
               <tr>
-                <th style={reportTableHeadStyle()}>Account Code</th>
-                <th style={reportTableHeadStyle()}>Account Name</th>
-                <th style={reportTableHeadStyle()}>Account Type</th>
-                <th style={reportTableHeadStyle(true)}>Opening Dr</th>
-                <th style={reportTableHeadStyle(true)}>Opening Cr</th>
-                <th style={reportTableHeadStyle(true)}>Period Dr</th>
-                <th style={reportTableHeadStyle(true)}>Period Cr</th>
-                <th style={reportTableHeadStyle(true)}>Closing Dr</th>
-                <th style={reportTableHeadStyle(true)}>Closing Cr</th>
+                <th>Account Code</th>
+                <th>Account Name</th>
+                <th>Account Type</th>
+                <th className="num">Opening Debit</th>
+                <th className="num">Opening Credit</th>
+                <th className="num">Period Debit</th>
+                <th className="num">Period Credit</th>
+                <th className="num">Closing Debit</th>
+                <th className="num">Closing Credit</th>
               </tr>
             </thead>
             <tbody>
-              {reportQuery.isFetching && (
-                <tr>
-                  <td colSpan={9} style={{ ...reportTableCellStyle(), height: 90, textAlign: 'center', color: 'var(--color-text-muted)', fontWeight: 900 }}>
-                    Loading Trial Balance...
-                  </td>
-                </tr>
-              )}
+              {reportQuery.isFetching && <TableMessageRow colSpan={9} title="Loading Trial Balance…" loading />}
               {!reportQuery.isFetching && !errorMessage && !report && (
-                <tr>
-                  <td colSpan={9} style={{ ...reportTableCellStyle(), height: 90, textAlign: 'center', color: 'var(--color-text-muted)', fontWeight: 900 }}>
-                    Select Dates, then click View Report.
-                  </td>
-                </tr>
+                <TableMessageRow colSpan={9} title="Choose The Dates" description="Select Date From and Date To, then click View Report." />
               )}
               {!reportQuery.isFetching && !errorMessage && report && displayRows.length === 0 && (
-                <tr>
-                  <td colSpan={9} style={{ ...reportTableCellStyle(), height: 90, textAlign: 'center', color: 'var(--color-text-muted)', fontWeight: 900 }}>
-                    No balances found for the selected period.
-                  </td>
-                </tr>
+                <TableMessageRow colSpan={9} title="No Balances Found" description="No posted balances in the selected period. Widen the dates or tick Show Zero Balances." />
               )}
-              {displayRows.map(row => {
+              {!reportQuery.isFetching && displayRows.map(row => {
                 if (row.kind === 'group') {
-                  const background = row.level === 1
-                    ? 'var(--color-primary-light)'
-                    : row.level === 2
-                      ? 'var(--color-surface-alt)'
-                      : 'var(--color-table-row-odd)';
-                  const fontSize = row.level === 1 ? '0.78rem' : row.level === 2 ? '0.74rem' : '0.71rem';
+                  const groupStyle = reportGroupRowStyle(row.level);
                   return (
                     <tr key={row.key}>
-                      <td colSpan={3} style={{ ...reportTableCellStyle(), background, fontSize, fontWeight: 900, paddingLeft: row.level * 10 }}>
+                      <td colSpan={3} style={{ ...groupStyle, ...reportIndentStyle(row.level - 1) }}>
                         {row.code} - {row.name}
                       </td>
                       {amountKeys.map(key => (
-                        <td key={key} style={{ ...reportTableCellStyle(true), background, fontSize, fontWeight: 900 }}>
-                          {moneyOrDash(row.totals[key], generalSettings)}
+                        <td key={key} className="num" style={{ ...groupStyle, ...amountStyle(row.totals[key]) }}>
+                          {moneyOrBlank(row.totals[key], generalSettings)}
                         </td>
                       ))}
                     </tr>
@@ -302,15 +294,16 @@ export function TrialBalanceReportPage({ embedded = false }: TrialBalanceReportP
                 const { line } = row;
                 return (
                   <tr key={line.account_id}>
-                    <td style={{ ...reportTableCellStyle(), paddingLeft: 34 }}><strong>{line.account_code}</strong></td>
-                    <td style={reportTableCellStyle()}>{line.account_name}</td>
-                    <td style={reportTableCellStyle()}>{line.account_type}</td>
-                    <td style={reportTableCellStyle(true)}>{moneyOrDash(line.opening_debit, generalSettings)}</td>
-                    <td style={reportTableCellStyle(true)}>{moneyOrDash(line.opening_credit, generalSettings)}</td>
-                    <td style={reportTableCellStyle(true)}>{moneyOrDash(line.period_debit, generalSettings)}</td>
-                    <td style={reportTableCellStyle(true)}>{moneyOrDash(line.period_credit, generalSettings)}</td>
-                    <td style={reportTableCellStyle(true)}>{moneyOrDash(line.closing_debit, generalSettings)}</td>
-                    <td style={reportTableCellStyle(true)}>{moneyOrDash(line.closing_credit, generalSettings)}</td>
+                    <td className="cell-strong" style={reportIndentStyle(3)}>
+                      <Link href={ledgerHref(line.account_id)} style={linkStyle}>{line.account_code}</Link>
+                    </td>
+                    <td>
+                      <Link href={ledgerHref(line.account_id)} style={linkStyle}>{line.account_name}</Link>
+                    </td>
+                    <td className="cell-muted">{line.account_type}</td>
+                    {amountKeys.map(key => (
+                      <td key={key} className="num" style={amountStyle(line[key])}>{moneyOrBlank(line[key], generalSettings)}</td>
+                    ))}
                   </tr>
                 );
               })}
@@ -318,21 +311,25 @@ export function TrialBalanceReportPage({ embedded = false }: TrialBalanceReportP
             {report && (
               <tfoot>
                 <tr>
-                  <td colSpan={3} style={reportTableTotalCellStyle(true)}>
-                    Totals ({formatNumber(displayRows.filter(row => row.kind === 'account').length, generalSettings)} Accounts)
+                  <td colSpan={3}>Totals ({accountCount} Accounts)</td>
+                  <td className="num">{formatMoney(report.totals.opening_debit, generalSettings)}</td>
+                  <td className="num">{formatMoney(report.totals.opening_credit, generalSettings)}</td>
+                  <td className="num">{formatMoney(report.totals.period_debit, generalSettings)}</td>
+                  <td className="num">{formatMoney(report.totals.period_credit, generalSettings)}</td>
+                  <td className="num">{formatMoney(report.totals.closing_debit, generalSettings)}</td>
+                  <td className="num">{formatMoney(report.totals.closing_credit, generalSettings)}</td>
+                </tr>
+                <tr>
+                  <td colSpan={7}>Difference</td>
+                  <td colSpan={2} className="num" style={difference !== 0 ? { color: 'var(--color-negative)' } : undefined}>
+                    {formatMoney(report.totals.difference, generalSettings)}
                   </td>
-                  <td style={reportTableTotalCellStyle(true)}>{formatMoney(report.totals.opening_debit, generalSettings)}</td>
-                  <td style={reportTableTotalCellStyle(true)}>{formatMoney(report.totals.opening_credit, generalSettings)}</td>
-                  <td style={reportTableTotalCellStyle(true)}>{formatMoney(report.totals.period_debit, generalSettings)}</td>
-                  <td style={reportTableTotalCellStyle(true)}>{formatMoney(report.totals.period_credit, generalSettings)}</td>
-                  <td style={reportTableTotalCellStyle(true)}>{formatMoney(report.totals.closing_debit, generalSettings)}</td>
-                  <td style={reportTableTotalCellStyle(true)}>{formatMoney(report.totals.closing_credit, generalSettings)}</td>
                 </tr>
               </tfoot>
             )}
           </table>
         </div>
       </section>
-    </main>
+    </Root>
   );
 }

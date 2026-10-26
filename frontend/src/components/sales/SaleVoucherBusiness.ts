@@ -1,6 +1,6 @@
 import { cleanNumber, numericValue } from '@/lib/erp-utils';
 import { validMoneyPattern } from '@/components/purchases/PurchaseVoucherHelpers';
-import type { CustomerOption, SaleLine, SalePaymentType, WarehouseOption } from './SaleVoucherTypes';
+import type { BranchOption, CustomerOption, SaleLine, SalePaymentType } from './SaleVoucherTypes';
 
 interface SaleValidationInput {
   saleDate: string;
@@ -8,9 +8,8 @@ interface SaleValidationInput {
   postingDateError?: string;
   customerId: string;
   selectedCustomer?: CustomerOption;
-  warehouseId: string;
-  locationId: string;
-  selectedWarehouse?: WarehouseOption;
+  branchId: string;
+  selectedBranch?: BranchOption;
   paymentType: SalePaymentType;
   dueDate: string;
   deliveryDate: string;
@@ -25,7 +24,7 @@ interface SalePayloadInput {
   paymentType: SalePaymentType;
   dueDate: string;
   deliveryDate: string;
-  warehouseId: string;
+  branchId: string;
   locationId: string;
   customerReferenceNumber: string;
   deliveryNoteNumber: string;
@@ -51,8 +50,8 @@ export function validateSaleVoucher(input: SaleValidationInput) {
   if (!input.customerId) return 'Customer is required.';
   if (!input.selectedCustomer) return 'Selected Customer was not found. Please select it again.';
   if (!input.selectedCustomer.accountCode) return 'Selected Customer does not have a Linked Account.';
-  if (!input.warehouseId) return 'Warehouse is required.';
-  if (input.selectedWarehouse?.useLocations && !input.locationId) return 'Location is required for this Warehouse.';
+  if (!input.branchId) return 'Branch is required.';
+  if (!input.selectedBranch) return 'Selected Branch was not found or is Inactive. Please select it again.';
   if (input.paymentType === 'Credit' && !input.dueDate) return 'Due Date is required for Credit sale.';
   if (input.paymentType === 'Credit' && input.dueDate < input.saleDate) return 'Due Date cannot be before Sale Date.';
   if (input.deliveryDate && input.deliveryDate < input.saleDate) return 'Delivery Date cannot be before Sale Date.';
@@ -69,7 +68,7 @@ export function buildSalePayload(input: SalePayloadInput) {
     payment_type: input.paymentType,
     due_date: input.paymentType === 'Credit' ? input.dueDate : undefined,
     delivery_date: input.deliveryDate || undefined,
-    warehouse_id: input.warehouseId,
+    branch_id: input.branchId,
     location_id: input.locationId || undefined,
     customer_reference_number: input.customerReferenceNumber || undefined,
     delivery_note_number: input.deliveryNoteNumber || undefined,
@@ -77,7 +76,6 @@ export function buildSalePayload(input: SalePayloadInput) {
     freight_amount: input.freight,
     lines: input.lines.map(line => ({
       item_id: line.itemId,
-      warehouse_id: input.warehouseId,
       quantity: numericValue(line.quantity),
       sale_price: numericValue(line.purchasePrice),
       discount_amount: numericValue(line.discountAmount),

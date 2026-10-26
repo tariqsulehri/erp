@@ -6,11 +6,22 @@ import { backendGet, backendPost } from './backend-client';
 export const stockTransferSupportQueryKey = ['backend', 'stock-transfers', 'support-data'] as const;
 export const stockTransferListQueryKey = ['backend', 'stock-transfers', 'list'] as const;
 
+/** Each side of a transfer is one Branch or one Warehouse. */
+export type TransferPlaceKind = 'BRANCH' | 'WAREHOUSE';
+
+export interface TransferPlace {
+  kind: TransferPlaceKind;
+  id: string;
+  locationId?: string;
+}
+
 export interface StockTransferSupportData {
   branches: any[];
   warehouses: any[];
   locations: any[];
   items: any[];
+  /** The source the item stock belongs to; the backend forces it for Branch and Warehouse users. */
+  source: { branch_id: string | null; warehouse_id: string | null; location_id: string | null } | null;
 }
 
 export interface StockTransferLinePayload {
@@ -21,9 +32,11 @@ export interface StockTransferLinePayload {
 
 export interface StockTransferPayload {
   transfer_date: string;
-  from_warehouse_id: string;
+  from_branch_id?: string;
+  from_warehouse_id?: string;
   from_location_id?: string;
-  to_warehouse_id: string;
+  to_branch_id?: string;
+  to_warehouse_id?: string;
   to_location_id?: string;
   reference_number?: string;
   description?: string;
@@ -35,7 +48,9 @@ export interface StockTransferListQuery {
   limit: number;
   status?: 'Draft' | 'Posted' | 'Voided';
   search?: string;
+  from_branch_id?: string;
   from_warehouse_id?: string;
+  to_branch_id?: string;
   to_warehouse_id?: string;
   date_from?: string;
   date_to?: string;
@@ -50,10 +65,41 @@ function buildQueryString<TQuery extends object>(query: TQuery) {
   return params.toString();
 }
 
-export function useStockTransferSupportData() {
+/** Payload / query fields for one side, e.g. placeFields('from', place) -> { from_branch_id, from_location_id }. */
+export function placeFields(prefix: 'from' | 'to', place?: TransferPlace | null) {
+  if (!place?.id) return {};
+  return {
+    [place.kind === 'BRANCH' ? `${prefix}_branch_id` : `${prefix}_warehouse_id`]: place.id,
+    ...(place.locationId ? { [`${prefix}_location_id`]: place.locationId } : {}),
+  };
+}
+
+export function useStockTransferSupportData(source?: TransferPlace | null) {
+  const query = buildQueryString(placeFields('from', source));
   return useQuery<StockTransferSupportData>({
-    queryKey: stockTransferSupportQueryKey,
-    queryFn: () => backendGet<StockTransferSupportData>('/stock-transfers/support-data'),
+    queryKey: [...stockTransferSupportQueryKey, source?.kind, source?.id, source?.locationId],
+    queryFn: () => backendGet<StockTransferSupportData>(`/stock-transfers/support-data${query ? `?${query}` : ''}`),
+    retry: false,
+  });
+}
+
+export interface StockTransferSourceStock {
+  item_id: string;
+  stock_on_hand: string;
+  available_stock: string;
+  reserved_stock: string;
+}
+
+export function useStockTransferSourceStock(source?: TransferPlace | null) {
+  const query = buildQueryString({
+    branch_id: source?.kind === 'BRANCH' ? source.id : undefined,
+    warehouse_id: source?.kind === 'WAREHOUSE' ? source.id : undefined,
+    location_id: source?.locationId,
+  });
+  return useQuery<StockTransferSourceStock[]>({
+    queryKey: ['backend', 'stock-transfers', 'source-stock', source?.kind, source?.id, source?.locationId],
+    queryFn: () => backendGet<StockTransferSourceStock[]>(`/stock-transfers/source-stock${query ? `?${query}` : ''}`),
+    enabled: Boolean(source?.id),
     retry: false,
   });
 }
@@ -92,6 +138,7 @@ export function useInvalidateStockTransferQueries() {
   const queryClient = useQueryClient();
   return () => Promise.all([
     queryClient.invalidateQueries({ queryKey: stockTransferSupportQueryKey }),
+    queryClient.invalidateQueries({ queryKey: ['backend', 'stock-transfers', 'source-stock'] }),
     queryClient.invalidateQueries({ queryKey: stockTransferListQueryKey }),
   ]);
 }

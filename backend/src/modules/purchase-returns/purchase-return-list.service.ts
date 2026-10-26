@@ -21,6 +21,14 @@ interface CountRow {
   total: number;
 }
 
+interface DocumentTotalsRow {
+  gross_amount: string;
+  discount_amount: string;
+  tax_amount: string;
+  freight_amount: string;
+  net_amount: string;
+}
+
 export class PurchaseReturnListService {
   constructor(private readonly companyId: string) {}
 
@@ -74,9 +82,14 @@ export class PurchaseReturnListService {
     }
 
     const whereSql = where.join(' AND ');
-    const countRows = await prisma.$queryRawUnsafe<CountRow[]>(
+    const countRows = await prisma.$queryRawUnsafe<Array<CountRow & DocumentTotalsRow>>(
       `
-        SELECT COUNT(*)::int AS total
+        SELECT COUNT(*)::int AS total,
+          COALESCE(SUM(pr.gross_amount), 0)::text AS gross_amount,
+          COALESCE(SUM(pr.discount_amount), 0)::text AS discount_amount,
+          COALESCE(SUM(pr.tax_amount), 0)::text AS tax_amount,
+          COALESCE(SUM(pr.freight_amount), 0)::text AS freight_amount,
+          COALESCE(SUM(pr.net_amount), 0)::text AS net_amount
         FROM purchase_returns pr
         JOIN suppliers s ON s.id = pr.supplier_id
         JOIN inventory_warehouses w ON w.id = pr.warehouse_id
@@ -120,17 +133,15 @@ export class PurchaseReturnListService {
           s.code AS supplier_code,
           s.name AS supplier_name,
           pr.supplier_return_number,
-          COALESCE(line_counts.line_count, 0)::int AS line_count
+          (
+            SELECT COUNT(*)::int
+            FROM purchase_return_lines prl
+            WHERE prl.purchase_return_id = pr.id
+          ) AS line_count
         FROM purchase_returns pr
         JOIN suppliers s ON s.id = pr.supplier_id
         JOIN inventory_warehouses w ON w.id = pr.warehouse_id
         LEFT JOIN inventory_warehouse_locations wl ON wl.id = pr.location_id
-        LEFT JOIN (
-          SELECT purchase_return_id, COUNT(*) AS line_count
-          FROM purchase_return_lines
-          WHERE company_id = CAST($1 AS uuid)
-          GROUP BY purchase_return_id
-        ) line_counts ON line_counts.purchase_return_id = pr.id
         WHERE ${whereSql}
         ORDER BY pr.purchase_return_date DESC, pr.purchase_return_number DESC
         LIMIT ${limitParam}
@@ -141,8 +152,19 @@ export class PurchaseReturnListService {
 
     const total = Number(countRows[0]?.total ?? 0);
 
+    const totalsRow = countRows[0];
+    // Totals cover every document that matches the filters, not only the current page.
+    const totals = {
+      gross_amount: totalsRow?.gross_amount ?? '0',
+      discount_amount: totalsRow?.discount_amount ?? '0',
+      tax_amount: totalsRow?.tax_amount ?? '0',
+      freight_amount: totalsRow?.freight_amount ?? '0',
+      net_amount: totalsRow?.net_amount ?? '0',
+    };
+
     return {
       data,
+      totals,
       total,
       page: query.page,
       limit: query.limit,

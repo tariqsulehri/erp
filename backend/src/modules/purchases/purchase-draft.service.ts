@@ -3,6 +3,7 @@ import {
   PurchaseValidationService,
   type ValidatePurchaseInvoiceInput,
 } from './purchase-validation.service.js';
+import { nextDocumentNumber } from '../numbering/document-number.js';
 
 const purchaseNumberPrefix = 'PI';
 
@@ -23,23 +24,11 @@ export class PurchaseDraftService {
   constructor(private readonly companyId: string) {}
 
   private async nextPurchaseNumber(year: number, transaction: typeof prisma) {
-    const prefix = `${purchaseNumberPrefix}-${year}-`;
-    const rows = await transaction.$queryRaw<{ purchase_number: string }[]>`
-      SELECT purchase_number
-      FROM purchase_invoices
-      WHERE company_id = CAST(${this.companyId} AS uuid)
-        AND purchase_number LIKE ${`${prefix}%`}
-      ORDER BY purchase_number DESC
-      LIMIT 1
-    `;
-
-    const last = rows[0]?.purchase_number;
-    const next = last ? Number.parseInt(last.split('-').pop() ?? '0', 10) + 1 : 1;
-    return `${prefix}${String(next).padStart(4, '0')}`;
+    return nextDocumentNumber(transaction, { companyId: this.companyId, table: 'purchase_invoices', prefix: purchaseNumberPrefix, year });
   }
 
   private userIdOrNull(userId?: string | null) {
-    return userId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userId)
+    return userId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userId)
       ? userId
       : null;
   }

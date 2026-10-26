@@ -1,7 +1,15 @@
+import { Decimal } from 'decimal.js';
 import { Prisma } from '@prisma/client';
 import { prisma } from '../../db/prisma.js';
 import { PostingDateService } from '../fiscal-years/posting-date.service.js';
-import type { CreateVoucherInput, ListVouchersQuery, VoucherApprovalActionInput, VoucherRejectActionInput } from './voucher.schema.js';
+import { balancedVoucherLines, insertPostedVoucher, nextVoucherNumber } from './voucher-posting.js';
+import type {
+  CreateVoucherInput,
+  ListVouchersQuery,
+  ReverseVoucherInput,
+  VoucherApprovalActionInput,
+  VoucherRejectActionInput,
+} from './voucher.schema.js';
 
 const voucherPrefixes: Record<string, string> = {
   BRV: 'BRV',
@@ -12,8 +20,18 @@ const voucherPrefixes: Record<string, string> = {
   CV: 'CV',
   DN: 'DN',
   CN: 'CN',
-  PI: 'PI',
+  RV: 'RV',
 };
+
+// Vouchers created by these documents must be corrected from the document (return, adjustment), not reversed here.
+const sourceDocumentVoucherLinks = [
+  { table: 'purchase_invoices', column: 'accounting_voucher_id', label: 'Purchase Voucher' },
+  { table: 'purchase_returns', column: 'accounting_voucher_id', label: 'Purchase Return' },
+  { table: 'sale_invoices', column: 'accounting_voucher_id', label: 'Sale Voucher' },
+  { table: 'sale_returns', column: 'accounting_voucher_id', label: 'Sale Return' },
+  { table: 'stock_adjustments', column: 'accounting_voucher_id', label: 'Stock Adjustment' },
+  { table: 'bank_deposits', column: 'voucher_id', label: 'Bank Deposit' },
+] as const;
 
 type ApprovalStatus = 'Not Required' | 'Pending' | 'Approved' | 'Rejected';
 type CashBankVoucherType = 'BRV' | 'BPV' | 'CRV' | 'CPV';
@@ -59,12 +77,12 @@ const cashBankVoucherRules: Record<CashBankVoucherType, {
 
 function safeUuid(id: string | undefined) {
   if (!id) return undefined;
-  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id) ? id : undefined;
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id) ? id : undefined;
 }
 
-function businessError(message: string) {
+function businessError(message: string, statusCode = 400) {
   const error = new Error(message);
-  Object.assign(error, { statusCode: 400 });
+  Object.assign(error, { statusCode });
   return error;
 }
 
@@ -120,6 +138,12 @@ function voucherToResponse(voucher: any) {
     voided_by: voucher.voidedBy,
     voided_at: voucher.voidedAt,
     void_reason: voucher.voidReason,
+    reversal_of_voucher_id: voucher.reversalOfId ?? null,
+    reversed_by_voucher_id: voucher.reversalVoucherId ?? null,
+    reversal_status: voucher.reversalStatus ?? 'None',
+    reversed_by: voucher.reversedBy ?? null,
+    reversed_at: voucher.reversedAt ?? null,
+    reversal_reason: voucher.reversalReason ?? null,
     created_at: voucher.createdAt,
     updated_at: voucher.updatedAt,
     lines: (voucher.lines ?? [])
@@ -164,9 +188,6 @@ export class VoucherService {
   }
 
   private validateLines(input: CreateVoucherInput) {
-    let totalDebit = 0;
-    let totalCredit = 0;
-
     input.lines.forEach((line, index) => {
       const lineNumber = index + 1;
       if (!line.account_code.trim()) throw businessError(`Account Code is required on line ${lineNumber}.`);
@@ -183,17 +204,17 @@ export class VoucherService {
       if (line.dr_amount > 0 && line.cr_amount > 0) {
         throw businessError(`Line ${lineNumber} cannot have both Debit and Credit amounts.`);
       }
-
-      totalDebit += line.dr_amount;
-      totalCredit += line.cr_amount;
     });
 
-    if (totalDebit <= 0 || totalCredit <= 0) throw businessError('Voucher must have both Debit and Credit amounts.');
-    if (Math.abs(totalDebit - totalCredit) > 0.001) {
-      throw businessError(`Voucher is not balanced. Debit ${totalDebit.toFixed(2)} does not match Credit ${totalCredit.toFixed(2)}.`);
-    }
+    // Amounts are summed as exact decimals; Debit must equal Credit to the cent.
+    const { totalDebit, totalCredit } = balancedVoucherLines(input.lines.map(line => ({
+      account: { id: line.account_id, code: line.account_code, name: line.account_name },
+      debit: new Decimal(line.dr_amount),
+      credit: new Decimal(line.cr_amount),
+      narration: line.narration ?? '',
+    })));
 
-    return { totalDebit, totalCredit };
+    return { totalDebit: Number(totalDebit.toFixed(2)), totalCredit: Number(totalCredit.toFixed(2)) };
   }
 
   private assertSupportedFields(input: CreateVoucherInput) {
@@ -206,6 +227,25 @@ export class VoucherService {
     if (hasUnsupportedLineField) {
       throw businessError('Project, Cost Center, and Department are not enabled for voucher lines yet.');
     }
+  }
+
+  /** Every voucher line must use an active posting account of this company, with its current code and name. */
+  private async assertLineAccountsUsable(input: CreateVoucherInput) {
+    const accountIds = [...new Set(input.lines.map(line => line.account_id))];
+    const accounts = await prisma.account.findMany({
+      where: { companyId: this.companyId, id: { in: accountIds }, isDeleted: false },
+      select: { id: true, code: true, name: true, isActive: true, isPosting: true },
+    });
+    const accountsById = new Map(accounts.map(account => [account.id, account]));
+    input.lines.forEach((line, index) => {
+      const lineNumber = line.line_no ?? index + 1;
+      const account = accountsById.get(line.account_id);
+      if (!account || !account.isActive) throw businessError(`Account was not found or is inactive on line ${lineNumber}.`);
+      if (!account.isPosting) throw businessError(`Account ${account.code} on line ${lineNumber} is a header account. Select a posting account.`);
+      if (line.account_code !== account.code || line.account_name !== account.name) {
+        throw businessError(`Account details are not current on line ${lineNumber}. Please select the account again.`);
+      }
+    });
   }
 
   private async assertCashBankAccountRules(input: CreateVoucherInput) {
@@ -319,19 +359,7 @@ export class VoucherService {
   }
 
   private async nextNumber(voucherType: string, year: number, transaction: Prisma.TransactionClient) {
-    const prefix = `${voucherPrefixes[voucherType]}-${year}-`;
-    const last = await transaction.voucher.findFirst({
-      where: {
-        companyId: this.companyId,
-        voucherType,
-        voucherNumber: { startsWith: prefix },
-      },
-      orderBy: { voucherNumber: 'desc' },
-      select: { voucherNumber: true },
-    });
-
-    const nextSequence = last ? Number.parseInt(last.voucherNumber.split('-').pop() ?? '0', 10) + 1 : 1;
-    return `${prefix}${String(Number.isFinite(nextSequence) ? nextSequence : 1).padStart(4, '0')}`;
+    return nextVoucherNumber(transaction, this.companyId, voucherPrefixes[voucherType], year);
   }
 
   private assertVoucherCanBeEdited(voucher: { status: string; approvalStatus: string | null }) {
@@ -353,6 +381,7 @@ export class VoucherService {
     const approvalStatus = this.approvalStatusForCreate(input);
     const approvalRequestedBy = approvalStatus === 'Pending' ? safeUuid(userId) ?? null : undefined;
     await this.assertDateInOpenPeriod(input.voucher_date);
+    await this.assertLineAccountsUsable(input);
     await this.assertCashBankAccountRules(input);
 
     return prisma.$transaction(async transaction => {
@@ -408,6 +437,7 @@ export class VoucherService {
     const nextApprovalStatus = input.submit_for_approval ? 'Pending' : 'Not Required';
     const approvalRequestedBy = nextApprovalStatus === 'Pending' ? safeUuid(userId) ?? null : undefined;
     await this.assertDateInOpenPeriod(input.voucher_date);
+    await this.assertLineAccountsUsable(input);
     await this.assertCashBankAccountRules(input);
 
     return prisma.$transaction(async transaction => {
@@ -415,7 +445,7 @@ export class VoucherService {
         where: { id, companyId: this.companyId },
         include: { lines: true },
       });
-      if (!existing) throw businessError('Voucher was not found.');
+      if (!existing) throw businessError('Voucher was not found.', 404);
       this.assertVoucherCanBeEdited(existing);
       if (existing.voucherType !== input.voucher_type) {
         throw businessError('Voucher Type cannot be changed while editing a Draft voucher.');
@@ -475,41 +505,55 @@ export class VoucherService {
   }
 
   async post(id: string, userId?: string) {
-    const voucher = await prisma.voucher.findFirst({
-      where: { id, companyId: this.companyId },
-      include: { lines: true },
+    return prisma.$transaction(async transaction => {
+      // Lock the voucher row so two users cannot post the same voucher at the same time.
+      await transaction.$queryRaw`
+        SELECT id FROM vouchers
+        WHERE id = CAST(${id} AS uuid) AND company_id = CAST(${this.companyId} AS uuid)
+        FOR UPDATE
+      `;
+      const voucher = await transaction.voucher.findFirst({
+        where: { id, companyId: this.companyId },
+        include: { lines: true },
+      });
+      if (!voucher) throw businessError('Voucher was not found.', 404);
+      if (voucher.status !== 'Draft') throw businessError('Only Draft vouchers can be posted.');
+      if (voucher.approvalStatus !== 'Approved') throw businessError('Voucher must be approved before posting.');
+
+      const voucherDateText = voucher.voucherDate.toISOString().slice(0, 10);
+      await this.assertDateInOpenPeriod(voucherDateText);
+
+      const { totalDebit, totalCredit } = balancedVoucherLines(voucher.lines.map(line => ({
+        account: { id: line.accountId, code: line.accountCode, name: line.accountName },
+        debit: new Decimal(line.debitAmount.toString()),
+        credit: new Decimal(line.creditAmount.toString()),
+        narration: line.narration ?? '',
+      })));
+
+      const updated = await transaction.voucher.update({
+        where: { id },
+        data: {
+          status: 'Posted',
+          totalDebit: totalDebit.toFixed(2),
+          totalCredit: totalCredit.toFixed(2),
+          postedBy: safeUuid(userId),
+          postedAt: new Date(),
+        },
+        include: { lines: true },
+      });
+
+      return voucherToResponse(updated);
     });
-    if (!voucher) throw businessError('Voucher was not found.');
-    if (voucher.status !== 'Draft') throw businessError('Only Draft vouchers can be posted.');
-    if (voucher.approvalStatus !== 'Approved') throw businessError('Voucher must be approved before posting.');
-
-    const voucherDateText = voucher.voucherDate.toISOString().slice(0, 10);
-    await this.assertDateInOpenPeriod(voucherDateText);
-
-    const totalDebit = voucher.lines.reduce((sum, line) => sum + Number(line.debitAmount), 0);
-    const totalCredit = voucher.lines.reduce((sum, line) => sum + Number(line.creditAmount), 0);
-    if (Math.abs(totalDebit - totalCredit) > 0.001) {
-      throw businessError(`Voucher is not balanced. Debit ${totalDebit.toFixed(2)} does not match Credit ${totalCredit.toFixed(2)}.`);
-    }
-    if (totalDebit <= 0) throw businessError('Voucher has zero total and cannot be posted.');
-
-    const updated = await prisma.voucher.update({
-      where: { id },
-      data: {
-        status: 'Posted',
-        postedBy: safeUuid(userId),
-        postedAt: new Date(),
-      },
-      include: { lines: true },
-    });
-
-    return voucherToResponse(updated);
   }
 
+  /** Void is only for Draft vouchers. Posted vouchers are corrected with reverse(). */
   async void(id: string, reason: string, userId?: string) {
     const voucher = await prisma.voucher.findFirst({ where: { id, companyId: this.companyId } });
-    if (!voucher) throw businessError('Voucher was not found.');
+    if (!voucher) throw businessError('Voucher was not found.', 404);
     if (voucher.status === 'Voided') throw businessError('Voucher is already voided.');
+    if (voucher.status !== 'Draft') {
+      throw businessError('Posted vouchers cannot be voided. Use Reverse Voucher to post a correcting entry.');
+    }
 
     const updated = await prisma.voucher.update({
       where: { id },
@@ -525,12 +569,100 @@ export class VoucherService {
     return voucherToResponse(updated);
   }
 
+  /**
+   * Posts a Reversal Voucher (RV) with every Debit and Credit swapped, dated in an open period.
+   * The original stays Posted and both stay in the ledger, so history is kept and the net effect is zero.
+   */
+  async reverse(id: string, input: ReverseVoucherInput, userId?: string) {
+    const reversalDateText = input.reversal_date;
+    const reversalDate = databaseDate(reversalDateText);
+    await this.assertDateInOpenPeriod(reversalDateText);
+
+    return prisma.$transaction(async transaction => {
+      await transaction.$queryRaw`
+        SELECT id FROM vouchers
+        WHERE id = CAST(${id} AS uuid) AND company_id = CAST(${this.companyId} AS uuid)
+        FOR UPDATE
+      `;
+      const voucher = await transaction.voucher.findFirst({
+        where: { id, companyId: this.companyId },
+        include: { lines: true },
+      });
+      if (!voucher) throw businessError('Voucher was not found.', 404);
+      if (voucher.status !== 'Posted') throw businessError('Only Posted vouchers can be reversed.');
+      if (voucher.reversalVoucherId) throw businessError('This voucher is already reversed.');
+      if (voucher.reversalOfId) throw businessError('A Reversal Voucher cannot be reversed again.');
+      if (!Object.prototype.hasOwnProperty.call(voucherPrefixes, voucher.voucherType) || voucher.voucherType === 'RV') {
+        throw businessError('This voucher type cannot be reversed from the Voucher screen.');
+      }
+      await this.assertNotSourceDocumentVoucher(transaction, voucher.id);
+
+      const originalDateText = voucher.voucherDate.toISOString().slice(0, 10);
+      if (reversalDateText < originalDateText) {
+        throw businessError(`Reversal Date cannot be earlier than the voucher date ${originalDateText}.`);
+      }
+
+      const voucherNumber = await nextVoucherNumber(transaction, this.companyId, voucherPrefixes.RV, reversalDate.getFullYear());
+      const reversalId = await insertPostedVoucher(transaction, {
+        companyId: this.companyId,
+        voucherNumber,
+        voucherType: 'RV',
+        voucherDate: reversalDateText,
+        reference: voucher.voucherNumber,
+        narration: `Reversal of ${voucher.voucherNumber}: ${input.reason}`,
+        userId: safeUuid(userId) ?? null,
+        reversalOfId: voucher.id,
+        lines: voucher.lines
+          .slice()
+          .sort((a, b) => a.lineNo - b.lineNo)
+          .map(line => ({
+            account: { id: line.accountId, code: line.accountCode, name: line.accountName },
+            debit: new Decimal(line.creditAmount.toString()),
+            credit: new Decimal(line.debitAmount.toString()),
+            narration: `Reversal: ${line.narration || voucher.narration || voucher.voucherNumber}`,
+          })),
+      });
+
+      await transaction.voucher.update({
+        where: { id: voucher.id },
+        data: {
+          reversalVoucherId: reversalId,
+          reversalStatus: 'Reversed',
+          reversedBy: safeUuid(userId),
+          reversedAt: new Date(),
+          reversalReason: input.reason,
+        },
+      });
+
+      const reversal = await transaction.voucher.findFirstOrThrow({
+        where: { id: reversalId, companyId: this.companyId },
+        include: { lines: true },
+      });
+      return voucherToResponse(reversal);
+    });
+  }
+
+  private async assertNotSourceDocumentVoucher(transaction: Prisma.TransactionClient, voucherId: string) {
+    for (const link of sourceDocumentVoucherLinks) {
+      const rows = await transaction.$queryRaw<{ found: boolean }[]>`
+        SELECT EXISTS (
+          SELECT 1 FROM ${Prisma.raw(link.table)}
+          WHERE company_id = CAST(${this.companyId} AS uuid)
+            AND ${Prisma.raw(link.column)} = CAST(${voucherId} AS uuid)
+        ) AS found
+      `;
+      if (rows[0]?.found) {
+        throw businessError(`This voucher was created by a ${link.label}. Correct it from the ${link.label} screen with a return or adjustment.`);
+      }
+    }
+  }
+
   async requestApproval(id: string, input: VoucherApprovalActionInput, userId?: string) {
     return prisma.$transaction(async transaction => {
       const voucher = await transaction.voucher.findFirst({
         where: { id, companyId: this.companyId },
       });
-      if (!voucher) throw businessError('Voucher was not found.');
+      if (!voucher) throw businessError('Voucher was not found.', 404);
       this.assertVoucherCanUseApproval(voucher);
       if (voucher.approvalStatus === 'Pending') throw businessError('Voucher is already waiting for approval.');
       if (voucher.approvalStatus === 'Approved') throw businessError('Voucher is already approved.');
@@ -555,16 +687,30 @@ export class VoucherService {
     });
   }
 
+  /** Maker-checker: the person who created or sent a voucher for approval cannot approve or reject it. */
+  private assertDifferentApprover(
+    voucher: { createdBy: string | null; approvalRequestedBy: string | null },
+    userId: string | undefined,
+    action: 'approve' | 'reject',
+  ) {
+    const approverId = safeUuid(userId);
+    if (!approverId) throw businessError(`Please sign in to ${action} vouchers.`);
+    if (approverId === voucher.createdBy || approverId === voucher.approvalRequestedBy) {
+      throw businessError(`You cannot ${action} a voucher you created or sent for approval. Another approver must do this.`);
+    }
+  }
+
   async approve(id: string, input: VoucherApprovalActionInput, userId?: string) {
     return prisma.$transaction(async transaction => {
       const voucher = await transaction.voucher.findFirst({
         where: { id, companyId: this.companyId },
       });
-      if (!voucher) throw businessError('Voucher was not found.');
+      if (!voucher) throw businessError('Voucher was not found.', 404);
       this.assertVoucherCanUseApproval(voucher);
       if (voucher.approvalStatus !== 'Pending') {
         throw businessError('Only vouchers waiting for approval can be approved.');
       }
+      this.assertDifferentApprover(voucher, userId, 'approve');
 
       await this.addApprovalHistory(transaction, id, 'Approved', input.note ?? null, userId);
       const updated = await transaction.voucher.update({
@@ -589,11 +735,12 @@ export class VoucherService {
       const voucher = await transaction.voucher.findFirst({
         where: { id, companyId: this.companyId },
       });
-      if (!voucher) throw businessError('Voucher was not found.');
+      if (!voucher) throw businessError('Voucher was not found.', 404);
       this.assertVoucherCanUseApproval(voucher);
       if (voucher.approvalStatus !== 'Pending') {
         throw businessError('Only vouchers waiting for approval can be rejected.');
       }
+      this.assertDifferentApprover(voucher, userId, 'reject');
 
       await this.addApprovalHistory(transaction, id, 'Rejected', input.reason, userId);
       const updated = await transaction.voucher.update({
@@ -618,7 +765,7 @@ export class VoucherService {
       where: { id, companyId: this.companyId },
       include: { lines: true },
     });
-    if (!voucher) throw businessError('Voucher was not found.');
+    if (!voucher) throw businessError('Voucher was not found.', 404);
     return voucherToResponse(voucher);
   }
 

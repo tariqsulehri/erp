@@ -64,6 +64,8 @@ Use backend `.env` values for database connections. Do not hardcode database use
 - Supplier linked accounts use `0201010001` to `0201999999`.
 - `inventory_stock_movements` is the inventory history source of truth.
 - `inventory_stock_balances` is only a fast current-stock snapshot.
+- Stock belongs to exactly one Branch (shop, sells) or one Warehouse (storage, buys): `branch_id` or `warehouse_id`. Use the helpers in `backend/src/modules/inventory/stock-holder*.ts`.
+- Users work in one Branch or one Warehouse (`user_company_access`); Admin and Top Management see All Branches. Enforce access in the backend with `resolveAccessScope`.
 
 ## API Pattern
 
@@ -71,6 +73,7 @@ The frontend calls backend REST endpoints through focused API client files. Avoi
 
 ## UI Rules
 
+- Every screen follows `DESIGN.md` (Calm Ledger). Tokens live in `frontend/src/app/design-tokens.css`; build from the shared components in `frontend/src/components/ui/`. Reference screens: Branches and Areas.
 - Use Title Case labels.
 - Use clear words that non-native English speakers and less technical staff can understand.
 - Numeric and amount fields must be right aligned.

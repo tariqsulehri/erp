@@ -6,6 +6,5 @@ export { PurchaseAnalyticsToolbar } from './PurchaseAnalyticsToolbar';
 export { PurchaseHeaderForm } from './PurchaseHeaderForm';
 export { PurchaseLineEntry } from './PurchaseLineEntry';
 export { PurchaseLineTable } from './PurchaseLineTable';
-export { PurchaseMessageBanner } from './PurchaseMessageBanner';
 export { PurchaseSummaryFooter } from './PurchaseSummaryFooter';
 export { PurchaseToolbar } from './PurchaseToolbar';

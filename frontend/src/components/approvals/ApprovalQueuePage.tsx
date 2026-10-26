@@ -1,35 +1,28 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import {
-  IconCircleX,
-  IconClipboardCheck,
-  IconEye,
-  IconRefresh,
-  IconThumbDown,
-  IconThumbUp,
-} from '@tabler/icons-react';
-import { TextField, SelectField, fieldStyle } from '@/components/ui/FormFields';
+import { useSession } from 'next-auth/react';
+import { IconEye, IconRefresh, IconThumbDown, IconThumbUp } from '@tabler/icons-react';
+import { Badge } from '@/components/ui/Badge';
+import { Button } from '@/components/ui/Button';
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
+import { TextareaField } from '@/components/ui/FormFields';
+import { InlineAlert } from '@/components/ui/InlineAlert';
+import { PageHeader } from '@/components/ui/PageHeader';
 import { PaginationBar } from '@/components/ui/PaginationBar';
+import { SearchField } from '@/components/ui/SearchField';
+import { SidePanel } from '@/components/ui/SidePanel';
+import { TableMessageRow } from '@/components/ui/TableMessageRow';
 import { formatDate, formatMoney } from '@/lib/app-settings';
 import { useGeneralSettings } from '@/lib/api/settings';
 import { useApproveVoucher, useRejectVoucher, useVoucherDetail, useVouchersList } from '@/lib/api/vouchers';
+import { hasPermission } from '@/lib/auth/session-user';
 import { friendlyErrorMessage } from '@/lib/erp-utils';
-import {
-  badgeStyle,
-  compactButtonStyle,
-  detailMessageStyle,
-  lineActionButtonStyle,
-  messageStyle,
-  purchaseDetailPanelStyle,
-  statusBadgeStyle,
-  tableCellStyle,
-  tableHeadStyle,
-  titleIconStyle,
-  toolbarStyle,
-} from '@/components/purchases/PurchaseVoucherStyles';
 
 type VoucherType = 'BRV' | 'BPV' | 'CRV' | 'CPV' | 'JV' | 'CV' | 'DN' | 'CN' | 'PI' | 'PR' | 'SI' | 'SR' | 'SA';
+type ApprovalStatus = 'Pending' | 'Approved' | 'Rejected' | 'Not Required';
+type VoucherStatus = 'Draft' | 'Posted' | 'Voided';
+type BadgeVariant = 'success' | 'warning' | 'danger' | 'info' | 'neutral';
 
 interface ApprovalVoucherRow {
   id: string;
@@ -38,10 +31,19 @@ interface ApprovalVoucherRow {
   voucher_date: string;
   reference: string | null;
   narration: string | null;
-  status: 'Draft' | 'Posted' | 'Voided';
-  approval_status: 'Pending' | 'Approved' | 'Rejected' | 'Not Required';
+  status: VoucherStatus;
+  approval_status: ApprovalStatus;
   total_debit: string;
   total_credit: string;
+}
+
+interface ApprovalVoucherLine {
+  id: string;
+  line_no: number;
+  account_code: string;
+  account_name: string;
+  dr_amount: string | number;
+  cr_amount: string | number;
 }
 
 const voucherTypeOptions = [
@@ -57,16 +59,28 @@ const voucherTypeOptions = [
   { value: 'SA', label: 'Stock Adjustment' },
 ];
 
+const APPROVAL_BADGE: Record<ApprovalStatus, BadgeVariant> = {
+  Pending: 'warning',
+  Approved: 'success',
+  Rejected: 'danger',
+  'Not Required': 'neutral',
+};
+
+const STATUS_BADGE: Record<VoucherStatus, BadgeVariant> = {
+  Draft: 'neutral',
+  Posted: 'success',
+  Voided: 'danger',
+};
+
 function voucherTypeLabel(type: string) {
   return voucherTypeOptions.find(option => option.value === type)?.label ?? type;
 }
 
-function pendingBadge() {
-  return badgeStyle('#92400e', '#fef3c7');
-}
-
 export function ApprovalQueuePage() {
+  const { data: session } = useSession();
+  const userCanApprove = hasPermission(session?.user.role, 'vouchers.approve');
   const { data: generalSettings } = useGeneralSettings();
+  const [approveConfirmOpen, setApproveConfirmOpen] = useState(false);
   const [searchText, setSearchText] = useState('');
   const [search, setSearch] = useState('');
   const [voucherType, setVoucherType] = useState('');
@@ -107,14 +121,8 @@ export function ApprovalQueuePage() {
     updateFilter(() => setSearch(searchText.trim()));
   }
 
-  function clearSearch() {
-    updateFilter(() => {
-      setSearchText('');
-      setSearch('');
-    });
-  }
-
   async function approveSelectedVoucher() {
+    setApproveConfirmOpen(false);
     if (!selectedVoucher?.id) {
       setMessage({ kind: 'error', text: 'Please select a voucher to approve.' });
       return;
@@ -152,233 +160,239 @@ export function ApprovalQueuePage() {
     }
   }
 
+  const detail = detailQuery.data;
+  // Maker-checker: the backend refuses approval by the person who created or sent the voucher.
+  const isOwnVoucher = Boolean(session?.user.id && detail
+    && (detail.created_by === session.user.id || detail.approval_requested_by === session.user.id));
+  const approvalBlockedReason = !userCanApprove
+    ? 'Your role cannot approve or reject vouchers.'
+    : isOwnVoucher
+      ? 'You created or sent this voucher for approval, so another approver must approve or reject it.'
+      : null;
+  const detailLines = (detail?.lines ?? []) as ApprovalVoucherLine[];
+  const approvalStatus = (detail?.approval_status || 'Pending') as ApprovalStatus;
+  const isFiltered = Boolean(search || voucherType);
+  const refreshing = listQuery.isFetching && !listQuery.isLoading;
+
+  function clearFilters() {
+    updateFilter(() => {
+      setSearchText('');
+      setSearch('');
+      setVoucherType('');
+    });
+  }
+
   return (
-    <main style={{ height: '100%', minHeight: 0, boxSizing: 'border-box', padding: 10, display: 'flex', flexDirection: 'column', gap: 8, overflow: 'hidden' }}>
-      <section style={toolbarStyle}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-          <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-            <div style={titleIconStyle}><IconClipboardCheck size={20} stroke={1.8} /></div>
-            <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-              <h1 style={{ margin: 0, fontSize: '1.05rem', lineHeight: 1.1, color: 'var(--color-heading)' }}>Approvals</h1>
-              <span style={pendingBadge()}>Pending</span>
-              <span style={statusBadgeStyle}>{total} Record{total === 1 ? '' : 's'}</span>
+    <main className="page-shell">
+      <PageHeader
+        title="Approvals"
+        description="Vouchers waiting for a decision. Select a voucher to check its lines, then approve it or reject it with a reason."
+        actions={<Button variant="secondary" icon={<IconRefresh size={16} stroke={1.8} />} onClick={() => listQuery.refetch()} loading={refreshing}>Refresh</Button>}
+      />
+
+      {message && <InlineAlert tone={message.kind === 'success' ? 'success' : 'danger'} onDismiss={() => setMessage(null)}>{message.text}</InlineAlert>}
+      {listQuery.error && <InlineAlert tone="danger">{friendlyErrorMessage(listQuery.error, 'Unable to load Pending Approvals.')}</InlineAlert>}
+
+      <div className={`split-view${selectedId ? ' has-side' : ''}`}>
+        <section className="panel">
+          <div className="filter-bar">
+            <div className="filter-bar-grow">
+              <SearchField
+                label="Search Approvals"
+                value={searchText}
+                onChange={setSearchText}
+                onSubmit={applySearch}
+                placeholder="Search by Voucher No., Reference, or Description, then press Enter"
+              />
+            </div>
+            <select
+              className="form-input"
+              aria-label="Filter By Voucher Type"
+              value={voucherType}
+              onChange={event => { const value = event.target.value; updateFilter(() => setVoucherType(value)); }}
+              style={{ width: 180 }}
+            >
+              <option value="">All Types</option>
+              {voucherTypeOptions.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+            </select>
+            {(isFiltered || searchText) && <Button variant="ghost" onClick={clearFilters}>Clear</Button>}
+            <div className="filter-bar-end">
+              <span>{total} Pending</span>
             </div>
           </div>
-          <button type="button" className="btn-secondary" onClick={() => listQuery.refetch()} disabled={listQuery.isFetching} style={compactButtonStyle}>
-            <IconRefresh size={15} /> Refresh
-          </button>
-        </div>
-      </section>
 
-      {message && (
-        <div style={messageStyle(message.kind)}>
-          <IconClipboardCheck size={18} />
-          {message.text}
-        </div>
-      )}
-
-      <section className="workspace-card" style={{ padding: 10, flex: 1, minHeight: 0, display: 'grid', gridTemplateRows: 'auto 1fr auto', gap: 8, overflow: 'hidden' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(260px, 1fr) 88px 76px 165px auto', gap: 7, alignItems: 'end' }}>
-          <TextField label="Search" value={searchText} onChange={setSearchText} placeholder="Voucher No., Reference, Description" inputProps={{ onKeyDown: event => { if (event.key === 'Enter') applySearch(); } }} />
-          <button type="button" className="btn-secondary" onClick={applySearch} disabled={listQuery.isFetching} style={{ ...compactButtonStyle, alignSelf: 'end' }}>
-            {listQuery.isFetching ? 'Searching...' : 'Search'}
-          </button>
-          <button type="button" className="btn-secondary" onClick={clearSearch} disabled={listQuery.isFetching || (!search && !searchText)} style={{ ...compactButtonStyle, alignSelf: 'end' }}>
-            Clear
-          </button>
-          <SelectField
-            label="Voucher Type"
-            value={voucherType}
-            onChange={value => updateFilter(() => setVoucherType(value))}
-            options={voucherTypeOptions}
-            placeholder="All Types"
-          />
-          <button type="button" className="btn-secondary" onClick={() => updateFilter(() => setVoucherType(''))} style={{ ...compactButtonStyle, alignSelf: 'end' }}>
-            Clear Filters
-          </button>
-        </div>
-
-        <div style={{ minHeight: 0, display: 'grid', gridTemplateColumns: selectedId ? 'minmax(0, 1fr) 420px' : '1fr', gap: 8, overflow: 'hidden' }}>
-          <div style={{ minHeight: 0, overflow: 'auto', border: '1px solid var(--color-border)', borderRadius: 'var(--radius)' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.74rem', tableLayout: 'fixed' }}>
-              <colgroup>
-                <col style={{ width: 130 }} />
-                <col style={{ width: 92 }} />
-                <col style={{ width: 118 }} />
-                <col style={{ width: 130 }} />
-                <col />
-                <col style={{ width: 118 }} />
-                <col style={{ width: 118 }} />
-                <col style={{ width: 86 }} />
-                <col style={{ width: 58 }} />
-              </colgroup>
+          <div className="table-scroll">
+            <table className="data-table" style={{ tableLayout: 'fixed' }}>
               <thead>
                 <tr>
-                  {['Voucher Number', 'Date', 'Type', 'Reference', 'Description', 'Debit', 'Credit', 'Approval', 'View'].map((label, index) => (
-                    <th key={label} style={tableHeadStyle(index === 5 || index === 6)}>{label}</th>
-                  ))}
+                  <th style={{ width: 140 }}>Voucher Number</th>
+                  <th style={{ width: 110 }}>Date</th>
+                  <th style={{ width: 140 }}>Type</th>
+                  <th style={{ width: 140 }}>Reference</th>
+                  <th>Description</th>
+                  <th className="num" style={{ width: 130 }}>Debit</th>
+                  <th className="num" style={{ width: 130 }}>Credit</th>
+                  <th style={{ width: 100 }}>Approval</th>
+                  <th style={{ width: 56 }}><span className="sr-only">Actions</span></th>
                 </tr>
               </thead>
               <tbody>
-                {listQuery.isLoading && (
-                  <tr>
-                    <td colSpan={9} style={{ ...tableCellStyle(), height: 80, textAlign: 'center', color: 'var(--color-text-muted)', fontWeight: 700 }}>
-                      Loading Pending Approvals...
-                    </td>
-                  </tr>
-                )}
-                {listQuery.error && (
-                  <tr>
-                    <td colSpan={9} style={{ ...tableCellStyle(), height: 80, textAlign: 'center', color: 'var(--color-danger-text)', fontWeight: 700 }}>
-                      {friendlyErrorMessage(listQuery.error, 'Unable to load Pending Approvals.')}
-                    </td>
-                  </tr>
-                )}
+                {listQuery.isLoading && <TableMessageRow colSpan={9} title="Loading Pending Approvals…" loading />}
                 {!listQuery.isLoading && !listQuery.error && rows.length === 0 && (
-                  <tr>
-                    <td colSpan={9} style={{ ...tableCellStyle(), height: 90, textAlign: 'center', color: 'var(--color-text-muted)', fontWeight: 700 }}>
-                      No vouchers are waiting for approval.
+                  isFiltered
+                    ? <TableMessageRow colSpan={9} title="No Approvals Match" description="Change the search text or the Voucher Type to see more vouchers." />
+                    : <TableMessageRow colSpan={9} title="Nothing Waiting For Approval" description="Vouchers that need approval will show here. Select Refresh to check again." action={<Button variant="secondary" icon={<IconRefresh size={16} stroke={1.8} />} onClick={() => listQuery.refetch()}>Refresh</Button>} />
+                )}
+                {!listQuery.isLoading && rows.map(row => (
+                  <tr key={row.id} className={selectedId === row.id ? 'is-selected' : undefined} style={{ cursor: 'pointer' }} onClick={() => setSelectedId(row.id)}>
+                    <td className="cell-strong">{row.voucher_number}</td>
+                    <td>{formatDate(row.voucher_date, generalSettings)}</td>
+                    <td>{voucherTypeLabel(row.voucher_type)}</td>
+                    <td className={row.reference ? undefined : 'cell-muted'} style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row.reference || 'Not Set'}</td>
+                    <td className={row.narration ? undefined : 'cell-muted'} style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row.narration || 'Not Set'}</td>
+                    <td className="num">{money(row.total_debit)}</td>
+                    <td className="num">{money(row.total_credit)}</td>
+                    <td><Badge variant={APPROVAL_BADGE[row.approval_status] ?? 'warning'}>{row.approval_status || 'Pending'}</Badge></td>
+                    <td className="cell-actions">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        icon={<IconEye size={16} stroke={1.8} />}
+                        onClick={event => { event.stopPropagation(); setSelectedId(row.id); }}
+                        aria-label={`View Voucher ${row.voucher_number}`}
+                        title="View Voucher"
+                      />
                     </td>
                   </tr>
-                )}
-                {rows.map(row => {
-                  const active = selectedId === row.id;
-                  return (
-                    <tr key={row.id} onClick={() => setSelectedId(row.id)} style={{ cursor: 'pointer', outline: active ? '2px solid var(--color-primary)' : 'none', outlineOffset: -1 }}>
-                      <td style={tableCellStyle()}><strong>{row.voucher_number}</strong></td>
-                      <td style={tableCellStyle()}>{formatDate(row.voucher_date, generalSettings)}</td>
-                      <td style={tableCellStyle()}>{voucherTypeLabel(row.voucher_type)}</td>
-                      <td style={tableCellStyle()}>{row.reference || '-'}</td>
-                      <td style={tableCellStyle()}>{row.narration || '-'}</td>
-                      <td style={tableCellStyle(true)}>{money(row.total_debit)}</td>
-                      <td style={tableCellStyle(true)}>{money(row.total_credit)}</td>
-                      <td style={tableCellStyle()}><span style={pendingBadge()}>Pending</span></td>
-                      <td style={tableCellStyle()}>
-                        <button type="button" className="btn-ghost" onClick={event => { event.stopPropagation(); setSelectedId(row.id); }} title="View Approval" style={{ ...lineActionButtonStyle, width: 28, minWidth: 28 }}>
-                          <IconEye size={15} />
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })}
+                ))}
               </tbody>
             </table>
           </div>
 
-          {selectedId && (
-            <aside style={purchaseDetailPanelStyle}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'center', borderBottom: '1px solid var(--color-border)', paddingBottom: 8 }}>
-                <strong style={{ fontSize: '0.86rem', color: 'var(--color-heading)' }}>Approval Detail</strong>
-                <button type="button" className="btn-ghost" onClick={() => setSelectedId(null)} title="Close Detail" style={{ ...lineActionButtonStyle, width: 28, minWidth: 28 }}>
-                  <IconCircleX size={15} />
-                </button>
-              </div>
+          <PaginationBar
+            page={page}
+            totalPages={pages}
+            totalRecords={total}
+            pageSize={pageSize}
+            recordLabel={total === 1 ? 'Approval' : 'Approvals'}
+            onPageChange={setPage}
+            onPageSizeChange={value => { setPageSize(value); setPage(1); }}
+          />
+        </section>
 
-              {detailQuery.isLoading && <div style={detailMessageStyle}>Loading approval detail...</div>}
-              {detailQuery.error && <div style={{ ...detailMessageStyle, color: 'var(--color-danger-text)' }}>{friendlyErrorMessage(detailQuery.error, 'Unable to load Approval Detail.')}</div>}
-              {detailQuery.data && (
-                <div style={{ minHeight: 0, display: 'flex', flexDirection: 'column', gap: 8, overflow: 'hidden' }}>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
-                    {[
-                      ['Voucher No.', detailQuery.data.voucher_number],
-                      ['Date', formatDate(detailQuery.data.voucher_date, generalSettings)],
-                      ['Type', voucherTypeLabel(detailQuery.data.voucher_type)],
-                      ['Approval', detailQuery.data.approval_status || 'Pending'],
-                      ['Reference', detailQuery.data.reference || '-'],
-                      ['Status', detailQuery.data.status],
-                    ].map(([label, value]) => (
-                      <div key={label} style={{ border: '1px solid var(--color-border-subtle)', borderRadius: 'var(--radius-sm)', padding: '6px 7px', minWidth: 0 }}>
-                        <div style={{ color: 'var(--color-text-muted)', fontSize: '0.62rem', fontWeight: 800 }}>{label}</div>
-                        <div style={{ color: 'var(--color-text)', fontSize: '0.73rem', fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{value}</div>
-                      </div>
-                    ))}
-                  </div>
-
-                  <div style={{ border: '1px solid var(--color-border-subtle)', borderRadius: 'var(--radius-sm)', padding: '6px 7px' }}>
-                    <div style={{ color: 'var(--color-text-muted)', fontSize: '0.62rem', fontWeight: 800 }}>Description</div>
-                    <div style={{ color: 'var(--color-text)', fontSize: '0.73rem', fontWeight: 700 }}>{detailQuery.data.narration || '-'}</div>
-                  </div>
-
-                  <div style={{ minHeight: 0, overflowY: 'auto', border: '1px solid var(--color-border)', borderRadius: 'var(--radius)' }}>
-                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.68rem', tableLayout: 'fixed' }}>
-                      <colgroup>
-                        <col style={{ width: 34 }} />
-                        <col />
-                        <col style={{ width: 82 }} />
-                        <col style={{ width: 82 }} />
-                      </colgroup>
-                      <thead>
-                        <tr>
-                          {['No.', 'Account', 'Debit', 'Credit'].map((label, index) => (
-                            <th key={label} style={tableHeadStyle(index >= 2)}>{label}</th>
-                          ))}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {(detailQuery.data.lines ?? []).map((line: any) => (
-                          <tr key={line.id}>
-                            <td style={tableCellStyle()}>{line.line_no}</td>
-                            <td style={tableCellStyle()}>{line.account_code} - {line.account_name}</td>
-                            <td style={tableCellStyle(true)}>{Number(line.dr_amount) > 0 ? money(line.dr_amount) : '-'}</td>
-                            <td style={tableCellStyle(true)}>{Number(line.cr_amount) > 0 ? money(line.cr_amount) : '-'}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-
-                  <div style={{ border: '1px solid var(--color-border-subtle)', borderRadius: 'var(--radius-sm)', padding: '7px', display: 'grid', gap: 7 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'center' }}>
-                      <span style={{ color: 'var(--color-heading)', fontSize: '0.74rem', fontWeight: 850 }}>Decision</span>
-                      <button
-                        type="button"
-                        className="btn-secondary"
-                        onClick={approveSelectedVoucher}
-                        disabled={approvalBusy}
-                        style={{ ...compactButtonStyle, minHeight: 28 }}
-                      >
-                        <IconThumbUp size={14} /> Approve
-                      </button>
+        {selectedId && (
+          <SidePanel
+            title={detail?.voucher_number ? `Voucher ${detail.voucher_number}` : 'Approval Detail'}
+            onClose={() => setSelectedId(null)}
+            onSubmit={event => event.preventDefault()}
+            footer={(
+              <>
+                <Button
+                  variant="secondary"
+                  icon={<IconThumbDown size={16} stroke={1.8} />}
+                  onClick={rejectSelectedVoucher}
+                  disabled={approvalBusy || !rejectReason.trim() || !detail || Boolean(approvalBlockedReason)}
+                  loading={rejectVoucher.isPending}
+                >
+                  Reject Voucher
+                </Button>
+                <Button
+                  variant="primary"
+                  icon={<IconThumbUp size={16} stroke={1.8} />}
+                  onClick={() => setApproveConfirmOpen(true)}
+                  disabled={approvalBusy || !detail || Boolean(approvalBlockedReason)}
+                  loading={approveVoucher.isPending}
+                >
+                  Approve
+                </Button>
+              </>
+            )}
+          >
+            {detailQuery.isLoading && <p className="form-hint" style={{ margin: 0 }}>Loading Approval Detail…</p>}
+            {detailQuery.error && <InlineAlert tone="danger">{friendlyErrorMessage(detailQuery.error, 'Unable to load Approval Detail.')}</InlineAlert>}
+            {detail && approvalBlockedReason && <InlineAlert tone="info">{approvalBlockedReason}</InlineAlert>}
+            {detail && (
+              <>
+                <dl className="detail-list">
+                  {[
+                    { label: 'Voucher No.', value: detail.voucher_number },
+                    { label: 'Date', value: formatDate(detail.voucher_date, generalSettings) },
+                    { label: 'Type', value: voucherTypeLabel(detail.voucher_type) },
+                    { label: 'Reference', value: detail.reference || '' },
+                  ].map(item => (
+                    <div key={item.label} className="detail-row">
+                      <dt>{item.label}</dt>
+                      <dd style={item.value ? undefined : { color: 'var(--color-text-muted)' }}>{item.value || 'Not Set'}</dd>
                     </div>
-                    <label style={{ display: 'grid', gap: 4 }}>
-                      <span style={{ color: 'var(--color-text-muted)', fontSize: '0.64rem', fontWeight: 850 }}>Rejection Reason</span>
-                      <textarea
-                        className="form-input"
-                        value={rejectReason}
-                        onChange={event => setRejectReason(event.currentTarget.value)}
-                        placeholder="Reason required only when rejecting"
-                        disabled={approvalBusy}
-                        rows={2}
-                        style={{ ...fieldStyle(), resize: 'vertical', minHeight: 48, height: 'auto' }}
-                      />
-                    </label>
-                    <button
-                      type="button"
-                      className="btn-secondary"
-                      onClick={rejectSelectedVoucher}
-                      disabled={approvalBusy || !rejectReason.trim()}
-                      style={{ ...compactButtonStyle, justifyContent: 'center', minHeight: 30, color: 'var(--color-danger-text)' }}
-                    >
-                      <IconThumbDown size={14} />
-                      Reject Voucher
-                    </button>
+                  ))}
+                  <div className="detail-row">
+                    <dt>Approval</dt>
+                    <dd><Badge variant={APPROVAL_BADGE[approvalStatus] ?? 'warning'}>{approvalStatus}</Badge></dd>
                   </div>
-                </div>
-              )}
-            </aside>
-          )}
-        </div>
+                  <div className="detail-row">
+                    <dt>Status</dt>
+                    <dd><Badge variant={STATUS_BADGE[detail.status as VoucherStatus] ?? 'neutral'}>{detail.status}</Badge></dd>
+                  </div>
+                  <div className="detail-row">
+                    <dt>Description</dt>
+                    <dd style={detail.narration ? undefined : { color: 'var(--color-text-muted)' }}>{detail.narration || 'Not Set'}</dd>
+                  </div>
+                </dl>
 
-        <PaginationBar
-          page={page}
-          totalPages={pages}
-          totalRecords={total}
-          pageSize={pageSize}
-          recordLabel={total === 1 ? 'Approval' : 'Approvals'}
-          onPageChange={setPage}
-          onPageSizeChange={value => { setPageSize(value); setPage(1); }}
-        />
-      </section>
+                <div style={{ border: '1px solid var(--color-border-subtle)', borderRadius: 'var(--radius)', overflow: 'auto', flexShrink: 0 }}>
+                  <table className="data-table" style={{ tableLayout: 'fixed' }}>
+                    <thead>
+                      <tr>
+                        <th className="num" style={{ width: 40 }}>No.</th>
+                        <th>Account</th>
+                        <th className="num" style={{ width: 96 }}>Debit</th>
+                        <th className="num" style={{ width: 96 }}>Credit</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {detailLines.length === 0 && <TableMessageRow colSpan={4} title="No Lines" description="This voucher has no lines to review." />}
+                      {detailLines.map(line => (
+                        <tr key={line.id}>
+                          <td className="num cell-muted">{line.line_no}</td>
+                          <td className="cell-stack">
+                            <span>{line.account_code}</span>
+                            <span className="cell-sub">{line.account_name}</span>
+                          </td>
+                          <td className="num">{Number(line.dr_amount) > 0 ? money(line.dr_amount) : ''}</td>
+                          <td className="num">{Number(line.cr_amount) > 0 ? money(line.cr_amount) : ''}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                <div>
+                  <TextareaField
+                    label="Rejection Reason"
+                    value={rejectReason}
+                    onChange={setRejectReason}
+                    placeholder="Needed only when you reject this voucher"
+                    disabled={approvalBusy}
+                    rows={2}
+                  />
+                  <p className="form-hint">Approve needs no reason. To reject, enter a reason first.</p>
+                </div>
+              </>
+            )}
+          </SidePanel>
+        )}
+      </div>
+      <ConfirmDialog
+        open={approveConfirmOpen}
+        title="Approve Voucher?"
+        message={`Approve ${detail?.voucher_number ?? 'this voucher'} for ${detail ? money(detail.total_debit) : ''}? After approval it can be posted to the ledger.`}
+        confirmLabel="Yes, Approve"
+        cancelLabel="No"
+        variant="primary"
+        loading={approveVoucher.isPending}
+        onConfirm={approveSelectedVoucher}
+        onCancel={() => setApproveConfirmOpen(false)}
+      />
     </main>
   );
 }

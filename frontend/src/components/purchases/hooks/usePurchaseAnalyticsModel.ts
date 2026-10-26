@@ -1,6 +1,6 @@
-import { formatNumber } from '@/lib/app-settings';
-
-type GeneralSettings = Parameters<typeof formatNumber>[1];
+import { useMemo } from 'react';
+import type { AppFormatSettingsSource } from '@/lib/app-settings';
+import { compactAxis, fillMonths, lastMonthChange, longMonthLabel, monthLabeler } from '@/components/analytics/chart-data';
 
 interface PurchaseAnalyticsRow {
   month_key: string;
@@ -16,78 +16,95 @@ interface PurchaseAnalyticsRow {
   average_invoice_amount: string;
 }
 
-export function usePurchaseAnalyticsModel(analyticsData: any, generalSettings: GeneralSettings) {
-  const summary = analyticsData?.summary;
-  const monthlyRows = (analyticsData?.monthlyPurchases ?? []) as PurchaseAnalyticsRow[];
-  const monthlyChartData = monthlyRows.map(row => ({
-    month: row.month_label,
-    purchases: Number(row.purchase_count ?? 0),
-    grossAmount: Number(row.gross_amount ?? 0),
-    netAmount: Number(row.net_amount ?? 0),
-    cashAmount: Number(row.cash_amount ?? 0),
-    creditAmount: Number(row.credit_amount ?? 0),
-    averageInvoice: Number(row.average_invoice_amount ?? 0),
-    taxAmount: Number(row.tax_amount ?? 0),
-    freightAmount: Number(row.freight_amount ?? 0),
-  }));
-  const supplierChartData = (analyticsData?.supplierSummary ?? []).map((row: any) => ({
-    name: row.supplier_code ? `${row.supplier_code} - ${row.supplier_name}` : row.supplier_name,
-    amount: Number(row.net_amount ?? 0),
-    purchases: Number(row.purchase_count ?? 0),
-  }));
-  const warehouseChartData = (analyticsData?.warehouseSummary ?? []).map((row: any) => ({
-    name: row.warehouse_code ? `${row.warehouse_code} - ${row.warehouse_name}` : row.warehouse_name,
-    amount: Number(row.net_amount ?? 0),
-    purchases: Number(row.purchase_count ?? 0),
-  }));
-  const paymentChartData = (analyticsData?.paymentTypeSummary ?? []).map((row: any) => ({
-    name: row.payment_type,
-    amount: Number(row.net_amount ?? 0),
-    purchases: Number(row.purchase_count ?? 0),
-  }));
+export interface PurchaseMonth {
+  monthKey: string;
+  label: string;
+  longLabel: string;
+  purchases: number;
+  grossAmount: number;
+  discountAmount: number;
+  taxAmount: number;
+  freightAmount: number;
+  netAmount: number;
+  cashAmount: number;
+  creditAmount: number;
+  averageInvoice: number;
+  [key: string]: string | number;
+}
 
-  const totalNetAmount = Number(summary?.net_amount ?? 0);
-  const totalPurchases = Number(summary?.purchase_count ?? 0);
-  const averageInvoice = Number(summary?.average_invoice_amount ?? 0);
-  const taxFreightTotal = Number(summary?.tax_amount ?? 0) + Number(summary?.freight_amount ?? 0);
-  const grossAmount = Number(summary?.gross_amount ?? 0);
-  const discountAmount = Number(summary?.discount_amount ?? 0);
-  const cashTotal = paymentChartData.find((row: { name: string; amount: number }) => row.name === 'Cash')?.amount ?? 0;
-  const creditTotal = paymentChartData.find((row: { name: string; amount: number }) => row.name === 'Credit')?.amount ?? 0;
-  const creditShare = totalNetAmount > 0 ? creditTotal / totalNetAmount * 100 : 0;
-  const averageMonthlyPurchase = monthlyChartData.length > 0
-    ? monthlyChartData.reduce((sum, row) => sum + row.netAmount, 0) / monthlyChartData.length
-    : 0;
-  const peakMonth = monthlyChartData.reduce<typeof monthlyChartData[number] | null>(
-    (best, row) => (!best || row.netAmount > best.netAmount ? row : best),
-    null,
-  );
-
-  const moneyAxis = (value: number) => {
-    const absolute = Math.abs(value);
-    if (absolute >= 1_000_000) return `${formatNumber(value / 1_000_000, generalSettings)}M`;
-    if (absolute >= 1_000) return `${formatNumber(value / 1_000, generalSettings)}K`;
-    return formatNumber(value, generalSettings);
-  };
-
+function emptyMonth(monthKey: string): PurchaseMonth {
   return {
-    monthlyChartData,
-    supplierChartData,
-    warehouseChartData,
-    paymentChartData,
-    totalNetAmount,
-    totalPurchases,
-    averageInvoice,
-    taxFreightTotal,
-    grossAmount,
-    discountAmount,
-    cashTotal,
-    creditTotal,
-    creditShare,
-    averageMonthlyPurchase,
-    peakMonth,
-    topSupplier: supplierChartData[0],
-    topWarehouse: warehouseChartData[0],
-    moneyAxis,
+    monthKey, label: monthKey, longLabel: monthKey, purchases: 0, grossAmount: 0, discountAmount: 0, taxAmount: 0,
+    freightAmount: 0, netAmount: 0, cashAmount: 0, creditAmount: 0, averageInvoice: 0,
   };
+}
+
+export function usePurchaseAnalyticsModel(
+  analyticsData: any,
+  settings: AppFormatSettingsSource | null | undefined,
+  range: { dateFrom?: string; dateTo?: string },
+) {
+  return useMemo(() => {
+    const summary = analyticsData?.summary;
+    const rawMonths = ((analyticsData?.monthlyPurchases ?? []) as PurchaseAnalyticsRow[]).map(row => ({
+      ...emptyMonth(row.month_key),
+      purchases: Number(row.purchase_count ?? 0),
+      grossAmount: Number(row.gross_amount ?? 0),
+      discountAmount: Number(row.discount_amount ?? 0),
+      taxAmount: Number(row.tax_amount ?? 0),
+      freightAmount: Number(row.freight_amount ?? 0),
+      netAmount: Number(row.net_amount ?? 0),
+      cashAmount: Number(row.cash_amount ?? 0),
+      creditAmount: Number(row.credit_amount ?? 0),
+      averageInvoice: Number(row.average_invoice_amount ?? 0),
+    }));
+    const filled = fillMonths(rawMonths, emptyMonth, {
+      fromKey: range.dateFrom?.slice(0, 7) || undefined,
+      toKey: range.dateTo?.slice(0, 7) || undefined,
+    });
+    const label = monthLabeler(filled.map(month => month.monthKey), settings);
+    const months: PurchaseMonth[] = filled.map(month => ({ ...month, label: label(month.monthKey), longLabel: longMonthLabel(month.monthKey, settings) }));
+
+    const suppliers = (analyticsData?.supplierSummary ?? []).map((row: any) => ({
+      name: row.supplier_code ? `${row.supplier_code} - ${row.supplier_name}` : String(row.supplier_name),
+      value: Number(row.net_amount ?? 0),
+      count: Number(row.purchase_count ?? 0),
+    })) as Array<{ name: string; value: number; count: number }>;
+    const warehouses = (analyticsData?.warehouseSummary ?? []).map((row: any) => ({
+      name: row.warehouse_code ? `${row.warehouse_code} - ${row.warehouse_name}` : String(row.warehouse_name),
+      value: Number(row.net_amount ?? 0),
+      count: Number(row.purchase_count ?? 0),
+    })) as Array<{ name: string; value: number; count: number }>;
+    const payments = (analyticsData?.paymentTypeSummary ?? []) as Array<{ payment_type: string; net_amount: string }>;
+
+    const netAmount = Number(summary?.net_amount ?? 0);
+    const cashTotal = Number(payments.find(row => row.payment_type === 'Cash')?.net_amount ?? 0);
+    const creditTotal = Number(payments.find(row => row.payment_type === 'Credit')?.net_amount ?? 0);
+    const totals = {
+      netAmount,
+      grossAmount: Number(summary?.gross_amount ?? 0),
+      discountAmount: Number(summary?.discount_amount ?? 0),
+      taxAmount: Number(summary?.tax_amount ?? 0),
+      freightAmount: Number(summary?.freight_amount ?? 0),
+      purchases: Number(summary?.purchase_count ?? 0),
+      averageInvoice: Number(summary?.average_invoice_amount ?? 0),
+      cashTotal,
+      creditTotal,
+      creditShare: netAmount > 0 ? creditTotal / netAmount * 100 : 0,
+    };
+    const averageMonthly = months.length > 0 ? months.reduce((sum, month) => sum + month.netAmount, 0) / months.length : 0;
+    const peakMonth = months.reduce<PurchaseMonth | null>((best, month) => (!best || month.netAmount > best.netAmount ? month : best), null);
+
+    return {
+      months,
+      suppliers,
+      warehouses,
+      totals,
+      averageMonthly,
+      peakMonth: peakMonth && peakMonth.netAmount > 0 ? peakMonth : null,
+      netChange: lastMonthChange(months.map(month => month.netAmount)),
+      countChange: lastMonthChange(months.map(month => month.purchases)),
+      axis: compactAxis(settings),
+    };
+  }, [analyticsData, settings, range.dateFrom, range.dateTo]);
 }

@@ -2,8 +2,15 @@ import { Decimal } from 'decimal.js';
 import type { Prisma } from '@prisma/client';
 import { prisma } from '../../db/prisma.js';
 import { PurchaseSupportService } from '../purchases/purchase-support.service.js';
+import { insertPostedVoucher, type PostingLine } from '../vouchers/voucher-posting.js';
 
 type TransactionClient = Prisma.TransactionClient;
+
+function businessError(message: string) {
+  const error = new Error(message);
+  Object.assign(error, { statusCode: 400 });
+  return error;
+}
 
 interface AccountRow {
   id: string;
@@ -49,7 +56,7 @@ export class PurchaseReturnPostService {
   constructor(private readonly companyId: string) {}
 
   private userIdOrNull(userId?: string | null) {
-    return userId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userId)
+    return userId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userId)
       ? userId
       : null;
   }
@@ -97,6 +104,7 @@ export class PurchaseReturnPostService {
         ON fp.fiscal_year_id = fy.id
         AND fp.start_date <= d.posting_date
         AND (fp.end_date + (fp.posting_cutoff_days * INTERVAL '1 day')) >= d.posting_date
+      ORDER BY (fp.end_date >= d.posting_date) DESC NULLS LAST
       LIMIT 1
     `;
 
@@ -196,54 +204,21 @@ export class PurchaseReturnPostService {
       }
 
       const netAmount = this.money(purchaseReturn.net_amount);
-      const inventoryAmount = this.money(purchaseReturn.gross_amount);
       const discountAmount = this.money(purchaseReturn.discount_amount);
       const taxAmount = this.money(purchaseReturn.tax_amount);
       const freightAmount = this.money(purchaseReturn.freight_amount);
-      if (taxAmount.gt(0) && !taxAccount) throw new Error('Purchase Tax Account is not set.');
-      if (freightAmount.gt(0) && !freightAccount) throw new Error('Freight Account is not set.');
-      if (discountAmount.gt(0) && !discountAccount) throw new Error('Purchase Discount Received Account is not set.');
-      const voucherTotal = inventoryAmount.plus(taxAmount).plus(freightAmount);
+      if (taxAmount.gt(0) && !taxAccount) throw businessError('Purchase Tax Account is not set.');
+      if (freightAmount.gt(0) && !freightAccount) throw businessError('Freight Account is not set.');
+      if (discountAmount.gt(0) && !discountAccount) throw businessError('Purchase Discount Received Account is not set.');
 
       const postedBy = this.userIdOrNull(userId);
-      const voucherRows = await transaction.$queryRaw<{ id: string }[]>`
-        INSERT INTO vouchers (
-          company_id,
-          voucher_number,
-          voucher_type,
-          voucher_date,
-          reference,
-          narration,
-          status,
-          approval_status,
-          total_debit,
-          total_credit,
-          created_by,
-          posted_by,
-          posted_at,
-          updated_at
-        )
-        VALUES (
-          CAST(${this.companyId} AS uuid),
-          ${purchaseReturn.purchase_return_number},
-          'PR',
-          CAST(${returnDateText} AS date),
-          ${purchaseReturn.reference_number},
-          ${purchaseReturn.description || 'Purchase Return'},
-          'Posted',
-          'Approved',
-          CAST(${voucherTotal.toFixed(2)} AS numeric),
-          CAST(${voucherTotal.toFixed(2)} AS numeric),
-          ${postedBy}::uuid,
-          ${postedBy}::uuid,
-          now(),
-          now()
-        )
-        RETURNING id
-      `;
-      const voucherId = voucherRows[0].id;
+      // Inventory is credited with the same before-discount line cost removed from stock.
+      let inventoryAmount = new Decimal(0);
+      for (const line of [...lines].sort((a, b) => a.item_id.localeCompare(b.item_id))) {
+        inventoryAmount = inventoryAmount.plus(await this.postStockLine(transaction, purchaseReturn, line, postedBy));
+      }
 
-      const voucherLines = [
+      const voucherLines: PostingLine[] = [
         {
           account: purchaseReturn.payment_type === 'Cash' ? cashAccount : supplierAccount,
           debit: netAmount,
@@ -278,36 +253,16 @@ export class PurchaseReturnPostService {
         }] : []),
       ];
 
-      for (const [index, line] of voucherLines.entries()) {
-        await transaction.$queryRaw`
-          INSERT INTO voucher_lines (
-            voucher_id,
-            company_id,
-            account_id,
-            account_code,
-            account_name,
-            dr_amount,
-            cr_amount,
-            narration,
-            line_no
-          )
-          VALUES (
-            CAST(${voucherId} AS uuid),
-            CAST(${this.companyId} AS uuid),
-            CAST(${line.account.id} AS uuid),
-            ${line.account.code},
-            ${line.account.name},
-            CAST(${line.debit.toFixed(2)} AS numeric),
-            CAST(${line.credit.toFixed(2)} AS numeric),
-            ${line.narration},
-            ${index + 1}
-          )
-        `;
-      }
-
-      for (const line of lines) {
-        await this.postStockLine(transaction, purchaseReturn, line, postedBy);
-      }
+      const voucherId = await insertPostedVoucher(transaction, {
+        companyId: this.companyId,
+        voucherNumber: purchaseReturn.purchase_return_number,
+        voucherType: 'PR',
+        voucherDate: returnDateText,
+        reference: purchaseReturn.reference_number,
+        narration: purchaseReturn.description || 'Purchase Return',
+        userId: postedBy,
+        lines: voucherLines,
+      });
 
       await transaction.$queryRaw`
         UPDATE purchase_returns
@@ -337,7 +292,7 @@ export class PurchaseReturnPostService {
     userId: string | null,
   ) {
     const quantity = this.quantity(line.quantity);
-    const lineCost = this.money(new Decimal(line.quantity).times(line.purchase_price).minus(line.discount_amount));
+    const lineCost = this.money(quantity.times(this.money(line.purchase_price)));
     const unitCost = quantity.gt(0) ? lineCost.div(quantity).toDecimalPlaces(4, Decimal.ROUND_HALF_UP) : new Decimal(0);
 
     const balanceRows = await transaction.$queryRaw<any[]>`
@@ -365,7 +320,12 @@ export class PurchaseReturnPostService {
 
     const oldValue = this.money(existing.total_stock_value ?? 0);
     const newQuantity = this.quantity(oldQuantity.minus(quantity));
-    const newValue = Decimal.max(0, this.money(oldValue.minus(lineCost)));
+    const newValue = this.money(oldValue.minus(lineCost));
+    if (newValue.lt(0)) {
+      const error = new Error('Cannot post Purchase Return because the returned value is greater than the stock value of this item. Check the return price.');
+      Object.assign(error, { statusCode: 400 });
+      throw error;
+    }
     const averageCost = newQuantity.gt(0)
       ? newValue.div(newQuantity).toDecimalPlaces(4, Decimal.ROUND_HALF_UP)
       : new Decimal(0);
@@ -425,5 +385,7 @@ export class PurchaseReturnPostService {
         now()
       )
     `;
+
+    return lineCost;
   }
 }

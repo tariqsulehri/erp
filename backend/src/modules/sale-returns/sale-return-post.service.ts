@@ -1,9 +1,20 @@
 import { Decimal } from 'decimal.js';
 import type { Prisma } from '@prisma/client';
 import { prisma } from '../../db/prisma.js';
+import type { AccessScope } from '../auth/access-rules.js';
+import { holderCondition, holderFromColumns } from '../inventory/stock-holder.js';
+import { assertCanUseHolder } from '../inventory/stock-holder-access.js';
+import { averageUnitCost } from '../inventory/stock-cost.js';
 import { SaleSupportService } from '../sales/sale-support.service.js';
+import { insertPostedVoucher, type PostingLine } from '../vouchers/voucher-posting.js';
 
 type TransactionClient = Prisma.TransactionClient;
+
+function businessError(message: string) {
+  const error = new Error(message);
+  Object.assign(error, { statusCode: 400 });
+  return error;
+}
 
 interface AccountRow {
   id: string;
@@ -36,13 +47,16 @@ interface SaleReturnForPost {
   cost_amount: string;
   description: string | null;
   reference_number: string | null;
+  branch_id: string | null;
+  warehouse_id: string | null;
   location_id: string | null;
 }
 
 interface SaleReturnLineForPost {
   id: string;
   item_id: string;
-  warehouse_id: string;
+  branch_id: string | null;
+  warehouse_id: string | null;
   quantity: string;
   sale_price: string;
   unit_cost: string;
@@ -53,7 +67,7 @@ export class SaleReturnPostService {
   constructor(private readonly companyId: string) {}
 
   private userIdOrNull(userId?: string | null) {
-    return userId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userId)
+    return userId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userId)
       ? userId
       : null;
   }
@@ -98,6 +112,7 @@ export class SaleReturnPostService {
         ON fp.fiscal_year_id = fy.id
         AND fp.start_date <= d.posting_date
         AND (fp.end_date + (fp.posting_cutoff_days * INTERVAL '1 day')) >= d.posting_date
+      ORDER BY (fp.end_date >= d.posting_date) DESC NULLS LAST
       LIMIT 1
     `;
 
@@ -110,7 +125,7 @@ export class SaleReturnPostService {
   }
 
   private async getSaleSettings(transaction: TransactionClient) {
-    await new SaleSupportService(this.companyId).getSupportData();
+    await new SaleSupportService(this.companyId).ensureSettingsReady();
     const rows = await transaction.$queryRaw<SaleSettingsRow[]>`
       SELECT
         default_cash_account_id,
@@ -146,7 +161,7 @@ export class SaleReturnPostService {
     return rows[0];
   }
 
-  async post(id: string, userId?: string | null) {
+  async post(id: string, userId?: string | null, scope?: AccessScope) {
     return prisma.$transaction(async transaction => {
       const returnRows = await transaction.$queryRaw<SaleReturnForPost[]>`
         SELECT *
@@ -161,6 +176,7 @@ export class SaleReturnPostService {
         Object.assign(error, { statusCode: 404 });
         throw error;
       }
+      if (scope) assertCanUseHolder(scope, holderFromColumns(saleReturn.branch_id, saleReturn.warehouse_id), 'post Sale Returns');
       if (saleReturn.status !== 'Draft') {
         const error = new Error('Only Draft sale returns can be posted.');
         Object.assign(error, { statusCode: 400 });
@@ -205,51 +221,18 @@ export class SaleReturnPostService {
       const discountAmount = this.money(saleReturn.discount_amount);
       const taxAmount = this.money(saleReturn.tax_amount);
       const freightAmount = this.money(saleReturn.freight_amount);
-      const costAmount = this.money(saleReturn.cost_amount);
-      if (taxAmount.gt(0) && !taxAccount) throw new Error('Sales Tax Account is not set.');
-      if (discountAmount.gt(0) && !discountAccount) throw new Error('Sales Discount Account is not set.');
-      if (freightAmount.gt(0) && !freightAccount) throw new Error('Freight Income Account is not set.');
-      const voucherTotal = revenueAmount.plus(taxAmount).plus(freightAmount).plus(costAmount);
+      if (taxAmount.gt(0) && !taxAccount) throw businessError('Sales Tax Account is not set.');
+      if (discountAmount.gt(0) && !discountAccount) throw businessError('Sales Discount Account is not set.');
+      if (freightAmount.gt(0) && !freightAccount) throw businessError('Freight Income Account is not set.');
 
       const postedBy = this.userIdOrNull(userId);
-      const voucherRows = await transaction.$queryRaw<{ id: string }[]>`
-        INSERT INTO vouchers (
-          company_id,
-          voucher_number,
-          voucher_type,
-          voucher_date,
-          reference,
-          narration,
-          status,
-          approval_status,
-          total_debit,
-          total_credit,
-          created_by,
-          posted_by,
-          posted_at,
-          updated_at
-        )
-        VALUES (
-          CAST(${this.companyId} AS uuid),
-          ${saleReturn.sale_return_number},
-          'SR',
-          CAST(${returnDateText} AS date),
-          ${saleReturn.reference_number},
-          ${saleReturn.description || 'Sale Return'},
-          'Posted',
-          'Approved',
-          CAST(${voucherTotal.toFixed(2)} AS numeric),
-          CAST(${voucherTotal.toFixed(2)} AS numeric),
-          ${postedBy}::uuid,
-          ${postedBy}::uuid,
-          now(),
-          now()
-        )
-        RETURNING id
-      `;
-      const voucherId = voucherRows[0].id;
+      // Returned stock is valued line by line at posting time; the voucher uses the same total.
+      let costAmount = new Decimal(0);
+      for (const line of [...lines].sort((a, b) => a.item_id.localeCompare(b.item_id))) {
+        costAmount = costAmount.plus(await this.postStockLine(transaction, saleReturn, line, postedBy));
+      }
 
-      const voucherLines = [
+      const voucherLines: PostingLine[] = [
         {
           account: revenueAccount,
           debit: revenueAmount,
@@ -296,40 +279,21 @@ export class SaleReturnPostService {
         },
       ];
 
-      for (const [index, line] of voucherLines.entries()) {
-        await transaction.$queryRaw`
-          INSERT INTO voucher_lines (
-            voucher_id,
-            company_id,
-            account_id,
-            account_code,
-            account_name,
-            dr_amount,
-            cr_amount,
-            narration,
-            line_no
-          )
-          VALUES (
-            CAST(${voucherId} AS uuid),
-            CAST(${this.companyId} AS uuid),
-            CAST(${line.account.id} AS uuid),
-            ${line.account.code},
-            ${line.account.name},
-            CAST(${line.debit.toFixed(2)} AS numeric),
-            CAST(${line.credit.toFixed(2)} AS numeric),
-            ${line.narration},
-            ${index + 1}
-          )
-        `;
-      }
-
-      for (const line of lines) {
-        await this.postStockLine(transaction, saleReturn, line, postedBy);
-      }
+      const voucherId = await insertPostedVoucher(transaction, {
+        companyId: this.companyId,
+        voucherNumber: saleReturn.sale_return_number,
+        voucherType: 'SR',
+        voucherDate: returnDateText,
+        reference: saleReturn.reference_number,
+        narration: saleReturn.description || 'Sale Return',
+        userId: postedBy,
+        lines: voucherLines,
+      });
 
       await transaction.$queryRaw`
         UPDATE sale_returns
         SET status = 'Posted',
+            cost_amount = CAST(${costAmount.toFixed(2)} AS numeric),
             accounting_voucher_id = CAST(${voucherId} AS uuid),
             posted_by_id = ${postedBy}::uuid,
             posted_at = now(),
@@ -355,21 +319,30 @@ export class SaleReturnPostService {
     userId: string | null,
   ) {
     const quantity = this.quantity(line.quantity);
-    const lineCost = this.money(line.cost_amount);
-    const unitCost = this.quantity(line.unit_cost);
+    // New returns add Branch stock; drafts saved before Branch stock existed still use their Warehouse.
+    const holder = holderFromColumns(line.branch_id, line.warehouse_id, saleReturn.location_id);
 
     const balanceRows = await transaction.$queryRaw<any[]>`
       SELECT *
       FROM inventory_stock_balances
       WHERE company_id = CAST(${this.companyId} AS uuid)
         AND item_id = CAST(${line.item_id} AS uuid)
-        AND warehouse_id = CAST(${line.warehouse_id} AS uuid)
-        AND (${saleReturn.location_id}::uuid IS NULL AND location_id IS NULL OR location_id = ${saleReturn.location_id}::uuid)
+        AND ${holderCondition(holder)}
       FOR UPDATE
     `;
     const existing = balanceRows[0];
     const oldQuantity = this.quantity(existing?.stock_on_hand ?? 0);
     const oldValue = this.money(existing?.total_stock_value ?? 0);
+    const unitCost = averageUnitCost(oldQuantity, oldValue) ?? this.quantity(line.unit_cost);
+    const lineCost = this.money(quantity.times(unitCost));
+
+    await transaction.$executeRaw`
+      UPDATE sale_return_lines
+      SET unit_cost = CAST(${unitCost.toFixed(4)} AS numeric),
+          cost_amount = CAST(${lineCost.toFixed(2)} AS numeric),
+          updated_at = now()
+      WHERE id = CAST(${line.id} AS uuid)
+    `;
     const newQuantity = this.quantity(oldQuantity.plus(quantity));
     const newValue = this.money(oldValue.plus(lineCost));
     const averageCost = newQuantity.gt(0)
@@ -392,6 +365,7 @@ export class SaleReturnPostService {
         INSERT INTO inventory_stock_balances (
           company_id,
           item_id,
+          branch_id,
           warehouse_id,
           location_id,
           stock_on_hand,
@@ -405,8 +379,9 @@ export class SaleReturnPostService {
         VALUES (
           CAST(${this.companyId} AS uuid),
           CAST(${line.item_id} AS uuid),
-          CAST(${line.warehouse_id} AS uuid),
-          ${saleReturn.location_id}::uuid,
+          ${holder.branchId}::uuid,
+          ${holder.warehouseId}::uuid,
+          ${holder.locationId}::uuid,
           CAST(${newQuantity.toFixed(4)} AS numeric),
           0,
           CAST(${newQuantity.toFixed(4)} AS numeric),
@@ -422,6 +397,7 @@ export class SaleReturnPostService {
       INSERT INTO inventory_stock_movements (
         company_id,
         item_id,
+        branch_id,
         warehouse_id,
         location_id,
         movement_date,
@@ -443,8 +419,9 @@ export class SaleReturnPostService {
       VALUES (
         CAST(${this.companyId} AS uuid),
         CAST(${line.item_id} AS uuid),
-        CAST(${line.warehouse_id} AS uuid),
-        ${saleReturn.location_id}::uuid,
+        ${holder.branchId}::uuid,
+        ${holder.warehouseId}::uuid,
+        ${holder.locationId}::uuid,
         CAST(${this.databaseDateText(saleReturn.sale_return_date)} AS date),
         'SALES_RETURN',
         'SALES_RETURN',
@@ -462,5 +439,7 @@ export class SaleReturnPostService {
         now()
       )
     `;
+
+    return lineCost;
   }
 }

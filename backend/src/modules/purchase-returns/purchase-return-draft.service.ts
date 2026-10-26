@@ -3,6 +3,7 @@ import {
   PurchaseReturnValidationService,
   type ValidatePurchaseReturnInput,
 } from './purchase-return-validation.service.js';
+import { nextDocumentNumber } from '../numbering/document-number.js';
 
 const purchaseReturnNumberPrefix = 'PR';
 
@@ -23,23 +24,11 @@ export class PurchaseReturnDraftService {
   constructor(private readonly companyId: string) {}
 
   private async nextPurchaseReturnNumber(year: number, transaction: typeof prisma) {
-    const prefix = `${purchaseReturnNumberPrefix}-${year}-`;
-    const rows = await transaction.$queryRaw<{ purchase_return_number: string }[]>`
-      SELECT purchase_return_number
-      FROM purchase_returns
-      WHERE company_id = CAST(${this.companyId} AS uuid)
-        AND purchase_return_number LIKE ${`${prefix}%`}
-      ORDER BY purchase_return_number DESC
-      LIMIT 1
-    `;
-
-    const last = rows[0]?.purchase_return_number;
-    const next = last ? Number.parseInt(last.split('-').pop() ?? '0', 10) + 1 : 1;
-    return `${prefix}${String(next).padStart(4, '0')}`;
+    return nextDocumentNumber(transaction, { companyId: this.companyId, table: 'purchase_returns', prefix: purchaseReturnNumberPrefix, year });
   }
 
   private userIdOrNull(userId?: string | null) {
-    return userId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userId)
+    return userId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userId)
       ? userId
       : null;
   }

@@ -2,6 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { backendGet, backendPost } from './backend-client';
+import type { DocumentListTotals } from './document-totals';
 import type { SaleListRow, SalePaymentType } from '@/components/sales/SaleVoucherTypes';
 import type { SaleSupportData } from './sales';
 
@@ -28,10 +29,12 @@ function buildQueryString<TQuery extends object>(query: TQuery) {
   return params.toString();
 }
 
-export function useSaleReturnSupportData() {
+/** Item stock in the result is the stock at `branchId` (Branch users always get their own Branch). */
+export function useSaleReturnSupportData(branchId?: string) {
   return useQuery<SaleSupportData>({
-    queryKey: saleReturnSupportDataQueryKey,
-    queryFn: () => backendGet<SaleSupportData>('/sale-returns/support-data'),
+    queryKey: [...saleReturnSupportDataQueryKey, branchId ?? ''],
+    queryFn: () => backendGet<SaleSupportData>(`/sale-returns/support-data${branchId ? `?branch_id=${branchId}` : ''}`),
+    placeholderData: previous => previous,
     retry: false,
   });
 }
@@ -43,7 +46,7 @@ export interface SaleReturnsListQuery {
   search?: string;
   customer_id?: string;
   payment_type?: SalePaymentType;
-  warehouse_id?: string;
+  branch_id?: string;
   date_from?: string;
   date_to?: string;
   amount_from?: number;
@@ -56,6 +59,8 @@ export interface SaleReturnsListResponse {
   page: number;
   limit: number;
   totalPages: number;
+  /** Sums over every record that matches the filters, not only this page. */
+  totals?: DocumentListTotals;
 }
 
 export function useSaleReturnsList(query: SaleReturnsListQuery) {

@@ -1,37 +1,17 @@
 import { Decimal } from 'decimal.js';
-import type { Prisma } from '@prisma/client';
+import { Prisma } from '@prisma/client';
 import { prisma } from '../../db/prisma.js';
+import type { AccessScope } from '../auth/access-rules.js';
+import { type StockHolder, holderCondition, holderFromColumns } from '../inventory/stock-holder.js';
+import { assertCanUseHolder, canUseHolder, validateHolder, visibleStockCondition } from '../inventory/stock-holder-access.js';
+import { issueCost } from '../inventory/stock-cost.js';
+import { PostingAccountSettingsService } from '../settings/posting-account-settings.service.js';
+import { insertPostedVoucher, type PostingLine } from '../vouchers/voucher-posting.js';
 import type { ListStockAdjustmentsQuery, ValidateStockAdjustmentInput } from './stock-adjustment.schema.js';
+import { nextDocumentNumber } from '../numbering/document-number.js';
 
 type TransactionClient = Prisma.TransactionClient;
 type AdjustmentType = 'Increase' | 'Decrease';
-
-const defaultStockAdjustmentAccounts = {
-  inventory: {
-    code: '0101300301',
-    name: 'Inventory Finished Goods',
-    description: 'Default inventory account used for stock adjustments.',
-    account_type: 'Asset',
-    normal_balance: 'Debit',
-    sort_order: 113003,
-  },
-  gain: {
-    code: '0401300101',
-    name: 'Stock Adjustment Gain',
-    description: 'Default income account used when stock adjustment increases inventory value.',
-    account_type: 'Revenue',
-    normal_balance: 'Credit',
-    sort_order: 413001,
-  },
-  loss: {
-    code: '0502300101',
-    name: 'Stock Adjustment Loss',
-    description: 'Default expense account used when stock adjustment decreases inventory value.',
-    account_type: 'Expense',
-    normal_balance: 'Debit',
-    sort_order: 523001,
-  },
-} as const;
 
 interface AccountRow {
   id: string;
@@ -51,7 +31,8 @@ interface AdjustmentHeaderRow {
   accounting_voucher_id: string | null;
   adjustment_number: string;
   adjustment_date: string | Date;
-  warehouse_id: string;
+  branch_id: string | null;
+  warehouse_id: string | null;
   location_id: string | null;
   status: 'Draft' | 'Posted' | 'Voided';
   reference_number: string | null;
@@ -82,11 +63,21 @@ function textOrNull(value?: string | null) {
 }
 
 function userIdOrNull(userId?: string | null) {
-  return userId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userId) ? userId : null;
+  return userId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userId) ? userId : null;
+}
+
+function headerHolder(adjustment: AdjustmentHeaderRow) {
+  return holderFromColumns(adjustment.branch_id, adjustment.warehouse_id, adjustment.location_id);
+}
+
+/** The holder an input points at. Only call after validateInput has confirmed exactly one Branch or Warehouse. */
+function inputHolder(input: ValidateStockAdjustmentInput) {
+  return holderFromColumns(textOrNull(input.branch_id), textOrNull(input.warehouse_id), textOrNull(input.location_id));
 }
 
 export class StockAdjustmentService {
-  constructor(private readonly companyId: string) {}
+  /** `scope` limits Branch / Warehouse users to adjustments of their own place. */
+  constructor(private readonly companyId: string, private readonly scope?: AccessScope) {}
 
   private quantity(value: string | number | Decimal) {
     return new Decimal(value).toDecimalPlaces(4, Decimal.ROUND_HALF_UP);
@@ -132,6 +123,7 @@ export class StockAdjustmentService {
         ON fp.fiscal_year_id = fy.id
         AND fp.start_date <= d.posting_date
         AND (fp.end_date + (fp.posting_cutoff_days * INTERVAL '1 day')) >= d.posting_date
+      ORDER BY (fp.end_date >= d.posting_date) DESC NULLS LAST
       LIMIT 1
     `;
     if (!rows[0]?.can_post) throw businessError(`Invalid Adjustment Date: ${rows[0]?.reason ?? 'Date cannot be posted.'}`);
@@ -140,23 +132,36 @@ export class StockAdjustmentService {
   async supportData() {
     return prisma.$transaction(async transaction => {
       const settings = await this.ensureStockAdjustmentSettings(transaction);
-      const [warehouses, locations, items, settingsAccounts] = await Promise.all([
+      // Branch users see only their Branch, Warehouse users only their Warehouse; item stock follows the same rule.
+      const visibleStock = this.scope ? visibleStockCondition(this.scope, 'balance') : Prisma.sql`TRUE`;
+      const [warehouses, locations, branches, items, settingsAccounts] = await Promise.all([
         transaction.$queryRaw`
-        SELECT w.id, w.code, w.name, w.branch_id, b.code AS branch_code, b.name AS branch_name, w.is_default, w.use_locations
-        FROM inventory_warehouses w
-        LEFT JOIN branches b ON b.id = w.branch_id
-        WHERE w.company_id = CAST(${this.companyId} AS uuid)
-          AND w.is_active = true
-        ORDER BY w.is_default DESC, w.code ASC
+        SELECT id, code, name, is_default, use_locations
+        FROM inventory_warehouses
+        WHERE company_id = CAST(${this.companyId} AS uuid)
+          AND is_active = true
+          AND (${this.scope?.accessLevel !== 'WAREHOUSE'} OR id = ${this.scope?.warehouseId ?? null}::uuid)
+          AND ${this.scope?.accessLevel !== 'BRANCH'}
+        ORDER BY is_default DESC, code ASC
         LIMIT 300
       `,
         transaction.$queryRaw`
-        SELECT id, warehouse_id, code, name, is_default
+        SELECT id, branch_id, warehouse_id, code, name, is_default
         FROM inventory_warehouse_locations
         WHERE company_id = CAST(${this.companyId} AS uuid)
           AND is_active = true
-        ORDER BY warehouse_id, is_default DESC, code ASC
+        ORDER BY branch_id, warehouse_id, is_default DESC, code ASC
         LIMIT 500
+      `,
+        transaction.$queryRaw`
+        SELECT id, code, name, city, is_default
+        FROM branches
+        WHERE company_id = CAST(${this.companyId} AS uuid)
+          AND is_active = true
+          AND (${this.scope?.accessLevel !== 'BRANCH'} OR id = ${this.scope?.branchId ?? null}::uuid)
+          AND ${this.scope?.accessLevel !== 'WAREHOUSE'}
+        ORDER BY is_default DESC, code ASC
+        LIMIT 200
       `,
         transaction.$queryRaw`
         SELECT
@@ -171,11 +176,12 @@ export class StockAdjustmentService {
         LEFT JOIN inventory_units_of_measure u
           ON u.id = COALESCE(i.stock_uom_id, i.base_uom_id, i.purchase_uom_id, i.sales_uom_id)
         LEFT JOIN LATERAL (
-          SELECT SUM(stock_on_hand) AS stock_on_hand, AVG(NULLIF(average_cost, 0)) AS average_cost
-          FROM inventory_stock_balances
-          WHERE company_id = i.company_id
-            AND item_id = i.id
-            AND is_active = true
+          SELECT SUM(balance.stock_on_hand) AS stock_on_hand, AVG(NULLIF(balance.average_cost, 0)) AS average_cost
+          FROM inventory_stock_balances balance
+          WHERE balance.company_id = i.company_id
+            AND balance.item_id = i.id
+            AND balance.is_active = true
+            AND ${visibleStock}
         ) ss ON true
         WHERE i.company_id = CAST(${this.companyId} AS uuid)
           AND i.is_active = true
@@ -203,6 +209,7 @@ export class StockAdjustmentService {
       ]);
 
       return {
+        branches,
         warehouses,
         locations,
         items,
@@ -214,6 +221,18 @@ export class StockAdjustmentService {
   async list(query: ListStockAdjustmentsQuery) {
     const params: unknown[] = [this.companyId];
     const where = ['sa.company_id = CAST($1 AS uuid)', 'sa.is_active = true'];
+
+    if (this.scope?.accessLevel === 'BRANCH') {
+      params.push(this.scope.branchId);
+      where.push(`sa.branch_id = CAST($${params.length} AS uuid)`);
+    } else if (this.scope?.accessLevel === 'WAREHOUSE') {
+      params.push(this.scope.warehouseId);
+      where.push(`sa.warehouse_id = CAST($${params.length} AS uuid)`);
+    }
+    if (query.branch_id) {
+      params.push(query.branch_id);
+      where.push(`sa.branch_id = CAST($${params.length} AS uuid)`);
+    }
 
     if (query.status) {
       params.push(query.status);
@@ -269,17 +288,21 @@ export class StockAdjustmentService {
           sa.total_cost_in::text,
           sa.total_cost_out::text,
           sa.posted_at,
+          sa.branch_id,
+          b.code AS branch_code,
+          b.name AS branch_name,
           w.code AS warehouse_code,
           w.name AS warehouse_name,
           l.code AS location_code,
           l.name AS location_name,
           COUNT(sal.id)::int AS line_count
         FROM stock_adjustments sa
-        JOIN inventory_warehouses w ON w.id = sa.warehouse_id
+        LEFT JOIN branches b ON b.id = sa.branch_id
+        LEFT JOIN inventory_warehouses w ON w.id = sa.warehouse_id
         LEFT JOIN inventory_warehouse_locations l ON l.id = sa.location_id
         LEFT JOIN stock_adjustment_lines sal ON sal.stock_adjustment_id = sa.id AND sal.is_active = true
         WHERE ${whereSql}
-        GROUP BY sa.id, w.code, w.name, l.code, l.name
+        GROUP BY sa.id, b.code, b.name, w.code, w.name, l.code, l.name
         ORDER BY sa.adjustment_date DESC, sa.adjustment_number DESC, sa.id DESC
         LIMIT $${params.length - 1}
         OFFSET $${params.length}
@@ -308,19 +331,26 @@ export class StockAdjustmentService {
         sa.total_cost_in::text,
         sa.total_cost_out::text,
         sa.posted_at,
+        sa.branch_id,
+        b.code AS branch_code,
+        b.name AS branch_name,
         w.code AS warehouse_code,
         w.name AS warehouse_name,
         l.code AS location_code,
         l.name AS location_name
       FROM stock_adjustments sa
-      JOIN inventory_warehouses w ON w.id = sa.warehouse_id
+      LEFT JOIN branches b ON b.id = sa.branch_id
+      LEFT JOIN inventory_warehouses w ON w.id = sa.warehouse_id
       LEFT JOIN inventory_warehouse_locations l ON l.id = sa.location_id
       WHERE sa.company_id = CAST(${this.companyId} AS uuid)
         AND sa.id = CAST(${id} AS uuid)
       LIMIT 1
     `;
     const adjustment = rows[0];
-    if (!adjustment) throw businessError('Stock Adjustment was not found.', 404);
+    // Another Branch's / Warehouse's adjustment is reported as not found.
+    if (!adjustment || (this.scope && !canUseHolder(this.scope, holderFromColumns(adjustment.branch_id, adjustment.warehouse_id)))) {
+      throw businessError('Stock Adjustment was not found.', 404);
+    }
 
     const lines = await prisma.$queryRaw<any[]>`
       SELECT
@@ -357,6 +387,7 @@ export class StockAdjustmentService {
       const errors: string[] = [];
       await this.validateInput(input, errors, [], transaction);
       if (errors.length) throw businessError(errors[0]);
+      const holder = inputHolder(input);
 
       const adjustmentNumber = await this.nextAdjustmentNumber(input.adjustment_date.slice(0, 4), transaction);
       const itemRows = await this.getItemsForLines(input.lines.map(line => line.item_id), transaction);
@@ -366,7 +397,7 @@ export class StockAdjustmentService {
 
       const headerRows = await transaction.$queryRaw<{ id: string }[]>`
         INSERT INTO stock_adjustments (
-          company_id, adjustment_number, adjustment_date, warehouse_id, location_id,
+          company_id, adjustment_number, adjustment_date, branch_id, warehouse_id, location_id,
           reference_number, reason, description, status, total_quantity_in, total_quantity_out,
           total_cost_in, total_cost_out, created_by_id, updated_by_id, updated_at
         )
@@ -374,8 +405,9 @@ export class StockAdjustmentService {
           CAST(${this.companyId} AS uuid),
           ${adjustmentNumber},
           CAST(${input.adjustment_date} AS date),
-          CAST(${input.warehouse_id} AS uuid),
-          ${textOrNull(input.location_id)}::uuid,
+          ${holder.branchId}::uuid,
+          ${holder.warehouseId}::uuid,
+          ${holder.locationId}::uuid,
           ${textOrNull(input.reference_number)},
           ${textOrNull(input.reason)},
           ${textOrNull(input.description)},
@@ -395,7 +427,7 @@ export class StockAdjustmentService {
         const item = itemMap.get(line.item_id)!;
         const unitCost = line.adjustment_type === 'Increase'
           ? this.money(line.unit_cost)
-          : (await this.getBalance(transaction, line.item_id, input.warehouse_id, textOrNull(input.location_id))).averageCost;
+          : (await this.getBalance(transaction, line.item_id, holder)).averageCost;
         const quantity = this.quantity(line.quantity);
 
         await transaction.$queryRaw`
@@ -441,6 +473,7 @@ export class StockAdjustmentService {
       `;
       const adjustment = headerRows[0];
       if (!adjustment) throw businessError('Stock Adjustment was not found.', 404);
+      if (this.scope) assertCanUseHolder(this.scope, headerHolder(adjustment), 'post Stock Adjustments');
       if (adjustment.status !== 'Draft') throw businessError('Only Draft Stock Adjustments can be posted.');
 
       const dateText = this.databaseDateText(adjustment.adjustment_date);
@@ -506,78 +539,9 @@ export class StockAdjustmentService {
     });
   }
 
-  private async ensureAccount(
-    transaction: TransactionClient,
-    account: typeof defaultStockAdjustmentAccounts[keyof typeof defaultStockAdjustmentAccounts],
-  ): Promise<AccountRow> {
-    const rows = await transaction.$queryRaw<AccountRow[]>`
-      INSERT INTO accounts (
-        company_id, code, name, description, account_type, normal_balance,
-        is_posting, is_system, is_active, sort_order, is_deleted, updated_at
-      )
-      VALUES (
-        CAST(${this.companyId} AS uuid),
-        ${account.code},
-        ${account.name},
-        ${account.description},
-        ${account.account_type},
-        ${account.normal_balance},
-        true,
-        true,
-        true,
-        ${account.sort_order},
-        false,
-        now()
-      )
-      ON CONFLICT (company_id, code) DO UPDATE SET
-        name = EXCLUDED.name,
-        description = COALESCE(accounts.description, EXCLUDED.description),
-        account_type = EXCLUDED.account_type,
-        normal_balance = EXCLUDED.normal_balance,
-        is_posting = true,
-        is_active = true,
-        is_deleted = false,
-        deleted_at = null,
-        deleted_by_user_id = null,
-        updated_at = now()
-      RETURNING id, code, name
-    `;
-
-    return rows[0];
-  }
-
+  /** Reads the saved Stock Adjustment accounts; defaults are created only when the company has none yet. */
   private async ensureStockAdjustmentSettings(transaction: TransactionClient): Promise<StockAdjustmentSettingsRow> {
-    const inventory = await this.ensureAccount(transaction, defaultStockAdjustmentAccounts.inventory);
-    const gain = await this.ensureAccount(transaction, defaultStockAdjustmentAccounts.gain);
-    const loss = await this.ensureAccount(transaction, defaultStockAdjustmentAccounts.loss);
-
-    const rows = await transaction.$queryRaw<StockAdjustmentSettingsRow[]>`
-      INSERT INTO stock_adjustment_settings (
-        company_id,
-        default_inventory_account_id,
-        adjustment_gain_account_id,
-        adjustment_loss_account_id,
-        is_active,
-        updated_at
-      )
-      VALUES (
-        CAST(${this.companyId} AS uuid),
-        CAST(${inventory.id} AS uuid),
-        CAST(${gain.id} AS uuid),
-        CAST(${loss.id} AS uuid),
-        true,
-        now()
-      )
-      ON CONFLICT (company_id) DO UPDATE SET
-        default_inventory_account_id = EXCLUDED.default_inventory_account_id,
-        adjustment_gain_account_id = EXCLUDED.adjustment_gain_account_id,
-        adjustment_loss_account_id = EXCLUDED.adjustment_loss_account_id,
-        is_active = true,
-        updated_at = now()
-      RETURNING *
-    `;
-
-    return rows[0];
+    return new PostingAccountSettingsService(this.companyId).ensureStockAdjustmentSettings(transaction);
   }
 
   private async getAccount(transaction: TransactionClient, id: string, label: string) {
@@ -611,101 +575,45 @@ export class StockAdjustmentService {
     const creditGain = this.accountingAmount(input.totalCostIn);
     const debitLoss = this.accountingAmount(input.totalCostOut);
     const creditInventory = this.accountingAmount(input.totalCostOut);
-    const voucherTotal = debitInventory.plus(debitLoss).toDecimalPlaces(2, Decimal.ROUND_HALF_UP);
-    if (voucherTotal.lte(0)) return null;
+    if (debitInventory.plus(debitLoss).lte(0)) return null;
 
-    const voucherRows = await transaction.$queryRaw<{ id: string }[]>`
-      INSERT INTO vouchers (
-        company_id,
-        voucher_number,
-        voucher_type,
-        voucher_date,
-        reference,
-        narration,
-        status,
-        approval_status,
-        total_debit,
-        total_credit,
-        created_by,
-        posted_by,
-        posted_at,
-        updated_at
-      )
-      VALUES (
-        CAST(${this.companyId} AS uuid),
-        ${adjustment.adjustment_number},
-        'SA',
-        CAST(${this.databaseDateText(adjustment.adjustment_date)} AS date),
-        ${adjustment.reference_number},
-        ${adjustment.description || `Stock Adjustment ${adjustment.adjustment_number}`},
-        'Posted',
-        'Approved',
-        CAST(${voucherTotal.toFixed(2)} AS numeric),
-        CAST(${voucherTotal.toFixed(2)} AS numeric),
-        ${userId}::uuid,
-        ${userId}::uuid,
-        now(),
-        now()
-      )
-      RETURNING id
-    `;
-    const voucherId = voucherRows[0].id;
-
-    const voucherLines = [
-      ...(debitInventory.gt(0) ? [{
+    const voucherLines: PostingLine[] = [
+      {
         account: input.inventoryAccount,
         debit: debitInventory,
         credit: new Decimal(0),
         narration: `Stock adjustment increase ${adjustment.adjustment_number}`,
-      }] : []),
-      ...(creditGain.gt(0) ? [{
+      },
+      {
         account: input.gainAccount,
         debit: new Decimal(0),
         credit: creditGain,
         narration: `Stock adjustment gain ${adjustment.adjustment_number}`,
-      }] : []),
-      ...(debitLoss.gt(0) ? [{
+      },
+      {
         account: input.lossAccount,
         debit: debitLoss,
         credit: new Decimal(0),
         narration: `Stock adjustment loss ${adjustment.adjustment_number}`,
-      }] : []),
-      ...(creditInventory.gt(0) ? [{
+      },
+      {
         account: input.inventoryAccount,
         debit: new Decimal(0),
         credit: creditInventory,
         narration: `Stock adjustment decrease ${adjustment.adjustment_number}`,
-      }] : []),
+      },
     ];
 
-    for (const [index, line] of voucherLines.entries()) {
-      await transaction.$queryRaw`
-        INSERT INTO voucher_lines (
-          voucher_id,
-          company_id,
-          account_id,
-          account_code,
-          account_name,
-          dr_amount,
-          cr_amount,
-          narration,
-          line_no
-        )
-        VALUES (
-          CAST(${voucherId} AS uuid),
-          CAST(${this.companyId} AS uuid),
-          CAST(${line.account.id} AS uuid),
-          ${line.account.code},
-          ${line.account.name},
-          CAST(${line.debit.toFixed(2)} AS numeric),
-          CAST(${line.credit.toFixed(2)} AS numeric),
-          ${line.narration},
-          ${index + 1}
-        )
-      `;
-    }
-
-    return voucherId;
+    return insertPostedVoucher(transaction, {
+      companyId: this.companyId,
+      voucherNumber: adjustment.adjustment_number,
+      voucherType: 'SA',
+      voucherDate: this.databaseDateText(adjustment.adjustment_date),
+      reference: adjustment.reference_number,
+      narration: adjustment.description || `Stock Adjustment ${adjustment.adjustment_number}`,
+      userId,
+      lines: voucherLines,
+    });
   }
 
   private async validateInput(
@@ -717,19 +625,13 @@ export class StockAdjustmentService {
     await this.assertDateInOpenPeriod(transaction as TransactionClient, input.adjustment_date)
       .catch(error => errors.push(error.message.replace('Invalid Adjustment Date: ', 'Adjustment Date: ')));
 
-    const warehouseRows = await transaction.$queryRaw<{ id: string; use_locations: boolean }[]>`
-      SELECT id, use_locations
-      FROM inventory_warehouses
-      WHERE company_id = CAST(${this.companyId} AS uuid)
-        AND id = CAST(${input.warehouse_id} AS uuid)
-        AND is_active = true
-      LIMIT 1
-    `;
-    const warehouse = warehouseRows[0];
-    if (!warehouse) errors.push('Warehouse was not found or is inactive.');
-    if (warehouse?.use_locations && !input.location_id) errors.push('Location is required because Warehouse uses Locations.');
-    if (warehouse && !warehouse.use_locations && input.location_id) errors.push('Location can only be selected when the Warehouse uses Locations.');
-    if (input.location_id) await this.assertLocationBelongsToWarehouse(transaction, input.location_id, input.warehouse_id, errors);
+    if (input.branch_id && input.warehouse_id) errors.push('Select a Branch or a Warehouse, not both.');
+    const holder = await validateHolder(transaction, this.companyId, {
+      branchId: textOrNull(input.branch_id), warehouseId: textOrNull(input.warehouse_id), locationId: textOrNull(input.location_id),
+    }, errors);
+    if (holder && this.scope && !canUseHolder(this.scope, holder)) {
+      errors.push(this.scope.accessLevel === 'BRANCH' ? 'You can only adjust stock of your own Branch.' : 'You can only adjust stock of your own Warehouse.');
+    }
 
     const itemRows = await this.getItemsForLines(input.lines.map(line => line.item_id), transaction);
     if (itemRows.length !== new Set(input.lines.map(line => line.item_id)).size) {
@@ -742,8 +644,8 @@ export class StockAdjustmentService {
       if (line.adjustment_type === 'Increase' && this.money(line.unit_cost).lt(0)) {
         errors.push(`Unit Cost cannot be negative on line ${index + 1}.`);
       }
-      if (line.adjustment_type === 'Decrease') {
-        const balance = await this.getBalance(transaction, line.item_id, input.warehouse_id, textOrNull(input.location_id));
+      if (line.adjustment_type === 'Decrease' && holder) {
+        const balance = await this.getBalance(transaction, line.item_id, holder);
         if (balance.stockOnHand.lt(quantity)) {
           errors.push(`Not enough stock for line ${index + 1}. Available Stock is ${balance.stockOnHand.toFixed(4)}.`);
         }
@@ -766,7 +668,7 @@ export class StockAdjustmentService {
         totalQuantityIn = totalQuantityIn.plus(quantity);
         totalCostIn = totalCostIn.plus(cost);
       } else {
-        const balance = await this.getBalance(transaction, line.item_id, input.warehouse_id, textOrNull(input.location_id));
+        const balance = await this.getBalance(transaction, line.item_id, inputHolder(input));
         const cost = balance.averageCost.times(quantity).toDecimalPlaces(4, Decimal.ROUND_HALF_UP);
         totalQuantityOut = totalQuantityOut.plus(quantity);
         totalCostOut = totalCostOut.plus(cost);
@@ -795,47 +697,17 @@ export class StockAdjustmentService {
     `;
   }
 
-  private async assertLocationBelongsToWarehouse(
-    transaction: TransactionClient | typeof prisma,
-    locationId: string,
-    warehouseId: string,
-    errors: string[],
-  ) {
-    const rows = await transaction.$queryRaw<{ id: string }[]>`
-      SELECT id
-      FROM inventory_warehouse_locations
-      WHERE company_id = CAST(${this.companyId} AS uuid)
-        AND id = CAST(${locationId} AS uuid)
-        AND warehouse_id = CAST(${warehouseId} AS uuid)
-        AND is_active = true
-      LIMIT 1
-    `;
-    if (!rows[0]) errors.push('Location does not belong to the selected Warehouse or is inactive.');
-  }
-
   private async nextAdjustmentNumber(year: string, transaction: TransactionClient) {
-    const rows = await transaction.$queryRaw<{ adjustment_number: string }[]>`
-      SELECT adjustment_number
-      FROM stock_adjustments
-      WHERE company_id = CAST(${this.companyId} AS uuid)
-        AND adjustment_number LIKE ${`SA-${year}-%`}
-      ORDER BY adjustment_number DESC
-      LIMIT 1
-      FOR UPDATE
-    `;
-    const lastSegment = rows[0]?.adjustment_number?.split('-').pop() ?? '0000';
-    const next = Number.parseInt(lastSegment, 10) + 1;
-    return `SA-${year}-${String(next).padStart(4, '0')}`;
+    return nextDocumentNumber(transaction, { companyId: this.companyId, table: 'stock_adjustments', prefix: 'SA', year });
   }
 
-  private async getBalance(transaction: TransactionClient | typeof prisma, itemId: string, warehouseId: string, locationId: string | null) {
+  private async getBalance(transaction: TransactionClient | typeof prisma, itemId: string, holder: StockHolder) {
     const rows = await transaction.$queryRaw<any[]>`
       SELECT *
       FROM inventory_stock_balances
       WHERE company_id = CAST(${this.companyId} AS uuid)
         AND item_id = CAST(${itemId} AS uuid)
-        AND warehouse_id = CAST(${warehouseId} AS uuid)
-        AND (${locationId}::uuid IS NULL AND location_id IS NULL OR location_id = ${locationId}::uuid)
+        AND ${holderCondition(holder)}
       LIMIT 1
     `;
     return {
@@ -846,14 +718,13 @@ export class StockAdjustmentService {
     };
   }
 
-  private async getBalanceForUpdate(transaction: TransactionClient, itemId: string, warehouseId: string, locationId: string | null) {
+  private async getBalanceForUpdate(transaction: TransactionClient, itemId: string, holder: StockHolder) {
     const rows = await transaction.$queryRaw<any[]>`
       SELECT *
       FROM inventory_stock_balances
       WHERE company_id = CAST(${this.companyId} AS uuid)
         AND item_id = CAST(${itemId} AS uuid)
-        AND warehouse_id = CAST(${warehouseId} AS uuid)
-        AND (${locationId}::uuid IS NULL AND location_id IS NULL OR location_id = ${locationId}::uuid)
+        AND ${holderCondition(holder)}
       FOR UPDATE
     `;
     return {
@@ -872,19 +743,24 @@ export class StockAdjustmentService {
     userId: string | null,
   ) {
     const quantity = this.quantity(line.quantity);
-    const balance = await this.getBalanceForUpdate(transaction, line.item_id, adjustment.warehouse_id, adjustment.location_id);
+    const holder = headerHolder(adjustment);
+    const balance = await this.getBalanceForUpdate(transaction, line.item_id, holder);
     if (line.adjustment_type === 'Decrease' && balance.stockOnHand.lt(quantity)) {
       throw businessError(`Not enough stock for ${line.item_code}.`);
     }
 
-    const unitCost = line.adjustment_type === 'Increase' ? this.money(line.unit_cost) : balance.averageCost;
-    const totalCost = unitCost.times(quantity).toDecimalPlaces(4, Decimal.ROUND_HALF_UP);
+    // Increase uses the entered unit cost; Decrease takes weighted-average value from the locked balance.
+    // Both are rounded to 2 decimals so stock value and the Inventory account move by the same amount.
+    const totalCost = line.adjustment_type === 'Increase'
+      ? new Decimal(line.unit_cost).times(quantity).toDecimalPlaces(2, Decimal.ROUND_HALF_UP)
+      : issueCost(balance.stockOnHand, balance.totalValue, quantity);
+    const unitCost = quantity.gt(0) ? totalCost.div(quantity).toDecimalPlaces(4, Decimal.ROUND_HALF_UP) : new Decimal(0);
     const newQuantity = line.adjustment_type === 'Increase'
       ? this.quantity(balance.stockOnHand.plus(quantity))
       : this.quantity(balance.stockOnHand.minus(quantity));
     const newValue = line.adjustment_type === 'Increase'
       ? this.money(balance.totalValue.plus(totalCost))
-      : Decimal.max(0, balance.totalValue.minus(totalCost)).toDecimalPlaces(4, Decimal.ROUND_HALF_UP);
+      : this.money(balance.totalValue.minus(totalCost));
     const newAverageCost = newQuantity.gt(0)
       ? newValue.div(newQuantity).toDecimalPlaces(4, Decimal.ROUND_HALF_UP)
       : new Decimal(0);
@@ -895,7 +771,7 @@ export class StockAdjustmentService {
         SET stock_on_hand = CAST(${newQuantity.toFixed(4)} AS numeric),
             available_stock = CAST(${newQuantity.toFixed(4)} AS numeric) - reserved_stock,
             average_cost = CAST(${newAverageCost.toFixed(4)} AS numeric),
-            total_stock_value = CAST(${newValue.toFixed(4)} AS numeric),
+            total_stock_value = CAST(${newValue.toFixed(2)} AS numeric),
             is_active = true,
             updated_at = now()
         WHERE id = CAST(${balance.row.id} AS uuid)
@@ -903,19 +779,20 @@ export class StockAdjustmentService {
     } else {
       await transaction.$queryRaw`
         INSERT INTO inventory_stock_balances (
-          company_id, item_id, warehouse_id, location_id, stock_on_hand, reserved_stock,
+          company_id, item_id, branch_id, warehouse_id, location_id, stock_on_hand, reserved_stock,
           available_stock, average_cost, total_stock_value, is_active, updated_at
         )
         VALUES (
           CAST(${this.companyId} AS uuid),
           CAST(${line.item_id} AS uuid),
-          CAST(${adjustment.warehouse_id} AS uuid),
-          ${adjustment.location_id}::uuid,
+          ${holder.branchId}::uuid,
+          ${holder.warehouseId}::uuid,
+          ${holder.locationId}::uuid,
           CAST(${newQuantity.toFixed(4)} AS numeric),
           0,
           CAST(${newQuantity.toFixed(4)} AS numeric),
           CAST(${newAverageCost.toFixed(4)} AS numeric),
-          CAST(${newValue.toFixed(4)} AS numeric),
+          CAST(${newValue.toFixed(2)} AS numeric),
           true,
           now()
         )
@@ -966,7 +843,7 @@ export class StockAdjustmentService {
   ) {
     await transaction.$queryRaw`
       INSERT INTO inventory_stock_movements (
-        company_id, item_id, warehouse_id, location_id, movement_date, movement_kind,
+        company_id, item_id, branch_id, warehouse_id, location_id, movement_date, movement_kind,
         source_kind, source_document_id, source_document_number, quantity_in, quantity_out,
         unit_cost, total_cost, stock_after_movement, valuation_method, remarks, is_active,
         created_by_id, updated_at
@@ -974,7 +851,8 @@ export class StockAdjustmentService {
       VALUES (
         CAST(${this.companyId} AS uuid),
         CAST(${line.item_id} AS uuid),
-        CAST(${adjustment.warehouse_id} AS uuid),
+        ${adjustment.branch_id}::uuid,
+        ${adjustment.warehouse_id}::uuid,
         ${adjustment.location_id}::uuid,
         CAST(${this.databaseDateText(adjustment.adjustment_date)} AS date),
         ${movementKind}::"StockMovementKind",

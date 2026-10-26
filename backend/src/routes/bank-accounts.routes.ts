@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { currentUserId, requirePermission } from '../http/access-context.js';
 import { resolveCompanyId } from '../http/company-context.js';
 import { BankAccountService } from '../modules/bank-accounts/bank-account.service.js';
 import { BankAccountInput, BankAccountUpdateInput, idParams, ListBankAccountsQuery } from '../modules/bank-accounts/bank-account.schema.js';
@@ -24,22 +25,22 @@ bankAccountsRouter.get('/', async (req, res, next) => {
   }
 });
 
-bankAccountsRouter.post('/', async (req, res, next) => {
+bankAccountsRouter.post('/', requirePermission('accounts.manage'), async (req, res, next) => {
   try {
     const service = new BankAccountService(resolveCompanyId(req));
     const input = BankAccountInput.parse(req.body);
-    res.status(201).json(await service.create(input, req.header('x-user-id')));
+    res.status(201).json(await service.create(input, currentUserId(req)));
   } catch (error) {
     next(error);
   }
 });
 
-bankAccountsRouter.patch('/:id', async (req, res, next) => {
+bankAccountsRouter.patch('/:id', requirePermission('accounts.manage'), async (req, res, next) => {
   try {
     const service = new BankAccountService(resolveCompanyId(req));
     const { id } = idParams.parse(req.params);
     const input = BankAccountUpdateInput.parse(req.body);
-    res.json(await service.update(id, input, req.header('x-user-id')));
+    res.json(await service.update(id, input, currentUserId(req)));
   } catch (error) {
     next(error);
   }

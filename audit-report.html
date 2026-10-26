@@ -1,0 +1,759 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Comprehensive Software & UI/UX Audit Report - ERP Platform</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+  <script>
+    mermaid.initialize({ startOnLoad: true, theme: 'dark' });
+  </script>
+  <style>
+    :root {
+      --bg: #0b0f19;
+      --card: #151e2e;
+      --border: #223049;
+      --text: #f1f5f9;
+      --muted: #94a3b8;
+      --critical: #ef4444;
+      --high: #f97316;
+      --medium: #eab308;
+      --low: #3b82f6;
+      --pass: #10b981;
+      --accent: #6366f1;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+    body { background-color: var(--bg); color: var(--text); padding: 2rem; line-height: 1.5; }
+    .container { max-width: 1280px; margin: 0 auto; }
+
+    header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; padding-bottom: 1.25rem; border-bottom: 1px solid var(--border); flex-wrap: wrap; gap: 1rem; }
+    .header-actions { display: flex; align-items: center; gap: 1rem; }
+    .print-btn { background: #1e293b; color: var(--text); border: 1px solid var(--border); padding: 0.6rem 1rem; border-radius: 8px; cursor: pointer; font-size: 0.85rem; font-weight: 600; transition: background 0.2s; }
+    .print-btn:hover { background: #334155; }
+
+    .score-badge { font-size: 2.5rem; font-weight: 800; padding: 0.5rem 1.5rem; border-radius: 12px; background: rgba(239, 68, 68, 0.12); color: var(--critical); border: 2px solid var(--critical); display: inline-flex; align-items: center; justify-content: center; }
+
+    .grid-4 { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 1.25rem; margin-bottom: 2rem; }
+    .card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 1.5rem; }
+    .card-title { font-size: 1.05rem; color: var(--muted); margin-bottom: 0.75rem; font-weight: 600; display: flex; align-items: center; justify-content: space-between; }
+    .metric-value { font-size: 1.85rem; font-weight: 700; color: var(--text); }
+    .metric-sub { font-size: 0.8rem; color: var(--muted); margin-top: 0.25rem; }
+
+    .stack-pills { display: flex; flex-wrap: wrap; gap: 0.6rem; }
+    .stack-pill { background: #1c2738; border: 1px solid var(--border); border-radius: 8px; padding: 0.4rem 0.8rem; font-size: 0.85rem; display: inline-flex; align-items: center; gap: 0.5rem; }
+    .stack-pill span.component { color: var(--muted); font-size: 0.75rem; text-transform: uppercase; font-weight: 600; border-right: 1px solid var(--border); padding-right: 0.5rem; }
+    .stack-pill span.name-version { color: #38bdf8; font-weight: 700; }
+    .stack-pill .eol-badge { font-size: 0.7rem; background: rgba(239, 68, 68, 0.2); color: var(--critical); border: 1px solid var(--critical); border-radius: 4px; padding: 0.1rem 0.35rem; }
+
+    .charts-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin-bottom: 2rem; }
+    @media (max-width: 900px) { .charts-grid { grid-template-columns: 1fr; } }
+
+    /* Palette Swatches */
+    .palette-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 0.75rem; margin-top: 1rem; }
+    .swatch-card { border-radius: 8px; border: 1px solid var(--border); overflow: hidden; background: #0f1623; }
+    .swatch-color { height: 48px; width: 100%; }
+    .swatch-meta { padding: 0.5rem; font-size: 0.75rem; }
+    .contrast-badge { display: inline-block; font-size: 0.7rem; padding: 0.1rem 0.35rem; border-radius: 4px; font-weight: bold; }
+    .contrast-pass { background: rgba(16, 185, 129, 0.2); color: var(--pass); }
+    .contrast-fail { background: rgba(239, 68, 68, 0.2); color: var(--critical); }
+
+    /* Filter & Search Bar */
+    .filter-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem; flex-wrap: wrap; gap: 0.75rem; }
+    .filter-pills { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+    .filter-btn { background: #1c2738; color: var(--muted); border: 1px solid var(--border); padding: 0.35rem 0.75rem; border-radius: 6px; font-size: 0.8rem; font-weight: 600; cursor: pointer; transition: all 0.2s; }
+    .filter-btn.active, .filter-btn:hover { background: var(--accent); color: white; border-color: var(--accent); }
+    .search-input { background: #1c2738; border: 1px solid var(--border); color: var(--text); padding: 0.45rem 0.85rem; border-radius: 6px; font-size: 0.85rem; width: 260px; outline: none; }
+    .search-input:focus { border-color: var(--accent); }
+
+    table { width: 100%; border-collapse: collapse; margin-top: 0.5rem; }
+    th, td { text-align: left; padding: 0.9rem; border-bottom: 1px solid var(--border); vertical-align: top; }
+    th { color: var(--muted); font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.05em; }
+
+    .badge { padding: 0.25rem 0.6rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 700; text-transform: uppercase; display: inline-block; }
+    .badge.critical { background: rgba(239, 68, 68, 0.2); color: var(--critical); border: 1px solid var(--critical); }
+    .badge.high { background: rgba(249, 115, 22, 0.2); color: var(--high); border: 1px solid var(--high); }
+    .badge.medium { background: rgba(234, 179, 8, 0.2); color: var(--medium); border: 1px solid var(--medium); }
+    .badge.low { background: rgba(59, 130, 246, 0.2); color: var(--low); border: 1px solid var(--low); }
+
+    .effort-pill { font-size: 0.75rem; color: #a5b4fc; background: rgba(99, 102, 241, 0.15); border: 1px solid rgba(99, 102, 241, 0.4); border-radius: 6px; padding: 0.15rem 0.45rem; display: inline-block; margin-top: 0.35rem; }
+    .step-id-badge { font-family: monospace; font-size: 0.8rem; font-weight: 700; color: #38bdf8; background: rgba(56, 189, 248, 0.15); border: 1px solid rgba(56, 189, 248, 0.35); padding: 0.2rem 0.5rem; border-radius: 6px; display: inline-block; }
+    .wave-pill { font-size: 0.7rem; font-weight: 700; padding: 0.15rem 0.45rem; border-radius: 4px; display: inline-block; }
+    .wave-0 { background: rgba(239, 68, 68, 0.25); color: #f87171; border: 1px solid #ef4444; }
+    .wave-1 { background: rgba(249, 115, 22, 0.25); color: #fb923c; border: 1px solid #f97316; }
+    .wave-2 { background: rgba(56, 189, 248, 0.25); color: #38bdf8; border: 1px solid #0284c7; }
+    .wave-3 { background: rgba(16, 185, 129, 0.25); color: #34d399; border: 1px solid #10b981; }
+
+    .copy-fix-btn { background: #223049; color: #93c5fd; border: 1px solid #3b82f6; border-radius: 6px; padding: 0.3rem 0.65rem; font-size: 0.75rem; cursor: pointer; font-weight: 600; transition: all 0.2s; margin-top: 0.5rem; display: inline-flex; align-items: center; gap: 0.35rem; }
+    .copy-fix-btn:hover { background: #2563eb; color: #fff; }
+
+    .mermaid-card { margin-bottom: 2rem; overflow-x: auto; text-align: center; }
+
+    @media print {
+      body { background: #ffffff !important; color: #0f172a !important; padding: 0; }
+      .container { max-width: 100% !important; }
+      .card { border: 1px solid #cbd5e1 !important; background: #ffffff !important; color: #0f172a !important; page-break-inside: avoid; }
+      .filter-bar, .print-btn, .copy-fix-btn { display: none !important; }
+      .score-badge { border-color: #ef4444 !important; color: #ef4444 !important; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div>
+        <h1 id="proj-name">Project Health & UI/UX Audit</h1>
+        <p style="color: var(--muted);" id="audit-meta">Generated on October 17, 2026 | ERP Platform Monorepo</p>
+      </div>
+      <div class="header-actions">
+        <button class="print-btn" onclick="window.print()">🖨️ Export PDF / Print</button>
+        <div id="overall-score" class="score-badge">--</div>
+      </div>
+    </header>
+
+    <!-- Detected Tech Stack & Version Badges -->
+    <div class="card" style="margin-bottom: 2rem;">
+      <div class="card-title">🚀 Detected Technology Stack & Runtime Versions</div>
+      <div id="stack-container" class="stack-pills"></div>
+    </div>
+
+    <!-- Executive Metrics Grid -->
+    <div class="grid-4" id="metrics-grid">
+      <div class="card">
+        <div class="card-title">Overall Grade</div>
+        <div class="metric-value" id="letter-grade" style="color: var(--critical);">Grade F</div>
+        <div class="metric-sub" id="score-summary">Based on 7 evaluation dimensions</div>
+      </div>
+      <div class="card">
+        <div class="card-title">UI/UX Health Score</div>
+        <div class="metric-value" id="uiux-score" style="color: #38bdf8;">78%</div>
+        <div class="metric-sub">WCAG, Responsive, Layout, States</div>
+      </div>
+      <div class="card">
+        <div class="card-title">Total Tech Debt Estimate</div>
+        <div class="metric-value" id="tech-debt-hours" style="color: var(--high);">58 hrs</div>
+        <div class="metric-sub">Estimated time across 4 Waves</div>
+      </div>
+      <div class="card">
+        <div class="card-title">Critical & High Issues</div>
+        <div class="metric-value" id="critical-high-count" style="color: var(--critical);">10</div>
+        <div class="metric-sub">Requiring immediate containment</div>
+      </div>
+    </div>
+
+    <!-- System Topology Diagram (Mermaid.js) -->
+    <div class="card mermaid-card" id="mermaid-section">
+      <div class="card-title">📐 Discovered Architecture & Security Boundary Flow</div>
+      <div class="mermaid" id="mermaid-diagram">
+graph TD
+  User([End User / Browser]) -->|React 19 / App Router| NextApp[Next.js 15 Client & SSR]
+  NextApp -->|NextAuth Local Mock Session| AuthState[Client Auth State]
+  NextApp -->|API Client /api/v1| ExpressAPI[Express 4 REST Server]
+  ExpressAPI -->|Zero Auth Middleware / Direct Access| RouteHandlers[Express Route Controllers]
+  RouteHandlers -->|Zod Validation| Services[Domain Services Layer]
+  Services -->|Prisma Client Typesafe| SchemaModels[Prisma Schema Models]
+  Services -->|queryRawUnsafe Raw SQL| RawTables[Unmapped Tables: Sales & Purchases]
+  SchemaModels --> Postgres[(PostgreSQL 16 DB)]
+  RawTables --> Postgres
+  DeploymentConfig[deployment/.env.backend] -.->|EXPOSED PLAIN TEXT CREDS| Postgres
+      </div>
+    </div>
+
+    <!-- Multi-Dimensional Charts Grid -->
+    <div class="charts-grid">
+      <!-- 7 Dimensions Radar -->
+      <div class="card">
+        <div class="card-title">Multi-Dimensional Architecture Health</div>
+        <canvas id="radarChart"></canvas>
+      </div>
+
+      <!-- UI/UX Specific Elements Breakdown -->
+      <div class="card">
+        <div class="card-title">🎨 UI/UX Elements & Accessibility Breakdown</div>
+        <canvas id="uiuxBarChart"></canvas>
+      </div>
+
+      <!-- Issues by Severity -->
+      <div class="card">
+        <div class="card-title">Discovered Issues by Severity</div>
+        <canvas id="doughnutChart"></canvas>
+      </div>
+
+      <!-- Color Palette & Contrast Health -->
+      <div class="card">
+        <div class="card-title">Detected Design Palette & WCAG Contrast</div>
+        <div id="palette-container" class="palette-grid"></div>
+      </div>
+    </div>
+
+    <!-- Findings & Recommendations Table -->
+    <div class="card">
+      <div class="card-title">Detailed Audit Findings & Remediation</div>
+      
+      <!-- Filter Bar -->
+      <div class="filter-bar">
+        <div class="filter-pills" id="filter-pills">
+          <button class="filter-btn active" data-filter="all">All (23)</button>
+          <button class="filter-btn" data-filter="wave 0">Wave 0 (Hotfixes)</button>
+          <button class="filter-btn" data-filter="wave 1">Wave 1 (Core)</button>
+          <button class="filter-btn" data-filter="wave 2">Wave 2 (UI/UX)</button>
+          <button class="filter-btn" data-filter="wave 3">Wave 3 (Quality)</button>
+          <button class="filter-btn" data-filter="critical">Critical</button>
+          <button class="filter-btn" data-filter="uiux">UI/UX Only</button>
+          <button class="filter-btn" data-filter="security">Security Only</button>
+        </div>
+        <input type="text" id="table-search" class="search-input" placeholder="Search ID, finding, or file...">
+      </div>
+
+      <table>
+        <thead>
+          <tr>
+            <th>Step ID</th>
+            <th>Wave & Severity</th>
+            <th>Category</th>
+            <th>Description & Location</th>
+            <th>Effort</th>
+            <th>Actionable Remediation & AI Fix</th>
+          </tr>
+        </thead>
+        <tbody id="findings-table-body"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Agent Populated Data -->
+  <script id="audit-data">
+    const auditData = {
+      projectName: "ERP Platform Monorepo",
+      date: "October 17, 2026",
+      overallScore: 57,
+      techDebtHours: 58,
+      stackBreakdown: [
+        { component: "Frontend Runtime", name: "Node.js", version: "24.x", isEol: false },
+        { component: "Backend Runtime", name: "Node.js", version: ">=22.0.0", isEol: false },
+        { component: "Language", name: "TypeScript", version: "5.8.0", isEol: false },
+        { component: "Web Framework", name: "Next.js (App Router)", version: "15.0.0", isEol: false },
+        { component: "UI Library", name: "React", version: "19.0.0", isEol: false },
+        { component: "Design Tokens", name: "Calm Ledger CSS", version: "Tokens v1", isEol: false },
+        { component: "Backend Framework", name: "Express", version: "4.21.2", isEol: false },
+        { component: "ORM & Migrations", name: "Prisma", version: "6.19.0", isEol: false },
+        { component: "Primary Database", name: "PostgreSQL", version: "16-alpine", isEol: false }
+      ],
+      dimensions: {
+        labels: ["Architecture", "Security", "Quality", "Testing", "Dependencies", "Performance", "UI/UX"],
+        scores: [68, 38, 74, 25, 52, 65, 78]
+      },
+      uiUxBreakdown: {
+        labels: ["WCAG Accessibility", "Responsive Layout", "Design Tokens", "State Handling", "Asset/Font Speed"],
+        scores: [72, 75, 90, 74, 80]
+      },
+      palette: [
+        { label: "Ledger Primary", hex: "#1f56c7", textOnColor: "#ffffff", contrast: "5.8:1", pass: true },
+        { label: "Sidebar Navy", hex: "#182130", textOnColor: "#b9c3d1", contrast: "8.5:1", pass: true },
+        { label: "Surface Ground", hex: "#f5f6f8", textOnColor: "#1e2a3b", contrast: "11.8:1", pass: true },
+        { label: "Danger Text", hex: "#dc2626", textOnColor: "#ffffff", contrast: "4.6:1", pass: true },
+        { label: "Warning Gold", hex: "#b45309", textOnColor: "#ffffff", contrast: "5.1:1", pass: true },
+        { label: "Subtle Label", hex: "#8a95a6", textOnColor: "#182130", contrast: "3.2:1", pass: false }
+      ],
+      severityCounts: { critical: 4, high: 6, medium: 9, low: 4 },
+      findings: [
+        {
+          id: "SEC-001",
+          wave: "Wave 0",
+          severity: "critical",
+          category: "Security",
+          description: "Plaintext Remote Production Database Credentials and Secrets Stored in Staged Deployment Files.",
+          location: "deployment/.env.backend:2, deployment/.env.frontend:7",
+          effort: "Quick Win",
+          blockedBy: [],
+          recommendation: "Immediately revoke and rotate the PostgreSQL password on host 161.97.110.121. Remove credentials from staged files and add deployment/.env* to .gitignore.",
+          fixPrompt: "In .gitignore, add deployment/.env*. In deployment/.env.backend and deployment/.env.frontend, replace hardcoded passwords with placeholder variables."
+        },
+        {
+          id: "SEC-002",
+          wave: "Wave 0",
+          severity: "critical",
+          category: "Security",
+          description: "Completely Unauthenticated Express Backend API with Spoofable Tenant Context Header.",
+          location: "backend/src/routes/index.ts:28-50, backend/src/http/company-context.ts:8",
+          effort: "Moderate",
+          blockedBy: [],
+          recommendation: "Implement centralized Bearer JWT authentication middleware. Cryptographically verify user identity and check company membership before honoring x-company-id.",
+          fixPrompt: "Create backend/src/middleware/auth.ts to verify Bearer JWT tokens with JWT_SECRET. In backend/src/http/company-context.ts, verify companyId belongs to user.companies, throwing 403 Forbidden otherwise."
+        },
+        {
+          id: "SEC-003",
+          wave: "Wave 0",
+          severity: "critical",
+          category: "Security",
+          description: "Hardcoded Fallback JWT Secret & Encryption Keys in Source Code.",
+          location: "frontend/src/lib/auth/auth.options.ts:64, deployment/.env.backend:7",
+          effort: "Quick Win",
+          blockedBy: [],
+          recommendation: "Remove fallback secret strings. Require NEXTAUTH_SECRET and JWT_SECRET as mandatory environment variables and crash process if missing in production.",
+          fixPrompt: "In frontend/src/lib/auth/auth.options.ts line 64, remove hardcoded fallback secret string and throw a startup configuration error if NEXTAUTH_SECRET is unset."
+        },
+        {
+          id: "DEP-001",
+          wave: "Wave 0",
+          severity: "critical",
+          category: "Dependencies",
+          description: "4 Critical CVEs in Core Dependencies (Next.js RCE GHSA-p293-qw3h-jr36, Auth.js Bypass GHSA-7rqj-j65f-68wh, Proxy-addr GHSA-jqcg-44mw-7w3h).",
+          location: "frontend/package.json:42,43, backend/package.json:27",
+          effort: "Quick Win",
+          blockedBy: [],
+          recommendation: "Upgrade Next.js to >=15.5.24, next-auth to >=4.24.15, and run 'npm audit fix' on backend to remediate proxy-addr (CVSS 9.1).",
+          fixPrompt: "In frontend/package.json, bump next to ^15.5.24 and next-auth to ^4.24.15. In backend directory, run npm audit fix to update proxy-addr."
+        },
+        {
+          id: "ARCH-001",
+          wave: "Wave 1",
+          severity: "high",
+          category: "Architecture",
+          description: "Prisma Schema Drift: Core Sales & Purchase Models Missing from schema.prisma.",
+          location: "backend/prisma/schema.prisma vs backend/prisma/migrations/",
+          effort: "Major Architectural Task",
+          blockedBy: [],
+          recommendation: "Update schema.prisma to model sale_invoices, purchase_invoices, and returns. Restore type-safe Prisma client queries and eliminate brittle queryRawUnsafe calls.",
+          fixPrompt: "Add Prisma models for SaleInvoice, SaleInvoiceLine, PurchaseInvoice, and PurchaseInvoiceLine to backend/prisma/schema.prisma matching migration tables, and run prisma generate."
+        },
+        {
+          id: "ARCH-002",
+          wave: "Wave 1",
+          severity: "high",
+          category: "Concurrency",
+          description: "Race Condition & Lexicographical Sorting Bug in Document Sequence Generation.",
+          location: "backend/src/modules/sales/sale-draft.service.ts:24-38, purchases/purchase-draft.service.ts:26-39",
+          effort: "Moderate",
+          blockedBy: [],
+          recommendation: "Replace 'ORDER BY sale_number DESC LIMIT 1' with PostgreSQL atomic sequences (CREATE SEQUENCE) or pessimistic row locking with numeric parsing.",
+          fixPrompt: "Refactor nextSaleNumber and nextPurchaseNumber to use an atomic document_sequences table with SELECT FOR UPDATE row locking instead of alphanumeric ORDER BY DESC LIMIT 1."
+        },
+        {
+          id: "SEC-004",
+          wave: "Wave 1",
+          severity: "high",
+          category: "Security",
+          description: "Client-Side-Only Route Protection & Lack of Edge Server Middleware.",
+          location: "frontend/src/app/(dashboard)/layout.tsx:41, frontend/src/middleware.ts (missing)",
+          effort: "Moderate",
+          blockedBy: [],
+          recommendation: "Add Next.js middleware.ts using NextAuth withAuth to enforce server-side session checks before rendering or serving static dashboard page assets.",
+          fixPrompt: "Create frontend/src/middleware.ts using next-auth/middleware withAuth to guard all dashboard routes, redirecting unauthenticated users to /login at edge runtime."
+        },
+        {
+          id: "SEC-005",
+          wave: "Wave 1",
+          severity: "high",
+          category: "Security",
+          description: "Hardcoded Mock Credentials & Pre-filled Login Form in Production Codebase.",
+          location: "frontend/src/lib/auth/auth.options.ts:46-60, frontend/src/app/(auth)/login/page.tsx:19-20",
+          effort: "Moderate",
+          blockedBy: ["SEC-002"],
+          recommendation: "Remove mockUsers from auth.options.ts and blank out pre-filled login inputs. Verify credentials against backend database users with bcrypt.",
+          fixPrompt: "In frontend/src/app/(auth)/login/page.tsx, initialize state to empty strings. In frontend/src/lib/auth/auth.options.ts, remove mockUsers array and call backend /api/v1/auth/login."
+        },
+        {
+          id: "ARCH-003",
+          wave: "Wave 1",
+          severity: "medium",
+          category: "Architecture",
+          description: "Multi-Company Tenant ID Hardcoded in Client API Service.",
+          location: "frontend/src/lib/api/backend-client.ts:5,112,129",
+          effort: "Quick Win",
+          blockedBy: ["SEC-002"],
+          recommendation: "Dynamically bind the 'x-company-id' header to the active company selected in the user's React context/session rather than a static default UUID.",
+          fixPrompt: "In frontend/src/lib/api/backend-client.ts, replace hardcoded defaultCompanyId with a dynamic getter reading from the active user session or client tenant store."
+        },
+        {
+          id: "PERF-001",
+          wave: "Wave 1",
+          severity: "medium",
+          category: "Performance",
+          description: "Missing Composite Database Indexes for General Ledger & Financial Reporting.",
+          location: "backend/prisma/schema.prisma, documents/DATABASE_QUERY_OPTIMIZATION_PLAN.md",
+          effort: "Moderate",
+          blockedBy: ["ARCH-001"],
+          recommendation: "Create composite indexes on vouchers(company_id, status, voucher_date, id) and voucher_lines(company_id, account_id, voucher_id) to avoid report table scans.",
+          fixPrompt: "Add composite indexes idx_vouchers_company_status_date_id and idx_voucher_lines_company_account_voucher to backend/prisma/schema.prisma and run prisma migrate."
+        },
+        {
+          id: "PERF-002",
+          wave: "Wave 1",
+          severity: "medium",
+          category: "Performance",
+          description: "Unbounded Company-Wide Line Count Subqueries in Document List Endpoints.",
+          location: "backend/src/modules/sales/sale-list.service.ts:77-87, purchases/purchase-list.service.ts",
+          effort: "Moderate",
+          blockedBy: [],
+          recommendation: "Use Common Table Expressions (WITH page_rows AS ...) to calculate line counts only for the current 50 paged records rather than the whole company dataset.",
+          fixPrompt: "In backend/src/modules/sales/sale-list.service.ts, refactor line count subquery with a CTE restricted strictly to the current paged invoice IDs."
+        },
+        {
+          id: "SEC-006",
+          wave: "Wave 1",
+          severity: "medium",
+          category: "Security",
+          description: "Docker Containers Run as Root User & Next.js Lacks Standalone Output Configuration.",
+          location: "backend/Dockerfile:21-41, frontend/Dockerfile:19-45, frontend/next.config.js",
+          effort: "Quick Win",
+          blockedBy: [],
+          recommendation: "Add 'USER node' in both Dockerfiles to enforce non-root runtime. Add 'output: standalone' in next.config.js to produce minimal production images.",
+          fixPrompt: "In backend/Dockerfile and frontend/Dockerfile, add USER node before CMD. In frontend/next.config.js, add output: 'standalone'."
+        },
+        {
+          id: "UIUX-001",
+          wave: "Wave 2",
+          severity: "medium",
+          category: "UI/UX",
+          description: "Form Inputs Missing Accessible Label Association (Missing htmlFor Binding).",
+          location: "frontend/src/components/ui/FieldLabel.tsx, frontend/src/app/(auth)/login/page.tsx:92-105",
+          effort: "Quick Win",
+          blockedBy: [],
+          recommendation: "Pass htmlFor prop through FieldLabel to label element and bind with input ids for WCAG 2.1 AA compliance.",
+          fixPrompt: "In frontend/src/components/ui/FieldLabel.tsx, accept and pass htmlFor to label tag. In login/page.tsx, bind htmlFor to 'email' and 'password'."
+        },
+        {
+          id: "UIUX-002",
+          wave: "Wave 2",
+          severity: "medium",
+          category: "UI/UX",
+          description: "Missing Table Skeleton Loaders Causing Layout Shift (CLS) on Data Grid Fetching.",
+          location: "frontend/src/components/tables/AccountsTable.tsx, ProductList.tsx",
+          effort: "Moderate",
+          blockedBy: [],
+          recommendation: "Implement animated TableSkeleton component matching Calm Ledger tokens to preserve layout stability during network fetch.",
+          fixPrompt: "Create frontend/src/components/ui/TableSkeleton.tsx styled with Calm Ledger design tokens and render during query loading in AccountsTable.tsx and ProductList.tsx."
+        },
+        {
+          id: "UIUX-003",
+          wave: "Wave 2",
+          severity: "medium",
+          category: "UI/UX",
+          description: "Wide Financial Transaction Tables Lack Responsive Viewport Containment on Tablet.",
+          location: "frontend/src/components/purchases/components/PurchaseLineTable.tsx, CashBankVoucherLineTable.tsx",
+          effort: "Moderate",
+          blockedBy: [],
+          recommendation: "Wrap line item tables in an overflow-x-auto container with styled scroll indicators and sticky first column.",
+          fixPrompt: "In PurchaseLineTable.tsx, wrap the table in a container with overflow-x-auto and pin the first item code column with position: sticky."
+        },
+        {
+          id: "UIUX-004",
+          wave: "Wave 2",
+          severity: "low",
+          category: "UI/UX",
+          description: "Sub-Optimal Color Contrast on Subtle Secondary Labels on Dark Background.",
+          location: "frontend/src/app/design-tokens.css:42 (--color-sidebar-section: #8a95a6)",
+          effort: "Quick Win",
+          blockedBy: [],
+          recommendation: "Update --color-sidebar-section from #8a95a6 to #9fb0c7 to meet 4.5:1 WCAG 2.1 AA contrast ratio.",
+          fixPrompt: "In frontend/src/app/design-tokens.css line 42, update --color-sidebar-section to #9fb0c7."
+        },
+        {
+          id: "TEST-001",
+          wave: "Wave 3",
+          severity: "high",
+          category: "Testing",
+          description: "0% Automated Test Coverage across Entire Monorepo (Zero Tests Present).",
+          location: "frontend/tests/ (empty), backend/package.json",
+          effort: "Major Architectural Task",
+          blockedBy: ["ARCH-001", "SEC-002"],
+          recommendation: "Install Vitest in backend and implement automated unit tests for voucher debit/credit balancing, fiscal periods, and account code validation.",
+          fixPrompt: "Install Vitest in backend/package.json. Write backend/tests/voucher-posting.test.ts asserting that balanced vouchers post and unbalanced vouchers throw 400."
+        },
+        {
+          id: "DEP-002",
+          wave: "Wave 3",
+          severity: "high",
+          category: "Dependencies",
+          description: "Heavy Unused Dependencies & Transitive Attack Surface Bloat in Frontend.",
+          location: "frontend/package.json:28,34,36,44,45,50",
+          effort: "Moderate",
+          blockedBy: [],
+          recommendation: "Uninstall unreferenced packages (puppeteer, bullmq, redis, pg, @aws-sdk/client-s3) to prune ~300 packages and eliminate 40+ transitive CVEs.",
+          fixPrompt: "In frontend/package.json, remove puppeteer, bullmq, redis, pg, and @aws-sdk/client-s3. Prune package-lock.json and verify build passes."
+        },
+        {
+          id: "QUAL-001",
+          wave: "Wave 3",
+          severity: "medium",
+          category: "Quality",
+          description: "28 React Hook Exhaustive-Deps Warnings with Stale Closure Risks.",
+          location: "frontend/src/app/(dashboard)/settings/page.tsx:448, components/bank/ChequeBooksTab.tsx:104",
+          effort: "Moderate",
+          blockedBy: [],
+          recommendation: "Refactor multi-field form updates to useReducer and memoize unstable object dependencies to prevent infinite re-renders.",
+          fixPrompt: "In frontend/src/app/(dashboard)/settings/page.tsx, refactor settings form state to useReducer to eliminate 11 missing useEffect dependencies."
+        },
+        {
+          id: "ARCH-004",
+          wave: "Wave 3",
+          severity: "medium",
+          category: "Architecture",
+          description: "Monolithic Large Files Exceeding 1,000 Lines (Violates AGENTS.md Guidelines).",
+          location: "frontend/src/app/(dashboard)/settings/page.tsx (1,148 lines), backend/.../fiscal-year.service.ts (1,087 lines)",
+          effort: "Major Architectural Task",
+          blockedBy: [],
+          recommendation: "Deconstruct monolithic files into focused sub-components and service helpers following the Purchase module pattern in AGENTS.md.",
+          fixPrompt: "Deconstruct settings/page.tsx into sub-components in frontend/src/components/settings/ (CompanyProfileTab, RegionalSettingsTab, PostingAccountsTab)."
+        },
+        {
+          id: "TEST-002",
+          wave: "Wave 3",
+          severity: "medium",
+          category: "Testing",
+          description: "Absence of Automated CI/CD Testing Pipeline in Repository.",
+          location: "Repository Root (.github/workflows/ missing)",
+          effort: "Quick Win",
+          blockedBy: ["TEST-001"],
+          recommendation: "Add GitHub Actions workflow (.github/workflows/ci.yml) running type-check, lint, and tests on push and pull requests.",
+          fixPrompt: "Create .github/workflows/ci.yml running npm run type-check, npm run lint, and npm test across both frontend and backend on all PRs to main."
+        },
+        {
+          id: "QUAL-002",
+          wave: "Wave 3",
+          severity: "low",
+          category: "Quality",
+          description: "Broken npm Script Referencing Non-Existent File ('worker:dev').",
+          location: "frontend/package.json:20 ('worker:dev': 'tsx watch src/worker/worker.ts')",
+          effort: "Quick Win",
+          blockedBy: [],
+          recommendation: "Remove broken worker:dev and worker:build scripts from frontend/package.json.",
+          fixPrompt: "In frontend/package.json, remove unused worker:dev and worker:build npm scripts."
+        },
+        {
+          id: "QUAL-003",
+          wave: "Wave 3",
+          severity: "low",
+          category: "Quality",
+          description: "Orphaned Empty Directory Artifact from Unescaped Shell Brace Expansion.",
+          location: "frontend/src/{app/",
+          effort: "Quick Win",
+          blockedBy: [],
+          recommendation: "Delete the accidental empty directory tree frontend/src/{app.",
+          fixPrompt: "Safely delete the orphaned empty directory tree frontend/src/{app."
+        }
+      ]
+    };
+  </script>
+
+  <!-- Script to Render Everything -->
+  <script>
+    document.getElementById("proj-name").innerText = `${auditData.projectName} - Health & UI/UX Audit`;
+    document.getElementById("audit-meta").innerText = `Audit Date: ${auditData.date} | ${auditData.stackBreakdown.map(s => s.name).slice(0, 4).join(', ')}`;
+
+    // Overall Score & Grade
+    const scoreEl = document.getElementById("overall-score");
+    scoreEl.innerText = `${auditData.overallScore}/100`;
+    let grade = "A";
+    if (auditData.overallScore < 60) grade = "F";
+    else if (auditData.overallScore < 70) grade = "D";
+    else if (auditData.overallScore < 80) grade = "C";
+    else if (auditData.overallScore < 90) grade = "B";
+    document.getElementById("letter-grade").innerText = `Grade ${grade}`;
+    if (auditData.overallScore < 70) {
+      scoreEl.style.color = "var(--critical)";
+      scoreEl.style.borderColor = "var(--critical)";
+    }
+
+    // Top Metric Cards
+    const uiuxScore = auditData.dimensions.scores[auditData.dimensions.labels.indexOf("UI/UX")] || 78;
+    document.getElementById("uiux-score").innerText = `${uiuxScore}%`;
+    document.getElementById("tech-debt-hours").innerText = `${auditData.techDebtHours || 58} hrs`;
+    document.getElementById("critical-high-count").innerText = `${(auditData.severityCounts.critical || 0) + (auditData.severityCounts.high || 0)}`;
+
+    // Stack & Versions with EOL check
+    const stackContainer = document.getElementById("stack-container");
+    auditData.stackBreakdown.forEach(item => {
+      const pill = document.createElement("div");
+      pill.className = "stack-pill";
+      let eolHtml = item.isEol ? `<span class="eol-badge">EOL Warning</span>` : '';
+      pill.innerHTML = `
+        <span class="component">${item.component}</span>
+        <span class="name-version">${item.name} ${item.version || ''}</span>
+        ${eolHtml}
+      `;
+      stackContainer.appendChild(pill);
+    });
+
+    // 1. Radar Chart: 7 Dimensions
+    new Chart(document.getElementById('radarChart'), {
+      type: 'radar',
+      data: {
+        labels: auditData.dimensions.labels,
+        datasets: [{
+          label: 'Health Score (0-100)',
+          data: auditData.dimensions.scores,
+          backgroundColor: 'rgba(99, 102, 241, 0.25)',
+          borderColor: '#6366f1',
+          pointBackgroundColor: '#818cf8',
+          borderWidth: 2
+        }]
+      },
+      options: {
+        scales: {
+          r: { min: 0, max: 100, ticks: { display: false }, grid: { color: '#223049' } }
+        },
+        plugins: { legend: { labels: { color: '#f1f5f9' } } }
+      }
+    });
+
+    // 2. UI/UX Elements Horizontal Bar Chart
+    new Chart(document.getElementById('uiuxBarChart'), {
+      type: 'bar',
+      data: {
+        labels: auditData.uiUxBreakdown.labels,
+        datasets: [{
+          label: 'UI/UX Compliance %',
+          data: auditData.uiUxBreakdown.scores,
+          backgroundColor: [
+            '#38bdf8', '#818cf8', '#a78bfa', '#34d399', '#f472b6'
+          ],
+          borderRadius: 6
+        }]
+      },
+      options: {
+        indexAxis: 'y',
+        scales: {
+          x: { min: 0, max: 100, grid: { color: '#223049' }, ticks: { color: '#94a3b8' } },
+          y: { grid: { display: false }, ticks: { color: '#f1f5f9' } }
+        },
+        plugins: { legend: { display: false } }
+      }
+    });
+
+    // 3. Doughnut Chart: Severity
+    new Chart(document.getElementById('doughnutChart'), {
+      type: 'doughnut',
+      data: {
+        labels: ['Critical', 'High', 'Medium', 'Low'],
+        datasets: [{
+          data: [
+            auditData.severityCounts.critical,
+            auditData.severityCounts.high,
+            auditData.severityCounts.medium,
+            auditData.severityCounts.low
+          ],
+          backgroundColor: ['#ef4444', '#f97316', '#eab308', '#3b82f6'],
+          borderWidth: 0
+        }]
+      },
+      options: {
+        plugins: { legend: { labels: { color: '#f1f5f9' } } }
+      }
+    });
+
+    // 4. Palette & Contrast Swatches
+    const paletteContainer = document.getElementById('palette-container');
+    if (auditData.palette && auditData.palette.length > 0) {
+      auditData.palette.forEach(p => {
+        const swatch = document.createElement('div');
+        swatch.className = 'swatch-card';
+        swatch.innerHTML = `
+          <div class="swatch-color" style="background-color: ${p.hex}"></div>
+          <div class="swatch-meta">
+            <div style="font-weight: 600; color: #f1f5f9;">${p.label}</div>
+            <div style="color: #94a3b8; font-family: monospace;">${p.hex}</div>
+            <div style="margin-top: 0.35rem;">
+              <span class="contrast-badge ${p.pass ? 'contrast-pass' : 'contrast-fail'}">
+                ${p.contrast} ${p.pass ? '✓ Pass' : '✗ Fail'}
+              </span>
+            </div>
+          </div>
+        `;
+        paletteContainer.appendChild(swatch);
+      });
+    }
+
+    // Findings Table & Interactive Filters
+    const tbody = document.getElementById('findings-table-body');
+    let currentFilter = 'all';
+    let searchQuery = '';
+
+    function renderTable() {
+      tbody.innerHTML = '';
+      const filtered = auditData.findings.filter(f => {
+        const fWave = (f.wave || '').toLowerCase();
+        const matchesFilter = 
+          currentFilter === 'all' ||
+          (currentFilter.startsWith('wave') && fWave.includes(currentFilter)) ||
+          (currentFilter === 'uiux' && f.category.toLowerCase().includes('ui')) ||
+          (currentFilter === 'security' && f.category.toLowerCase().includes('security')) ||
+          f.severity.toLowerCase() === currentFilter;
+
+        const matchesSearch = 
+          !searchQuery ||
+          (f.id && f.id.toLowerCase().includes(searchQuery)) ||
+          f.description.toLowerCase().includes(searchQuery) ||
+          f.location.toLowerCase().includes(searchQuery) ||
+          f.recommendation.toLowerCase().includes(searchQuery);
+
+        return matchesFilter && matchesSearch;
+      });
+
+      if (filtered.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; color: var(--muted); padding: 2rem;">No matching findings discovered.</td></tr>`;
+        return;
+      }
+
+      filtered.forEach((f, idx) => {
+        const waveNum = (f.wave || '0').replace(/[^0-9]/g, '') || '0';
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td><span class="step-id-badge">${f.id || `STEP-${idx+1}`}</span></td>
+          <td>
+            <div style="display: flex; flex-direction: column; gap: 0.35rem; align-items: flex-start;">
+              <span class="wave-pill wave-${waveNum}">${f.wave || 'Wave 0'}</span>
+              <span class="badge ${f.severity.toLowerCase()}">${f.severity}</span>
+            </div>
+          </td>
+          <td><strong>${f.category}</strong></td>
+          <td>
+            <div>${f.description}</div>
+            <div style="margin-top: 0.35rem;"><code style="color: #93c5fd; font-size: 0.8rem;">${f.location}</code></div>
+          </td>
+          <td>
+            <span class="effort-pill">${f.effort || 'Quick Win'}</span>
+            ${f.blockedBy && f.blockedBy.length > 0 ? `<div style="font-size: 0.7rem; color: var(--muted); margin-top: 0.25rem;">Needs: ${f.blockedBy.join(', ')}</div>` : ''}
+          </td>
+          <td>
+            <div>${f.recommendation}</div>
+            <button class="copy-fix-btn" onclick="copyPrompt('${encodeURIComponent(f.fixPrompt || f.recommendation)}', this)">
+              📋 Copy AI Fix
+            </button>
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    window.copyPrompt = function(encodedPrompt, btn) {
+      const text = decodeURIComponent(encodedPrompt);
+      navigator.clipboard.writeText(text).then(() => {
+        const orig = btn.innerHTML;
+        btn.innerHTML = '✓ Copied!';
+        setTimeout(() => { btn.innerHTML = orig; }, 2000);
+      });
+    };
+
+    // Filter Buttons Listener
+    document.querySelectorAll('.filter-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        currentFilter = btn.getAttribute('data-filter');
+        renderTable();
+      });
+    });
+
+    // Search Input Listener
+    document.getElementById('table-search').addEventListener('input', (e) => {
+      searchQuery = e.target.value.toLowerCase().trim();
+      renderTable();
+    });
+
+    renderTable();
+  </script>
+</body>
+</html>

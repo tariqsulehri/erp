@@ -12,6 +12,7 @@ Before making code or database changes, read and follow:
 For frontend work, also read:
 
 - `documents/FRONTEND_BEST_PRACTICES.md`
+- `DESIGN.md` (Calm Ledger visual standard: tokens, screen anatomy, components, do's and don'ts)
 
 For backend work, also read:
 

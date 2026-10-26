@@ -1,5 +1,9 @@
 import type { FiscalPeriod, FiscalYear, Prisma } from '@prisma/client';
+import { Decimal } from 'decimal.js';
 import { prisma } from '../../db/prisma.js';
+import { TrialBalanceReportService } from '../reports/trial-balance-report.service.js';
+import { PostingAccountSettingsService } from '../settings/posting-account-settings.service.js';
+import { insertPostedVoucher, nextVoucherNumber, type PostingLine } from '../vouchers/voucher-posting.js';
 import type { closeFiscalYearSchema, createFiscalYearSchema } from './fiscal-year.schema.js';
 import type { z } from 'zod';
 
@@ -69,6 +73,10 @@ const voucherTypePaths: Record<string, string> = {
   JV: '/vouchers/journal',
 };
 
+function userIdOrNull(userId?: string | null) {
+  return userId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userId) ? userId : null;
+}
+
 function businessError(message: string, statusCode = 400) {
   const error = new Error(message);
   Object.assign(error, { statusCode });
@@ -83,12 +91,12 @@ function toDateText(value: Date) {
   return value.toISOString().slice(0, 10);
 }
 
-function addMonths(value: Date, months: number) {
-  return new Date(Date.UTC(value.getUTCFullYear(), value.getUTCMonth() + months, value.getUTCDate()));
+function addDays(value: Date, days: number) {
+  return new Date(Date.UTC(value.getUTCFullYear(), value.getUTCMonth(), value.getUTCDate() + days));
 }
 
-function endOfMonth(value: Date) {
-  return new Date(Date.UTC(value.getUTCFullYear(), value.getUTCMonth() + 1, 0));
+function addMonths(value: Date, months: number) {
+  return new Date(Date.UTC(value.getUTCFullYear(), value.getUTCMonth() + months, value.getUTCDate()));
 }
 
 const monthNames = [
@@ -298,7 +306,7 @@ export class FiscalYearService {
     };
   }
 
-  async closeFiscalYear(fiscalYearId: string, input: CloseFiscalYearInput = {}) {
+  async closeFiscalYear(fiscalYearId: string, input: CloseFiscalYearInput = {}, userId?: string | null) {
     const fiscalYear = await this.assertFiscalYearExists(fiscalYearId);
     const checks = await this.buildPreCloseChecks(fiscalYear);
     const failed = checks.filter(check => check.blocking && check.status !== 'Passed');
@@ -307,8 +315,11 @@ export class FiscalYearService {
     }
     await this.assertNoOpenFiscalPeriods(fiscalYearId);
 
-    const totals = await this.yearVoucherTotals(fiscalYear);
-    await prisma.$transaction(async tx => {
+    const closedBy = userIdOrNull(userId);
+    const closingVoucherNumber = await prisma.$transaction(async tx => {
+      const closingVoucher = await this.postClosingVoucher(tx, fiscalYear, closedBy);
+      const totals = await this.yearVoucherTotals(fiscalYear, tx);
+
       await tx.fiscalPeriod.updateMany({
         where: {
           companyId: this.companyId,
@@ -330,24 +341,124 @@ export class FiscalYearService {
           isLocked: true,
           isActive: false,
           lockedAt: fiscalYear.lockedAt ?? new Date(),
+          lockedByUserId: fiscalYear.lockedByUserId ?? closedBy,
           closingStartedAt: fiscalYear.closingStartedAt ?? new Date(),
           closingCompletedAt: new Date(),
+          closingVoucherId: closingVoucher?.id ?? null,
+          updatedByUserId: closedBy,
           transactionCount: totals.transaction_count,
           totalDebits: totals.total_debit,
           totalCredits: totals.total_credit,
           notes: input.remarks?.trim() || fiscalYear.notes,
         },
       });
-    });
+
+      return closingVoucher?.voucherNumber ?? null;
+    }, { timeout: 60000, maxWait: 10000 });
 
     return {
       success: true,
-      message: 'Fiscal Year closed successfully. You can now open the new Fiscal Year.',
+      message: closingVoucherNumber
+        ? `Fiscal Year closed successfully. Closing Voucher ${closingVoucherNumber} moved the year result to Retained Earnings. You can now open the new Fiscal Year.`
+        : 'Fiscal Year closed successfully. There was no Revenue or Expense balance to move. You can now open the new Fiscal Year.',
+      closing_voucher_number: closingVoucherNumber,
       checks,
     };
   }
 
-  async lockFiscalYear(fiscalYearId: string) {
+  /**
+   * Year-end closing entry: every Revenue and Expense account balance for the year is cleared into the
+   * Retained Earnings account from Posting Account Settings, dated the last day of the year. Profit and
+   * Loss reports leave this voucher out so the closed year still shows its result.
+   */
+  private async postClosingVoucher(tx: Prisma.TransactionClient, fiscalYear: FiscalYear, userId: string | null) {
+    const settings = await new PostingAccountSettingsService(this.companyId).ensureYearEndClosingSettings(tx);
+    const retainedRows = await tx.$queryRaw<Array<{ id: string; code: string; name: string; account_type: string }>>`
+      SELECT id, code, name, account_type
+      FROM accounts
+      WHERE company_id = CAST(${this.companyId} AS uuid)
+        AND id = CAST(${settings.retained_earnings_account_id} AS uuid)
+        AND is_active = true
+        AND is_posting = true
+        AND is_deleted = false
+      LIMIT 1
+    `;
+    const retainedEarnings = retainedRows[0];
+    if (!retainedEarnings || retainedEarnings.account_type !== 'Equity') {
+      throw businessError('Retained Earnings Account is not set or is not an active Equity posting account. Set it in Posting Account Settings.');
+    }
+
+    const startText = toDateText(fiscalYear.startDate);
+    const endText = toDateText(fiscalYear.endDate);
+    const balances = await tx.$queryRaw<Array<{ id: string; code: string; name: string; balance: string }>>`
+      SELECT
+        a.id::text,
+        a.code,
+        a.name,
+        (
+          COALESCE(SUM(vl.dr_amount), 0) - COALESCE(SUM(vl.cr_amount), 0)
+          + CASE
+              WHEN a.opening_balance_date BETWEEN CAST(${startText} AS date) AND CAST(${endText} AS date)
+                THEN CASE WHEN a.normal_balance = 'Credit' THEN -a.opening_balance ELSE a.opening_balance END
+              ELSE 0
+            END
+        )::text AS balance
+      FROM accounts a
+      LEFT JOIN voucher_lines vl
+        ON vl.account_id = a.id
+        AND vl.company_id = a.company_id
+        AND EXISTS (
+          SELECT 1 FROM vouchers v
+          WHERE v.id = vl.voucher_id
+            AND v.company_id = a.company_id
+            AND v.status = 'Posted'
+            AND v.voucher_date BETWEEN CAST(${startText} AS date) AND CAST(${endText} AS date)
+        )
+      WHERE a.company_id = CAST(${this.companyId} AS uuid)
+        AND a.account_type IN ('Revenue', 'Expense')
+        AND a.is_posting = true
+      GROUP BY a.id, a.code, a.name, a.normal_balance, a.opening_balance, a.opening_balance_date
+      ORDER BY a.code
+    `;
+
+    const lines: PostingLine[] = [];
+    let netDebit = new Decimal(0);
+    for (const row of balances) {
+      const balance = new Decimal(row.balance).toDecimalPlaces(2, Decimal.ROUND_HALF_UP);
+      if (balance.isZero()) continue;
+      netDebit = netDebit.plus(balance);
+      lines.push({
+        account: { id: row.id, code: row.code, name: row.name },
+        debit: balance.lt(0) ? balance.abs() : new Decimal(0),
+        credit: balance.gt(0) ? balance : new Decimal(0),
+        narration: `Close ${fiscalYear.fiscalYear} balance to Retained Earnings`,
+      });
+    }
+    if (!lines.length) return null;
+
+    // netDebit > 0 means expenses were larger (a loss); Retained Earnings takes the opposite side.
+    lines.push({
+      account: { id: retainedEarnings.id, code: retainedEarnings.code, name: retainedEarnings.name },
+      debit: netDebit.gt(0) ? netDebit : new Decimal(0),
+      credit: netDebit.lt(0) ? netDebit.abs() : new Decimal(0),
+      narration: `${fiscalYear.fiscalYear} ${netDebit.gt(0) ? 'loss' : 'profit'} moved to Retained Earnings`,
+    });
+
+    const voucherNumber = await nextVoucherNumber(tx, this.companyId, 'CL', fiscalYear.endDate.getUTCFullYear());
+    const id = await insertPostedVoucher(tx, {
+      companyId: this.companyId,
+      voucherNumber,
+      voucherType: 'CL',
+      voucherDate: endText,
+      reference: fiscalYear.fiscalYear,
+      narration: `Year-End Closing ${fiscalYear.fiscalYear}`,
+      userId,
+      lines,
+    });
+    return { id, voucherNumber };
+  }
+
+  async lockFiscalYear(fiscalYearId: string, userId?: string | null) {
     await this.assertFiscalYearExists(fiscalYearId);
     await prisma.fiscalYear.update({
       where: { id: fiscalYearId },
@@ -355,6 +466,8 @@ export class FiscalYearService {
         isLocked: true,
         status: 'closing',
         lockedAt: new Date(),
+        lockedByUserId: userIdOrNull(userId),
+        updatedByUserId: userIdOrNull(userId),
         closingStartedAt: new Date(),
       },
     });
@@ -428,14 +541,28 @@ export class FiscalYearService {
     return { success: true, message: 'Fiscal Period closed successfully.' };
   }
 
+  /**
+   * Splits the year into equal blocks of whole months. Each period ends the day before the next one starts,
+   * so every date of the year belongs to exactly one period, even when the year starts mid-month.
+   */
   private buildPeriods(startDate: Date, endDate: Date, numberOfPeriods: number, postingCutoffDays: number) {
+    let monthsInYear = 0;
+    while (addMonths(startDate, monthsInYear + 1) <= addDays(endDate, 1)) monthsInYear += 1;
+    if (monthsInYear === 0 || monthsInYear % numberOfPeriods !== 0) {
+      const choices = [1, 2, 3, 4, 6, 12].filter(value => monthsInYear > 0 && monthsInYear % value === 0).join(', ');
+      throw businessError(`Number Of Periods must divide the ${monthsInYear}-month year into equal parts (${choices || 'none'}).`);
+    }
+    const monthsPerPeriod = monthsInYear / numberOfPeriods;
+
     return Array.from({ length: numberOfPeriods }, (_, index) => {
-      const periodStart = addMonths(startDate, index);
-      const periodEnd = index === numberOfPeriods - 1 ? endDate : endOfMonth(periodStart);
+      const periodStart = addMonths(startDate, index * monthsPerPeriod);
+      const periodEnd = index === numberOfPeriods - 1 ? endDate : addDays(addMonths(startDate, (index + 1) * monthsPerPeriod), -1);
+      const startName = `${monthNames[periodStart.getUTCMonth()]} ${periodStart.getUTCFullYear()}`;
+      const endName = `${monthNames[periodEnd.getUTCMonth()]} ${periodEnd.getUTCFullYear()}`;
       return {
         companyId: this.companyId,
         periodNumber: index + 1,
-        periodName: `${monthNames[periodStart.getUTCMonth()]} ${periodStart.getUTCFullYear()}`,
+        periodName: monthsPerPeriod === 1 ? startName : `${startName} - ${endName}`,
         startDate: periodStart,
         endDate: periodEnd,
         status: 'open',
@@ -539,6 +666,8 @@ export class FiscalYearService {
       { tableName: 'bank_cheques', columnName: 'status' },
       { tableName: 'bank_cheques', columnName: 'issue_date' },
       { tableName: 'bank_cheques', columnName: 'created_at' },
+      { tableName: 'fiscal_years', columnName: 'closing_voucher_id' },
+      { tableName: 'year_end_closing_settings', columnName: 'retained_earnings_account_id' },
       ...businessDraftDocuments.flatMap(document => [
         { tableName: document.tableName, columnName: 'company_id' },
         { tableName: document.tableName, columnName: document.dateColumn },
@@ -576,7 +705,6 @@ export class FiscalYearService {
       draftVoucherDetails,
       businessDraftDetails,
       unresolvedCheques,
-      trialBalance,
     ] = await Promise.all([
       prisma.fiscalPeriod.count({
         where: {
@@ -631,10 +759,16 @@ export class FiscalYearService {
           AND COALESCE(issue_date, created_at::date) <= CAST($3 AS date)
           AND status IN ('Reserved', 'Issued', 'Bounced', 'Stopped')
       `, fiscalYear),
-      this.yearVoucherTotals(fiscalYear),
     ]);
 
-    const difference = Math.abs(Number(trialBalance.total_debit) - Number(trialBalance.total_credit));
+    const yearTrialBalance = await new TrialBalanceReportService(this.companyId).getTrialBalance({
+      date_from: toDateText(fiscalYear.startDate),
+      date_to: toDateText(fiscalYear.endDate),
+      include_zero_balances: false,
+    });
+    const closingDebit = new Decimal(yearTrialBalance.totals.closing_debit);
+    const closingCredit = new Decimal(yearTrialBalance.totals.closing_credit);
+    const trialBalanceDifference = closingDebit.minus(closingCredit).abs();
     return [
       {
         key: 'fiscal_year_status',
@@ -691,11 +825,11 @@ export class FiscalYearService {
       {
         key: 'trial_balance',
         label: 'Trial Balance Is Balanced',
-        status: difference > 0.005 ? 'Failed' : 'Passed',
-        count: difference > 0.005 ? 1 : 0,
-        message: difference > 0.005
-          ? `Trial Balance difference is ${difference.toFixed(2)}.`
-          : `Trial Balance is balanced. Debit ${Number(trialBalance.total_debit).toFixed(2)} / Credit ${Number(trialBalance.total_credit).toFixed(2)}.`,
+        status: trialBalanceDifference.isZero() ? 'Passed' : 'Failed',
+        count: trialBalanceDifference.isZero() ? 0 : 1,
+        message: trialBalanceDifference.isZero()
+          ? `Trial Balance with opening balances is balanced. Debit ${closingDebit.toFixed(2)} / Credit ${closingCredit.toFixed(2)}.`
+          : `Trial Balance with opening balances has a difference of ${trialBalanceDifference.toFixed(2)}. Check account opening balances.`,
         blocking: true,
       },
       {
@@ -1049,8 +1183,8 @@ export class FiscalYearService {
     return { total, rows };
   }
 
-  private async yearVoucherTotals(fiscalYear: FiscalYear) {
-    const rows = await prisma.$queryRaw<Array<{ transaction_count: number; total_debit: string; total_credit: string }>>`
+  private async yearVoucherTotals(fiscalYear: FiscalYear, client: Prisma.TransactionClient | typeof prisma = prisma) {
+    const rows = await client.$queryRaw<Array<{ transaction_count: number; total_debit: string; total_credit: string }>>`
       SELECT
         COUNT(DISTINCT v.id)::int AS transaction_count,
         COALESCE(SUM(vl.dr_amount), 0)::text AS total_debit,

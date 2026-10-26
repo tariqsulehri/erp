@@ -2,13 +2,16 @@
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { backendGet, backendPost } from './backend-client';
+import type { DocumentListTotals } from './document-totals';
 import type { SaleListRow, SalePaymentType } from '@/components/sales/SaleVoucherTypes';
 
 export interface SaleSupportData {
   customers: any[];
   items: any[];
-  warehouses: any[];
+  branches: any[];
   locations: any[];
+  /** The Branch whose stock is shown on items. */
+  stock_branch_id: string | null;
   settings: any;
 }
 
@@ -25,10 +28,12 @@ function buildQueryString<TQuery extends object>(query: TQuery) {
   return params.toString();
 }
 
-export function useSaleSupportData() {
+/** Item stock in the result is the stock at `branchId` (Branch users always get their own Branch). */
+export function useSaleSupportData(branchId?: string) {
   return useQuery<SaleSupportData>({
-    queryKey: saleSupportDataQueryKey,
-    queryFn: () => backendGet<SaleSupportData>('/sales/support-data'),
+    queryKey: [...saleSupportDataQueryKey, branchId ?? ''],
+    queryFn: () => backendGet<SaleSupportData>(`/sales/support-data${branchId ? `?branch_id=${branchId}` : ''}`),
+    placeholderData: previous => previous,
     retry: false,
   });
 }
@@ -40,7 +45,7 @@ export interface SaleInvoicesListQuery {
   search?: string;
   customer_id?: string;
   payment_type?: SalePaymentType;
-  warehouse_id?: string;
+  branch_id?: string;
   date_from?: string;
   date_to?: string;
   amount_from?: number;
@@ -53,6 +58,8 @@ export interface SaleInvoicesListResponse {
   page: number;
   limit: number;
   totalPages: number;
+  /** Sums over every record that matches the filters, not only this page. */
+  totals?: DocumentListTotals;
 }
 
 export function useSaleInvoicesList(query: SaleInvoicesListQuery) {

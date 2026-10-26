@@ -67,7 +67,6 @@ export interface PaginatedResponse<T> {
 export interface WarehousePayload {
   code?: string;
   name?: string;
-  branch_id?: string;
   description?: string;
   address?: string;
   is_default?: boolean;

@@ -1,0 +1,85 @@
+# Production stack. Images are built and pushed by the release process and selected with APP_TAG.
+# Use ./deploy.sh <tag> instead of running this file by hand; see DEPLOYMENT.md.
+services:
+
+  # ── Database job: installs a new database or applies pending migrations, then exits ──
+  migrate:
+    image: tariqsulehri/erp-be:${APP_TAG:?Set APP_TAG to the release version}
+    platform: linux/amd64
+    env_file:
+      - .env.backend
+    environment:
+      NODE_ENV: production
+    command: ["sh", "scripts/db-fresh-install.sh", "auto"]
+    restart: "no"
+
+  # ── Backend API ───────────────────────────────────────────
+  backend:
+    image: tariqsulehri/erp-be:${APP_TAG:?Set APP_TAG to the release version}
+    platform: linux/amd64
+    container_name: erp_be
+    restart: unless-stopped
+    env_file:
+      - .env.backend
+    environment:
+      NODE_ENV: production
+      PORT: 5000
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    ports:
+      - "127.0.0.1:3071:5000"
+    healthcheck:
+      # Readiness: the API answers and can reach the database.
+      test: ["CMD-SHELL", "curl -sf http://localhost:5000/health/database || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  # ── Frontend (Next.js) ──────────────────────────────────
+  frontend:
+    image: tariqsulehri/erp-fe:${APP_TAG:?Set APP_TAG to the release version}
+    platform: linux/amd64
+    container_name: erp_fe
+    restart: unless-stopped
+    env_file:
+      - .env.frontend
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      # Set FRONTEND_BIND=127.0.0.1 once the https profile (Caddy) is in use, so only HTTPS is public.
+      - "${FRONTEND_BIND:-0.0.0.0}:3070:3000"
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000/api/health', (r) => process.exit(r.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1));"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── HTTPS reverse proxy (optional): docker compose --profile https up -d ──
+  # Needs APP_DOMAIN pointing at this server; Caddy gets and renews the certificate automatically.
+  caddy:
+    image: caddy:2.8-alpine
+    profiles: ["https"]
+    container_name: erp_caddy
+    restart: unless-stopped
+    environment:
+      APP_DOMAIN: ${APP_DOMAIN:-}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      frontend:
+        condition: service_healthy
+
+volumes:
+  caddy_data:
+  caddy_config:

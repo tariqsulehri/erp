@@ -1,5 +1,6 @@
 import { Router } from 'express';
-import { resolveCompanyId } from '../http/company-context.js';
+import { currentUserId, resolveAccessScope } from '../http/access-context.js';
+import { assertWarehouseDocumentAccess, purchaseWarehouseFilter, requireAllBranchAccess, resolvePurchasingWarehouseId } from '../modules/inventory/stock-holder-access.js';
 import { PurchaseAnalyticsQuery, PurchaseAnalyticsService } from '../modules/purchases/purchase-analytics.service.js';
 import { PurchaseDetailService } from '../modules/purchases/purchase-detail.service.js';
 import { PurchaseDraftService } from '../modules/purchases/purchase-draft.service.js';
@@ -17,8 +18,11 @@ const purchaseIdParams = z.object({
 
 purchasesRouter.get('/', async (req, res, next) => {
   try {
-    const companyId = resolveCompanyId(req);
-    const query = ListPurchaseInvoicesQuery.parse(req.query);
+    const scope = resolveAccessScope(req);
+    const companyId = scope.companyId;
+    // Warehouse users see only their Warehouse's documents; Branch users cannot open purchases.
+    const ownWarehouseId = purchaseWarehouseFilter(scope, 'Purchase Voucher');
+    const query = { ...ListPurchaseInvoicesQuery.parse(req.query), ...(ownWarehouseId ? { warehouse_id: ownWarehouseId } : {}) };
     const service = new PurchaseListService(companyId);
     res.json(await service.list(query));
   } catch (error) {
@@ -28,7 +32,9 @@ purchasesRouter.get('/', async (req, res, next) => {
 
 purchasesRouter.get('/analytics', async (req, res, next) => {
   try {
-    const companyId = resolveCompanyId(req);
+    const scope = resolveAccessScope(req);
+    const companyId = scope.companyId;
+    requireAllBranchAccess(scope, 'Purchase Analytics');
     const query = PurchaseAnalyticsQuery.parse(req.query);
     const service = new PurchaseAnalyticsService(companyId);
     res.json(await service.analytics(query));
@@ -39,7 +45,9 @@ purchasesRouter.get('/analytics', async (req, res, next) => {
 
 purchasesRouter.get('/support-data', async (req, res, next) => {
   try {
-    const companyId = resolveCompanyId(req);
+    const scope = resolveAccessScope(req);
+    const companyId = scope.companyId;
+    purchaseWarehouseFilter(scope, 'Purchase Voucher');
     const service = new PurchaseSupportService(companyId);
     res.json(await service.getSupportData());
   } catch (error) {
@@ -49,8 +57,10 @@ purchasesRouter.get('/support-data', async (req, res, next) => {
 
 purchasesRouter.post('/validate', async (req, res, next) => {
   try {
-    const companyId = resolveCompanyId(req);
-    const input = ValidatePurchaseInvoiceInput.parse(req.body);
+    const scope = resolveAccessScope(req);
+    const companyId = scope.companyId;
+    const parsed = ValidatePurchaseInvoiceInput.parse(req.body);
+    const input = { ...parsed, warehouse_id: resolvePurchasingWarehouseId(scope, parsed.warehouse_id, 'Purchase Voucher') };
     const service = new PurchaseValidationService(companyId);
     res.json(await service.validate(input));
   } catch (error) {
@@ -60,10 +70,12 @@ purchasesRouter.post('/validate', async (req, res, next) => {
 
 purchasesRouter.post('/drafts', async (req, res, next) => {
   try {
-    const companyId = resolveCompanyId(req);
-    const input = ValidatePurchaseInvoiceInput.parse(req.body);
+    const scope = resolveAccessScope(req);
+    const companyId = scope.companyId;
+    const parsed = ValidatePurchaseInvoiceInput.parse(req.body);
+    const input = { ...parsed, warehouse_id: resolvePurchasingWarehouseId(scope, parsed.warehouse_id, 'Purchase Voucher') };
     const service = new PurchaseDraftService(companyId);
-    res.status(201).json(await service.createDraft(input, req.header('x-user-id')));
+    res.status(201).json(await service.createDraft(input, currentUserId(req)));
   } catch (error) {
     next(error);
   }
@@ -71,9 +83,11 @@ purchasesRouter.post('/drafts', async (req, res, next) => {
 
 purchasesRouter.post('/create-and-post', async (req, res, next) => {
   try {
-    const companyId = resolveCompanyId(req);
-    const input = ValidatePurchaseInvoiceInput.parse(req.body);
-    const userId = req.header('x-user-id');
+    const scope = resolveAccessScope(req);
+    const companyId = scope.companyId;
+    const parsed = ValidatePurchaseInvoiceInput.parse(req.body);
+    const input = { ...parsed, warehouse_id: resolvePurchasingWarehouseId(scope, parsed.warehouse_id, 'Purchase Voucher') };
+    const userId = currentUserId(req);
     const draftService = new PurchaseDraftService(companyId);
     const postService = new PurchasePostService(companyId);
     const draft = await draftService.createDraft(input, userId);
@@ -85,10 +99,12 @@ purchasesRouter.post('/create-and-post', async (req, res, next) => {
 
 purchasesRouter.post('/:id/post', async (req, res, next) => {
   try {
-    const companyId = resolveCompanyId(req);
+    const scope = resolveAccessScope(req);
+    const companyId = scope.companyId;
     const { id } = purchaseIdParams.parse(req.params);
+    await assertWarehouseDocumentAccess(scope, 'purchase_invoices', id);
     const service = new PurchasePostService(companyId);
-    res.json(await service.post(id, req.header('x-user-id')));
+    res.json(await service.post(id, currentUserId(req)));
   } catch (error) {
     next(error);
   }
@@ -96,8 +112,10 @@ purchasesRouter.post('/:id/post', async (req, res, next) => {
 
 purchasesRouter.get('/:id', async (req, res, next) => {
   try {
-    const companyId = resolveCompanyId(req);
+    const scope = resolveAccessScope(req);
+    const companyId = scope.companyId;
     const { id } = purchaseIdParams.parse(req.params);
+    await assertWarehouseDocumentAccess(scope, 'purchase_invoices', id);
     const service = new PurchaseDetailService(companyId);
     res.json(await service.getById(id));
   } catch (error) {

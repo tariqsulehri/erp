@@ -1,43 +1,47 @@
 'use client';
 
 import Link from 'next/link';
-import { useMemo, useState } from 'react';
+import { useSession } from 'next-auth/react';
+import { useEffect, useMemo, useState } from 'react';
 import {
+  IconArrowBackUp,
   IconCircleCheck,
-  IconCircleX,
   IconEye,
-  IconFileInvoice,
   IconFilePlus,
   IconPencil,
   IconPrinter,
   IconRefresh,
 } from '@tabler/icons-react';
+import { Badge } from '@/components/ui/Badge';
+import { Button } from '@/components/ui/Button';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
+import { TableMessageRow } from '@/components/ui/TableMessageRow';
 import { DateField, NumericField, SelectField, TextField } from '@/components/ui/FormFields';
 import { PaginationBar } from '@/components/ui/PaginationBar';
-import { formatDate, formatMoney, formatNumber } from '@/lib/app-settings';
+import { formatDate, formatMoney } from '@/lib/app-settings';
 import { useCompanyProfile, useGeneralSettings } from '@/lib/api/settings';
 import { usePostingDateGuard } from '@/lib/api/fiscal-years';
-import { usePostVoucher, useVoucherDetail, useVouchersList } from '@/lib/api/vouchers';
+import { usePostVoucher, useReverseVoucher, useVoucherDetail, useVouchersList } from '@/lib/api/vouchers';
+import { hasPermission } from '@/lib/auth/session-user';
 import { friendlyErrorMessage, numericValue } from '@/lib/erp-utils';
 import { PostedVoucherPrintPreview } from './PostedVoucherPrintPreview';
 import { useDefaultVoucherDate } from './VoucherFiscalDate';
 import {
-  badgeStyle,
-  compactButtonStyle,
-  detailMessageStyle,
-  lineActionButtonStyle,
-  messageStyle,
-  purchaseDetailPanelStyle,
-  purchaseListFooterStyle,
-  statusBadgeStyle,
-  tableCellStyle,
-  tableHeadStyle,
-  titleIconStyle,
-  toolbarStyle,
-} from '@/components/purchases/PurchaseVoucherStyles';
+  DetailActions,
+  DetailFields,
+  DetailLinesTable,
+  DetailNote,
+  DetailTotals,
+  DocumentDetailPanel,
+  DocumentHeader,
+  DocumentMessage,
+  DocumentPage,
+  PostedListFilters,
+  PostedListPanel,
+  postedListRowClass,
+} from '@/components/documents';
 
-type VoucherType = 'BRV' | 'BPV' | 'CRV' | 'CPV' | 'JV' | 'CV' | 'DN' | 'CN' | 'PI';
+type VoucherType = 'BRV' | 'BPV' | 'CRV' | 'CPV' | 'JV' | 'CV' | 'DN' | 'CN' | 'PI' | 'PR' | 'SI' | 'SR' | 'SA' | 'RV' | 'CL';
 type VoucherStatus = 'Draft' | 'Posted' | 'Voided';
 type ApprovalStatus = 'Not Required' | 'Pending' | 'Approved' | 'Rejected';
 type VoucherLifecycleFilter = 'All' | 'Draft' | 'Pending Approval' | 'Approved' | 'Posted' | 'Rejected' | 'Voided';
@@ -63,10 +67,19 @@ const voucherTypeOptions = [
   { value: 'CPV', label: 'Cash Payment' },
   { value: 'JV', label: 'Journal Voucher' },
   { value: 'PI', label: 'Purchase Invoice' },
+  { value: 'PR', label: 'Purchase Return' },
+  { value: 'SI', label: 'Sale Invoice' },
+  { value: 'SR', label: 'Sale Return' },
+  { value: 'SA', label: 'Stock Adjustment' },
   { value: 'CV', label: 'Contra Voucher' },
   { value: 'DN', label: 'Debit Note' },
   { value: 'CN', label: 'Credit Note' },
+  { value: 'RV', label: 'Reversal Voucher' },
+  { value: 'CL', label: 'Year-End Closing' },
 ];
+
+// Manual voucher types that can be corrected with a Reversal Voucher from this screen.
+const reversibleVoucherTypes = new Set(['BRV', 'BPV', 'CRV', 'CPV', 'JV', 'CV', 'DN', 'CN']);
 
 const voucherLifecycleOptions: Array<{ value: VoucherLifecycleFilter; label: string }> = [
   { value: 'All', label: 'All' },
@@ -90,17 +103,14 @@ function voucherTypeLabel(type: string) {
   return voucherTypeOptions.find(option => option.value === type)?.label ?? type;
 }
 
-function statusBadge(status: string) {
-  const colors = status === 'Posted' || status === 'Approved'
-    ? ['#166534', '#dcfce7']
-    : status === 'Voided' || status === 'Rejected'
-      ? ['#991b1b', '#fee2e2']
-      : status === 'Pending Approval'
-        ? ['#92400e', '#fef3c7']
-        : status === 'All'
-          ? ['#1d4ed8', '#dbeafe']
-          : ['#475569', '#f1f5f9'];
-  return badgeStyle(colors[0], colors[1]);
+type BadgeTone = 'success' | 'danger' | 'warning' | 'info' | 'neutral';
+
+function statusTone(status: string): BadgeTone {
+  if (status === 'Posted' || status === 'Approved') return 'success';
+  if (status === 'Voided' || status === 'Rejected') return 'danger';
+  if (status === 'Pending Approval') return 'warning';
+  if (status === 'All') return 'info';
+  return 'neutral';
 }
 
 function lifecycleFromInitialStatus(status: VoucherLifecycleFilter): VoucherLifecycleFilter {
@@ -140,7 +150,10 @@ function voucherEditPath(voucher: { id: string; voucher_type: string; status: st
   return path ? `${path}?id=${encodeURIComponent(voucher.id)}` : null;
 }
 
-export function PostedVouchersView({ initialStatus = 'Draft' }: { initialStatus?: VoucherLifecycleFilter }) {
+export function PostedVouchersView({ initialStatus = 'Draft', initialVoucherId }: { initialStatus?: VoucherLifecycleFilter; initialVoucherId?: string }) {
+  const { data: session } = useSession();
+  const userCanPost = hasPermission(session?.user.role, 'vouchers.post');
+  const userCanReverse = hasPermission(session?.user.role, 'vouchers.reverse');
   const { data: generalSettings } = useGeneralSettings();
   const { data: company } = useCompanyProfile();
   const { defaultVoucherDate } = useDefaultVoucherDate();
@@ -154,11 +167,16 @@ export function PostedVouchersView({ initialStatus = 'Draft' }: { initialStatus?
   const [amountTo, setAmountTo] = useState('');
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(50);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(initialVoucherId ?? null);
   const [printPreviewOpen, setPrintPreviewOpen] = useState(false);
   const [postConfirmOpen, setPostConfirmOpen] = useState(false);
+  const [reverseFormOpen, setReverseFormOpen] = useState(false);
+  const [reverseConfirmOpen, setReverseConfirmOpen] = useState(false);
+  const [reversalDate, setReversalDate] = useState('');
+  const [reversalReason, setReversalReason] = useState('');
   const [message, setMessage] = useState<{ kind: 'success' | 'error'; text: string } | null>(null);
   const postVoucher = usePostVoucher();
+  const reverseVoucher = useReverseVoucher();
   const money = useMemo(() => (value: string | number) => formatMoney(value, generalSettings), [generalSettings]);
   const createDateGuard = usePostingDateGuard(defaultVoucherDate, 'Voucher Date', Boolean(defaultVoucherDate));
   const newVoucherDisabledReason = createDateGuard.isChecking ? 'Fiscal period is being checked.' : createDateGuard.statusMessage;
@@ -182,9 +200,14 @@ export function PostedVouchersView({ initialStatus = 'Draft' }: { initialStatus?
   const selectedVoucher = detailQuery.data;
   const selectedVoucherIsDraft = selectedVoucher?.status === 'Draft';
   const selectedApprovalStatus = (selectedVoucher?.approval_status ?? 'Not Required') as ApprovalStatus;
-  const selectedVoucherCanPost = selectedVoucherIsDraft && selectedApprovalStatus === 'Approved';
+  const selectedVoucherCanPost = userCanPost && selectedVoucherIsDraft && selectedApprovalStatus === 'Approved';
   const selectedVoucherEditPath = selectedVoucher ? voucherEditPath(selectedVoucher) : null;
   const selectedVoucherLifecycle = selectedVoucher ? voucherLifecycleLabel(selectedVoucher) : null;
+  const selectedVoucherCanReverse = userCanReverse
+    && selectedVoucher?.status === 'Posted'
+    && reversibleVoucherTypes.has(selectedVoucher.voucher_type)
+    && !selectedVoucher.reversed_by_voucher_id
+    && !selectedVoucher.reversal_of_voucher_id;
   const selectedVoucherNextStep = selectedVoucherLifecycle === 'Pending Approval'
     ? 'This voucher is waiting for approval. Approve it from Approvals, then return here to post it.'
     : selectedVoucherLifecycle === 'Draft'
@@ -192,16 +215,24 @@ export function PostedVouchersView({ initialStatus = 'Draft' }: { initialStatus?
       : selectedVoucherLifecycle === 'Rejected'
         ? 'This voucher was rejected. Edit it, correct it, and save for approval again.'
         : selectedVoucherLifecycle === 'Posted'
-          ? 'This voucher is already posted.'
+          ? selectedVoucher?.reversed_by_voucher_id
+            ? 'This voucher is posted and has been reversed by a Reversal Voucher.'
+            : selectedVoucher?.reversal_of_voucher_id
+              ? `This is a Reversal Voucher for ${selectedVoucher.reference ?? 'another voucher'}.`
+              : selectedVoucherCanReverse
+                ? 'This voucher is posted. To correct it, reverse it and enter a new voucher.'
+                : 'This voucher is already posted.'
           : selectedVoucherLifecycle === 'Voided'
             ? 'This voucher is voided and cannot be posted.'
             : null;
 
+  useEffect(() => {
+    setReverseFormOpen(false);
+  }, [selectedId]);
+
   const rows = (listQuery.data?.data ?? []) as VoucherListRow[];
   const total = listQuery.data?.pagination?.total ?? 0;
   const pages = listQuery.data?.pagination?.pages ?? Math.max(1, Math.ceil(total / pageSize));
-  const fromRecord = total === 0 ? 0 : (page - 1) * pageSize + 1;
-  const toRecord = Math.min(page * pageSize, total);
 
   function resetFilters() {
     setSearchText('');
@@ -281,9 +312,52 @@ export function PostedVouchersView({ initialStatus = 'Draft' }: { initialStatus?
     }
   }
 
+  function openReverseForm() {
+    setMessage(null);
+    setReversalDate(defaultVoucherDate || '');
+    setReversalReason('');
+    setReverseFormOpen(true);
+  }
+
+  function requestReverseSelectedVoucher() {
+    if (!selectedVoucherCanReverse) {
+      setMessage({ kind: 'error', text: 'Only Posted manual vouchers that are not reversed yet can be reversed.' });
+      return;
+    }
+    if (!reversalDate) {
+      setMessage({ kind: 'error', text: 'Reversal Date is required.' });
+      return;
+    }
+    if (!reversalReason.trim()) {
+      setMessage({ kind: 'error', text: 'Reversal Reason is required.' });
+      return;
+    }
+    setMessage(null);
+    setReverseConfirmOpen(true);
+  }
+
+  async function reverseSelectedVoucher() {
+    setReverseConfirmOpen(false);
+    if (!selectedVoucher?.id) return;
+    try {
+      const reversal = await reverseVoucher.mutateAsync({
+        id: selectedVoucher.id,
+        reversal_date: reversalDate,
+        reason: reversalReason.trim(),
+      });
+      setReverseFormOpen(false);
+      await Promise.all([listQuery.refetch(), detailQuery.refetch()]);
+      setMessage({ kind: 'success', text: `${selectedVoucher.voucher_number} reversed by ${reversal?.voucher_number ?? 'a Reversal Voucher'}.` });
+    } catch (error) {
+      setMessage({ kind: 'error', text: friendlyErrorMessage(error, 'Unable to reverse Voucher.') });
+    }
+  }
+
+  const iconProps = { size: 16, stroke: 1.8, 'aria-hidden': true } as const;
+
   if (printPreviewOpen && detailQuery.data) {
     return (
-      <main style={{ height: '100%', minHeight: 0, boxSizing: 'border-box', padding: 10, overflow: 'hidden' }}>
+      <div className="page-shell">
         <PostedVoucherPrintPreview
           voucher={detailQuery.data}
           company={company}
@@ -292,331 +366,240 @@ export function PostedVouchersView({ initialStatus = 'Draft' }: { initialStatus?
           onBack={() => setPrintPreviewOpen(false)}
           onError={text => setMessage({ kind: 'error', text })}
         />
-      </main>
+      </div>
     );
   }
 
   return (
-    <main style={{ height: '100%', minHeight: 0, boxSizing: 'border-box', padding: 10, display: 'flex', flexDirection: 'column', gap: 8, overflow: 'hidden' }}>
-      <section style={toolbarStyle}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-          <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-            <div style={titleIconStyle}><IconFileInvoice size={20} stroke={1.8} /></div>
-            <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-              <h1 style={{ margin: 0, fontSize: '1.05rem', lineHeight: 1.1, color: 'var(--color-heading)' }}>{listTitle}</h1>
-              <span style={statusBadge(voucherLifecycle)}>{voucherLifecycle}</span>
-              <span style={statusBadgeStyle}>{total} Record{total === 1 ? '' : 's'}</span>
-            </div>
-          </div>
-          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-            <button type="button" className="btn-secondary" onClick={() => listQuery.refetch()} style={compactButtonStyle}>
-              <IconRefresh size={15} /> Refresh
-            </button>
+    <DocumentPage>
+      <DocumentHeader
+        title={listTitle}
+        badges={(
+          <>
+            <Badge variant={statusTone(voucherLifecycle)}>{voucherLifecycle}</Badge>
+            <Badge variant="neutral">{total} Record{total === 1 ? '' : 's'}</Badge>
+          </>
+        )}
+        actions={(
+          <>
+            <Button variant="secondary" icon={<IconRefresh {...iconProps} />} onClick={() => listQuery.refetch()}>Refresh</Button>
             {newVoucherLinks.map(link => (
               newVoucherDisabled ? (
-                <button
-                  key={link.href}
-                  type="button"
-                  className="btn-secondary"
-                  disabled
-                  title={newVoucherDisabledReason}
-                  style={compactButtonStyle}
-                >
-                  <IconFilePlus size={15} /> {link.label}
-                </button>
+                <Button key={link.href} variant="secondary" icon={<IconFilePlus {...iconProps} />} disabled title={newVoucherDisabledReason}>
+                  {link.label}
+                </Button>
               ) : (
-                <Link key={link.href} href={link.href} className="btn-secondary" style={{ ...compactButtonStyle, textDecoration: 'none' }}>
-                  <IconFilePlus size={15} /> {link.label}
+                <Link key={link.href} href={link.href} className="btn-secondary" title={`New ${link.label} Voucher`}>
+                  <IconFilePlus {...iconProps} /> {link.label}
                 </Link>
               )
             ))}
-          </div>
-        </div>
-      </section>
+          </>
+        )}
+      />
 
-      {message && (
-        <div style={messageStyle(message.kind)}>
-          <IconFileInvoice size={18} />
-          {message.text}
-        </div>
-      )}
+      <DocumentMessage message={message} onDismiss={() => setMessage(null)} />
 
-      <section className="workspace-card" style={{ padding: 10, flex: 1, minHeight: 0, display: 'grid', gridTemplateRows: 'auto 1fr auto', gap: 8, overflow: 'hidden' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(220px, 1.4fr) 84px 76px 145px 112px 118px 118px 112px 112px auto', gap: 7, alignItems: 'end' }}>
-          <TextField label="Search" value={searchText} onChange={setSearchText} placeholder="Voucher No., Reference, Description" inputProps={{ onKeyDown: event => { if (event.key === 'Enter') applySearch(); } }} />
-          <button type="button" className="btn-secondary" onClick={applySearch} disabled={listQuery.isFetching} style={{ ...compactButtonStyle, alignSelf: 'end' }}>
-            {listQuery.isFetching && <span className="spinner" style={{ width: 12, height: 12, borderWidth: 2 }} />}
-            {listQuery.isFetching ? 'Searching...' : 'Search'}
-          </button>
-          <button type="button" className="btn-secondary" onClick={clearSearch} disabled={listQuery.isFetching || (!search && !searchText)} style={{ ...compactButtonStyle, alignSelf: 'end' }}>
-            Clear
-          </button>
-          <SelectField
-            label="Voucher Type"
-            value={voucherType}
-            onChange={value => updateFilter(() => setVoucherType(value))}
-            options={voucherTypeOptions}
-            placeholder="All Types"
-          />
-          <SelectField
-            label="Status"
-            value={voucherLifecycle}
-            onChange={value => updateFilter(() => setVoucherLifecycle(value as VoucherLifecycleFilter))}
-            options={voucherLifecycleOptions}
-          />
-          <DateField label="Date From" value={dateFrom} onChange={value => updateFilter(() => setDateFrom(value))} />
-          <DateField label="Date To" value={dateTo} onChange={value => updateFilter(() => setDateTo(value))} />
-          <NumericField label="Amount From" value={amountFrom} onChange={value => updateFilter(() => setAmountFrom(value))} />
-          <NumericField label="Amount To" value={amountTo} onChange={value => updateFilter(() => setAmountTo(value))} />
-          <button type="button" className="btn-secondary" onClick={resetFilters} style={{ ...compactButtonStyle, alignSelf: 'end' }}>
-            Clear Filters
-          </button>
-        </div>
-
-        <div style={{ minHeight: 0, display: 'grid', gridTemplateColumns: selectedId ? 'minmax(0, 1fr) 420px' : '1fr', gap: 8, overflow: 'hidden' }}>
-          <div style={{ minHeight: 0, overflow: 'auto', border: '1px solid var(--color-border)', borderRadius: 'var(--radius)' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.74rem', tableLayout: 'fixed' }}>
-              <colgroup>
-                <col style={{ width: 130 }} />
-                <col style={{ width: 92 }} />
-                <col style={{ width: 118 }} />
-                <col style={{ width: 130 }} />
-                <col />
-                <col style={{ width: 118 }} />
-                <col style={{ width: 118 }} />
-                <col style={{ width: 86 }} />
-                <col style={{ width: 78 }} />
-              </colgroup>
-              <thead>
-                <tr>
-                  {['Voucher Number', 'Date', 'Type', 'Reference', 'Description', 'Debit', 'Credit', 'Status', 'Actions'].map((label, index) => (
-                    <th key={label} style={tableHeadStyle(index === 5 || index === 6)}>{label}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {listQuery.isLoading && (
-                  <tr>
-                    <td colSpan={9} style={{ ...tableCellStyle(), height: 80, textAlign: 'center', color: 'var(--color-text-muted)', fontWeight: 700 }}>
-                      Loading Vouchers...
+      <PostedListPanel
+        filters={(
+          <PostedListFilters label="Voucher Filters">
+            <TextField label="Search" value={searchText} onChange={setSearchText} placeholder="Voucher No., Reference, Description" inputProps={{ onKeyDown: event => { if (event.key === 'Enter') applySearch(); } }} />
+            <Button variant="secondary" onClick={applySearch} loading={listQuery.isFetching}>Search</Button>
+            <Button variant="ghost" onClick={clearSearch} disabled={listQuery.isFetching || (!search && !searchText)}>Clear</Button>
+            <SelectField
+              label="Voucher Type"
+              value={voucherType}
+              onChange={value => updateFilter(() => setVoucherType(value))}
+              options={voucherTypeOptions}
+              placeholder="All Types"
+            />
+            <SelectField
+              label="Status"
+              value={voucherLifecycle}
+              onChange={value => updateFilter(() => setVoucherLifecycle(value as VoucherLifecycleFilter))}
+              options={voucherLifecycleOptions}
+            />
+            <DateField label="Date From" value={dateFrom} onChange={value => updateFilter(() => setDateFrom(value))} />
+            <DateField label="Date To" value={dateTo} onChange={value => updateFilter(() => setDateTo(value))} />
+            <NumericField label="Amount From" value={amountFrom} onChange={value => updateFilter(() => setAmountFrom(value))} />
+            <NumericField label="Amount To" value={amountTo} onChange={value => updateFilter(() => setAmountTo(value))} />
+            <Button variant="ghost" onClick={resetFilters}>Clear Filters</Button>
+          </PostedListFilters>
+        )}
+        table={(
+          <table className="data-table" style={{ tableLayout: 'fixed', minWidth: 900 }}>
+            <colgroup>
+              <col style={{ width: 136 }} />
+              <col style={{ width: 104 }} />
+              <col style={{ width: 128 }} />
+              <col style={{ width: 128 }} />
+              <col />
+              <col style={{ width: 120 }} />
+              <col style={{ width: 120 }} />
+              <col style={{ width: 140 }} />
+              <col style={{ width: 76 }} />
+            </colgroup>
+            <thead>
+              <tr>
+                <th>Voucher Number</th>
+                <th>Date</th>
+                <th>Type</th>
+                <th>Reference</th>
+                <th>Description</th>
+                <th className="num">Debit</th>
+                <th className="num">Credit</th>
+                <th>Status</th>
+                <th><span className="sr-only">Actions</span></th>
+              </tr>
+            </thead>
+            <tbody>
+              {listQuery.isLoading && <TableMessageRow colSpan={9} title="Loading Vouchers…" loading />}
+              {listQuery.error && (
+                <TableMessageRow colSpan={9} title="Unable To Load Vouchers" description={friendlyErrorMessage(listQuery.error, 'Unable to load Vouchers.')} />
+              )}
+              {!listQuery.isLoading && !listQuery.error && rows.length === 0 && (
+                <TableMessageRow colSpan={9} title="No Vouchers Found" description="Change or clear the filters to see more vouchers." />
+              )}
+              {rows.map(row => {
+                const editPath = voucherEditPath(row);
+                const lifecycle = voucherLifecycleLabel(row);
+                return (
+                  <tr key={row.id} className={`${postedListRowClass}${selectedId === row.id ? ' is-selected' : ''}`} onClick={() => setSelectedId(row.id)}>
+                    <td className="cell-strong">{row.voucher_number}</td>
+                    <td>{formatDate(row.voucher_date, generalSettings)}</td>
+                    <td>{voucherTypeLabel(row.voucher_type)}</td>
+                    <td className={row.reference ? undefined : 'cell-muted'}>{row.reference || 'Not Set'}</td>
+                    <td className={row.narration ? undefined : 'cell-muted'} title={row.narration ?? undefined}>{row.narration || 'Not Set'}</td>
+                    <td className="num">{money(row.total_debit)}</td>
+                    <td className="num">{money(row.total_credit)}</td>
+                    <td><Badge variant={statusTone(lifecycle)}>{lifecycle}</Badge></td>
+                    <td className="cell-actions">
+                      <span className="row-actions">
+                        <Button variant="ghost" size="sm" icon={<IconEye {...iconProps} />} onClick={event => { event.stopPropagation(); setSelectedId(row.id); }} aria-label={`View Voucher ${row.voucher_number}`} title="View Voucher" />
+                        {editPath && (
+                          <Link href={editPath} className="btn-ghost btn-sm btn-icon" onClick={event => event.stopPropagation()} aria-label={`Edit Draft Voucher ${row.voucher_number}`} title="Edit Draft Voucher">
+                            <IconPencil {...iconProps} />
+                          </Link>
+                        )}
+                      </span>
                     </td>
                   </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        )}
+        detail={selectedId && (
+          <DocumentDetailPanel
+            title="Voucher Detail"
+            loading={detailQuery.isLoading}
+            loadingText="Loading Voucher Detail…"
+            error={detailQuery.error ? friendlyErrorMessage(detailQuery.error, 'Unable to load Voucher Detail.') : undefined}
+            onClose={() => setSelectedId(null)}
+            actions={selectedVoucher && (
+              <>
+                {selectedVoucherEditPath && (
+                  <Link href={selectedVoucherEditPath} className="btn-ghost btn-sm btn-icon" aria-label="Edit Draft Voucher" title="Edit Draft Voucher">
+                    <IconPencil {...iconProps} />
+                  </Link>
                 )}
-                {listQuery.error && (
-                  <tr>
-                    <td colSpan={9} style={{ ...tableCellStyle(), height: 80, textAlign: 'center', color: 'var(--color-danger-text)', fontWeight: 700 }}>
-                      {friendlyErrorMessage(listQuery.error, 'Unable to load Vouchers.')}
-                    </td>
-                  </tr>
-                )}
-                {!listQuery.isLoading && !listQuery.error && rows.length === 0 && (
-                  <tr>
-                    <td colSpan={9} style={{ ...tableCellStyle(), height: 90, textAlign: 'center', color: 'var(--color-text-muted)', fontWeight: 700 }}>
-                      No vouchers found for the selected filters.
-                    </td>
-                  </tr>
-                )}
-                {rows.map(row => {
-                  const active = selectedId === row.id;
-                  const editPath = voucherEditPath(row);
-                  return (
-                    <tr key={row.id} onClick={() => setSelectedId(row.id)} style={{ cursor: 'pointer', outline: active ? '2px solid var(--color-primary)' : 'none', outlineOffset: -1 }}>
-                      <td style={tableCellStyle()}><strong>{row.voucher_number}</strong></td>
-                      <td style={tableCellStyle()}>{formatDate(row.voucher_date, generalSettings)}</td>
-                      <td style={tableCellStyle()}>{voucherTypeLabel(row.voucher_type)}</td>
-                      <td style={tableCellStyle()}>{row.reference || '-'}</td>
-                      <td style={tableCellStyle()}>{row.narration || '-'}</td>
-                      <td style={tableCellStyle(true)}>{money(row.total_debit)}</td>
-                      <td style={tableCellStyle(true)}>{money(row.total_credit)}</td>
-                      <td style={tableCellStyle()}><span style={statusBadge(voucherLifecycleLabel(row))}>{voucherLifecycleLabel(row)}</span></td>
-                      <td style={tableCellStyle()}>
-                        <div style={{ display: 'flex', gap: 3 }}>
-                          <button type="button" className="btn-ghost" onClick={event => { event.stopPropagation(); setSelectedId(row.id); }} title="View Voucher" style={{ ...lineActionButtonStyle, width: 28, minWidth: 28 }}>
-                            <IconEye size={15} />
-                          </button>
-                          {editPath && (
-                            <Link href={editPath} className="btn-ghost" onClick={event => event.stopPropagation()} title="Edit Draft Voucher" style={{ ...lineActionButtonStyle, width: 28, minWidth: 28, textDecoration: 'none' }}>
-                              <IconPencil size={15} />
-                            </Link>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-
-          {selectedId && (
-            <aside style={purchaseDetailPanelStyle}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'center', borderBottom: '1px solid var(--color-border)', paddingBottom: 8 }}>
-                <strong style={{ fontSize: '0.86rem', color: 'var(--color-heading)' }}>Voucher Detail</strong>
-                <div style={{ display: 'flex', gap: 4 }}>
-                  {detailQuery.data && (
-                    <>
-                      {selectedVoucherCanPost && (
-                        <button
-                          type="button"
-                          className="btn-ghost"
-                          onClick={requestPostSelectedVoucher}
-                          disabled={postVoucher.isPending}
-                          title="Post Voucher"
-                          style={{ ...lineActionButtonStyle, width: 28, minWidth: 28, color: 'var(--color-success)' }}
-                        >
-                          {postVoucher.isPending ? <span className="spinner" style={{ width: 13, height: 13, borderWidth: 2 }} /> : <IconCircleCheck size={15} />}
-                        </button>
-                      )}
-                      {selectedVoucherEditPath && (
-                        <Link
-                          href={selectedVoucherEditPath}
-                          className="btn-ghost"
-                          title="Edit Draft Voucher"
-                          style={{ ...lineActionButtonStyle, width: 28, minWidth: 28, textDecoration: 'none' }}
-                        >
-                          <IconPencil size={15} />
-                        </Link>
-                      )}
-                      <button type="button" className="btn-ghost" onClick={printDetail} title="Print Voucher" style={{ ...lineActionButtonStyle, width: 28, minWidth: 28 }}>
-                        <IconPrinter size={15} />
-                      </button>
-                    </>
-                  )}
-                  <button type="button" className="btn-ghost" onClick={() => setSelectedId(null)} title="Close Detail" style={{ ...lineActionButtonStyle, width: 28, minWidth: 28 }}>
-                    <IconCircleX size={15} />
-                  </button>
-                </div>
-              </div>
-
-              {detailQuery.isLoading && <div style={detailMessageStyle}>Loading voucher detail...</div>}
-              {detailQuery.error && <div style={{ ...detailMessageStyle, color: 'var(--color-danger-text)' }}>{friendlyErrorMessage(detailQuery.error, 'Unable to load Voucher Detail.')}</div>}
-              {detailQuery.data && (
-                <div style={{ minHeight: 0, display: 'flex', flexDirection: 'column', gap: 8, overflow: 'hidden' }}>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
-                    {[
-                      ['Voucher No.', detailQuery.data.voucher_number],
-                      ['Date', formatDate(detailQuery.data.voucher_date, generalSettings)],
-                      ['Type', voucherTypeLabel(detailQuery.data.voucher_type)],
-                      ['Status', voucherLifecycleLabel(detailQuery.data)],
-                      ['Reference', detailQuery.data.reference || '-'],
-                      ['Posted At', detailQuery.data.posted_at ? formatDate(detailQuery.data.posted_at, generalSettings) : '-'],
-                    ].map(([label, value]) => (
-                      <div key={label} style={{ border: '1px solid var(--color-border-subtle)', borderRadius: 'var(--radius-sm)', padding: '6px 7px', minWidth: 0 }}>
-                        <div style={{ color: 'var(--color-text-muted)', fontSize: '0.62rem', fontWeight: 800 }}>{label}</div>
-                        <div style={{ color: 'var(--color-text)', fontSize: '0.73rem', fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{value}</div>
-                      </div>
+                <Button variant="ghost" size="sm" icon={<IconPrinter {...iconProps} />} onClick={printDetail} aria-label="Print Voucher" title="Print Voucher" />
+              </>
+            )}
+          >
+            {selectedVoucher && (
+              <>
+                <DetailFields
+                  items={[
+                    ['Voucher No.', selectedVoucher.voucher_number],
+                    ['Date', formatDate(selectedVoucher.voucher_date, generalSettings)],
+                    ['Type', voucherTypeLabel(selectedVoucher.voucher_type)],
+                    ['Status', <Badge key="status" variant={statusTone(voucherLifecycleLabel(selectedVoucher))}>{voucherLifecycleLabel(selectedVoucher)}</Badge>],
+                    ['Reference', selectedVoucher.reference],
+                    ['Posted At', selectedVoucher.posted_at ? formatDate(selectedVoucher.posted_at, generalSettings) : ''],
+                    ['Description', selectedVoucher.narration],
+                  ]}
+                />
+                <DetailLinesTable>
+                  <colgroup>
+                    <col style={{ width: 40 }} />
+                    <col />
+                    <col style={{ width: 96 }} />
+                    <col style={{ width: 96 }} />
+                  </colgroup>
+                  <thead>
+                    <tr><th className="num">No.</th><th>Account</th><th className="num">Debit</th><th className="num">Credit</th></tr>
+                  </thead>
+                  <tbody>
+                    {(selectedVoucher.lines ?? []).map((line: any) => (
+                      <tr key={line.id}>
+                        <td className="num cell-muted">{line.line_no}</td>
+                        <td title={`${line.account_code} - ${line.account_name}`}>{line.account_code} - {line.account_name}</td>
+                        <td className="num">{Number(line.dr_amount) > 0 ? money(line.dr_amount) : ''}</td>
+                        <td className="num">{Number(line.cr_amount) > 0 ? money(line.cr_amount) : ''}</td>
+                      </tr>
                     ))}
-                  </div>
+                  </tbody>
+                </DetailLinesTable>
+                <DetailTotals
+                  items={[
+                    ['Total Debit', money(String(selectedVoucher.total_debit))],
+                    ['Total Credit', money(String(selectedVoucher.total_credit))],
+                  ]}
+                />
 
-                  <div style={{ border: '1px solid var(--color-border-subtle)', borderRadius: 'var(--radius-sm)', padding: '6px 7px' }}>
-                    <div style={{ color: 'var(--color-text-muted)', fontSize: '0.62rem', fontWeight: 800 }}>Description</div>
-                    <div style={{ color: 'var(--color-text)', fontSize: '0.73rem', fontWeight: 700 }}>{detailQuery.data.narration || '-'}</div>
-                  </div>
+                {selectedVoucherNextStep && (
+                  <DetailNote>
+                    <span>{selectedVoucherNextStep}</span>
+                    {selectedVoucherLifecycle === 'Pending Approval' && (
+                      <Link href="/approvals" className="btn-secondary">Open Approvals</Link>
+                    )}
+                  </DetailNote>
+                )}
 
-                  <div style={{ minHeight: 0, overflowY: 'auto', border: '1px solid var(--color-border)', borderRadius: 'var(--radius)' }}>
-                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.68rem', tableLayout: 'fixed' }}>
-                      <colgroup>
-                        <col style={{ width: 34 }} />
-                        <col />
-                        <col style={{ width: 82 }} />
-                        <col style={{ width: 82 }} />
-                      </colgroup>
-                      <thead>
-                        <tr>
-                          {['No.', 'Account', 'Debit', 'Credit'].map((label, index) => (
-                            <th key={label} style={tableHeadStyle(index >= 2)}>{label}</th>
-                          ))}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {(detailQuery.data.lines ?? []).map((line: any) => (
-                          <tr key={line.id}>
-                            <td style={tableCellStyle()}>{line.line_no}</td>
-                            <td style={tableCellStyle()}>{line.account_code} - {line.account_name}</td>
-                            <td style={tableCellStyle(true)}>{Number(line.dr_amount) > 0 ? money(line.dr_amount) : '-'}</td>
-                            <td style={tableCellStyle(true)}>{Number(line.cr_amount) > 0 ? money(line.cr_amount) : '-'}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-
-                  <div style={{ display: 'grid', gap: 5 }}>
-                    {[
-                      ['Total Debit', detailQuery.data.total_debit],
-                      ['Total Credit', detailQuery.data.total_credit],
-                    ].map(([label, value]) => (
-                      <div key={label} style={{ display: 'flex', justifyContent: 'space-between', gap: 8, color: 'var(--color-text-secondary)', fontSize: '0.76rem', fontWeight: 800 }}>
-                        <span>{label}</span>
-                        <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--color-text)' }}>{money(String(value))}</span>
-                      </div>
-                    ))}
-                  </div>
-
-                  {selectedVoucherNextStep && (
-                    <div style={{ border: '1px solid var(--color-border-subtle)', borderRadius: 'var(--radius-sm)', padding: '7px 8px', display: 'grid', gap: 7 }}>
-                      <div style={{ color: 'var(--color-text-secondary)', fontSize: '0.72rem', fontWeight: 800, lineHeight: 1.35 }}>
-                        {selectedVoucherNextStep}
-                      </div>
-                      {selectedVoucherLifecycle === 'Pending Approval' && (
-                        <Link
-                          href="/approvals"
-                          className="btn-secondary"
-                          style={{ ...compactButtonStyle, justifyContent: 'center', minHeight: 32, textDecoration: 'none' }}
-                        >
-                          Open Approvals
-                        </Link>
-                      )}
-                    </div>
-                  )}
-
+                <DetailActions>
                   {selectedVoucherCanPost && (
-                    <button
-                      type="button"
-                      className="btn-primary"
-                      onClick={requestPostSelectedVoucher}
-                      disabled={postVoucher.isPending}
-                      style={{ ...compactButtonStyle, justifyContent: 'center', minHeight: 34 }}
-                    >
-                      {postVoucher.isPending ? (
-                        <>
-                          <span className="spinner" style={{ width: 14, height: 14, borderWidth: 2, borderTopColor: '#fff', borderColor: 'rgba(255,255,255,0.35)' }} />
-                          Posting...
-                        </>
-                      ) : (
-                        <>
-                          <IconCircleCheck size={15} />
-                          Post Voucher
-                        </>
-                      )}
-                    </button>
+                    <Button variant="primary" icon={<IconCircleCheck {...iconProps} />} onClick={requestPostSelectedVoucher} loading={postVoucher.isPending}>
+                      Post Voucher
+                    </Button>
                   )}
                   {selectedVoucherEditPath && (
-                    <Link
-                      href={selectedVoucherEditPath}
-                      className="btn-secondary"
-                      style={{ ...compactButtonStyle, justifyContent: 'center', minHeight: 34, textDecoration: 'none' }}
-                    >
-                      <IconPencil size={15} />
-                      Edit Draft Voucher
+                    <Link href={selectedVoucherEditPath} className="btn-secondary">
+                      <IconPencil {...iconProps} /> Edit Draft Voucher
                     </Link>
                   )}
-                </div>
-              )}
-            </aside>
-          )}
-        </div>
-
-        <PaginationBar
-          page={page}
-          totalPages={pages}
-          totalRecords={total}
-          pageSize={pageSize}
-          recordLabel={total === 1 ? 'Voucher' : 'Vouchers'}
-          onPageChange={setPage}
-          onPageSizeChange={value => { setPageSize(value); setPage(1); }}
-        />
-      </section>
+                  {selectedVoucherCanReverse && !reverseFormOpen && (
+                    <Button variant="secondary" icon={<IconArrowBackUp {...iconProps} />} onClick={openReverseForm}>
+                      Reverse Voucher
+                    </Button>
+                  )}
+                  {selectedVoucherCanReverse && reverseFormOpen && (
+                    <DetailNote>
+                      <DateField label="Reversal Date" value={reversalDate} onChange={setReversalDate} required />
+                      <TextField label="Reversal Reason" value={reversalReason} onChange={setReversalReason} required placeholder="Why is this voucher reversed?" />
+                      <span className="row-actions">
+                        <Button variant="primary" onClick={requestReverseSelectedVoucher} loading={reverseVoucher.isPending}>Reverse Voucher</Button>
+                        <Button variant="ghost" onClick={() => setReverseFormOpen(false)} disabled={reverseVoucher.isPending}>Cancel</Button>
+                      </span>
+                    </DetailNote>
+                  )}
+                </DetailActions>
+              </>
+            )}
+          </DocumentDetailPanel>
+        )}
+        pagination={(
+          <PaginationBar
+            page={page}
+            totalPages={pages}
+            totalRecords={total}
+            pageSize={pageSize}
+            recordLabel={total === 1 ? 'Voucher' : 'Vouchers'}
+            onPageChange={setPage}
+            onPageSizeChange={value => { setPageSize(value); setPage(1); }}
+          />
+        )}
+      />
       <ConfirmDialog
         open={postConfirmOpen}
         title="Post Voucher?"
@@ -628,6 +611,17 @@ export function PostedVouchersView({ initialStatus = 'Draft' }: { initialStatus?
         onConfirm={postSelectedVoucher}
         onCancel={() => setPostConfirmOpen(false)}
       />
-    </main>
+      <ConfirmDialog
+        open={reverseConfirmOpen}
+        title="Reverse Voucher?"
+        message={`Post a Reversal Voucher dated ${reversalDate ? formatDate(reversalDate, generalSettings) : 'Not Set'} that cancels ${selectedVoucher?.voucher_number ?? 'this voucher'}? Both vouchers stay in the ledger and this cannot be undone.`}
+        confirmLabel="Yes, Reverse Voucher"
+        cancelLabel="No"
+        variant="warning"
+        loading={reverseVoucher.isPending}
+        onConfirm={reverseSelectedVoucher}
+        onCancel={() => setReverseConfirmOpen(false)}
+      />
+    </DocumentPage>
   );
 }

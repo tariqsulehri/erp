@@ -139,6 +139,20 @@ export function useAccountsList(params: AccountsListParams, enabled = true) {
   });
 }
 
+export async function fetchAllAccountsForExport() {
+  const limit = 200;
+  const firstPage = await backendGet<AccountsListResponse>(`/accounts${buildAccountsQuery({ page: 1, limit })}`);
+  const allAccounts = [...firstPage.data];
+  const totalPages = firstPage.pagination.pages;
+
+  for (let page = 2; page <= totalPages; page += 1) {
+    const nextPage = await backendGet<AccountsListResponse>(`/accounts${buildAccountsQuery({ page, limit })}`);
+    allAccounts.push(...nextPage.data);
+  }
+
+  return allAccounts;
+}
+
 export function useAccountsHierarchy() {
   return useQuery<AccountTreeNode[]>({
     queryKey: [...accountsQueryKey, 'hierarchy'],
@@ -188,6 +202,22 @@ export function useAccountDetail(id: string | undefined, enabled = true) {
     queryFn: () => backendGet<AccountListItem>(`/accounts/${encodeURIComponent(id ?? '')}`),
     enabled: Boolean(id) && enabled,
     retry: false,
+  });
+}
+
+export interface OpeningBalanceSummary {
+  account_count: number;
+  total_debit: string;
+  total_credit: string;
+  difference: string;
+  is_balanced: boolean;
+  accounts_without_date: number;
+}
+
+export function useOpeningBalanceSummary() {
+  return useQuery<OpeningBalanceSummary>({
+    queryKey: [...accountsQueryKey, 'opening-balance-summary'],
+    queryFn: () => backendGet<OpeningBalanceSummary>('/accounts/opening-balance-summary'),
   });
 }
 

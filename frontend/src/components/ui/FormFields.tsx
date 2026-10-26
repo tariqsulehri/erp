@@ -1,6 +1,6 @@
 'use client';
 
-import type { CSSProperties, InputHTMLAttributes, SelectHTMLAttributes } from 'react';
+import { useId, type CSSProperties, type InputHTMLAttributes, type SelectHTMLAttributes } from 'react';
 import { sanitizeMoneyInput } from '@/lib/erp-utils';
 import { FieldLabel } from './FieldLabel';
 
@@ -14,6 +14,34 @@ interface BaseFieldProps {
   placeholder?: string;
   style?: CSSProperties;
   size?: FieldSize;
+  /** Short help text shown under the field. */
+  hint?: string;
+  /** Problem with the value, shown under the field and announced by screen readers. */
+  error?: string;
+}
+
+/**
+ * Accessibility wiring shared by every field: required state, and hint and error text linked to the
+ * input with aria-describedby so screen readers read them with the field.
+ */
+function useFieldDescription({ required, hint, error }: { required: boolean; hint?: string; error?: string }) {
+  const id = useId();
+  const hintId = hint ? `${id}-hint` : undefined;
+  const errorId = error ? `${id}-error` : undefined;
+  const describedBy = [hintId, errorId].filter(Boolean).join(' ') || undefined;
+  return {
+    inputProps: {
+      'aria-required': required || undefined,
+      'aria-invalid': error ? true : undefined,
+      'aria-describedby': describedBy,
+    },
+    description: (
+      <>
+        {hint && <span id={hintId} className="form-hint" style={{ display: 'block' }}>{hint}</span>}
+        {error && <span id={errorId} className="form-error" role="alert" style={{ display: 'block' }}>{error}</span>}
+      </>
+    ),
+  };
 }
 
 interface TextFieldProps extends BaseFieldProps {
@@ -30,7 +58,7 @@ interface NumericFieldProps extends BaseFieldProps {
 }
 
 interface SelectFieldProps extends BaseFieldProps {
-  options: Array<{ value: string; label: string }>;
+  options: Array<{ value: string; label: string; disabled?: boolean }>;
   onChange?: (value: string) => void;
   selectProps?: Omit<SelectHTMLAttributes<HTMLSelectElement>, 'value' | 'onChange' | 'disabled'>;
 }
@@ -45,10 +73,14 @@ export function TextField({
   style,
   size = 'compact',
   inputProps,
+  hint,
+  error,
 }: TextFieldProps) {
+  const a11y = useFieldDescription({ required, hint, error });
   return (
     <FieldLabel label={label} required={required}>
       <input
+        {...a11y.inputProps}
         {...inputProps}
         className="form-input"
         value={value}
@@ -57,6 +89,7 @@ export function TextField({
         onChange={event => onChange?.(event.currentTarget.value)}
         style={{ ...fieldStyle(size), ...style }}
       />
+      {a11y.description}
     </FieldLabel>
   );
 }
@@ -84,10 +117,14 @@ export function NumericField({
   style,
   size = 'compact',
   inputProps,
+  hint,
+  error,
 }: NumericFieldProps) {
+  const a11y = useFieldDescription({ required, hint, error });
   return (
     <FieldLabel label={label} required={required}>
       <input
+        {...a11y.inputProps}
         {...inputProps}
         className="form-input"
         inputMode="decimal"
@@ -102,6 +139,7 @@ export function NumericField({
         onChange={event => onChange?.(sanitizeMoneyInput(event.currentTarget.value, decimalPlaces))}
         style={{ ...numericFieldStyle(size), ...style }}
       />
+      {a11y.description}
     </FieldLabel>
   );
 }
@@ -117,10 +155,14 @@ export function SelectField({
   style,
   size = 'compact',
   selectProps,
+  hint,
+  error,
 }: SelectFieldProps) {
+  const a11y = useFieldDescription({ required, hint, error });
   return (
     <FieldLabel label={label} required={required}>
       <select
+        {...a11y.inputProps}
         {...selectProps}
         className="form-input"
         value={value}
@@ -130,19 +172,21 @@ export function SelectField({
       >
         {placeholder !== undefined && <option value="">{placeholder}</option>}
         {options.map(option => (
-          <option key={option.value} value={option.value}>{option.label}</option>
+          <option key={option.value} value={option.value} disabled={option.disabled}>{option.label}</option>
         ))}
       </select>
+      {a11y.description}
     </FieldLabel>
   );
 }
 
 export function fieldStyle(size: FieldSize = 'compact'): CSSProperties {
+  const height = size === 'compact' ? 'var(--control-h)' : 'var(--control-h-lg)';
   return {
-    height: size === 'compact' ? 28 : 34,
-    minHeight: size === 'compact' ? 28 : 34,
-    padding: size === 'compact' ? '3px 8px' : '5px 10px',
-    fontSize: size === 'compact' ? '0.76rem' : '0.84rem',
+    height,
+    minHeight: height,
+    padding: '0 10px',
+    fontSize: size === 'compact' ? 'var(--font-size-sm)' : 'var(--font-size-md)',
   };
 }
 
@@ -150,33 +194,58 @@ export function numericFieldStyle(size: FieldSize = 'compact'): CSSProperties {
   return {
     ...fieldStyle(size),
     textAlign: 'right',
-    fontFamily: 'var(--font-mono)',
-    fontWeight: 800,
+    fontVariantNumeric: 'tabular-nums',
+    fontWeight: 500,
   };
 }
 
+// Chevron comes from the shared select.form-input rule in globals.css.
 export function selectFieldStyle(size: FieldSize = 'compact'): CSSProperties {
   return {
     ...fieldStyle(size),
-    paddingRight: 34,
-    cursor: 'pointer',
-    appearance: 'none',
-    WebkitAppearance: 'none',
-    backgroundColor: 'var(--color-input-bg)',
-    backgroundImage: [
-      'linear-gradient(45deg, transparent 50%, var(--color-text-muted) 50%)',
-      'linear-gradient(135deg, var(--color-text-muted) 50%, transparent 50%)',
-    ].join(', '),
-    backgroundPosition: 'calc(100% - 17px) 50%, calc(100% - 12px) 50%',
-    backgroundSize: '5px 5px, 5px 5px',
-    backgroundRepeat: 'no-repeat',
+    paddingRight: 32,
   };
 }
 
 export function dateFieldStyle(size: FieldSize = 'compact'): CSSProperties {
   return {
     ...fieldStyle(size),
-    padding: size === 'compact' ? '3px 2px 3px 5px' : '5px 4px 5px 8px',
-    fontSize: size === 'compact' ? '0.72rem' : '0.8rem',
+    padding: '0 6px 0 10px',
   };
+}
+
+interface TextareaFieldProps extends BaseFieldProps {
+  rows?: number;
+  maxLength?: number;
+  onChange?: (value: string) => void;
+}
+
+export function TextareaField({ label, value, onChange, required = false, disabled = false, placeholder, style, rows = 3, maxLength, hint, error }: TextareaFieldProps) {
+  const a11y = useFieldDescription({ required, hint, error });
+  return (
+    <FieldLabel label={label} required={required}>
+      <textarea
+        {...a11y.inputProps}
+        className="form-input"
+        value={value}
+        rows={rows}
+        maxLength={maxLength}
+        disabled={disabled}
+        placeholder={placeholder}
+        onChange={event => onChange?.(event.currentTarget.value)}
+        style={style}
+      />
+      {a11y.description}
+    </FieldLabel>
+  );
+}
+
+/** Yes/No field for forms. Use a checkbox, not a toggle switch, so it saves with the form. */
+export function CheckboxField({ label, checked, onChange, disabled = false }: { label: string; checked: boolean; onChange: (value: boolean) => void; disabled?: boolean }) {
+  return (
+    <label className="check-field">
+      <input type="checkbox" checked={checked} disabled={disabled} onChange={event => onChange(event.currentTarget.checked)} />
+      {label}
+    </label>
+  );
 }

@@ -9,7 +9,12 @@ export const stockAdjustmentDetailQueryKey = ['backend', 'stock-adjustments', 'd
 
 export type AdjustmentType = 'Increase' | 'Decrease';
 
+export type StockHolderKind = 'BRANCH' | 'WAREHOUSE';
+
 export interface StockAdjustmentSupportData {
+  /** Branch users get only their Branch; Warehouse users get no Branches. */
+  branches: any[];
+  /** Warehouse users get only their Warehouse; Branch users get no Warehouses. */
   warehouses: any[];
   locations: any[];
   items: any[];
@@ -25,7 +30,9 @@ export interface StockAdjustmentLinePayload {
 
 export interface StockAdjustmentPayload {
   adjustment_date: string;
-  warehouse_id: string;
+  /** Exactly one of branch_id and warehouse_id is sent. */
+  branch_id?: string;
+  warehouse_id?: string;
   location_id?: string;
   reference_number?: string;
   reason?: string;
@@ -38,6 +45,7 @@ export interface StockAdjustmentListQuery {
   limit: number;
   status?: 'Draft' | 'Posted' | 'Voided';
   search?: string;
+  branch_id?: string;
   warehouse_id?: string;
   adjustment_type?: AdjustmentType;
   date_from?: string;

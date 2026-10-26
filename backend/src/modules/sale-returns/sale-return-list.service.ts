@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import type { AccessScope } from '../auth/access-rules.js';
 import { prisma } from '../../db/prisma.js';
 
 export const ListSaleReturnsQuery = z.object({
@@ -7,6 +8,7 @@ export const ListSaleReturnsQuery = z.object({
   status: z.enum(['Draft', 'Posted', 'Voided']).optional(),
   customer_id: z.string().uuid().optional(),
   payment_type: z.enum(['Cash', 'Credit']).optional(),
+  branch_id: z.string().uuid().optional(),
   warehouse_id: z.string().uuid().optional(),
   search: z.string().trim().optional(),
   date_from: z.string().optional(),
@@ -21,12 +23,33 @@ interface CountRow {
   total: number;
 }
 
+interface DocumentTotalsRow {
+  gross_amount: string;
+  discount_amount: string;
+  tax_amount: string;
+  freight_amount: string;
+  net_amount: string;
+}
+
 export class SaleReturnListService {
-  constructor(private readonly companyId: string) {}
+  constructor(private readonly companyId: string, private readonly scope?: AccessScope) {}
 
   async list(query: ListSaleReturnsQuery) {
     const params: unknown[] = [this.companyId];
     const where = ['sr.company_id = CAST($1 AS uuid)'];
+
+    // Branch users see only their Branch's returns; Warehouse users only their Warehouse's (older) returns.
+    if (this.scope?.accessLevel === 'BRANCH') {
+      params.push(this.scope.branchId);
+      where.push(`sr.branch_id = CAST($${params.length} AS uuid)`);
+    } else if (this.scope?.accessLevel === 'WAREHOUSE') {
+      params.push(this.scope.warehouseId);
+      where.push(`sr.warehouse_id = CAST($${params.length} AS uuid)`);
+    }
+    if (query.branch_id) {
+      params.push(query.branch_id);
+      where.push(`sr.branch_id = CAST($${params.length} AS uuid)`);
+    }
 
     if (query.status) {
       params.push(query.status);
@@ -74,12 +97,18 @@ export class SaleReturnListService {
     }
 
     const whereSql = where.join(' AND ');
-    const countRows = await prisma.$queryRawUnsafe<CountRow[]>(
+    const countRows = await prisma.$queryRawUnsafe<Array<CountRow & DocumentTotalsRow>>(
       `
-        SELECT COUNT(*)::int AS total
+        SELECT COUNT(*)::int AS total,
+          COALESCE(SUM(sr.gross_amount), 0)::text AS gross_amount,
+          COALESCE(SUM(sr.discount_amount), 0)::text AS discount_amount,
+          COALESCE(SUM(sr.tax_amount), 0)::text AS tax_amount,
+          COALESCE(SUM(sr.freight_amount), 0)::text AS freight_amount,
+          COALESCE(SUM(sr.net_amount), 0)::text AS net_amount
         FROM sale_returns sr
         JOIN customers c ON c.id = sr.customer_id
-        JOIN inventory_warehouses w ON w.id = sr.warehouse_id
+        LEFT JOIN branches b ON b.id = sr.branch_id
+        LEFT JOIN inventory_warehouses w ON w.id = sr.warehouse_id
         LEFT JOIN inventory_warehouse_locations wl ON wl.id = sr.location_id
         WHERE ${whereSql}
       `,
@@ -109,6 +138,9 @@ export class SaleReturnListService {
           sr.reference_number,
           sr.posted_at,
           sr.created_at,
+          sr.branch_id,
+          b.code AS branch_code,
+          b.name AS branch_name,
           sr.warehouse_id,
           sr.location_id,
           w.code AS warehouse_code,
@@ -119,17 +151,16 @@ export class SaleReturnListService {
           c.code AS customer_code,
           c.name AS customer_name,
           sr.customer_return_number,
-          COALESCE(line_counts.line_count, 0)::int AS line_count
+          (
+            SELECT COUNT(*)::int
+            FROM sale_return_lines srl
+            WHERE srl.sale_return_id = sr.id
+          ) AS line_count
         FROM sale_returns sr
         JOIN customers c ON c.id = sr.customer_id
-        JOIN inventory_warehouses w ON w.id = sr.warehouse_id
+        LEFT JOIN branches b ON b.id = sr.branch_id
+        LEFT JOIN inventory_warehouses w ON w.id = sr.warehouse_id
         LEFT JOIN inventory_warehouse_locations wl ON wl.id = sr.location_id
-        LEFT JOIN (
-          SELECT sale_return_id, COUNT(*) AS line_count
-          FROM sale_return_lines
-          WHERE company_id = CAST($1 AS uuid)
-          GROUP BY sale_return_id
-        ) line_counts ON line_counts.sale_return_id = sr.id
         WHERE ${whereSql}
         ORDER BY sr.sale_return_date DESC, sr.sale_return_number DESC
         LIMIT ${limitParam}
@@ -139,8 +170,19 @@ export class SaleReturnListService {
     );
 
     const total = Number(countRows[0]?.total ?? 0);
+    const totalsRow = countRows[0];
+    // Totals cover every document that matches the filters, not only the current page.
+    const totals = {
+      gross_amount: totalsRow?.gross_amount ?? '0',
+      discount_amount: totalsRow?.discount_amount ?? '0',
+      tax_amount: totalsRow?.tax_amount ?? '0',
+      freight_amount: totalsRow?.freight_amount ?? '0',
+      net_amount: totalsRow?.net_amount ?? '0',
+    };
+
     return {
       data,
+      totals,
       total,
       page: query.page,
       limit: query.limit,

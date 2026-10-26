@@ -1,5 +1,6 @@
 import { Prisma } from '@prisma/client';
 import { prisma } from '../../db/prisma.js';
+import { signedOpeningBalance } from './account-balance.js';
 import type { AccountListQuery, CreateAccountInput, UpdateAccountInput } from './account.schema.js';
 
 type AccountRow = Prisma.AccountGetPayload<Record<string, never>>;
@@ -393,6 +394,16 @@ export class AccountListService {
 
     if (Object.keys(data).length === 0) return accountToResponse(existing);
 
+    if (changes.opening_balance || changes.opening_balance_date) {
+      const currentDate = existing.openingBalanceDate ? existing.openingBalanceDate.toISOString().slice(0, 10) : null;
+      const nextDate = changes.opening_balance_date ? changes.opening_balance_date.to as string | null : currentDate;
+      const nextAmount = changes.opening_balance ? changes.opening_balance.to as number | null : Number(existing.openingBalance ?? 0);
+      // The old date matters only when there was an old amount to remove from reports.
+      const hadOpeningBalance = Number(existing.openingBalance ?? 0) !== 0;
+      const affectedDates = hadOpeningBalance ? [currentDate, nextDate] : [nextDate];
+      await this.assertOpeningBalanceCanChange(companyId, affectedDates, nextAmount ?? 0, nextDate);
+    }
+
     const updated = await prisma.$transaction(async transaction => {
       const account = await transaction.account.update({
         where: { id },
@@ -473,8 +484,9 @@ export class AccountListService {
           categoryId: source.categoryId,
           ...(source.taxCodes === null ? {} : { taxCodes: source.taxCodes as Prisma.InputJsonValue }),
           ...(source.attributes === null ? {} : { attributes: source.attributes as Prisma.InputJsonValue }),
-          openingBalance: source.openingBalance,
-          openingBalanceDate: source.openingBalanceDate,
+          // A clone starts without an opening balance; copying it would count the same balance twice.
+          openingBalance: null,
+          openingBalanceDate: null,
         },
       });
 
@@ -543,6 +555,60 @@ export class AccountListService {
     }));
   }
 
+  /**
+   * An opening balance changes every report from its date onward, so it cannot be added or changed once a
+   * locked or closed fiscal period ends on or after that date. A non-zero opening balance needs a date.
+   */
+  private async assertOpeningBalanceCanChange(companyId: string, affectedDates: Array<string | null>, amount: number, openingDate: string | null) {
+    if (amount !== 0 && !openingDate) throw badRequest('Opening Balance Date is required when an Opening Balance is entered.');
+
+    for (const dateText of new Set(affectedDates)) {
+      const rows = await prisma.$queryRaw<{ period_name: string; fiscal_year: string }[]>`
+        SELECT fp.period_name, fy.fiscal_year
+        FROM fiscal_periods fp
+        JOIN fiscal_years fy ON fy.id = fp.fiscal_year_id
+        WHERE fy.company_id = CAST(${companyId} AS uuid)
+          AND fy.is_deleted = false
+          AND fp.is_deleted = false
+          AND (fp.is_open = false OR fp.is_locked = true OR fy.is_locked = true OR fy.status = 'closed')
+          AND (${dateText}::date IS NULL OR fp.end_date >= ${dateText}::date)
+        ORDER BY fp.start_date
+        LIMIT 1
+      `;
+      if (rows[0]) {
+        throw badRequest(
+          `Opening Balance cannot be changed because period "${rows[0].period_name}" of Fiscal Year ${rows[0].fiscal_year} is already locked or closed. Post a Journal Voucher in an open period instead.`,
+        );
+      }
+    }
+  }
+
+  /** Total opening balances on each side. They should be equal before go-live; any difference shows in the Trial Balance. */
+  async openingBalanceSummary(companyId: string) {
+    const accounts = await prisma.account.findMany({
+      where: { companyId, isDeleted: false, isPosting: true, NOT: { openingBalance: 0 } },
+      select: { openingBalance: true, normalBalance: true, openingBalanceDate: true },
+    });
+    let totalDebit = new Prisma.Decimal(0);
+    let totalCredit = new Prisma.Decimal(0);
+    let missingDate = 0;
+    for (const account of accounts) {
+      if (!account.openingBalance) continue;
+      const signed = signedOpeningBalance(account.openingBalance, account.normalBalance);
+      if (signed.gt(0)) totalDebit = totalDebit.plus(signed.toString());
+      else totalCredit = totalCredit.plus(signed.abs().toString());
+      if (!account.openingBalanceDate) missingDate += 1;
+    }
+    return {
+      account_count: accounts.length,
+      total_debit: totalDebit.toFixed(2),
+      total_credit: totalCredit.toFixed(2),
+      difference: totalDebit.minus(totalCredit).abs().toFixed(2),
+      is_balanced: totalDebit.equals(totalCredit),
+      accounts_without_date: missingDate,
+    };
+  }
+
   private async currentBalancesForAccounts(companyId: string, accounts: AccountRow[]) {
     if (accounts.length === 0) return new Map<string, Prisma.Decimal>();
 
@@ -569,11 +635,14 @@ export class AccountListService {
       ]),
     );
 
+    // Opening Balance is stored on the account's normal side, so the current balance is returned the same
+    // way: positive when the account has its normal Debit or Credit balance, matching the reports.
     return new Map(
       accounts.map(account => {
-        const openingBalance = account.openingBalance ?? new Prisma.Decimal(0);
         const movementAmount = movementByAccount.get(account.id) ?? new Prisma.Decimal(0);
-        return [account.id, openingBalance.plus(movementAmount)];
+        const debitBalance = signedOpeningBalance(account.openingBalance, account.normalBalance).plus(movementAmount.toString());
+        const normalSideBalance = account.normalBalance === 'Credit' ? debitBalance.negated() : debitBalance;
+        return [account.id, new Prisma.Decimal(normalSideBalance.toFixed(2))];
       }),
     );
   }
@@ -629,6 +698,11 @@ export class AccountListService {
 
     if (!input.is_posting && !isHeaderAccountCode(input.code)) {
       throw badRequest('Header Account Code must end with 0000.');
+    }
+
+    if (input.opening_balance) {
+      const openingDate = input.opening_balance_date ? new Date(input.opening_balance_date).toISOString().slice(0, 10) : null;
+      await this.assertOpeningBalanceCanChange(companyId, [openingDate], input.opening_balance, openingDate);
     }
 
     const created = await prisma.$transaction(async transaction => {

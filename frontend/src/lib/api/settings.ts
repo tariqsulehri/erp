@@ -12,6 +12,7 @@ export interface PostingAccountSettings {
   purchase: Record<string, string | null> | null;
   sale: Record<string, string | null> | null;
   stock_adjustment: Record<string, string | null> | null;
+  year_end: Record<string, string | null> | null;
 }
 
 export interface UpdatePostingAccountSettingsInput {
@@ -35,6 +36,9 @@ export interface UpdatePostingAccountSettingsInput {
     default_inventory_account_id: string;
     adjustment_gain_account_id: string;
     adjustment_loss_account_id: string;
+  }>;
+  year_end?: Partial<{
+    retained_earnings_account_id: string;
   }>;
 }
 

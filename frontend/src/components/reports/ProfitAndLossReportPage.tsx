@@ -1,21 +1,21 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import { IconRefresh, IconSearch } from '@tabler/icons-react';
-import { FieldLabel } from '@/components/ui/FieldLabel';
-import { DateField } from '@/components/ui/FormFields';
-import { formatDate, formatMoney, formatNumber } from '@/lib/app-settings';
+import { Button } from '@/components/ui/Button';
+import { CheckboxField, DateField } from '@/components/ui/FormFields';
+import { InlineAlert } from '@/components/ui/InlineAlert';
+import { PageHeader } from '@/components/ui/PageHeader';
+import { TableMessageRow } from '@/components/ui/TableMessageRow';
+import { formatDate, formatMoney } from '@/lib/app-settings';
 import { ProfitAndLossLine, useProfitAndLossReport } from '@/lib/api/reports';
 import { useGeneralSettings } from '@/lib/api/settings';
 import { friendlyErrorMessage, isValidDateInput } from '@/lib/erp-utils';
-import { firstDayOfCurrentYear, todayInputDate } from './LedgerReportHelpers';
-import {
-  compactButtonStyle,
-  reportTableCellStyle,
-  reportTableHeadStyle,
-  reportTableTotalCellStyle,
-  summaryBoxStyle,
-} from './LedgerReportStyles';
+import { useReportDateRange } from './LedgerReportHelpers';
+import { amountStyle, embeddedReportStyle, reportFilterGridStyle, reportGroupRowStyle, reportIndentStyle } from './LedgerReportStyles';
+import { ReportActions } from './ReportActions';
+import type { ReportDocument } from './report-output';
 
 interface ProfitAndLossReportPageProps {
   embedded?: boolean;
@@ -35,6 +35,8 @@ type ProfitAndLossDisplayRow =
       line: ProfitAndLossLine;
     };
 
+const linkStyle = { color: 'var(--color-primary-text)' };
+
 function amountCents(value: string | number) {
   return Math.round(Number(value || 0) * 100);
 }
@@ -51,8 +53,9 @@ function totalAmount(lines: ProfitAndLossLine[]) {
   return centsText(lines.reduce((sum, line) => sum + amountCents(line.amount), 0));
 }
 
-function moneyOrDash(value: string | number, settings: Parameters<typeof formatMoney>[1]) {
-  return Number(value) === 0 ? '-' : formatMoney(value, settings);
+/** Zero amounts are left blank so the figures that matter stand out. */
+function moneyOrBlank(value: string | number, settings: Parameters<typeof formatMoney>[1]) {
+  return Number(value) === 0 ? '' : formatMoney(value, settings);
 }
 
 function buildGroupedRows(lines: ProfitAndLossLine[], includeZeroBalances: boolean): ProfitAndLossDisplayRow[] {
@@ -100,8 +103,7 @@ function buildGroupedRows(lines: ProfitAndLossLine[], includeZeroBalances: boole
 
 export function ProfitAndLossReportPage({ embedded = false }: ProfitAndLossReportPageProps) {
   const { data: generalSettings } = useGeneralSettings();
-  const [dateFrom, setDateFrom] = useState(firstDayOfCurrentYear());
-  const [dateTo, setDateTo] = useState(todayInputDate());
+  const { dateFrom, setDateFrom, dateTo, setDateTo } = useReportDateRange();
   const [includeZeroBalances, setIncludeZeroBalances] = useState(false);
   const [shouldLoad, setShouldLoad] = useState(false);
   const [message, setMessage] = useState('');
@@ -161,112 +163,96 @@ export function ProfitAndLossReportPage({ embedded = false }: ProfitAndLossRepor
   const netAmount = Number(report?.totals.net_profit ?? 0) - Number(report?.totals.net_loss ?? 0);
   const netLabel = report?.totals.result ?? 'Break Even';
 
-  const summaryBoxes = [
-    { label: 'Total Revenue', value: report?.totals.revenue ?? '0.00' },
-    { label: 'Total Expenses', value: report?.totals.expenses ?? '0.00' },
-    { label: netLabel, value: Math.abs(netAmount).toFixed(2), accent: true },
-    { label: 'Period', value: `${formatDate(dateFrom, generalSettings)} To ${formatDate(dateTo, generalSettings)}`, text: true },
-  ];
+  const accountCount = displayRows.filter(row => row.kind === 'account').length;
+  const netIsLoss = netAmount < 0;
+
+  function buildReport(): ReportDocument | null {
+    if (!report) return null;
+    return {
+      title: 'Profit And Loss',
+      subtitle: `${formatDate(dateFrom, generalSettings)} to ${formatDate(dateTo, generalSettings)}`,
+      columns: [
+        { label: 'Account Code' },
+        { label: 'Account Name' },
+        { label: 'Debit', kind: 'money' },
+        { label: 'Credit', kind: 'money' },
+        { label: 'Amount', kind: 'money' },
+      ],
+      rows: [
+        ...displayRows.map(row => (row.kind !== 'account'
+          ? { style: 'group' as const, cells: [row.code, row.name, '', '', row.amount] }
+          : { cells: [row.line.account_code, row.line.account_name, row.line.debit_amount, row.line.credit_amount, row.line.amount] })),
+        { style: 'total' as const, cells: ['', 'Total Revenue', '', '', report.totals.revenue] },
+        { style: 'total' as const, cells: ['', 'Total Expenses', '', '', report.totals.expenses] },
+        { style: 'total' as const, cells: ['', `Net ${netLabel} (${accountCount} Accounts)`, '', '', centsText(Math.abs(amountCents(netAmount)))] },
+      ],
+      fileName: `profit-and-loss-${dateFrom}-to-${dateTo}`,
+    };
+  }
+
+  const ledgerHref = (accountId: string) => `/reports?report=ledger&account=${accountId}&from=${dateFrom}&to=${dateTo}`;
+
+  const Root = embedded ? 'div' : 'main';
 
   return (
-    <main style={{ height: '100%', minHeight: 0, boxSizing: 'border-box', padding: embedded ? 0 : 10, display: 'flex', flexDirection: 'column', gap: 8, overflow: 'hidden' }}>
-      <section className="workspace-card" style={{ padding: 10, overflow: 'visible' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: '132px 132px minmax(190px, auto) auto', gap: 8, alignItems: 'end' }}>
-          <DateField label="Date From" value={dateFrom} onChange={value => updateFilter(() => setDateFrom(value))} required />
-          <DateField label="Date To" value={dateTo} onChange={value => updateFilter(() => setDateTo(value))} required />
-          <FieldLabel label="Options">
-            <label style={{ minHeight: 28, display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.74rem', fontWeight: 800, color: 'var(--color-text)' }}>
-              <input
-                type="checkbox"
-                checked={includeZeroBalances}
-                onChange={event => updateZeroBalanceFilter(event.currentTarget.checked)}
-              />
-              Show Zero Balances
-            </label>
-          </FieldLabel>
-          <div style={{ display: 'flex', gap: 6, alignItems: 'end' }}>
-            <button type="button" className="btn-primary" onClick={viewReport} disabled={reportQuery.isFetching} style={compactButtonStyle}>
-              <IconSearch size={15} /> View Report
-            </button>
-            <button type="button" className="btn-secondary" onClick={refreshReport} disabled={reportQuery.isFetching} style={compactButtonStyle}>
-              <IconRefresh size={15} /> Refresh
-            </button>
-          </div>
-        </div>
-      </section>
-
-      {errorMessage && (
-        <div style={{ color: 'var(--color-danger-text)', fontSize: '0.72rem', fontWeight: 800 }}>
-          {errorMessage}
-        </div>
+    <Root className={embedded ? undefined : 'page-shell'} style={embedded ? embeddedReportStyle : undefined}>
+      {!embedded && (
+        <PageHeader
+          title="Profit And Loss"
+          description={`Revenue and expenses from ${formatDate(dateFrom, generalSettings)} to ${formatDate(dateTo, generalSettings)}.`}
+        />
       )}
 
-      <section style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(160px, 1fr))', gap: 8 }}>
-        {summaryBoxes.map(box => (
-          <div key={box.label} style={summaryBoxStyle(box.accent)}>
-            <span style={{ color: 'var(--color-heading)', fontSize: '0.72rem', fontWeight: 900 }}>{box.label}</span>
-            <strong style={{ textAlign: 'right', fontFamily: box.text ? undefined : 'var(--font-mono)', color: 'var(--color-heading)', fontSize: box.text ? '0.74rem' : '0.92rem', fontWeight: 900 }}>
-              {box.text ? box.value : formatMoney(box.value, generalSettings)}
-            </strong>
-          </div>
-        ))}
-      </section>
+      {errorMessage && <InlineAlert tone="danger">{errorMessage}</InlineAlert>}
 
-      <section className="workspace-card" style={{ padding: 10, flex: 1, minHeight: 0, display: 'grid', gridTemplateRows: '1fr', overflow: 'hidden' }}>
-        <div style={{ minHeight: 0, overflow: 'auto', border: '1px solid var(--color-border)', borderRadius: 'var(--radius)' }}>
-          <table style={{ width: '100%', minWidth: 900, borderCollapse: 'collapse', tableLayout: 'fixed', fontSize: '0.74rem' }}>
+      <section className="panel panel-fill">
+        <div className="filter-bar">
+          <div className="filter-grid" style={reportFilterGridStyle}>
+            <DateField label="Date From" value={dateFrom} onChange={value => updateFilter(() => setDateFrom(value))} required />
+            <DateField label="Date To" value={dateTo} onChange={value => updateFilter(() => setDateTo(value))} required />
+            <CheckboxField label="Show Zero Balances" checked={includeZeroBalances} onChange={updateZeroBalanceFilter} />
+            <Button variant="primary" icon={<IconSearch size={16} stroke={1.8} />} onClick={viewReport} loading={reportQuery.isFetching}>View Report</Button>
+            <Button icon={<IconRefresh size={16} stroke={1.8} />} onClick={refreshReport} disabled={reportQuery.isFetching}>Refresh</Button>
+            <ReportActions buildReport={buildReport} disabled={!report} onError={setMessage} />
+          </div>
+        </div>
+
+        <div className="table-scroll">
+          <table className="data-table" style={{ tableLayout: 'fixed', minWidth: 900 }}>
             <colgroup>
-              <col style={{ width: 130 }} />
+              <col style={{ width: 140 }} />
               <col />
-              <col style={{ width: 130 }} />
-              <col style={{ width: 130 }} />
-              <col style={{ width: 150 }} />
+              <col style={{ width: 140 }} />
+              <col style={{ width: 140 }} />
+              <col style={{ width: 160 }} />
             </colgroup>
             <thead>
               <tr>
-                <th style={reportTableHeadStyle()}>Account Code</th>
-                <th style={reportTableHeadStyle()}>Account Name</th>
-                <th style={reportTableHeadStyle(true)}>Debit</th>
-                <th style={reportTableHeadStyle(true)}>Credit</th>
-                <th style={reportTableHeadStyle(true)}>Amount</th>
+                <th>Account Code</th>
+                <th>Account Name</th>
+                <th className="num">Debit</th>
+                <th className="num">Credit</th>
+                <th className="num">Amount</th>
               </tr>
             </thead>
             <tbody>
-              {reportQuery.isFetching && (
-                <tr>
-                  <td colSpan={5} style={{ ...reportTableCellStyle(), height: 90, textAlign: 'center', color: 'var(--color-text-muted)', fontWeight: 900 }}>
-                    Loading Profit And Loss...
-                  </td>
-                </tr>
-              )}
+              {reportQuery.isFetching && <TableMessageRow colSpan={5} title="Loading Profit And Loss…" loading />}
               {!reportQuery.isFetching && !errorMessage && !report && (
-                <tr>
-                  <td colSpan={5} style={{ ...reportTableCellStyle(), height: 90, textAlign: 'center', color: 'var(--color-text-muted)', fontWeight: 900 }}>
-                    Select Dates, then click View Report.
-                  </td>
-                </tr>
+                <TableMessageRow colSpan={5} title="Choose The Dates" description="Select Date From and Date To, then click View Report." />
               )}
               {!reportQuery.isFetching && !errorMessage && report && displayRows.length === 0 && (
-                <tr>
-                  <td colSpan={5} style={{ ...reportTableCellStyle(), height: 90, textAlign: 'center', color: 'var(--color-text-muted)', fontWeight: 900 }}>
-                    No revenue or expense transactions found for the selected period.
-                  </td>
-                </tr>
+                <TableMessageRow colSpan={5} title="No Revenue Or Expenses Found" description="No revenue or expense transactions in the selected period. Widen the dates to see more." />
               )}
-              {displayRows.map(row => {
+              {!reportQuery.isFetching && displayRows.map(row => {
                 if (row.kind !== 'account') {
                   const level = row.kind === 'section' ? 1 : row.kind === 'group' ? 2 : 3;
-                  const background = level === 1
-                    ? 'var(--color-primary-light)'
-                    : level === 2
-                      ? 'var(--color-surface-alt)'
-                      : 'var(--color-table-row-odd)';
+                  const groupStyle = reportGroupRowStyle(level);
                   return (
                     <tr key={row.key}>
-                      <td colSpan={4} style={{ ...reportTableCellStyle(), background, fontWeight: 900, paddingLeft: level * 10 }}>
+                      <td colSpan={4} style={{ ...groupStyle, ...reportIndentStyle(level - 1) }}>
                         {row.code} - {row.name}
                       </td>
-                      <td style={{ ...reportTableCellStyle(true), background, fontWeight: 900 }}>{moneyOrDash(row.amount, generalSettings)}</td>
+                      <td className="num" style={{ ...groupStyle, ...amountStyle(row.amount) }}>{moneyOrBlank(row.amount, generalSettings)}</td>
                     </tr>
                   );
                 }
@@ -274,11 +260,15 @@ export function ProfitAndLossReportPage({ embedded = false }: ProfitAndLossRepor
                 const { line } = row;
                 return (
                   <tr key={line.account_id}>
-                    <td style={{ ...reportTableCellStyle(), paddingLeft: 34 }}><strong>{line.account_code}</strong></td>
-                    <td style={reportTableCellStyle()}>{line.account_name}</td>
-                    <td style={reportTableCellStyle(true)}>{moneyOrDash(line.debit_amount, generalSettings)}</td>
-                    <td style={reportTableCellStyle(true)}>{moneyOrDash(line.credit_amount, generalSettings)}</td>
-                    <td style={reportTableCellStyle(true)}>{moneyOrDash(line.amount, generalSettings)}</td>
+                    <td className="cell-strong" style={reportIndentStyle(3)}>
+                      <Link href={ledgerHref(line.account_id)} style={linkStyle}>{line.account_code}</Link>
+                    </td>
+                    <td>
+                      <Link href={ledgerHref(line.account_id)} style={linkStyle}>{line.account_name}</Link>
+                    </td>
+                    <td className="num" style={amountStyle(line.debit_amount)}>{moneyOrBlank(line.debit_amount, generalSettings)}</td>
+                    <td className="num" style={amountStyle(line.credit_amount)}>{moneyOrBlank(line.credit_amount, generalSettings)}</td>
+                    <td className="num" style={amountStyle(line.amount)}>{moneyOrBlank(line.amount, generalSettings)}</td>
                   </tr>
                 );
               })}
@@ -286,18 +276,22 @@ export function ProfitAndLossReportPage({ embedded = false }: ProfitAndLossRepor
             {report && (
               <tfoot>
                 <tr>
-                  <td colSpan={2} style={reportTableTotalCellStyle(true)}>
-                    Net {netLabel} ({formatNumber(displayRows.filter(row => row.kind === 'account').length, generalSettings)} Accounts)
-                  </td>
-                  <td style={reportTableTotalCellStyle(true)}>{formatMoney(report.totals.expenses, generalSettings)}</td>
-                  <td style={reportTableTotalCellStyle(true)}>{formatMoney(report.totals.revenue, generalSettings)}</td>
-                  <td style={reportTableTotalCellStyle(true)}>{formatMoney(Math.abs(netAmount), generalSettings)}</td>
+                  <td colSpan={4}>Total Revenue</td>
+                  <td className="num">{formatMoney(report.totals.revenue, generalSettings)}</td>
+                </tr>
+                <tr>
+                  <td colSpan={4}>Total Expenses</td>
+                  <td className="num">{formatMoney(report.totals.expenses, generalSettings)}</td>
+                </tr>
+                <tr>
+                  <td colSpan={4}>Net {netLabel} ({accountCount} Accounts)</td>
+                  <td className="num" style={netIsLoss ? { color: 'var(--color-negative)' } : undefined}>{formatMoney(Math.abs(netAmount), generalSettings)}</td>
                 </tr>
               </tfoot>
             )}
           </table>
         </div>
       </section>
-    </main>
+    </Root>
   );
 }

@@ -1,23 +1,22 @@
 'use client';
 
 /**
- * ProductsPage — full professional inventory products CRUD.
+ * ProductsPage — inventory products master.
  *
- * 3-mode layout (same pattern as VoucherEntryPage):
- *   LIST   → full-width dense table, all filters/sorts
- *   FORM   → full work-area create/edit form, tabbed
- *   DETAIL → 58/42 split: table left, product card right
+ *   LIST   → product list (filter bar, table, pagination)
+ *   FORM   → full-page create/edit form with actions at the top
+ *   DETAIL → product list with the product detail panel beside it
  */
 
 import { useState } from 'react';
+import { IconPlus } from '@tabler/icons-react';
+import { Button } from '@/components/ui/Button';
+import { PageHeader } from '@/components/ui/PageHeader';
 import { ProductDetailPanel } from './ProductDetailPanel';
 import { ProductForm } from './ProductForm';
 import { ProductList } from './ProductList';
 import type { PageMode } from './ProductShared';
 
-/* ═══════════════════════════════════════════════════════════════════
-   PRODUCT FORM — full work area (create + edit)
-   ═══════════════════════════════════════════════════════════════════ */
 export default function ProductsPage() {
   const [mode,       setMode]       = useState<PageMode>('list');
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -29,47 +28,39 @@ export default function ProductsPage() {
   function backToList()            { setMode('list'); }
   function handleSaved(id: string) { setSelectedId(id); setMode('detail'); }
 
+  if (mode === 'form') {
+    return <ProductForm editId={editId} onSaved={handleSaved} onCancel={backToList} />;
+  }
+
+  const detailOpen = mode === 'detail' && Boolean(selectedId);
+
   return (
-    <div style={{ height: 'calc(100vh - var(--header-height))', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+    <main className="page-shell">
+      <PageHeader
+        title="Products"
+        description="Items you buy, sell, or keep in stock, with their prices and stock levels."
+        actions={<Button variant="primary" icon={<IconPlus size={16} stroke={1.8} />} onClick={openNew}>New Product</Button>}
+      />
 
-      {/* FORM MODE — full work area */}
-      {mode === 'form' && (
-        <ProductForm
-          editId={editId}
-          onSaved={handleSaved}
-          onCancel={backToList}
+      <div className={`split-view${detailOpen ? ' has-side' : ''}`}>
+        <ProductList
+          selectedId={selectedId}
+          onSelect={openDetail}
+          onNew={openNew}
+          onEdit={openEdit}
+          detailOpen={detailOpen}
         />
-      )}
 
-      {/* LIST + DETAIL modes */}
-      {mode !== 'form' && (
-        <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
-          <div style={{
-            flex: mode === 'detail' ? '0 0 58%' : '1',
-            overflow: 'hidden', display: 'flex', flexDirection: 'column',
-            borderRight: mode === 'detail' ? '1.5px solid var(--color-border)' : 'none',
-            transition: 'flex 0.18s ease',
-          }}>
-            <ProductList
-              selectedId={selectedId}
-              onSelect={openDetail}
-              onNew={openNew}
+        {detailOpen && selectedId && (
+          <section className="panel side-panel">
+            <ProductDetailPanel
+              id={selectedId}
+              onClose={() => { setSelectedId(null); setMode('list'); }}
               onEdit={openEdit}
-              detailOpen={mode === 'detail'}
             />
-          </div>
-
-          {mode === 'detail' && selectedId && (
-            <div style={{ flex: '0 0 42%', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-              <ProductDetailPanel
-                id={selectedId}
-                onClose={() => { setSelectedId(null); setMode('list'); }}
-                onEdit={openEdit}
-              />
-            </div>
-          )}
-        </div>
-      )}
-    </div>
+          </section>
+        )}
+      </div>
+    </main>
   );
 }

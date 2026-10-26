@@ -2,6 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { backendGet, backendPost } from './backend-client';
+import type { DocumentListTotals } from './document-totals';
 import type { PaymentType, PurchaseListRow } from '@/components/purchases/PurchaseVoucherTypes';
 import type { PurchaseSupportData } from './purchases';
 
@@ -55,6 +56,8 @@ export interface PurchaseReturnsListResponse {
   page: number;
   limit: number;
   totalPages: number;
+  /** Sums over every record that matches the filters, not only this page. */
+  totals?: DocumentListTotals;
 }
 
 export function usePurchaseReturnsList(query: PurchaseReturnsListQuery) {

@@ -1,0 +1,11 @@
+# HTTPS for the ERP. APP_DOMAIN (for example erp.yourcompany.com) must point at this server.
+{$APP_DOMAIN} {
+	encode gzip
+	reverse_proxy frontend:3000
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		-Server
+	}
+}

@@ -5,27 +5,47 @@
  *
  * Features:
  *  - Table / Tree / Group view modes
- *  - Filter chips: account type + posting/header toggle
+ *  - Filter bar: account type select + posting/header segmented filter
  *  - Full-text search (table view)
  *  - Checkbox row selection + bulk activate/deactivate
- *  - Click row → AccountSlideOver edit panel
- *  - Export to CSV (current filter)
+ *  - Click row → AccountSlideOver side panel beside the list
+ *  - Export all Chart of Accounts rows to CSV
+ *  - Print / PDF formatted Chart of Accounts report
  *  - Import Template (only when no accounts exist)
  */
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import Link from 'next/link';
 import { useQueryClient } from '@tanstack/react-query';
-import { accountsQueryKey, useAccountsList, useBulkSetAccountActive, type AccountListItem } from '@/lib/api/accounts';
-import { useGeneralSettings } from '@/lib/api/settings';
+import {
+  IconDownload,
+  IconFileImport,
+  IconLayoutGrid,
+  IconListTree,
+  IconPlus,
+  IconPrinter,
+  IconTable,
+  IconUpload,
+  IconX,
+} from '@tabler/icons-react';
+import { accountsQueryKey, fetchAllAccountsForExport, useAccountsList, useBulkSetAccountActive, useOpeningBalanceSummary, type AccountListItem } from '@/lib/api/accounts';
+import { useCompanyProfile, useGeneralSettings } from '@/lib/api/settings';
 import { AccountsTable }     from '@/components/tables/AccountsTable';
 import { AccountTreeView }   from '@/components/accounts/AccountTreeView';
 import { AccountGroupView }  from '@/components/accounts/AccountGroupView';
 import { AccountSlideOver }  from '@/components/accounts/AccountSlideOver';
+import { printChartOfAccountsReport } from '@/components/accounts/ChartOfAccountsPrintHtml';
 import { ImportTemplateModal } from '@/components/modals/ImportTemplateModal';
 import { BulkImportModal }   from '@/components/modals/BulkImportModal';
-import { getAccountLevelLabel } from '@/modules/accounts/account-code';
+import { getAccountLevelLabel, getParentAccountCode } from '@/modules/accounts/account-code';
 import { formatNumber } from '@/lib/app-settings';
+import { friendlyErrorMessage } from '@/lib/erp-utils';
+import { Button } from '@/components/ui/Button';
+import { InlineAlert } from '@/components/ui/InlineAlert';
+import { PageHeader } from '@/components/ui/PageHeader';
+import { SearchField } from '@/components/ui/SearchField';
+import { SegmentedControl } from '@/components/ui/SegmentedControl';
+import { Tabs } from '@/components/ui/Tabs';
 
 const PAGE_SIZE = 20;
 type ViewMode    = 'table' | 'tree' | 'group';
@@ -33,48 +53,60 @@ type PostingFilter = 'all' | 'posting' | 'header';
 
 const ACCOUNT_TYPES = ['Asset', 'Liability', 'Equity', 'Revenue', 'Expense'];
 
-/* ── KPI stats ──────────────────────────────────────────────────────── */
-function buildStats(accounts: AccountListItem[], total: number) {
-  return [
-    { label: 'Total Accounts',   value: total },
-    { label: 'Posting On Page',  value: accounts.filter(a => a.is_posting).length },
-    { label: 'Assets On Page',   value: accounts.filter(a => a.account_type === 'Asset').length },
-    { label: 'Active On Page',   value: accounts.filter(a => a.is_active).length },
-  ];
-}
+const POSTING_OPTIONS: Array<{ value: PostingFilter; label: string }> = [
+  { value: 'all',     label: 'All Levels' },
+  { value: 'posting', label: 'Posting Only' },
+  { value: 'header',  label: 'Headers Only' },
+];
 
-/* ── View toggle button ──────────────────────────────────────────────── */
-function ViewBtn({ active, onClick, title, children }: {
-  active: boolean; onClick: () => void; title: string; children: React.ReactNode;
-}) {
-  return (
-    <button onClick={onClick} title={title} style={{
-      display: 'flex', alignItems: 'center', gap: 6,
-      padding: '6px 14px',
-      border: `1px solid ${active ? 'var(--color-primary)' : 'var(--color-border)'}`,
-      background: active ? 'var(--color-primary)' : 'var(--color-surface)',
-      color: active ? 'white' : 'var(--color-text-muted)',
-      borderRadius: 'var(--radius-sm)',
-      fontSize: 'var(--font-size-xs)', fontWeight: 600,
-      cursor: 'pointer', transition: 'var(--transition)',
-    }}>
-      {children}
-    </button>
-  );
-}
+const VIEW_TABS: Array<{ value: ViewMode; label: string; icon: React.ReactNode }> = [
+  { value: 'table', label: 'Table', icon: <IconTable size={16} stroke={1.8} /> },
+  { value: 'tree',  label: 'Tree',  icon: <IconListTree size={16} stroke={1.8} /> },
+  { value: 'group', label: 'Group', icon: <IconLayoutGrid size={16} stroke={1.8} /> },
+];
 
 /* ── CSV export utility ─────────────────────────────────────────────── */
+function csvCell(value: unknown) {
+  const text = value === null || value === undefined ? '' : String(value);
+  return `"${text.replace(/"/g, '""')}"`;
+}
+
 function exportCSV(accounts: AccountListItem[]) {
-  const headers = ['Code', 'Name', 'Type', 'Level', 'Normal Balance', 'Posting', 'Active', 'System', 'Description'];
+  const headers = [
+    'Code',
+    'Name',
+    'Parent Code',
+    'Account Type',
+    'Level',
+    'Account Kind',
+    'Normal Balance',
+    'Opening Balance',
+    'Current Balance',
+    'Opening Balance Date',
+    'Active',
+    'System Account',
+    'Description',
+    'Created At',
+    'Updated At',
+  ];
   const rows = accounts.map(a => [
-    a.code, `"${a.name.replace(/"/g, '""')}"`,
-    a.account_type, getAccountLevelLabel(a.code), a.normal_balance,
-    a.is_posting ? 'Yes' : 'No',
+    a.code,
+    a.name,
+    getParentAccountCode(a.code) ?? '',
+    a.account_type,
+    getAccountLevelLabel(a.code),
+    a.is_posting ? 'Posting' : 'Header',
+    a.normal_balance,
+    a.opening_balance ?? '0',
+    a.current_balance ?? '0',
+    a.opening_balance_date ? a.opening_balance_date.slice(0, 10) : '',
     a.is_active  ? 'Yes' : 'No',
     a.is_system  ? 'Yes' : 'No',
-    a.description ? `"${a.description.replace(/"/g, '""')}"` : '',
+    a.description ?? '',
+    a.created_at ? a.created_at.slice(0, 10) : '',
+    a.updated_at ? a.updated_at.slice(0, 10) : '',
   ]);
-  const csv = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+  const csv = [headers.map(csvCell).join(','), ...rows.map(r => r.map(csvCell).join(','))].join('\n');
   const blob = new Blob([csv], { type: 'text/csv' });
   const url  = URL.createObjectURL(blob);
   const a    = document.createElement('a');
@@ -96,9 +128,14 @@ export default function AccountsPage() {
   const [showBulkImport, setShowBulkImport] = useState(false);
   const [slideOver,   setSlideOver]   = useState<AccountListItem | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [exporting, setExporting] = useState(false);
+  const [printingPdf, setPrintingPdf] = useState(false);
+  const [exportError, setExportError] = useState('');
 
   const queryClient = useQueryClient();
   const { data: generalSettings } = useGeneralSettings();
+  const { data: company } = useCompanyProfile();
+  const { data: openingSummary } = useOpeningBalanceSummary();
 
   /* ── Table / stats query ──────────────────────────────────────────── */
   const { data, isLoading, isFetching, error } = useAccountsList(
@@ -137,10 +174,10 @@ export default function AccountsPage() {
     );
   };
 
-  const accounts    = data?.data    ?? [];
+  const accounts    = useMemo(() => data?.data ?? [], [data]);
   const groupAccounts = groupData?.data ?? [];
   const total       = data?.pagination?.total ?? 0;
-  const stats       = buildStats(accounts, total);
+  const totalText   = formatNumber(total, { ...(generalSettings ?? {}), decimal_places: 0 });
 
   /* ── Selection helpers ─────────────────────────────────────────────── */
   const toggleSelect = useCallback((id: string) => {
@@ -170,236 +207,153 @@ export default function AccountsPage() {
     setPage(1);
   };
 
-  const clearSearch = () => {
-    setSearchText('');
-    setSearch('');
-    setPage(1);
+  const exportAllAccounts = async () => {
+    try {
+      setExportError('');
+      setExporting(true);
+      const allAccounts = await fetchAllAccountsForExport();
+      exportCSV(allAccounts);
+    } catch (err) {
+      setExportError(friendlyErrorMessage(err, 'Unable to export Chart of Accounts.'));
+    } finally {
+      setExporting(false);
+    }
   };
 
+  const printAllAccounts = async () => {
+    try {
+      setExportError('');
+      setPrintingPdf(true);
+      const allAccounts = await fetchAllAccountsForExport();
+      printChartOfAccountsReport({ accounts: allAccounts, company, generalSettings });
+    } catch (err) {
+      setExportError(friendlyErrorMessage(err, 'Unable to prepare Chart of Accounts PDF.'));
+    } finally {
+      setPrintingPdf(false);
+    }
+  };
+
+  const busyExporting = total === 0 || exporting || printingPdf;
+  const groupTruncated = view === 'group' && !groupLoading && total > groupAccounts.length;
+
   return (
-    <>
-      {/* ── Page Header ───────────────────────────────────────────── */}
-      <div className="page-header">
-        <div>
-          <h1 className="page-title">Chart of Accounts</h1>
-          <p className="page-subtitle">Manage your company's account hierarchy and GL structure</p>
-        </div>
-        <div style={{ display: 'flex', gap: 10 }}>
-          {/* CSV Export */}
-          <button
-            className="btn btn-secondary"
-            onClick={() => exportCSV(accounts)}
-            disabled={accounts.length === 0}
-            title="Export the current page to CSV"
-          >
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/>
-            </svg>
-            Export Page CSV
-          </button>
+    <main className="page-shell">
+      <PageHeader
+        title="Chart Of Accounts"
+        description="Your company's account hierarchy. Codes have 10 digits: Main Category, Group, Sub-Group, then Posting Account."
+        actions={(
+          <>
+            <Button
+              icon={<IconDownload size={16} stroke={1.8} />}
+              onClick={exportAllAccounts}
+              disabled={busyExporting}
+              loading={exporting}
+              title="Export every Chart Of Accounts row to CSV"
+            >
+              Export CSV
+            </Button>
+            <Button
+              icon={<IconPrinter size={16} stroke={1.8} />}
+              onClick={printAllAccounts}
+              disabled={busyExporting}
+              loading={printingPdf}
+              title="Open a formatted Chart Of Accounts report that can be saved as PDF"
+            >
+              Print Or PDF
+            </Button>
+            {!isLoading && total === 0 && (
+              <Button icon={<IconFileImport size={16} stroke={1.8} />} onClick={() => setShowImport(true)}>
+                Import Template
+              </Button>
+            )}
+            {total > 0 && (
+              <Button icon={<IconUpload size={16} stroke={1.8} />} onClick={() => setShowBulkImport(true)}>
+                Bulk Import
+              </Button>
+            )}
+            <Link href="/accounts/new" className="btn-primary">
+              <IconPlus size={16} stroke={1.8} aria-hidden />
+              New Account
+            </Link>
+          </>
+        )}
+      />
 
-          {/* Template import — only when COA is empty */}
-          {!isLoading && total === 0 && (
-            <button className="btn btn-secondary" onClick={() => setShowImport(true)}>
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/>
-              </svg>
-              Import Template
-            </button>
-          )}
-
-          {/* Bulk CSV import — always available */}
-          {total > 0 && (
-            <button className="btn btn-secondary" onClick={() => setShowBulkImport(true)}>
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
-                <polyline points="14 2 14 8 20 8"/>
-                <line x1="12" y1="18" x2="12" y2="12"/>
-                <line x1="9" y1="15" x2="15" y2="15"/>
-              </svg>
-              Bulk Import
-            </button>
-          )}
-
-          <Link href="/accounts/new" className="btn btn-primary">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-              <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
-            </svg>
-            New Account
-          </Link>
-        </div>
-      </div>
-
-      {/* ── KPI Stats ─────────────────────────────────────────────── */}
-      <div className="stats-grid">
-        {stats.map(s => (
-          <div key={s.label} className="stat-card">
-            <div className="stat-label">{s.label}</div>
-            <div className="stat-value">{isLoading ? '—' : formatNumber(s.value, { ...(generalSettings ?? {}), decimal_places: 0 })}</div>
-          </div>
-        ))}
-      </div>
-
-      {/* ── Error ─────────────────────────────────────────────────── */}
-      {error && (
-        <div className="alert alert-danger">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style={{ flexShrink: 0 }}>
-            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>
-          </svg>
-          {error.message}
-        </div>
+      {error && <InlineAlert tone="danger">{friendlyErrorMessage(error, 'Unable to load accounts.')}</InlineAlert>}
+      {exportError && <InlineAlert tone="danger">{exportError}</InlineAlert>}
+      {openingSummary && !openingSummary.is_balanced && (
+        <InlineAlert tone="warning">
+          Opening Balances are not balanced. Total Debit {formatNumber(Number(openingSummary.total_debit), generalSettings)} and
+          Total Credit {formatNumber(Number(openingSummary.total_credit), generalSettings)} differ
+          by {formatNumber(Number(openingSummary.difference), generalSettings)}. The Trial Balance will not balance until they match.
+        </InlineAlert>
+      )}
+      {openingSummary && openingSummary.accounts_without_date > 0 && (
+        <InlineAlert tone="warning">
+          {openingSummary.accounts_without_date} account(s) have an Opening Balance without an Opening Balance Date. Add the go-live date to each one.
+        </InlineAlert>
+      )}
+      {groupTruncated && (
+        <InlineAlert tone="warning">
+          Group view shows the first {groupAccounts.length} accounts. Use the Table view with search or filters to see the full list.
+        </InlineAlert>
       )}
 
-      {/* ── Main Card ─────────────────────────────────────────────── */}
-      <div className="card">
+      <Tabs label="Account Views" value={view} onChange={setView} items={VIEW_TABS} />
 
-        {/* ── Toolbar ─────────────────────────────────────────────── */}
-        <div className="card-header" style={{ flexWrap: 'wrap', gap: 12, alignItems: 'flex-start' }}>
-          <h2 className="card-title" style={{ alignSelf: 'center' }}>Accounts</h2>
-
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginLeft: 'auto', flexWrap: 'wrap' }}>
-
-            {/* Search — table view only */}
-            {view === 'table' && (
-              <div style={{ position: 'relative' }}>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
-                  stroke="var(--color-text-muted)" strokeWidth="2"
-                  style={{ position: 'absolute', left: 9, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }}>
-                  <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
-                </svg>
-                <input
-                  type="text" className="form-input"
-                  placeholder="Search accounts…"
-                  value={searchText}
-                  onChange={e => setSearchText(e.target.value)}
-                  onKeyDown={event => {
-                    if (event.key === 'Enter') applySearch();
-                  }}
-                  style={{ paddingLeft: 30, width: 200, height: 34 }}
-                />
-              </div>
-            )}
+      <div className={`split-view${slideOver ? ' has-side' : ''}`}>
+        <section className="panel" role="tabpanel" aria-labelledby={`tab-${view}`}>
+          {/* ── Filter Bar ─────────────────────────────────────── */}
+          <div className="filter-bar">
             {view === 'table' && (
               <>
-                <button className="btn btn-secondary btn-sm" type="button" onClick={applySearch} disabled={isFetching} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                  {isFetching && <span className="spinner" style={{ width: 12, height: 12, borderWidth: 2 }} />}
-                  {isFetching ? 'Searching...' : 'Search'}
-                </button>
-                {(search || searchText) && (
-                  <button className="btn btn-secondary btn-sm" type="button" onClick={clearSearch} disabled={isFetching}>
-                    Clear
-                  </button>
-                )}
+                <div className="filter-bar-grow">
+                  <SearchField
+                    label="Search Accounts"
+                    value={searchText}
+                    onChange={setSearchText}
+                    onSubmit={applySearch}
+                    placeholder="Search by Account Code Or Name"
+                  />
+                </div>
+                <Button onClick={applySearch} loading={isFetching}>Search</Button>
               </>
             )}
-
-            {/* View toggle */}
-            <div style={{ display: 'flex', gap: 4 }}>
-              <ViewBtn active={view === 'table'} onClick={() => setView('table')} title="Table view">
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <rect x="3" y="3" width="18" height="18" rx="2"/>
-                  <line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/>
-                  <line x1="9" y1="3" x2="9" y2="21"/>
-                </svg>
-                Table
-              </ViewBtn>
-              <ViewBtn active={view === 'tree'} onClick={() => setView('tree')} title="Tree view">
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M3 12h4M3 6h4M3 18h4M7 6v12M11 9h10M11 15h10M11 12h6"/>
-                </svg>
-                Tree
-              </ViewBtn>
-              <ViewBtn active={view === 'group'} onClick={() => setView('group')} title="Group view">
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/>
-                  <rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>
-                </svg>
-                Group
-              </ViewBtn>
-            </div>
-          </div>
-        </div>
-
-        {/* ── Filter Chips (all views) ──────────────────────────── */}
-        {(
-          <div style={{
-            padding: '10px 20px', borderBottom: '1px solid var(--color-border)',
-            display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center',
-          }}>
-            {/* Account type chips */}
-            <span style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-muted)', fontWeight: 600, marginRight: 4 }}>
-              Type:
-            </span>
-            {['', ...ACCOUNT_TYPES].map(t => (
-              <button
-                key={t || 'all'}
-                onClick={() => { setTypeFilter(t); setPage(1); }}
-                style={{
-                  padding: '3px 10px', borderRadius: 12, fontSize: 'var(--font-size-xs)',
-                  fontWeight: 600, cursor: 'pointer', border: '1px solid',
-                  borderColor: typeFilter === t ? 'var(--color-primary)' : 'var(--color-border)',
-                  background:  typeFilter === t ? 'var(--color-primary)' : 'var(--color-surface)',
-                  color:       typeFilter === t ? 'white' : 'var(--color-text-muted)',
-                  transition: 'all 0.1s',
-                }}
-              >
-                {t || 'All'}
-              </button>
-            ))}
-
-            {/* Divider */}
-            <span style={{ width: 1, height: 20, background: 'var(--color-border)', margin: '0 4px' }} />
-
-            {/* Posting filter */}
-            <span style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-muted)', fontWeight: 600, marginRight: 4 }}>
-              Level:
-            </span>
-            {(['all', 'posting', 'header'] as PostingFilter[]).map(f => (
-              <button
-                key={f}
-                onClick={() => { setPostFilter(f); setPage(1); }}
-                style={{
-                  padding: '3px 10px', borderRadius: 12, fontSize: 'var(--font-size-xs)',
-                  fontWeight: 600, cursor: 'pointer', border: '1px solid',
-                  borderColor: postFilter === f ? 'var(--color-primary)' : 'var(--color-border)',
-                  background:  postFilter === f ? 'var(--color-primary)' : 'var(--color-surface)',
-                  color:       postFilter === f ? 'white' : 'var(--color-text-muted)',
-                  transition: 'all 0.1s',
-                }}
-              >
-                {f === 'all' ? 'All' : f === 'posting' ? 'Posting Only' : 'Headers Only'}
-              </button>
-            ))}
-
-            {/* Reset */}
-            {hasFilters && (
-              <button
+            <select
+              className="form-input"
+              aria-label="Filter By Account Type"
+              value={typeFilter}
+              onChange={event => { setTypeFilter(event.target.value); setPage(1); }}
+              style={{ width: 150 }}
+            >
+              <option value="">All Types</option>
+              {ACCOUNT_TYPES.map(type => <option key={type} value={type}>{type}</option>)}
+            </select>
+            <SegmentedControl
+              label="Account Level Filter"
+              value={postFilter}
+              options={POSTING_OPTIONS}
+              onChange={value => { setPostFilter(value); setPage(1); }}
+            />
+            {(hasFilters || searchText) && (
+              <Button
+                variant="ghost"
+                icon={<IconX size={16} stroke={1.8} />}
                 onClick={resetFilters}
-                style={{
-                  marginLeft: 'auto', padding: '3px 10px', borderRadius: 12,
-                  fontSize: 'var(--font-size-xs)', fontWeight: 600, cursor: 'pointer',
-                  border: '1px solid var(--color-danger)', background: 'none',
-                  color: 'var(--color-danger)',
-                }}
+                disabled={isFetching}
               >
-                ✕ Clear Filters
-              </button>
+                Clear
+              </Button>
+            )}
+            {view !== 'tree' && (
+              <div className="filter-bar-end" style={{ fontVariantNumeric: 'tabular-nums' }}>
+                {isLoading ? 'Loading…' : `${totalText} ${total === 1 ? 'Account' : 'Accounts'}`}
+              </div>
             )}
           </div>
-        )}
 
-        {/* ── Content area ─────────────────────────────────────────── */}
-        {view === 'table' && (
-          isLoading ? (
-            <div className="loading-overlay" style={{ minHeight: 320 }}>
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
-                <div className="spinner" style={{ width: 28, height: 28, borderWidth: 3 }} />
-                <span style={{ fontSize: 'var(--font-size-sm)', color: 'var(--color-text-muted)' }}>
-                  Loading accounts…
-                </span>
-              </div>
-            </div>
-          ) : (
+          {/* ── Content ─────────────────────────────────────────── */}
+          {view === 'table' && (
             <AccountsTable
               accounts={accounts}
               total={total}
@@ -413,56 +367,41 @@ export default function AccountsPage() {
               onBulkActivate={() => bulkSetActive(true)}
               onBulkDeactivate={() => bulkSetActive(false)}
               bulkLoading={bulkMutation.isPending}
+              loading={isLoading}
+              isFiltered={Boolean(hasFilters)}
+              activeId={slideOver?.id ?? null}
             />
-          )
-        )}
+          )}
 
-        {view === 'tree' && (
-          <AccountTreeView
-            typeFilter={typeFilter}
-            postingFilter={postFilter}
-          />
-        )}
+          {view === 'tree' && (
+            <AccountTreeView
+              typeFilter={typeFilter}
+              postingFilter={postFilter}
+            />
+          )}
 
-        {view === 'group' && (
-          groupLoading ? (
-            <div className="loading-overlay" style={{ minHeight: 320 }}>
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
-                <div className="spinner" style={{ width: 28, height: 28, borderWidth: 3 }} />
-                <span style={{ fontSize: 'var(--font-size-sm)', color: 'var(--color-text-muted)' }}>
-                  Building groups…
-                </span>
-              </div>
-            </div>
-          ) : (
-            <>
-              {total > groupAccounts.length && (
-                <div className="alert alert-warning" style={{ marginBottom: 12 }}>
-                  Showing the first {groupAccounts.length} accounts in Group view. Use Table search or filters for the full list.
+          {view === 'group' && (
+            <div className="table-scroll">
+              {groupLoading ? (
+                <div className="empty-state">
+                  <span className="spinner" aria-hidden />
+                  <div className="empty-title">Building Groups…</div>
                 </div>
+              ) : (
+                <AccountGroupView accounts={groupAccounts} />
               )}
-              <AccountGroupView accounts={groupAccounts} />
-            </>
-          )
-        )}
-      </div>
+            </div>
+          )}
+        </section>
 
-      {/* ── Info banner ───────────────────────────────────────────── */}
-      <div style={{
-        marginTop: 20, padding: '12px 16px', background: 'var(--color-primary-light)',
-        borderRadius: 'var(--radius)', border: '1px solid #bfdbfe',
-        display: 'flex', gap: 10, alignItems: 'flex-start',
-      }}>
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="var(--color-primary)" style={{ flexShrink: 0, marginTop: 1 }}>
-          <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/>
-        </svg>
-        <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-primary)' }}>
-          <strong>10-digit hierarchy:</strong>&nbsp;
-          01 = Main Category &nbsp;|&nbsp; 0101 = Group &nbsp;|&nbsp; 010110 = Sub-Group &nbsp;|&nbsp; 0101100001 = Posting Account.
-          &nbsp; Tree view is the primary analysis view; table view is for maintenance and export.
-          &nbsp; System accounts <strong>(SYS)</strong> cannot be deactivated.
-          &nbsp; Use Table view to edit account details.
-        </div>
+        {/* ── Account Side Panel ────────────────────────────────── */}
+        <AccountSlideOver
+          account={slideOver}
+          onClose={() => setSlideOver(null)}
+          onSaved={() => {
+            queryClient.invalidateQueries({ queryKey: accountsQueryKey });
+          }}
+        />
       </div>
 
       {/* ── Bulk CSV Import Modal ─────────────────────────────────── */}
@@ -482,16 +421,6 @@ export default function AccountsPage() {
           queryClient.invalidateQueries({ queryKey: accountsQueryKey });
         }}
       />
-
-      {/* ── Slide-Over Edit Panel ─────────────────────────────────── */}
-      <AccountSlideOver
-        account={slideOver}
-        onClose={() => setSlideOver(null)}
-        onSaved={() => {
-          queryClient.invalidateQueries({ queryKey: accountsQueryKey });
-          // Update the slide-over with refreshed data after save
-        }}
-      />
-    </>
+    </main>
   );
 }
