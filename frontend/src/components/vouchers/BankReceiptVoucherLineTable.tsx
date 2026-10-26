@@ -2,16 +2,11 @@
 
 import { IconTrash } from '@tabler/icons-react';
 import type { AppFormatSettingsSource } from '@/lib/app-settings';
-import { SearchableSelect, type VoucherSelectOption } from './VoucherControls';
-import {
-  cleanAmount,
-  compactDateInputStyle,
-  compactInputStyle,
-  formatAmountInput,
-  sanitizeAmountInput,
-  tableCellStyle,
-  tableHeadStyle,
-} from './VoucherShared';
+import { Button } from '@/components/ui/Button';
+import { SearchableSelect, type SelectOption } from '@/components/ui/SearchableSelect';
+import { LinesTable } from '@/components/documents';
+import styles from '@/components/documents/documents.module.css';
+import { amountValue, cleanAmount, formatAmountInput, sanitizeAmountInput } from './VoucherShared';
 
 export type BankReceiptDepositKind = 'CASH' | 'CHEQUE' | 'BANK_TRANSFER' | 'OTHER';
 
@@ -27,19 +22,15 @@ export interface BankReceiptVoucherLine {
   amount: string;
 }
 
-const receiptLineColumns = [
-  { label: 'No.', width: 44 },
-  { label: 'Received From Account', width: 240 },
-  { label: 'Description', width: undefined },
-  { label: 'Deposit Type', width: 120 },
-  { label: 'Cheque Number', width: 124, required: true },
-  { label: 'Cheque Date', width: 128 },
-  { label: 'Cheque Bank', width: 150 },
-  { label: 'Clearing Date', width: 128 },
-  { label: 'Amount', width: 140, right: true },
-  { label: '', width: 44 },
-] as const;
+function isEmptyLine(line: BankReceiptVoucherLine) {
+  return !line.receivedFromAccountId && !line.description.trim() && !line.chequeNumber.trim() && !line.chequeDate
+    && !line.chequeBankName.trim() && !line.clearingDate && amountValue(line.amount) <= 0;
+}
 
+/**
+ * Bank Receipt lines. Ten columns of inputs cannot fit a 1280px screen, so this grid keeps a
+ * minimum width and scrolls sideways inside its panel.
+ */
 export function BankReceiptVoucherLineTable({
   lines,
   accountOptions,
@@ -51,8 +42,8 @@ export function BankReceiptVoucherLineTable({
   onRemoveLine,
 }: {
   lines: BankReceiptVoucherLine[];
-  accountOptions: VoucherSelectOption[];
-  depositTypes: VoucherSelectOption[];
+  accountOptions: SelectOption[];
+  depositTypes: SelectOption[];
   accountsLoading: boolean;
   accountsError: boolean;
   generalSettings?: AppFormatSettingsSource | null;
@@ -60,124 +51,136 @@ export function BankReceiptVoucherLineTable({
   onRemoveLine: (id: number) => void;
 }) {
   return (
-    <div style={{ minHeight: 0, overflowY: 'auto', overflowX: 'auto', border: '1px solid var(--color-border)', borderRadius: 'var(--radius)' }}>
-      <table style={{ width: '100%', minWidth: 1300, borderCollapse: 'collapse', fontSize: 'var(--font-size-sm)', tableLayout: 'fixed' }}>
-        <colgroup>
-          {receiptLineColumns.map(column => (
-            <col key={column.label || 'action'} style={{ width: column.width }} />
-          ))}
-        </colgroup>
-        <thead>
-          <tr>
-            {receiptLineColumns.map(column => (
-              <th key={column.label || 'action'} style={tableHeadStyle('right' in column && Boolean(column.right))}>
-                {column.label}
-                {'required' in column && column.required && <span className="field-required" aria-hidden>*</span>}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {lines.map((line, index) => {
-            const isCheque = line.depositKind === 'CHEQUE';
-            return (
-              <tr key={line.id}>
-                <td style={tableCellStyle()}><strong>{index + 1}</strong></td>
-                <td style={tableCellStyle()}>
-                  <SearchableSelect
-                    value={line.receivedFromAccountId}
-                    options={accountOptions}
-                    onChange={value => onUpdateLine(line.id, { receivedFromAccountId: value })}
-                    placeholder={accountsLoading ? 'Loading Accounts' : accountsError ? 'Accounts Not Loaded' : 'Search Account'}
-                    disabled={accountsLoading || accountsError}
-                  />
-                </td>
-                <td style={tableCellStyle()}>
-                  <input
-                    className="form-input"
-                    value={line.description}
-                    onChange={event => onUpdateLine(line.id, { description: event.currentTarget.value })}
-                    placeholder="Description"
-                    style={compactInputStyle}
-                  />
-                </td>
-                <td style={tableCellStyle()}>
-                  <SearchableSelect
-                    value={line.depositKind}
-                    options={depositTypes}
-                    onChange={value => onUpdateLine(line.id, { depositKind: (value as BankReceiptDepositKind) || 'CASH' })}
-                    placeholder="Select Type"
-                  />
-                </td>
-                <td style={tableCellStyle()}>
-                  <input
-                    className="form-input"
-                    value={line.chequeNumber}
-                    disabled={!isCheque}
-                    onChange={event => onUpdateLine(line.id, { chequeNumber: event.currentTarget.value })}
-                    placeholder={isCheque ? 'Cheque No. *' : 'Cheque No.'}
-                    style={compactInputStyle}
-                  />
-                </td>
-                <td style={tableCellStyle()}>
-                  <input
-                    className="form-input"
-                    type="date"
-                    value={line.chequeDate}
-                    disabled={!isCheque}
-                    onChange={event => onUpdateLine(line.id, { chequeDate: event.currentTarget.value })}
-                    style={compactDateInputStyle}
-                  />
-                </td>
-                <td style={tableCellStyle()}>
-                  <input
-                    className="form-input"
-                    value={line.chequeBankName}
-                    disabled={!isCheque}
-                    onChange={event => onUpdateLine(line.id, { chequeBankName: event.currentTarget.value })}
-                    placeholder="Cheque Bank"
-                    style={compactInputStyle}
-                  />
-                </td>
-                <td style={tableCellStyle()}>
-                  <input
-                    className="form-input"
-                    type="date"
-                    value={line.clearingDate}
-                    disabled={!isCheque}
-                    onChange={event => onUpdateLine(line.id, { clearingDate: event.currentTarget.value })}
-                    style={compactDateInputStyle}
-                  />
-                </td>
-                <td style={tableCellStyle()}>
-                  <input
-                    className="form-input"
-                    inputMode="decimal"
-                    value={line.amount}
-                    onChange={event => onUpdateLine(line.id, { amount: sanitizeAmountInput(event.currentTarget.value) })}
-                    onFocus={() => onUpdateLine(line.id, { amount: cleanAmount(line.amount) })}
-                    onBlur={() => onUpdateLine(line.id, { amount: formatAmountInput(line.amount, generalSettings) })}
-                    placeholder="0.00"
-                    style={{ ...compactInputStyle, textAlign: 'right', fontVariantNumeric: 'tabular-nums', fontWeight: 500 }}
-                  />
-                </td>
-                <td style={tableCellStyle()}>
-                  <button
-                    type="button"
-                    className="btn-ghost"
-                    onClick={() => onRemoveLine(line.id)}
-                    disabled={lines.length === 1}
-                    title="Remove Line"
-                    style={{ width: 'var(--control-h)', padding: 0 }}
-                  >
-                    <IconTrash size={16} />
-                  </button>
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
-    </div>
+    <LinesTable editable minWidth={1180}>
+      <colgroup>
+        <col style={{ width: 52 }} />
+        <col style={{ width: 220 }} />
+        <col />
+        <col style={{ width: 140 }} />
+        <col style={{ width: 116 }} />
+        <col style={{ width: 136 }} />
+        <col style={{ width: 128 }} />
+        <col style={{ width: 136 }} />
+        <col style={{ width: 128 }} />
+        <col style={{ width: 48 }} />
+      </colgroup>
+      <thead>
+        <tr>
+          <th className="num">No.</th>
+          <th>Received From Account<span className="field-required" aria-hidden="true">*</span></th>
+          <th>Description</th>
+          <th>Deposit Type</th>
+          <th>Cheque Number<span className="field-required" aria-hidden="true">*</span></th>
+          <th>Cheque Date</th>
+          <th>Cheque Bank</th>
+          <th>Clearing Date</th>
+          <th className="num">Amount<span className="field-required" aria-hidden="true">*</span></th>
+          <th><span className="sr-only">Actions</span></th>
+        </tr>
+      </thead>
+      <tbody>
+        {lines.map((line, index) => {
+          const isCheque = line.depositKind === 'CHEQUE';
+          const lineNo = index + 1;
+          return (
+            <tr key={line.id} data-line-row data-line-empty={isEmptyLine(line) ? 'true' : undefined}>
+              <td className="num cell-muted">{lineNo}</td>
+              <td data-line-first>
+                <SearchableSelect
+                  value={line.receivedFromAccountId}
+                  options={accountOptions}
+                  onChange={value => onUpdateLine(line.id, { receivedFromAccountId: value })}
+                  placeholder={accountsLoading ? 'Loading Accounts' : accountsError ? 'Accounts Not Loaded' : 'Search Account'}
+                  disabled={accountsLoading || accountsError}
+                  ariaLabel={`Received From Account, Line ${lineNo}`}
+                />
+              </td>
+              <td>
+                <input
+                  className="form-input"
+                  value={line.description}
+                  onChange={event => onUpdateLine(line.id, { description: event.currentTarget.value })}
+                  placeholder="Description"
+                  aria-label={`Description, Line ${lineNo}`}
+                />
+              </td>
+              <td>
+                <SearchableSelect
+                  value={line.depositKind}
+                  options={depositTypes}
+                  onChange={value => onUpdateLine(line.id, { depositKind: (value as BankReceiptDepositKind) || 'CASH' })}
+                  placeholder="Select Type"
+                  ariaLabel={`Deposit Type, Line ${lineNo}`}
+                />
+              </td>
+              <td>
+                <input
+                  className="form-input"
+                  value={line.chequeNumber}
+                  disabled={!isCheque}
+                  onChange={event => onUpdateLine(line.id, { chequeNumber: event.currentTarget.value })}
+                  placeholder={isCheque ? 'Cheque No. *' : 'Cheque No.'}
+                  aria-label={`Cheque Number, Line ${lineNo}`}
+                  aria-required={isCheque || undefined}
+                />
+              </td>
+              <td>
+                <input
+                  className="form-input"
+                  type="date"
+                  value={line.chequeDate}
+                  disabled={!isCheque}
+                  onChange={event => onUpdateLine(line.id, { chequeDate: event.currentTarget.value })}
+                  aria-label={`Cheque Date, Line ${lineNo}`}
+                />
+              </td>
+              <td>
+                <input
+                  className="form-input"
+                  value={line.chequeBankName}
+                  disabled={!isCheque}
+                  onChange={event => onUpdateLine(line.id, { chequeBankName: event.currentTarget.value })}
+                  placeholder="Cheque Bank"
+                  aria-label={`Cheque Bank, Line ${lineNo}`}
+                />
+              </td>
+              <td>
+                <input
+                  className="form-input"
+                  type="date"
+                  value={line.clearingDate}
+                  disabled={!isCheque}
+                  onChange={event => onUpdateLine(line.id, { clearingDate: event.currentTarget.value })}
+                  aria-label={`Clearing Date, Line ${lineNo}`}
+                />
+              </td>
+              <td data-line-last>
+                <input
+                  className={`form-input ${styles.numInput}`}
+                  inputMode="decimal"
+                  value={line.amount}
+                  onChange={event => onUpdateLine(line.id, { amount: sanitizeAmountInput(event.currentTarget.value) })}
+                  onFocus={() => onUpdateLine(line.id, { amount: cleanAmount(line.amount) })}
+                  onBlur={() => onUpdateLine(line.id, { amount: formatAmountInput(line.amount, generalSettings) })}
+                  placeholder="0.00"
+                  aria-label={`Amount, Line ${lineNo}`}
+                />
+              </td>
+              <td className="cell-actions">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  icon={<IconTrash size={16} stroke={1.8} aria-hidden />}
+                  onClick={() => onRemoveLine(line.id)}
+                  disabled={lines.length === 1}
+                  aria-label={`Remove Line ${lineNo}`}
+                  title="Remove Line"
+                />
+              </td>
+            </tr>
+          );
+        })}
+      </tbody>
+    </LinesTable>
   );
 }

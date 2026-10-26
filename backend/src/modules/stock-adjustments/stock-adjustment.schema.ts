@@ -12,7 +12,9 @@ export const StockAdjustmentLineInput = z.object({
 
 export const ValidateStockAdjustmentInput = z.object({
   adjustment_date: dateInput,
-  warehouse_id: z.string().uuid(),
+  // Adjust stock at exactly one Branch or one Warehouse; a Location (shelf / rack) is optional.
+  branch_id: z.string().uuid().optional().or(z.literal('')),
+  warehouse_id: z.string().uuid().optional().or(z.literal('')),
   location_id: z.string().uuid().optional().or(z.literal('')),
   reference_number: z.string().trim().max(100).optional().or(z.literal('')),
   reason: z.string().trim().max(150).optional().or(z.literal('')),
@@ -25,6 +27,7 @@ export const ListStockAdjustmentsQuery = z.object({
   limit: z.coerce.number().int().min(1).max(200).default(50),
   status: z.enum(['Draft', 'Posted', 'Voided']).optional(),
   search: z.string().trim().optional(),
+  branch_id: z.string().uuid().optional(),
   warehouse_id: z.string().uuid().optional(),
   adjustment_type: z.enum(['Increase', 'Decrease']).optional(),
   date_from: dateInput.optional(),

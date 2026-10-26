@@ -1,15 +1,21 @@
+# Local full stack (PostgreSQL + backend + frontend) built from this repository, for trying the app in Docker.
+# Not for servers: production uses deployment/docker-compose.yml with released images (see DEPLOYMENT.md).
+#
+#   cp .env.docker.example .env      # then fill in the values
+#   docker compose up -d --build
+#   docker compose run --rm -e INITIAL_ADMIN_EMAIL=you@company.com -e INITIAL_ADMIN_PASSWORD='...' backend node dist/scripts/seed-admin.js
 services:
   postgres:
-    image: postgres:16-alpine
+    image: postgres:17-alpine
     container_name: erp_postgres
     environment:
-      POSTGRES_DB: ${POSTGRES_DB:?POSTGRES_DB is required}
-      POSTGRES_USER: ${POSTGRES_USER:?POSTGRES_USER is required}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-}
-      POSTGRES_HOST_AUTH_METHOD: ${POSTGRES_HOST_AUTH_METHOD:-trust}
-      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=en_US.UTF-8"
+      POSTGRES_DB: ${POSTGRES_DB:-erp}
+      POSTGRES_USER: ${POSTGRES_USER:-erp}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --auth-host=scram-sha-256"
     ports:
-      - "5432:5432"
+      # Reachable only from this computer.
+      - "127.0.0.1:5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -18,21 +24,36 @@ services:
       timeout: 5s
       retries: 5
 
-  backend:
+  # Installs the schema into the new database, or applies pending migrations, then exits.
+  migrate:
     build:
       context: ./backend
       dockerfile: Dockerfile
+    image: erp-backend:local
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://${POSTGRES_USER:-erp}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-erp}
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env}
+    command: ["sh", "scripts/db-fresh-install.sh", "auto"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  backend:
+    image: erp-backend:local
     container_name: erp_backend
     environment:
       NODE_ENV: production
       PORT: 4000
-      DATABASE_URL: ${BACKEND_DATABASE_URL:?BACKEND_DATABASE_URL is required}
-      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:3000}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-erp}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-erp}
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env}
+      CORS_ORIGIN: http://localhost:3000
     ports:
-      - "4000:4000"
+      - "127.0.0.1:4000:4000"
     depends_on:
-      postgres:
-        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
 
   frontend:
     build:
@@ -41,16 +62,13 @@ services:
     container_name: erp_frontend
     environment:
       NODE_ENV: production
-      NEXTAUTH_URL: ${NEXTAUTH_URL:-http://localhost:3000}
-      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET:?NEXTAUTH_SECRET is required}
-      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:4000}
-      DATABASE_URL: ${FRONTEND_DATABASE_URL:?FRONTEND_DATABASE_URL is required}
-      DATABASE_SSL: ${DATABASE_SSL:-false}
+      NEXTAUTH_URL: http://localhost:3000
+      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET:?Set NEXTAUTH_SECRET in .env}
+      BACKEND_API_INTERNAL_URL: http://backend:4000/api/v1
     ports:
-      - "3000:3000"
+      - "127.0.0.1:3000:3000"
     depends_on:
-      backend:
-        condition: service_started
+      - backend
 
 volumes:
   postgres_data:

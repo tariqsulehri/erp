@@ -193,7 +193,7 @@ export function defaultPostingDateForFiscalYears(years: FiscalYearItem[], curren
 
 export function useDefaultPostingDate(label = 'Posting Date', enabled = true) {
   const fiscalYearsQuery = useFiscalYearsList({ page: 1, limit: 50, enabled });
-  const fiscalYears = fiscalYearsQuery.data?.data ?? [];
+  const fiscalYears = useMemo(() => fiscalYearsQuery.data?.data ?? [], [fiscalYearsQuery.data]);
   const fiscalYear = useMemo(() => postingFiscalYear(fiscalYears), [fiscalYears]);
   const defaultPostingDate = useMemo(
     () => defaultPostingDateForFiscalYears(fiscalYears),

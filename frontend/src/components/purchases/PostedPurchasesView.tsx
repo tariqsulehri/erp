@@ -3,9 +3,7 @@
 import { useState } from 'react';
 import {
   IconChartBar,
-  IconCircleX,
   IconEye,
-  IconFileInvoice,
   IconFilePlus,
   IconPrinter,
   IconRefresh,
@@ -17,18 +15,20 @@ import { usePurchaseInvoiceDetail, usePurchaseInvoicesList } from '@/lib/api/pur
 import { PaginationBar } from '@/components/ui/PaginationBar';
 import { PurchaseInvoicePrintPreview } from './PurchasePrintPreview';
 import { PostedPurchasesFilters } from './components';
+import { Badge } from '@/components/ui/Badge';
+import { Button } from '@/components/ui/Button';
+import { InlineAlert } from '@/components/ui/InlineAlert';
+import { TableMessageRow } from '@/components/ui/TableMessageRow';
 import {
-  badgeStyle,
-  compactButtonStyle,
-  detailMessageStyle,
-  lineActionButtonStyle,
-  messageStyle,
-  purchaseDetailPanelStyle,
-  statusBadgeStyle,
-  tableCellStyle,
-  tableHeadStyle,
-  toolbarStyle,
-} from './PurchaseVoucherStyles';
+  DetailFields,
+  DetailLinesTable,
+  DetailTotals,
+  DocumentDetailPanel,
+  DocumentHeader,
+  DocumentPage,
+  PostedListPanel,
+  postedListRowClass,
+} from '@/components/documents';
 import type { PaymentType, PurchaseListRow, SupplierOption, WarehouseOption } from './PurchaseVoucherTypes';
 
 interface PostedPurchasesViewProps {
@@ -121,239 +121,202 @@ export function PostedPurchasesView({
     });
   }
 
+  const iconProps = { size: 16, stroke: 1.8, 'aria-hidden': true } as const;
+  const detail = detailQuery.data;
+
   return (
-    <main style={{ height: '100%', minHeight: 0, boxSizing: 'border-box', padding: 10, display: 'flex', flexDirection: 'column', gap: 8, overflow: 'hidden' }}>
-      <section style={toolbarStyle}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-          <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-            <div>
-              <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-                <h1 className="page-head-title">Posted Purchases</h1>
-                <span style={badgeStyle('var(--color-success-text)', 'var(--color-success-bg)')}>Posted Only</span>
-                <span style={statusBadgeStyle}>{total} Record{total === 1 ? '' : 's'}</span>
-              </div>
-            </div>
-          </div>
-          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-            <button className="btn-secondary" type="button" onClick={() => { setPrintError(''); listQuery.refetch(); }} style={compactButtonStyle}><IconRefresh size={15} /> Refresh</button>
-            <button className="btn-secondary" type="button" onClick={onAnalytics} style={compactButtonStyle}><IconChartBar size={15} /> Analytics</button>
-            <button className="btn-primary" type="button" disabled={newDisabled} title={newDisabledReason} onClick={onNewPurchase} style={compactButtonStyle}><IconFilePlus size={15} /> New Purchase</button>
-          </div>
-        </div>
-      </section>
+    <DocumentPage>
+      <DocumentHeader
+        title="Posted Purchases"
+        badges={(
+          <>
+            <Badge variant="success">Posted Only</Badge>
+            <Badge variant="neutral">{total} Record{total === 1 ? '' : 's'}</Badge>
+          </>
+        )}
+        actions={(
+          <>
+            <Button variant="secondary" icon={<IconRefresh {...iconProps} />} onClick={() => { setPrintError(''); listQuery.refetch(); }}>Refresh</Button>
+            <Button variant="secondary" icon={<IconChartBar {...iconProps} />} onClick={onAnalytics}>Analytics</Button>
+            <Button variant="primary" icon={<IconFilePlus {...iconProps} />} disabled={newDisabled} title={newDisabledReason} onClick={onNewPurchase}>New Purchase</Button>
+          </>
+        )}
+      />
 
-      {printError && (
-        <div style={messageStyle('error')}>
-          <IconFileInvoice size={18} />
-          {printError}
-        </div>
-      )}
+      {printError && <InlineAlert tone="danger" onDismiss={() => setPrintError('')}>{printError}</InlineAlert>}
 
-      <section className="workspace-card" style={{ padding: 10, flex: 1, minHeight: 0, display: 'grid', gridTemplateRows: 'auto 1fr auto', gap: 8, overflow: 'hidden' }}>
-        <PostedPurchasesFilters
-          search={searchText}
-          supplierId={supplierId}
-          paymentType={paymentType}
-          warehouseId={warehouseId}
-          dateFrom={dateFrom}
-          dateTo={dateTo}
-          amountFrom={amountFrom}
-          amountTo={amountTo}
-          suppliers={suppliers}
-          warehouses={warehouses}
-          onSearchChange={setSearchText}
-          onSearchSubmit={applySearch}
-          onSearchClear={clearSearch}
-          searchApplied={Boolean(search)}
-          loading={listQuery.isFetching}
-          onSupplierChange={value => updateFilter(() => setSupplierId(value))}
-          onPaymentTypeChange={value => updateFilter(() => setPaymentType(value))}
-          onWarehouseChange={value => updateFilter(() => setWarehouseId(value))}
-          onDateFromChange={value => updateFilter(() => setDateFrom(value))}
-          onDateToChange={value => updateFilter(() => setDateTo(value))}
-          onAmountFromChange={value => updateFilter(() => setAmountFrom(value))}
-          onAmountToChange={value => updateFilter(() => setAmountTo(value))}
-          onResetFilters={resetFilters}
-        />
-
-        <div style={{ minHeight: 0, display: 'grid', gridTemplateColumns: selectedId ? 'minmax(0, 1fr) 390px' : '1fr', gap: 8, overflow: 'hidden' }}>
-          <div style={{ minHeight: 0, overflow: 'auto', border: '1px solid var(--color-border)', borderRadius: 'var(--radius)' }}>
-            <table style={{ width: '100%', minWidth: 1080, borderCollapse: 'collapse', fontSize: 'var(--font-size-xs)', tableLayout: 'fixed' }}>
-              <colgroup>
-                <col style={{ width: 116 }} />
-                <col style={{ width: 92 }} />
-                <col style={{ width: 190 }} />
-                <col style={{ width: 118 }} />
-                <col style={{ width: 88 }} />
-                <col style={{ width: 125 }} />
-                <col style={{ width: 95 }} />
-                <col style={{ width: 92 }} />
-                <col style={{ width: 92 }} />
-                <col style={{ width: 92 }} />
-                <col style={{ width: 118 }} />
-                <col style={{ width: 62 }} />
-              </colgroup>
-              <thead>
-                <tr>
-                  {['Purchase No.', 'Date', 'Supplier', 'Supplier Bill No.', 'Type', 'Warehouse', 'Gross', 'Discount', 'Tax', 'Freight', 'Net Amount', 'View'].map((label, index) => (
-                    <th key={label} style={tableHeadStyle(index >= 6 && index <= 10)}>{label}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {listQuery.isLoading && (
-                  <tr>
-                    <td colSpan={12} style={{ ...tableCellStyle(), height: 80, textAlign: 'center', color: 'var(--color-text-muted)', fontWeight: 700 }}>
-                      Loading Posted Purchases...
-                    </td>
-                  </tr>
-                )}
-                {listQuery.error && (
-                  <tr>
-                    <td colSpan={12} style={{ ...tableCellStyle(), height: 80, textAlign: 'center', color: 'var(--color-danger-text)', fontWeight: 700 }}>
-                      {friendlyErrorMessage(listQuery.error, 'Unable to load Posted Purchases.')}
-                    </td>
-                  </tr>
-                )}
-                {!listQuery.isLoading && !listQuery.error && rows.length === 0 && (
-                  <tr>
-                    <td colSpan={12} style={{ ...tableCellStyle(), height: 90, textAlign: 'center', color: 'var(--color-text-muted)', fontWeight: 700 }}>
-                      No posted purchases found for the selected filters.
-                    </td>
-                  </tr>
-                )}
-                {rows.map(row => {
-                  const active = selectedId === row.id;
-                  return (
-                    <tr key={row.id} onClick={() => setSelectedId(row.id)} style={{ cursor: 'pointer', outline: active ? '2px solid var(--color-primary)' : 'none', outlineOffset: -1 }}>
-                      <td style={tableCellStyle()}><strong>{row.purchase_number}</strong></td>
-                      <td style={tableCellStyle()}>{formatDate(row.purchase_date, generalSettings)}</td>
-                      <td style={tableCellStyle()}>{row.supplier_code ? `${row.supplier_code} - ${row.supplier_name}` : row.supplier_name}</td>
-                      <td style={tableCellStyle()}>{row.supplier_invoice_number || '—'}</td>
-                      <td style={tableCellStyle()}>{row.payment_type}</td>
-                      <td style={tableCellStyle()}>{row.warehouse_code ? `${row.warehouse_code} - ${row.warehouse_name}` : row.warehouse_name || '—'}</td>
-                      <td style={tableCellStyle(true)}>{money(Number(row.gross_amount))}</td>
-                      <td style={tableCellStyle(true)}>{money(Number(row.discount_amount))}</td>
-                      <td style={tableCellStyle(true)}>{money(Number(row.tax_amount))}</td>
-                      <td style={tableCellStyle(true)}>{money(Number(row.freight_amount))}</td>
-                      <td style={tableCellStyle(true)}><strong>{money(Number(row.net_amount))}</strong></td>
-                      <td style={tableCellStyle()}>
-                        <button type="button" className="btn-ghost" onClick={event => { event.stopPropagation(); setSelectedId(row.id); }} title="View Purchase" style={{ ...lineActionButtonStyle, width: 28, minWidth: 28 }}>
-                          <IconEye size={15} />
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-
-          {selectedId && (
-            <aside style={purchaseDetailPanelStyle}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'center', borderBottom: '1px solid var(--color-border)', paddingBottom: 8 }}>
-                <strong style={{ fontSize: 'var(--font-size-md)', color: 'var(--color-heading)' }}>Purchase Detail</strong>
-                <div style={{ display: 'flex', gap: 4 }}>
-                  {detailQuery.data && (
-                    <button
-                      type="button"
-                      className="btn-ghost"
-                      onClick={() => {
-                        setPrintError('');
-                        setPrintPreviewInvoice(detailQuery.data);
-                      }}
-                      title="Print Preview"
-                      style={{ ...lineActionButtonStyle, width: 28, minWidth: 28 }}
-                    >
-                      <IconPrinter size={15} />
-                    </button>
-                  )}
-                  <button type="button" className="btn-ghost" onClick={() => setSelectedId(null)} style={{ ...lineActionButtonStyle, width: 28, minWidth: 28 }}>
-                    <IconCircleX size={15} />
-                  </button>
-                </div>
-              </div>
-              {detailQuery.isLoading && <div style={detailMessageStyle}>Loading purchase detail...</div>}
-              {detailQuery.error && <div style={{ ...detailMessageStyle, color: 'var(--color-danger-text)' }}>{friendlyErrorMessage(detailQuery.error, 'Unable to load Purchase Detail.')}</div>}
-              {detailQuery.data && (
-                <div style={{ minHeight: 0, display: 'flex', flexDirection: 'column', gap: 8, overflow: 'hidden' }}>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
-                    {[
-                      ['Purchase No.', detailQuery.data.purchase_number],
-                      ['Date', formatDate(detailQuery.data.purchase_date, generalSettings)],
-                      ['Supplier', `${detailQuery.data.supplier_code} - ${detailQuery.data.supplier_name}`],
-                      ['Payment Type', detailQuery.data.payment_type],
-                      ['Supplier Bill No.', detailQuery.data.supplier_invoice_number || '—'],
-                      ['Reference', detailQuery.data.reference_number || '—'],
-                      ['Location', detailQuery.data.location_code ? `${detailQuery.data.location_code} - ${detailQuery.data.location_name}` : detailQuery.data.location_name || '—'],
-                      ['Voucher No.', detailQuery.data.accounting_voucher_number || '—'],
-                      ['Posted At', detailQuery.data.posted_at ? formatDate(detailQuery.data.posted_at, generalSettings) : '—'],
-                    ].map(([label, value]) => (
-                      <div key={label} style={{ border: '1px solid var(--color-border-subtle)', borderRadius: 'var(--radius-sm)', padding: '6px 7px', minWidth: 0 }}>
-                        <div style={{ color: 'var(--color-text-muted)', fontSize: 'var(--font-size-xs)', fontWeight: 600 }}>{label}</div>
-                        <div style={{ color: 'var(--color-text)', fontSize: 'var(--font-size-xs)', fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{value}</div>
-                      </div>
-                    ))}
-                  </div>
-
-                  <div style={{ minHeight: 0, overflowY: 'auto', border: '1px solid var(--color-border)', borderRadius: 'var(--radius)' }}>
-                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 'var(--font-size-xs)', tableLayout: 'fixed' }}>
-                      <colgroup>
-                        <col style={{ width: 32 }} />
-                        <col />
-                        <col style={{ width: 66 }} />
-                        <col style={{ width: 88 }} />
-                      </colgroup>
-                      <thead>
-                        <tr>
-                          {['No.', 'Item', 'Qty', 'Amount'].map((label, index) => (
-                            <th key={label} style={tableHeadStyle(index >= 2)}>{label}</th>
-                          ))}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {(detailQuery.data.lines ?? []).map((line: any) => (
-                          <tr key={line.id}>
-                            <td style={tableCellStyle()}>{line.line_number}</td>
-                            <td style={tableCellStyle()}>{line.item_code} - {line.item_name}</td>
-                            <td style={tableCellStyle(true)}>{formatNumber(Number(line.quantity), generalSettings)}</td>
-                            <td style={tableCellStyle(true)}>{money(Number(line.line_total))}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-
-                  <div style={{ display: 'grid', gap: 5 }}>
-                    {[
-                      ['Gross Amount', Number(detailQuery.data.gross_amount)],
-                      ['Discount', Number(detailQuery.data.discount_amount)],
-                      ['Tax', Number(detailQuery.data.tax_amount)],
-                      ['Freight', Number(detailQuery.data.freight_amount)],
-                      ['Net Amount', Number(detailQuery.data.net_amount)],
-                    ].map(([label, value]) => (
-                      <div key={String(label)} style={{ display: 'flex', justifyContent: 'space-between', gap: 10, fontSize: 'var(--font-size-xs)' }}>
-                        <span style={{ color: 'var(--color-text-muted)', fontWeight: 700 }}>{label}</span>
-                        <strong style={{ fontFamily: 'var(--font-mono)', color: 'var(--color-amount)' }}>{money(Number(value))}</strong>
-                      </div>
-                    ))}
-                  </div>
-                </div>
+      <PostedListPanel
+        filters={(
+          <PostedPurchasesFilters
+            search={searchText}
+            supplierId={supplierId}
+            paymentType={paymentType}
+            warehouseId={warehouseId}
+            dateFrom={dateFrom}
+            dateTo={dateTo}
+            amountFrom={amountFrom}
+            amountTo={amountTo}
+            suppliers={suppliers}
+            warehouses={warehouses}
+            onSearchChange={setSearchText}
+            onSearchSubmit={applySearch}
+            onSearchClear={clearSearch}
+            searchApplied={Boolean(search)}
+            loading={listQuery.isFetching}
+            onSupplierChange={value => updateFilter(() => setSupplierId(value))}
+            onPaymentTypeChange={value => updateFilter(() => setPaymentType(value))}
+            onWarehouseChange={value => updateFilter(() => setWarehouseId(value))}
+            onDateFromChange={value => updateFilter(() => setDateFrom(value))}
+            onDateToChange={value => updateFilter(() => setDateTo(value))}
+            onAmountFromChange={value => updateFilter(() => setAmountFrom(value))}
+            onAmountToChange={value => updateFilter(() => setAmountTo(value))}
+            onResetFilters={resetFilters}
+          />
+        )}
+        table={(
+          <table className="data-table" style={{ tableLayout: 'fixed', minWidth: 1080 }}>
+            <colgroup>
+              <col style={{ width: 128 }} />
+              <col style={{ width: 104 }} />
+              <col style={{ width: 190 }} />
+              <col style={{ width: 128 }} />
+              <col style={{ width: 80 }} />
+              <col style={{ width: 150 }} />
+              <col style={{ width: 110 }} />
+              <col style={{ width: 100 }} />
+              <col style={{ width: 100 }} />
+              <col style={{ width: 100 }} />
+              <col style={{ width: 120 }} />
+              <col style={{ width: 52 }} />
+            </colgroup>
+            <thead>
+              <tr>
+                <th>Purchase No.</th>
+                <th>Date</th>
+                <th>Supplier</th>
+                <th>Supplier Bill No.</th>
+                <th>Type</th>
+                <th>Warehouse</th>
+                <th className="num">Gross</th>
+                <th className="num">Discount</th>
+                <th className="num">Tax</th>
+                <th className="num">Freight</th>
+                <th className="num">Net Amount</th>
+                <th><span className="sr-only">Actions</span></th>
+              </tr>
+            </thead>
+            <tbody>
+              {listQuery.isLoading && <TableMessageRow colSpan={12} title="Loading Posted Purchases…" loading />}
+              {listQuery.error && (
+                <TableMessageRow colSpan={12} title="Unable To Load Posted Purchases" description={friendlyErrorMessage(listQuery.error, 'Unable to load Posted Purchases.')} />
               )}
-            </aside>
-          )}
-        </div>
-
-        <PaginationBar
-          page={page}
-          totalPages={pages}
-          totalRecords={total}
-          pageSize={pageSize}
-          recordLabel={total === 1 ? 'Purchase' : 'Purchases'}
-          onPageChange={setPage}
-          onPageSizeChange={value => { setPageSize(value); setPage(1); setSelectedId(null); }}
-        />
-      </section>
+              {!listQuery.isLoading && !listQuery.error && rows.length === 0 && (
+                <TableMessageRow colSpan={12} title="No Posted Purchases Found" description="Change or clear the filters to see more purchases." />
+              )}
+              {rows.map(row => (
+                <tr key={row.id} className={`${postedListRowClass}${selectedId === row.id ? ' is-selected' : ''}`} onClick={() => setSelectedId(row.id)}>
+                  <td className="cell-strong">{row.purchase_number}</td>
+                  <td>{formatDate(row.purchase_date, generalSettings)}</td>
+                  <td>{row.supplier_code ? `${row.supplier_code} - ${row.supplier_name}` : row.supplier_name}</td>
+                  <td className={row.supplier_invoice_number ? undefined : 'cell-muted'}>{row.supplier_invoice_number || 'Not Set'}</td>
+                  <td>{row.payment_type}</td>
+                  <td className={row.warehouse_name ? undefined : 'cell-muted'}>{row.warehouse_code ? `${row.warehouse_code} - ${row.warehouse_name}` : row.warehouse_name || 'Not Set'}</td>
+                  <td className="num">{money(Number(row.gross_amount))}</td>
+                  <td className="num">{money(Number(row.discount_amount))}</td>
+                  <td className="num">{money(Number(row.tax_amount))}</td>
+                  <td className="num">{money(Number(row.freight_amount))}</td>
+                  <td className="num cell-strong">{money(Number(row.net_amount))}</td>
+                  <td className="cell-actions">
+                    <Button variant="ghost" size="sm" icon={<IconEye {...iconProps} />} onClick={event => { event.stopPropagation(); setSelectedId(row.id); }} aria-label={`View Purchase ${row.purchase_number}`} title="View Purchase" />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+        detail={selectedId && (
+          <DocumentDetailPanel
+            title="Purchase Detail"
+            loading={detailQuery.isLoading}
+            loadingText="Loading Purchase Detail…"
+            error={detailQuery.error ? friendlyErrorMessage(detailQuery.error, 'Unable to load Purchase Detail.') : undefined}
+            onClose={() => setSelectedId(null)}
+            actions={detail && (
+              <Button
+                variant="ghost"
+                size="sm"
+                icon={<IconPrinter {...iconProps} />}
+                onClick={() => {
+                  setPrintError('');
+                  setPrintPreviewInvoice(detail);
+                }}
+                aria-label="Print Preview"
+                title="Print Preview"
+              />
+            )}
+          >
+            {detail && (
+              <>
+                <DetailFields
+                  items={[
+                    ['Purchase No.', detail.purchase_number],
+                    ['Date', formatDate(detail.purchase_date, generalSettings)],
+                    ['Supplier', `${detail.supplier_code} - ${detail.supplier_name}`],
+                    ['Payment Type', detail.payment_type],
+                    ['Supplier Bill No.', detail.supplier_invoice_number],
+                    ['Reference', detail.reference_number],
+                    ['Location', detail.location_code ? `${detail.location_code} - ${detail.location_name}` : detail.location_name],
+                    ['Voucher No.', detail.accounting_voucher_number],
+                    ['Posted At', detail.posted_at ? formatDate(detail.posted_at, generalSettings) : ''],
+                  ]}
+                />
+                <DetailLinesTable>
+                  <colgroup>
+                    <col style={{ width: 40 }} />
+                    <col />
+                    <col style={{ width: 72 }} />
+                    <col style={{ width: 104 }} />
+                  </colgroup>
+                  <thead>
+                    <tr><th className="num">No.</th><th>Item</th><th className="num">Qty</th><th className="num">Amount</th></tr>
+                  </thead>
+                  <tbody>
+                    {(detail.lines ?? []).map((line: any) => (
+                      <tr key={line.id}>
+                        <td className="num cell-muted">{line.line_number}</td>
+                        <td title={`${line.item_code} - ${line.item_name}`}>{line.item_code} - {line.item_name}</td>
+                        <td className="num">{formatNumber(Number(line.quantity), generalSettings)}</td>
+                        <td className="num">{money(Number(line.line_total))}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </DetailLinesTable>
+                <DetailTotals
+                  strongLast
+                  items={[
+                    ['Gross Amount', money(Number(detail.gross_amount))],
+                    ['Discount', money(Number(detail.discount_amount))],
+                    ['Tax', money(Number(detail.tax_amount))],
+                    ['Freight', money(Number(detail.freight_amount))],
+                    ['Net Amount', money(Number(detail.net_amount))],
+                  ]}
+                />
+              </>
+            )}
+          </DocumentDetailPanel>
+        )}
+        pagination={(
+          <PaginationBar
+            page={page}
+            totalPages={pages}
+            totalRecords={total}
+            pageSize={pageSize}
+            recordLabel={total === 1 ? 'Purchase' : 'Purchases'}
+            onPageChange={setPage}
+            onPageSizeChange={value => { setPageSize(value); setPage(1); setSelectedId(null); }}
+          />
+        )}
+      />
 
       {printPreviewInvoice && (
         <PurchaseInvoicePrintPreview
@@ -365,6 +328,6 @@ export function PostedPurchasesView({
           onError={setPrintError}
         />
       )}
-    </main>
+    </DocumentPage>
   );
 }

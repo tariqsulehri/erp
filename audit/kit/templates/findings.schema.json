@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Audit findings file",
+  "description": "Reference schema for findings.json. The authoritative checks, including cross-field rules (dependency cycles, wave order, secrets), are in tools/build-report.mjs.",
+  "type": "object",
+  "required": ["findings"],
+  "properties": {
+    "summary": {
+      "type": "object",
+      "properties": {
+        "headline": { "type": "string" },
+        "overall_grade": { "enum": ["A", "B", "C", "D", "F"] },
+        "grade_note": { "type": "string" },
+        "top_risks": { "type": "array", "items": { "type": "object", "required": ["text"], "properties": { "text": { "type": "string" }, "ids": { "type": "array", "items": { "type": "string" } } } } },
+        "do_this_week": { "type": "array", "items": { "type": "string" } },
+        "fix_first": { "type": "array", "maxItems": 10, "items": { "type": "object", "required": ["id"], "properties": { "id": { "type": "string" }, "reason": { "type": "string" } } } }
+      }
+    },
+    "scorecard": { "type": "array", "items": { "type": "object", "required": ["dimension", "score"], "properties": { "dimension": { "type": "string" }, "score": { "type": "number", "minimum": 0, "maximum": 5 }, "why": { "type": "string" } } } },
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "title", "dimension", "severity", "confidence", "evidence"],
+        "properties": {
+          "id": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$" },
+          "title": { "type": "string" },
+          "dimension": { "enum": ["security", "architecture", "data", "performance", "reliability", "observability", "testing", "cicd-supply-chain", "dependencies", "accessibility", "ux-design", "cost", "compliance", "code-health", "documentation"] },
+          "repo": { "type": "string" },
+          "severity": { "enum": ["Critical", "High", "Medium", "Low"] },
+          "likelihood": { "enum": ["Low", "Medium", "High"] },
+          "impact": { "enum": ["Low", "Medium", "High"] },
+          "confidence": { "enum": ["confirmed", "likely", "suspected"] },
+          "urgency": { "enum": ["U0", "U1", "U2", "U3", "U4"] },
+          "urgency_reason": { "type": "string" },
+          "evidence": { "type": "string" },
+          "locations": { "type": "array", "items": { "type": "string", "pattern": ":\\d+(-\\d+)?$" } },
+          "impact_text": { "type": "string" },
+          "root_cause": { "type": "string" },
+          "fix": { "type": "string" },
+          "test": { "type": "string" },
+          "effort": { "enum": ["S", "M", "L"] },
+          "effort_hours": { "type": "number" },
+          "fix_risk": { "enum": ["low", "medium", "high"] },
+          "blocked_by": { "type": "array", "items": { "type": "string" } },
+          "chain_id": { "type": "string" },
+          "needs_decision": { "type": "boolean" },
+          "decision_id": { "type": ["string", "null"] },
+          "references": { "type": "array", "items": { "type": "string" } },
+          "status": { "enum": ["open", "in-progress", "fixed", "not-reproduced", "deferred", "accepted"] }
+        }
+      }
+    },
+    "chains": { "type": "array", "items": { "type": "object", "required": ["id"], "properties": { "id": { "type": "string" }, "title": { "type": "string" }, "steps": { "type": "array", "items": { "type": "string" } }, "ids": { "type": "array", "items": { "type": "string" } }, "break_at": { "type": "string" } } } },
+    "waves": { "type": "array", "items": { "type": "object", "required": ["id", "ids"], "properties": { "id": { "type": "string" }, "name": { "type": "string" }, "track": { "type": "string" }, "goal": { "type": "string" }, "ids": { "type": "array", "items": { "type": "string" } }, "effort": { "type": "string" }, "exit_criteria": { "type": "array", "items": { "type": "string" } }, "checkpoint": { "type": "boolean" }, "why_order": { "type": "string" } } } },
+    "decisions": { "type": "array", "items": { "type": "object", "required": ["id", "question"], "properties": { "id": { "type": "string" }, "question": { "type": "string" }, "options": { "type": "array" }, "recommended": { "type": "string" }, "blocks": { "type": "array", "items": { "type": "string" } }, "needed_by": { "type": "string" } } } },
+    "strengths": { "type": "array", "items": { "type": "object", "required": ["title"], "properties": { "title": { "type": "string" }, "detail": { "type": "string" }, "locations": { "type": "array", "items": { "type": "string" } } } } },
+    "coverage": { "type": "object", "properties": { "reviewed": { "type": "array" }, "skipped": { "type": "array" }, "gaps": { "type": "string" } } },
+    "tools": { "type": "array", "items": { "type": "object", "required": ["name"], "properties": { "name": { "type": "string" }, "version": { "type": "string" }, "purpose": { "type": "string" }, "result": { "type": "string" } } } },
+    "baselines": { "type": "object" }
+  }
+}

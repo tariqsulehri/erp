@@ -21,6 +21,14 @@ interface CountRow {
   total: number;
 }
 
+interface DocumentTotalsRow {
+  gross_amount: string;
+  discount_amount: string;
+  tax_amount: string;
+  freight_amount: string;
+  net_amount: string;
+}
+
 export class PurchaseListService {
   constructor(private readonly companyId: string) {}
 
@@ -74,9 +82,14 @@ export class PurchaseListService {
     }
 
     const whereSql = where.join(' AND ');
-    const countRows = await prisma.$queryRawUnsafe<CountRow[]>(
+    const countRows = await prisma.$queryRawUnsafe<Array<CountRow & DocumentTotalsRow>>(
       `
-        SELECT COUNT(*)::int AS total
+        SELECT COUNT(*)::int AS total,
+          COALESCE(SUM(pi.gross_amount), 0)::text AS gross_amount,
+          COALESCE(SUM(pi.discount_amount), 0)::text AS discount_amount,
+          COALESCE(SUM(pi.tax_amount), 0)::text AS tax_amount,
+          COALESCE(SUM(pi.freight_amount), 0)::text AS freight_amount,
+          COALESCE(SUM(pi.net_amount), 0)::text AS net_amount
         FROM purchase_invoices pi
         JOIN suppliers s ON s.id = pi.supplier_id
         JOIN inventory_warehouses w ON w.id = pi.warehouse_id
@@ -121,17 +134,15 @@ export class PurchaseListService {
           s.code AS supplier_code,
           s.name AS supplier_name,
           pi.supplier_invoice_number,
-          COALESCE(line_counts.line_count, 0)::int AS line_count
+          (
+            SELECT COUNT(*)::int
+            FROM purchase_invoice_lines pil
+            WHERE pil.purchase_invoice_id = pi.id
+          ) AS line_count
         FROM purchase_invoices pi
         JOIN suppliers s ON s.id = pi.supplier_id
         JOIN inventory_warehouses w ON w.id = pi.warehouse_id
         LEFT JOIN inventory_warehouse_locations wl ON wl.id = pi.location_id
-        LEFT JOIN (
-          SELECT purchase_invoice_id, COUNT(*) AS line_count
-          FROM purchase_invoice_lines
-          WHERE company_id = CAST($1 AS uuid)
-          GROUP BY purchase_invoice_id
-        ) line_counts ON line_counts.purchase_invoice_id = pi.id
         WHERE ${whereSql}
         ORDER BY pi.purchase_date DESC, pi.purchase_number DESC
         LIMIT ${limitParam}
@@ -142,8 +153,19 @@ export class PurchaseListService {
 
     const total = Number(countRows[0]?.total ?? 0);
 
+    const totalsRow = countRows[0];
+    // Totals cover every document that matches the filters, not only the current page.
+    const totals = {
+      gross_amount: totalsRow?.gross_amount ?? '0',
+      discount_amount: totalsRow?.discount_amount ?? '0',
+      tax_amount: totalsRow?.tax_amount ?? '0',
+      freight_amount: totalsRow?.freight_amount ?? '0',
+      net_amount: totalsRow?.net_amount ?? '0',
+    };
+
     return {
       data,
+      totals,
       total,
       page: query.page,
       limit: query.limit,

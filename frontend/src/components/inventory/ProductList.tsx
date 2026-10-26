@@ -2,9 +2,11 @@
 
 import { useMemo, useState, type CSSProperties } from 'react';
 import { IconArrowDown, IconArrowUp, IconPencil, IconPlus } from '@tabler/icons-react';
+import { useSession } from 'next-auth/react';
 import { useGeneralSettings } from '@/lib/api/settings';
 import { useProductBrands, useProductCategories, useProductsList } from '@/lib/api/products';
 import { friendlyErrorMessage } from '@/lib/erp-utils';
+import { workplaceLabel } from '@/lib/auth/session-user';
 import { Button } from '@/components/ui/Button';
 import { InlineAlert } from '@/components/ui/InlineAlert';
 import { PaginationBar } from '@/components/ui/PaginationBar';
@@ -12,6 +14,7 @@ import { SearchField } from '@/components/ui/SearchField';
 import { SearchableSelect } from '@/components/ui/SearchableSelect';
 import { SegmentedControl } from '@/components/ui/SegmentedControl';
 import { TableMessageRow } from '@/components/ui/TableMessageRow';
+import { TableSkeleton } from '@/components/ui/TableSkeleton';
 import {
   MoneyCell,
   PRODUCT_TYPE_OPTIONS,
@@ -45,6 +48,11 @@ export function ProductList({ selectedId, onSelect, onNew, onEdit, detailOpen }:
   selectedId: string | null; onSelect: (id: string) => void;
   onNew: () => void; onEdit: (id: string) => void; detailOpen: boolean;
 }) {
+  const { data: session } = useSession();
+  // The backend returns stock for the user's own Branch or Warehouse, or the company total for All Branches users.
+  const stockColumnLabel = !session?.user || session.user.accessLevel === 'ALL_BRANCHES'
+    ? 'Total Stock'
+    : `Stock At ${workplaceLabel(session.user)}`;
   const [searchText, setSearchText] = useState('');
   const [search,   setSearch]   = useState('');
   const [catFlt,   setCatFlt]   = useState('');
@@ -195,13 +203,13 @@ export function ProductList({ selectedId, onSelect, onNew, onEdit, detailOpen }:
               {!detailOpen && <th style={{ width: 140 }}>Category</th>}
               {sortHeader('sale_price', 'Sale Rate', { numeric: true, width: 130 })}
               {!detailOpen && <th className="num" style={{ width: 130 }}>Min Sale Rate</th>}
-              {sortHeader('qty_on_hand', 'Stock On Hand', { numeric: true, width: 190 })}
+              {sortHeader('qty_on_hand', stockColumnLabel, { numeric: true, width: 190 })}
               <th style={{ width: 110 }}>Status</th>
               <th style={{ width: 56 }}><span className="sr-only">Actions</span></th>
             </tr>
           </thead>
           <tbody>
-            {isLoading && <TableMessageRow colSpan={colSpan} title="Loading Products…" loading />}
+            {isLoading && <TableSkeleton columns={colSpan} rowCount={6} ariaLabel="Loading Products…" />}
             {!isLoading && rows.length === 0 && (
               isFiltered
                 ? <TableMessageRow colSpan={colSpan} title="No Products Match" description="Change the search text or the filters to see more Products." />

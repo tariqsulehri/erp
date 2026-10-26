@@ -1,21 +1,8 @@
 'use client';
 
-import {
-  IconChartBar,
-  IconCircleCheck,
-  IconCircleX,
-  IconDeviceFloppy,
-  IconFilePlus,
-  IconListSearch,
-  IconPrinter,
-  IconRefresh,
-} from '@tabler/icons-react';
-import {
-  badgeStyle,
-  compactButtonStyle,
-  statusBadgeStyle,
-  toolbarStyle,
-} from '../PurchaseVoucherStyles';
+import { IconChartBar, IconListSearch } from '@tabler/icons-react';
+import { Button } from '@/components/ui/Button';
+import { DocumentActions, DocumentHeader, DocumentStatusBadges } from '@/components/documents';
 
 interface PurchaseToolbarProps {
   actionDisabled: boolean;
@@ -37,6 +24,7 @@ interface PurchaseToolbarProps {
   onProcess: () => void;
 }
 
+/** Page header of the trade documents (Purchase, Sale and their Returns): title, badges and actions. */
 export function PurchaseToolbar({
   actionDisabled,
   saving,
@@ -57,28 +45,31 @@ export function PurchaseToolbar({
   onProcess,
 }: PurchaseToolbarProps) {
   return (
-    <section style={toolbarStyle}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-            <h1 className="page-head-title">{title}</h1>
-            <span style={badgeStyle('var(--color-info-text)', 'var(--color-info-bg)')}>{documentCode}</span>
-            <span style={statusBadgeStyle}><span style={{ color: 'var(--color-text-muted)' }}>Status</span> Draft</span>
-          </div>
-        </div>
-        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-          <button className="btn-secondary" type="button" disabled={saving || newDisabled} title={newDisabledReason} onClick={onNew} style={compactButtonStyle}><IconFilePlus size={15} /> New</button>
-          <button className="btn-secondary" type="button" onClick={onPostedPurchases} style={compactButtonStyle}><IconListSearch size={15} /> {postedListLabel}</button>
-          {showAnalytics && onAnalytics && (
-            <button className="btn-secondary" type="button" onClick={onAnalytics} style={compactButtonStyle}><IconChartBar size={15} /> {analyticsLabel}</button>
+    <DocumentHeader
+      title={title}
+      badges={<DocumentStatusBadges code={documentCode} />}
+      actions={(
+        <DocumentActions
+          saving={saving}
+          actionDisabled={actionDisabled}
+          newDisabled={newDisabled}
+          newDisabledReason={newDisabledReason}
+          before={(
+            <>
+              <Button variant="secondary" icon={<IconListSearch size={16} stroke={1.8} aria-hidden />} onClick={onPostedPurchases}>{postedListLabel}</Button>
+              {showAnalytics && onAnalytics && (
+                <Button variant="secondary" icon={<IconChartBar size={16} stroke={1.8} aria-hidden />} onClick={onAnalytics}>{analyticsLabel}</Button>
+              )}
+            </>
           )}
-          <button className="btn-secondary" type="button" disabled={saving} onClick={onRefresh} style={compactButtonStyle}><IconRefresh size={15} /> Refresh</button>
-          <button className="btn-secondary" type="button" disabled={saving} onClick={onPrint} style={compactButtonStyle}><IconPrinter size={15} /> Print</button>
-          <button className="btn-secondary" type="button" onClick={onCancel} style={compactButtonStyle}><IconCircleX size={15} /> Cancel</button>
-          <button className="btn-secondary" type="button" disabled={actionDisabled} onClick={onSaveDraft} style={compactButtonStyle}><IconDeviceFloppy size={15} /> Save Draft</button>
-          <button className="btn-primary" type="button" disabled={actionDisabled} onClick={onProcess} style={compactButtonStyle}><IconCircleCheck size={15} /> Process</button>
-        </div>
-      </div>
-    </section>
+          onNew={onNew}
+          onRefresh={onRefresh}
+          onPrint={onPrint}
+          onCancel={onCancel}
+          onSaveDraft={onSaveDraft}
+          onProcess={onProcess}
+        />
+      )}
+    />
   );
 }

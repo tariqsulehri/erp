@@ -1,0 +1,142 @@
+{
+  "summary": {
+    "headline": "Sample shop API: two serious access-control gaps and no CI gate; the data layer is otherwise sound.",
+    "overall_grade": "D",
+    "grade_note": "Rule used: any Critical finding means D or F. One Critical, contained by Wave 0.",
+    "top_risks": [
+      { "text": "Any signed-in user can read another customer's orders by changing the ID in the URL.", "ids": ["SEC-001"] },
+      { "text": "Deploys run from any branch with no tests required.", "ids": ["OPS-001"] }
+    ],
+    "do_this_week": [
+      "Add the ownership check to the order endpoints (SEC-001).",
+      "Make the test job required before deploy (OPS-001)."
+    ],
+    "fix_first": [
+      { "id": "SEC-001", "reason": "Active exposure; small fix; unblocks the authorization test suite." },
+      { "id": "OPS-001", "reason": "Cheap, and every later fix depends on a working gate." }
+    ]
+  },
+  "scorecard": [
+    { "dimension": "security", "score": 1.5, "why": "Object-level access control missing on orders." },
+    { "dimension": "cicd-supply-chain", "score": 2, "why": "No required checks; images use latest tags." },
+    { "dimension": "testing", "score": 3, "why": "Good unit tests; no authorization tests." }
+  ],
+  "findings": [
+    {
+      "id": "SEC-001",
+      "title": "Orders can be read by any signed-in user",
+      "dimension": "security",
+      "repo": "api",
+      "severity": "Critical",
+      "likelihood": "High",
+      "impact": "High",
+      "confidence": "confirmed",
+      "urgency": "U0",
+      "urgency_reason": "Internet-facing and personal data involved.",
+      "evidence": "GET /orders/:id loads the order by ID only. A second user's token returns 200 with the first user's order (traced; reproduced on a local copy).",
+      "locations": ["src/orders/orders.controller.ts:42", "src/orders/orders.service.ts:18"],
+      "impact_text": "Customer addresses and purchases are readable by other customers.",
+      "root_cause": "Handlers load by ID and never compare the owner to the caller.",
+      "fix": "Scope the query by the caller's user ID in the service; return 404 for other owners.",
+      "test": "HTTP test: user B requesting user A's order gets 404.",
+      "effort": "S",
+      "effort_hours": 3,
+      "fix_risk": "low",
+      "blocked_by": [],
+      "chain_id": "CHAIN-1",
+      "status": "open"
+    },
+    {
+      "id": "OPS-001",
+      "title": "Deploy job runs without required tests",
+      "dimension": "cicd-supply-chain",
+      "repo": "api",
+      "severity": "High",
+      "likelihood": "Medium",
+      "impact": "High",
+      "confidence": "confirmed",
+      "urgency": "U1",
+      "urgency_reason": "Blocks safe delivery of every other fix.",
+      "evidence": "The deploy step has no dependency on the test job, and any branch can trigger it.",
+      "locations": [".ci/pipeline.yml:30"],
+      "fix": "Make deploy depend on the test job and restrict it to the main branch.",
+      "test": "Open a PR with a failing test; the pipeline must refuse to deploy.",
+      "effort": "S",
+      "fix_risk": "low",
+      "blocked_by": []
+    },
+    {
+      "id": "TST-001",
+      "title": "No role-by-route authorization test",
+      "dimension": "testing",
+      "repo": "api",
+      "severity": "Medium",
+      "likelihood": "Medium",
+      "impact": "Medium",
+      "confidence": "confirmed",
+      "urgency": "U2",
+      "urgency_reason": "Medium severity; prevents regressions of SEC-001.",
+      "evidence": "No test file exercises routes with more than one user role.",
+      "locations": ["test/"],
+      "fix": "Add a table-driven test: every route times every role, asserting allowed or forbidden.",
+      "test": "The matrix test itself, run in CI.",
+      "effort": "M",
+      "fix_risk": "low",
+      "blocked_by": ["SEC-001", "OPS-001"]
+    }
+  ],
+  "chains": [
+    {
+      "id": "CHAIN-1",
+      "title": "Order data exposure goes unnoticed",
+      "steps": ["Attacker signs up as a normal user.", "Changes the order ID in requests (SEC-001).", "No audit log or alert records the access."],
+      "ids": ["SEC-001"],
+      "break_at": "SEC-001"
+    }
+  ],
+  "waves": [
+    {
+      "id": "W0",
+      "name": "Stop the exposure",
+      "track": "Engineering",
+      "goal": "Close the order data exposure and make the pipeline trustworthy.",
+      "ids": ["SEC-001", "OPS-001"],
+      "effort": "about 1 day",
+      "exit_criteria": ["A user cannot read another user's order (test).", "Deploy requires a green test job."],
+      "checkpoint": true,
+      "why_order": "SEC-001 is actively exploitable. OPS-001 is cheap and every later change relies on it."
+    },
+    {
+      "id": "W1",
+      "name": "Lock it in",
+      "track": "Engineering",
+      "goal": "Prevent regressions with an authorization matrix.",
+      "ids": ["TST-001"],
+      "effort": "2 days",
+      "exit_criteria": ["Matrix test runs in CI and fails if a route loses its guard."],
+      "checkpoint": true,
+      "why_order": "It needs both W0 fixes to exist first."
+    }
+  ],
+  "decisions": [],
+  "strengths": [
+    { "title": "Small, pure scoring functions", "detail": "Business rules are isolated and well tested.", "locations": ["src/scoring/engine.ts:1"] }
+  ],
+  "coverage": {
+    "reviewed": [
+      { "area": "API routes and services", "depth": "every handler" },
+      { "area": "CI pipeline", "depth": "full" }
+    ],
+    "skipped": [
+      { "area": "Frontend", "reason": "Out of scope for this run" }
+    ],
+    "gaps": "Production configuration was not available; findings about deployed settings are not verified."
+  },
+  "tools": [
+    { "name": "gitleaks", "version": "8.x", "purpose": "Secrets scan", "result": "No findings" }
+  ],
+  "baselines": {
+    "tests": "120 passed, 0 failed",
+    "line_coverage_percent": 71
+  }
+}

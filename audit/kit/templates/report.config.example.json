@@ -1,0 +1,16 @@
+{
+  "title": "Sample Shop API audit",
+  "project": "Sample Shop",
+  "date": "2026-10-07",
+  "mode": "AUDIT-ONLY",
+  "scope": "api repository, standard depth",
+  "auditor": "AI audit agent, reviewed by the project owner",
+  "confidentiality": "Confidential",
+  "kit_version": "0.1.0",
+  "team_size": 2,
+  "release_cadence": "2-week sprints",
+  "repos": [
+    { "name": "api", "branch": "main", "commit": "abc1234" }
+  ],
+  "previous_run": null
+}

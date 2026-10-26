@@ -1,7 +1,7 @@
 'use client';
 
 import { signIn } from 'next-auth/react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { IconCheck, IconLogin } from '@tabler/icons-react';
 import { Button } from '@/components/ui/Button';
 import { FieldLabel } from '@/components/ui/FieldLabel';
@@ -16,10 +16,16 @@ const FEATURES = [
 ];
 
 export default function LoginPage() {
-  const [email, setEmail] = useState('admin@example.com');
-  const [password, setPassword] = useState('admin123');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+
+  // Shows why the user was signed out, e.g. an expired session or a password reset.
+  useEffect(() => {
+    const reason = new URLSearchParams(window.location.search).get('reason');
+    if (reason) setError(reason);
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -34,7 +40,8 @@ export default function LoginPage() {
         callbackUrl: '/accounts',
       });
       if (result?.error) {
-        setError('Invalid email or password. Please try again.');
+        // Wrong email or password comes back as CredentialsSignin; other problems carry the backend message.
+        setError(result.error === 'CredentialsSignin' ? 'Email or Password is not correct. Please try again.' : result.error);
       } else if (result?.ok) {
         window.location.href = result.url || '/accounts';
       } else {
@@ -89,7 +96,7 @@ export default function LoginPage() {
         {error && <div style={{ marginBottom: 16 }}><InlineAlert tone="danger">{error}</InlineAlert></div>}
 
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-          <FieldLabel label="Email Address" required>
+          <FieldLabel label="Email Address" htmlFor="email" required>
             <input
               id="email" type="email" className="form-input"
               placeholder="you@company.com" value={email}
@@ -97,7 +104,7 @@ export default function LoginPage() {
               autoComplete="email"
             />
           </FieldLabel>
-          <FieldLabel label="Password" required>
+          <FieldLabel label="Password" htmlFor="password" required>
             <input
               id="password" type="password" className="form-input"
               placeholder="Enter your password" value={password}
@@ -111,11 +118,6 @@ export default function LoginPage() {
           </Button>
         </form>
 
-        <div className="panel" style={{ marginTop: 24, padding: '12px 14px', background: 'var(--color-surface-alt)', fontSize: 'var(--font-size-sm)', color: 'var(--color-text-muted)', gap: 2 }}>
-          <div style={{ fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: 4 }}>Demo Sign-In Details</div>
-          <div>Email Address: <strong style={{ fontWeight: 600, color: 'var(--color-heading)' }}>admin@example.com</strong></div>
-          <div>Password: <strong style={{ fontWeight: 600, color: 'var(--color-heading)' }}>admin123</strong></div>
-        </div>
       </div>
     </div>
   );

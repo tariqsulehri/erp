@@ -3,8 +3,9 @@
 import { FieldLabel } from '@/components/ui/FieldLabel';
 import { DateField, NumericField, SelectField, TextField } from '@/components/ui/FormFields';
 import { SearchableSelect } from '@/components/ui/SearchableSelect';
-import { dateMessageStyle } from '../PurchaseVoucherStyles';
-import type { LocationOption, PaymentType, SupplierOption, WarehouseOption } from '../PurchaseVoucherTypes';
+import { DocumentFormPanel } from '@/components/documents';
+import type { SelectOption } from '@/components/ui/SearchableSelect';
+import type { PaymentType, SupplierOption, WarehouseOption } from '../PurchaseVoucherTypes';
 
 interface PurchaseHeaderFormProps {
   documentNumberLabel?: string;
@@ -23,6 +24,10 @@ interface PurchaseHeaderFormProps {
   supplierInvoiceNumber: string;
   supplierId: string;
   warehouseId: string;
+  /** Label of the stock place field: Warehouse for purchases, Branch for sales. */
+  holderLabel?: string;
+  /** Shows the stock place as a fixed value, e.g. a Branch user's own Branch. */
+  holderReadOnly?: boolean;
   locationId?: string;
   showLocation?: boolean;
   referenceNumber: string;
@@ -31,7 +36,7 @@ interface PurchaseHeaderFormProps {
   dateStatusMessage: string;
   suppliers: SupplierOption[];
   warehouses: WarehouseOption[];
-  locations?: LocationOption[];
+  locations?: SelectOption[];
   loadingSupportData: boolean;
   supportDataHasError: boolean;
   money: (value: number) => string;
@@ -63,6 +68,8 @@ export function PurchaseHeaderForm({
   supplierInvoiceNumber,
   supplierId,
   warehouseId,
+  holderLabel = 'Warehouse',
+  holderReadOnly = false,
   locationId = '',
   showLocation = false,
   referenceNumber,
@@ -86,43 +93,47 @@ export function PurchaseHeaderForm({
   onDueDateChange,
 }: PurchaseHeaderFormProps) {
   return (
-    <>
-      <div style={{ display: 'grid', gridTemplateColumns: '110px 130px 120px 145px 150px minmax(260px, 1fr)', gap: 8, alignItems: 'end' }}>
-        <TextField label={documentNumberLabel} value="Auto" disabled />
-        <DateField label={documentDateLabel} required value={purchaseDate} onChange={onPurchaseDateChange} />
-        <SelectField
-          label="Payment Type"
-          required
-          value={paymentType}
-          onChange={value => onPaymentTypeChange(value as PaymentType)}
-          options={[{ value: 'Cash', label: 'Cash' }, { value: 'Credit', label: 'Credit' }]}
-        />
-        <DateField label={supplierDocumentDateLabel} value={supplierInvoiceDate} onChange={onSupplierInvoiceDateChange} />
-        <TextField label={supplierDocumentNumberLabel} value={supplierInvoiceNumber} onChange={onSupplierInvoiceNumberChange} placeholder={supplierDocumentPlaceholder} />
+    <DocumentFormPanel columns={6} statusMessage={dateStatusMessage}>
+      <TextField label={documentNumberLabel} value="Auto" disabled />
+      <DateField label={documentDateLabel} required value={purchaseDate} onChange={onPurchaseDateChange} />
+      <SelectField
+        label="Payment Type"
+        required
+        value={paymentType}
+        onChange={value => onPaymentTypeChange(value as PaymentType)}
+        options={[{ value: 'Cash', label: 'Cash' }, { value: 'Credit', label: 'Credit' }]}
+      />
+      <div className="span-3">
         <FieldLabel label={partyLabel} required>
           <SearchableSelect value={supplierId} options={suppliers} onChange={onSupplierChange} placeholder={loadingSupportData ? `Loading ${partyLabel}s` : partyPlaceholder} disabled={loadingSupportData || supportDataHasError} />
         </FieldLabel>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: showLocation ? 'minmax(230px, 0.85fr) minmax(170px, 0.65fr) minmax(180px, 0.7fr) 145px minmax(320px, 1.5fr)' : 'minmax(230px, 0.9fr) minmax(190px, 0.7fr) 145px minmax(360px, 1.8fr)', gap: 8, alignItems: 'end' }}>
-        <FieldLabel label="Warehouse" required>
-          <SearchableSelect value={warehouseId} options={warehouses} onChange={onWarehouseChange} placeholder={loadingSupportData ? 'Loading Warehouses' : 'Search Warehouse'} disabled={loadingSupportData || supportDataHasError} />
-        </FieldLabel>
-        {showLocation && (
-          <FieldLabel label="Location">
-            <SearchableSelect value={locationId} options={locations} onChange={value => onLocationChange?.(value)} placeholder="Optional Location" disabled={!warehouseId || loadingSupportData || supportDataHasError || locations.length === 0} />
+      <div className="span-2">
+        {holderReadOnly ? (
+          <TextField label={holderLabel} required value={warehouses.find(option => option.value === warehouseId)?.label ?? (loadingSupportData ? 'Loading…' : '')} disabled />
+        ) : (
+          <FieldLabel label={holderLabel} required>
+            <SearchableSelect value={warehouseId} options={warehouses} onChange={onWarehouseChange} placeholder={loadingSupportData ? 'Loading…' : `Search ${holderLabel}`} disabled={loadingSupportData || supportDataHasError} />
           </FieldLabel>
         )}
-        <TextField label="Reference Number" value={referenceNumber} onChange={onReferenceNumberChange} placeholder="Optional Reference" />
-        {paymentType === 'Credit' && showDueDate ? (
-          <DateField label="Due Date" value={dueDate} onChange={onDueDateChange} />
-        ) : (
-          <NumericField label={balanceLabel} value={balanceValue ?? money(0)} disabled />
-        )}
+      </div>
+      {showLocation && (
+        <FieldLabel label="Location">
+          <SearchableSelect value={locationId} options={locations} onChange={value => onLocationChange?.(value)} placeholder="Optional Location" disabled={!warehouseId || loadingSupportData || supportDataHasError || locations.length === 0} />
+        </FieldLabel>
+      )}
+      <DateField label={supplierDocumentDateLabel} value={supplierInvoiceDate} onChange={onSupplierInvoiceDateChange} />
+      <TextField label={supplierDocumentNumberLabel} value={supplierInvoiceNumber} onChange={onSupplierInvoiceNumberChange} placeholder={supplierDocumentPlaceholder} />
+      <TextField label="Reference Number" value={referenceNumber} onChange={onReferenceNumberChange} placeholder="Optional Reference" />
+      {paymentType === 'Credit' && showDueDate ? (
+        <DateField label="Due Date" value={dueDate} onChange={onDueDateChange} />
+      ) : (
+        <NumericField label={balanceLabel} value={balanceValue ?? money(0)} disabled />
+      )}
+      <div className={showLocation ? 'span-3' : 'span-all'}>
         <TextField label="Voucher Details" value={generatedVoucherDetails} disabled />
       </div>
-
-      <div style={dateMessageStyle}>{dateStatusMessage}</div>
-    </>
+    </DocumentFormPanel>
   );
 }

@@ -20,7 +20,7 @@ import {
 } from '@/lib/api/parties';
 import type { CreateCustomerInput } from '@/modules/customers/customer.schema';
 import { CUSTOMER_TYPES } from '@/modules/customers/customer.schema';
-import { APP_CURRENCY_OPTIONS, formatMoney } from '@/lib/app-settings';
+import { APP_CURRENCY_OPTIONS, defaultAppFormatSettings, formatMoney } from '@/lib/app-settings';
 import { friendlyErrorMessage } from '@/lib/erp-utils';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
@@ -55,7 +55,7 @@ const EMPTY_FORM: CreateCustomerInput = {
   party_type: 'Customer', main_role: 'Customer',
   tax_registration_no: '', email: '', phone: '', mobile: '',
   billing_address: '', shipping_address: '', city: '', country: '', postal_code: '',
-  payment_terms_days: 30, credit_limit: 0, currency_code: 'PKR',
+  payment_terms_days: 30, credit_limit: 0, currency_code: defaultAppFormatSettings.currencyCode,
   ar_account_id: undefined, advance_account_id: undefined,
   is_active: true, notes: '',
 };

@@ -3,99 +3,144 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Comprehensive Software & UI/UX Audit Report</title>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <script type="module">
-    import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
-    mermaid.initialize({ startOnLoad: true, theme: 'dark' });
-  </script>
+  <title>Software Audit Report</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <style>
     :root {
+      --bg: #f6f7f9;
+      --card: #ffffff;
+      --card-2: #f1f4f8;
+      --border: #dde3ea;
+      --text: #0f172a;
+      --muted: #5b6575;
+      --accent: #4f46e5;
+      --accent-soft: rgba(79, 70, 229, 0.12);
+      --link: #1d4ed8;
+      --critical: #dc2626;
+      --high: #ea580c;
+      --medium: #b45309;
+      --low: #2563eb;
+      --pass: #047857;
+      --grid: #e2e8f0;
+      color-scheme: light;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root:not([data-theme="light"]) {
+        --bg: #0b0f19;
+        --card: #151e2e;
+        --card-2: #1c2738;
+        --border: #2a3a55;
+        --text: #f1f5f9;
+        --muted: #a3b0c2;
+        --accent: #818cf8;
+        --accent-soft: rgba(129, 140, 248, 0.18);
+        --link: #93c5fd;
+        --critical: #f87171;
+        --high: #fb923c;
+        --medium: #facc15;
+        --low: #60a5fa;
+        --pass: #34d399;
+        --grid: #223049;
+        color-scheme: dark;
+      }
+    }
+    :root[data-theme="dark"] {
       --bg: #0b0f19;
       --card: #151e2e;
-      --border: #223049;
+      --card-2: #1c2738;
+      --border: #2a3a55;
       --text: #f1f5f9;
-      --muted: #94a3b8;
-      --critical: #ef4444;
-      --high: #f97316;
-      --medium: #eab308;
-      --low: #3b82f6;
-      --pass: #10b981;
-      --accent: #6366f1;
+      --muted: #a3b0c2;
+      --accent: #818cf8;
+      --accent-soft: rgba(129, 140, 248, 0.18);
+      --link: #93c5fd;
+      --critical: #f87171;
+      --high: #fb923c;
+      --medium: #facc15;
+      --low: #60a5fa;
+      --pass: #34d399;
+      --grid: #223049;
+      color-scheme: dark;
     }
 
-    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
-    body { background-color: var(--bg); color: var(--text); padding: 2rem; line-height: 1.5; }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.5; padding: 2rem 1rem; }
     .container { max-width: 1280px; margin: 0 auto; }
+    h1 { font-size: 1.6rem; }
+    h2 { font-size: 1rem; color: var(--muted); font-weight: 600; margin-bottom: 0.75rem; }
+    code, .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.8rem; }
+    button { font: inherit; }
+    :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
-    header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; padding-bottom: 1.25rem; border-bottom: 1px solid var(--border); flex-wrap: wrap; gap: 1rem; }
-    .header-actions { display: flex; align-items: center; gap: 1rem; }
-    .print-btn { background: #1e293b; color: var(--text); border: 1px solid var(--border); padding: 0.6rem 1rem; border-radius: 8px; cursor: pointer; font-size: 0.85rem; font-weight: 600; transition: background 0.2s; }
-    .print-btn:hover { background: #334155; }
+    header { display: flex; justify-content: space-between; align-items: center; gap: 1rem; flex-wrap: wrap; padding-bottom: 1.25rem; margin-bottom: 1.5rem; border-bottom: 1px solid var(--border); }
+    .meta { color: var(--muted); font-size: 0.85rem; }
+    .header-actions { display: flex; align-items: center; gap: 0.75rem; }
+    .btn { background: var(--card-2); color: var(--text); border: 1px solid var(--border); padding: 0.5rem 0.9rem; border-radius: 8px; cursor: pointer; font-size: 0.85rem; font-weight: 600; }
+    .btn:hover { border-color: var(--accent); }
+    .score-badge { font-size: 2.2rem; font-weight: 800; padding: 0.35rem 1.25rem; border-radius: 12px; border: 2px solid currentColor; }
 
-    .score-badge { font-size: 2.5rem; font-weight: 800; padding: 0.5rem 1.5rem; border-radius: 12px; background: rgba(16, 185, 129, 0.12); color: var(--pass); border: 2px solid var(--pass); display: inline-flex; align-items: center; justify-content: center; }
-
-    .grid-4 { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 1.25rem; margin-bottom: 2rem; }
-    .card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 1.5rem; }
-    .card-title { font-size: 1.05rem; color: var(--muted); margin-bottom: 0.75rem; font-weight: 600; display: flex; align-items: center; justify-content: space-between; }
-    .metric-value { font-size: 1.85rem; font-weight: 700; color: var(--text); }
+    .grid { display: grid; gap: 1.25rem; margin-bottom: 1.5rem; }
+    .grid-4 { grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
+    .grid-2 { grid-template-columns: repeat(auto-fit, minmax(min(100%, 460px), 1fr)); }
+    .card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 1.25rem; min-width: 0; }
+    .card.full { margin-bottom: 1.5rem; }
+    .metric-value { font-size: 1.8rem; font-weight: 700; }
     .metric-sub { font-size: 0.8rem; color: var(--muted); margin-top: 0.25rem; }
+    .empty { color: var(--muted); font-size: 0.85rem; font-style: italic; }
 
-    .stack-pills { display: flex; flex-wrap: wrap; gap: 0.6rem; }
-    .stack-pill { background: #1c2738; border: 1px solid var(--border); border-radius: 8px; padding: 0.4rem 0.8rem; font-size: 0.85rem; display: inline-flex; align-items: center; gap: 0.5rem; }
-    .stack-pill span.component { color: var(--muted); font-size: 0.75rem; text-transform: uppercase; font-weight: 600; border-right: 1px solid var(--border); padding-right: 0.5rem; }
-    .stack-pill span.name-version { color: #38bdf8; font-weight: 700; }
-    .stack-pill .eol-badge { font-size: 0.7rem; background: rgba(239, 68, 68, 0.2); color: var(--critical); border: 1px solid var(--critical); border-radius: 4px; padding: 0.1rem 0.35rem; }
+    .pills { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+    .pill { background: var(--card-2); border: 1px solid var(--border); border-radius: 8px; padding: 0.35rem 0.7rem; font-size: 0.85rem; display: inline-flex; align-items: center; gap: 0.5rem; }
+    .pill .k { color: var(--muted); font-size: 0.7rem; text-transform: uppercase; font-weight: 700; }
+    .pill .v { color: var(--link); font-weight: 700; }
+    .tag { font-size: 0.7rem; font-weight: 700; padding: 0.1rem 0.4rem; border-radius: 4px; border: 1px solid currentColor; display: inline-block; white-space: nowrap; }
 
-    .charts-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin-bottom: 2rem; }
-    @media (max-width: 900px) { .charts-grid { grid-template-columns: 1fr; } }
+    .sev-critical { color: var(--critical); }
+    .sev-high { color: var(--high); }
+    .sev-medium { color: var(--medium); }
+    .sev-low { color: var(--low); }
+    .ok { color: var(--pass); }
+    .bad { color: var(--critical); }
 
-    /* Palette Swatches */
-    .palette-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 0.75rem; margin-top: 1rem; }
-    .swatch-card { border-radius: 8px; border: 1px solid var(--border); overflow: hidden; background: #0f1623; }
-    .swatch-color { height: 48px; width: 100%; }
-    .swatch-meta { padding: 0.5rem; font-size: 0.75rem; }
-    .contrast-badge { display: inline-block; font-size: 0.7rem; padding: 0.1rem 0.35rem; border-radius: 4px; font-weight: bold; }
-    .contrast-pass { background: rgba(16, 185, 129, 0.2); color: var(--pass); }
-    .contrast-fail { background: rgba(239, 68, 68, 0.2); color: var(--critical); }
+    .list { list-style: none; display: grid; gap: 0.5rem; font-size: 0.875rem; }
+    .list li { padding: 0.5rem 0.65rem; background: var(--card-2); border-radius: 6px; border: 1px solid var(--border); }
+    .list li code { color: var(--link); }
+    .kv { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 0.6rem; }
+    .kv div { background: var(--card-2); border: 1px solid var(--border); border-radius: 6px; padding: 0.5rem 0.65rem; }
+    .kv .k { color: var(--muted); font-size: 0.7rem; text-transform: uppercase; }
+    .kv .v { font-weight: 600; font-size: 0.85rem; }
 
-    /* Filter & Search Bar */
-    .filter-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem; flex-wrap: wrap; gap: 0.75rem; }
-    .filter-pills { display: flex; gap: 0.5rem; flex-wrap: wrap; }
-    .filter-btn { background: #1c2738; color: var(--muted); border: 1px solid var(--border); padding: 0.35rem 0.75rem; border-radius: 6px; font-size: 0.8rem; font-weight: 600; cursor: pointer; transition: all 0.2s; }
-    .filter-btn.active, .filter-btn:hover { background: var(--accent); color: white; border-color: var(--accent); }
-    .search-input { background: #1c2738; border: 1px solid var(--border); color: var(--text); padding: 0.45rem 0.85rem; border-radius: 6px; font-size: 0.85rem; width: 260px; outline: none; }
-    .search-input:focus { border-color: var(--accent); }
+    .palette { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 0.6rem; }
+    .swatch { border: 1px solid var(--border); border-radius: 8px; overflow: hidden; background: var(--card-2); font-size: 0.75rem; }
+    .swatch .color { height: 44px; display: flex; align-items: center; justify-content: center; font-weight: 700; }
+    .swatch .meta2 { padding: 0.45rem; }
 
-    table { width: 100%; border-collapse: collapse; margin-top: 0.5rem; }
-    th, td { text-align: left; padding: 0.9rem; border-bottom: 1px solid var(--border); vertical-align: top; }
-    th { color: var(--muted); font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.05em; }
+    .chart-box { position: relative; height: 300px; }
+    .mermaid-wrap { overflow-x: auto; text-align: center; }
 
-    .badge { padding: 0.25rem 0.6rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 700; text-transform: uppercase; display: inline-block; }
-    .badge.critical { background: rgba(239, 68, 68, 0.2); color: var(--critical); border: 1px solid var(--critical); }
-    .badge.high { background: rgba(249, 115, 22, 0.2); color: var(--high); border: 1px solid var(--high); }
-    .badge.medium { background: rgba(234, 179, 8, 0.2); color: var(--medium); border: 1px solid var(--medium); }
-    .badge.low { background: rgba(59, 130, 246, 0.2); color: var(--low); border: 1px solid var(--low); }
+    .filter-bar { display: flex; justify-content: space-between; align-items: center; gap: 0.75rem; flex-wrap: wrap; margin-bottom: 1rem; }
+    .filters { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+    select, .search { background: var(--card-2); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 0.45rem 0.7rem; font-size: 0.85rem; }
+    select { cursor: pointer; padding-right: 1.75rem; appearance: none; background-image: linear-gradient(45deg, transparent 50%, var(--muted) 50%), linear-gradient(135deg, var(--muted) 50%, transparent 50%); background-position: calc(100% - 12px) 55%, calc(100% - 7px) 55%; background-size: 5px 5px; background-repeat: no-repeat; }
+    .search { width: min(100%, 280px); }
+    .count { color: var(--muted); font-size: 0.8rem; }
 
-    .effort-pill { font-size: 0.75rem; color: #a5b4fc; background: rgba(99, 102, 241, 0.15); border: 1px solid rgba(99, 102, 241, 0.4); border-radius: 6px; padding: 0.15rem 0.45rem; display: inline-block; margin-top: 0.35rem; }
-    .step-id-badge { font-family: monospace; font-size: 0.8rem; font-weight: 700; color: #38bdf8; background: rgba(56, 189, 248, 0.15); border: 1px solid rgba(56, 189, 248, 0.35); padding: 0.2rem 0.5rem; border-radius: 6px; display: inline-block; }
-    .wave-pill { font-size: 0.7rem; font-weight: 700; padding: 0.15rem 0.45rem; border-radius: 4px; display: inline-block; }
-    .wave-0 { background: rgba(239, 68, 68, 0.25); color: #f87171; border: 1px solid #ef4444; }
-    .wave-1 { background: rgba(249, 115, 22, 0.25); color: #fb923c; border: 1px solid #f97316; }
-    .wave-2 { background: rgba(56, 189, 248, 0.25); color: #38bdf8; border: 1px solid #0284c7; }
-    .wave-3 { background: rgba(16, 185, 129, 0.25); color: #34d399; border: 1px solid #10b981; }
-
-    .copy-fix-btn { background: #223049; color: #93c5fd; border: 1px solid #3b82f6; border-radius: 6px; padding: 0.3rem 0.65rem; font-size: 0.75rem; cursor: pointer; font-weight: 600; transition: all 0.2s; margin-top: 0.5rem; display: inline-flex; align-items: center; gap: 0.35rem; }
-    .copy-fix-btn:hover { background: #2563eb; color: #fff; }
-
-    .mermaid-card { margin-bottom: 2rem; overflow-x: auto; text-align: center; }
+    .table-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.875rem; }
+    th, td { text-align: left; padding: 0.8rem; border-bottom: 1px solid var(--border); vertical-align: top; }
+    th { color: var(--muted); font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.04em; position: sticky; top: 0; background: var(--card); }
+    .id { font-weight: 700; color: var(--link); }
+    .stack { display: flex; flex-direction: column; gap: 0.3rem; align-items: flex-start; }
+    pre.evidence { background: var(--card-2); border: 1px solid var(--border); border-radius: 6px; padding: 0.5rem; margin-top: 0.4rem; white-space: pre-wrap; word-break: break-word; }
+    details summary { cursor: pointer; color: var(--muted); font-size: 0.8rem; margin-top: 0.35rem; }
+    .copy-btn { margin-top: 0.5rem; font-size: 0.75rem; padding: 0.3rem 0.6rem; }
+    .new-tag { color: var(--accent); }
 
     @media print {
-      body { background: #ffffff !important; color: #0f172a !important; padding: 0; }
-      .container { max-width: 100% !important; }
-      .card { border: 1px solid #cbd5e1 !important; background: #ffffff !important; color: #0f172a !important; page-break-inside: avoid; }
-      .filter-bar, .print-btn, .copy-fix-btn { display: none !important; }
-      .score-badge { border-color: #059669 !important; color: #059669 !important; }
+      :root { --bg: #fff; --card: #fff; --card-2: #f8fafc; --text: #0f172a; --muted: #475569; --border: #cbd5e1; }
+      body { padding: 0; }
+      .card { break-inside: avoid; }
+      .filter-bar, .header-actions .btn, .copy-btn { display: none !important; }
+      details { display: block; }
     }
   </style>
 </head>
@@ -103,412 +148,426 @@
   <div class="container">
     <header>
       <div>
-        <h1 id="proj-name">Project Health & UI/UX Audit</h1>
-        <p style="color: var(--muted);" id="audit-meta">Generated on -- | Stack: --</p>
+        <h1 id="proj-name">Software Audit Report</h1>
+        <p class="meta" id="audit-meta"></p>
       </div>
       <div class="header-actions">
-        <button class="print-btn" onclick="window.print()">🖨️ Export PDF / Print</button>
+        <button class="btn" id="theme-btn" type="button">Toggle Theme</button>
+        <button class="btn" type="button" onclick="window.print()">Print / PDF</button>
         <div id="overall-score" class="score-badge">--</div>
       </div>
     </header>
 
-    <!-- Detected Tech Stack & Version Badges -->
-    <div class="card" style="margin-bottom: 2rem;">
-      <div class="card-title">🚀 Detected Technology Stack & Runtime Versions</div>
-      <div id="stack-container" class="stack-pills"></div>
-    </div>
-
-    <!-- Executive Metrics Grid -->
-    <div class="grid-4" id="metrics-grid">
+    <div class="grid grid-4">
       <div class="card">
-        <div class="card-title">Overall Grade</div>
+        <h2>Overall Grade</h2>
         <div class="metric-value" id="letter-grade">--</div>
-        <div class="metric-sub" id="score-summary">Based on 7 evaluation dimensions</div>
+        <div class="metric-sub" id="grade-note"></div>
       </div>
       <div class="card">
-        <div class="card-title">UI/UX Health Score</div>
-        <div class="metric-value" id="uiux-score" style="color: #38bdf8;">--</div>
-        <div class="metric-sub">WCAG, Responsive, Layout, States</div>
+        <h2>Critical &amp; High Issues</h2>
+        <div class="metric-value sev-critical" id="critical-high-count">--</div>
+        <div class="metric-sub" id="severity-line"></div>
       </div>
       <div class="card">
-        <div class="card-title">Total Tech Debt Estimate</div>
-        <div class="metric-value" id="tech-debt-hours" style="color: var(--high);">-- hrs</div>
-        <div class="metric-sub">Estimated time to resolve all findings</div>
+        <h2>Tech Debt Estimate</h2>
+        <div class="metric-value sev-high" id="tech-debt-hours">--</div>
+        <div class="metric-sub">Estimated hours to resolve all findings</div>
       </div>
       <div class="card">
-        <div class="card-title">Critical & High Issues</div>
-        <div class="metric-value" id="critical-high-count" style="color: var(--critical);">--</div>
-        <div class="metric-sub">Requiring immediate remediation</div>
+        <h2>Change Since Last Audit</h2>
+        <div class="metric-value" id="delta-score">--</div>
+        <div class="metric-sub" id="delta-note"></div>
       </div>
     </div>
 
-    <!-- System Topology Diagram (Mermaid.js) -->
-    <div class="card mermaid-card" id="mermaid-section">
-      <div class="card-title">📐 Discovered Architecture & Component Flow</div>
-      <div class="mermaid" id="mermaid-diagram"></div>
+    <div class="card full">
+      <h2>Detected Technology Stack</h2>
+      <div id="stack-container" class="pills"></div>
     </div>
 
-    <!-- Multi-Dimensional Charts Grid -->
-    <div class="charts-grid">
-      <!-- 7 Dimensions Radar -->
+    <div class="grid grid-2">
       <div class="card">
-        <div class="card-title">Multi-Dimensional Architecture Health</div>
-        <canvas id="radarChart"></canvas>
+        <h2>Dimension Scores</h2>
+        <div class="chart-box"><canvas id="radarChart" aria-label="Dimension scores radar chart"></canvas></div>
+        <div class="metric-sub" id="weights-line" style="margin-top: 0.75rem;"></div>
       </div>
-
-      <!-- UI/UX Specific Elements Breakdown -->
       <div class="card">
-        <div class="card-title">🎨 UI/UX Elements & Accessibility Breakdown</div>
-        <canvas id="uiuxBarChart"></canvas>
-      </div>
-
-      <!-- Issues by Severity -->
-      <div class="card">
-        <div class="card-title">Discovered Issues by Severity</div>
-        <canvas id="doughnutChart"></canvas>
-      </div>
-
-      <!-- Color Palette & Contrast Health -->
-      <div class="card">
-        <div class="card-title">Detected Design Palette & WCAG Contrast</div>
-        <div id="palette-container" class="palette-grid"></div>
+        <h2>Findings by Severity and Wave</h2>
+        <div class="chart-box"><canvas id="waveChart" aria-label="Findings by wave and severity"></canvas></div>
       </div>
     </div>
 
-    <!-- Findings & Recommendations Table -->
-    <div class="card">
-      <div class="card-title">Detailed Audit Findings & Remediation</div>
-      
-      <!-- Filter Bar -->
+    <div class="card full" id="mermaid-section">
+      <h2>Architecture &amp; Component Flow</h2>
+      <div class="mermaid-wrap"><div id="mermaid-diagram"></div></div>
+    </div>
+
+    <div class="grid grid-2">
+      <div class="card">
+        <h2>Strengths</h2>
+        <ul class="list" id="strengths-list"></ul>
+      </div>
+      <div class="card">
+        <h2>Comparison With Previous Audit</h2>
+        <div id="comparison-container"></div>
+      </div>
+    </div>
+
+    <div class="grid grid-2" id="uiux-section">
+      <div class="card">
+        <h2>UI/UX Breakdown</h2>
+        <div class="chart-box"><canvas id="uiuxBarChart" aria-label="UI/UX breakdown bar chart"></canvas></div>
+      </div>
+      <div class="card">
+        <h2>Design Palette &amp; WCAG Contrast</h2>
+        <div id="palette-container" class="palette"></div>
+        <h2 style="margin-top: 1.25rem;">Typography &amp; Theme</h2>
+        <div id="typography-container" class="kv"></div>
+      </div>
+    </div>
+
+    <div class="card full">
       <div class="filter-bar">
-        <div class="filter-pills" id="filter-pills">
-          <button class="filter-btn active" data-filter="all">All</button>
-          <button class="filter-btn" data-filter="wave 0">Wave 0 (Hotfixes)</button>
-          <button class="filter-btn" data-filter="wave 1">Wave 1 (Core)</button>
-          <button class="filter-btn" data-filter="wave 2">Wave 2 (UI/UX)</button>
-          <button class="filter-btn" data-filter="wave 3">Wave 3 (Quality)</button>
-          <button class="filter-btn" data-filter="critical">Critical</button>
-          <button class="filter-btn" data-filter="uiux">UI/UX Only</button>
-          <button class="filter-btn" data-filter="security">Security Only</button>
+        <h2 style="margin: 0;">Findings &amp; Remediation</h2>
+        <div class="filters">
+          <select id="f-wave" aria-label="Filter by wave"><option value="">All Waves</option></select>
+          <select id="f-sev" aria-label="Filter by severity"><option value="">All Severities</option></select>
+          <select id="f-cat" aria-label="Filter by category"><option value="">All Categories</option></select>
+          <select id="f-conf" aria-label="Filter by confidence"><option value="">All Confidence</option></select>
+          <input type="search" id="f-search" class="search" placeholder="Search ID, text, or file..." aria-label="Search findings">
         </div>
-        <input type="text" id="table-search" class="search-input" placeholder="Search ID, finding, or file...">
       </div>
+      <div class="count" id="f-count"></div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Wave &amp; Severity</th>
+              <th>Finding &amp; Location</th>
+              <th>Effort</th>
+              <th>Recommendation</th>
+            </tr>
+          </thead>
+          <tbody id="findings-body"></tbody>
+        </table>
+      </div>
+    </div>
 
-      <table>
-        <thead>
-          <tr>
-            <th>Step ID</th>
-            <th>Wave & Severity</th>
-            <th>Category</th>
-            <th>Description & Location</th>
-            <th>Effort</th>
-            <th>Actionable Remediation & AI Fix</th>
-          </tr>
-        </thead>
-        <tbody id="findings-table-body"></tbody>
-      </table>
+    <div class="grid grid-2">
+      <div class="card">
+        <h2>Scope &amp; Limitations</h2>
+        <div id="scope-container"></div>
+      </div>
+      <div class="card">
+        <h2>Project Rules Checked</h2>
+        <ul class="list" id="rules-list"></ul>
+      </div>
     </div>
   </div>
 
-  <!-- Agent Populated Data -->
-  <script id="audit-data">
-    const auditData = {
-      projectName: "E-Commerce Web Suite",
-      date: new Date().toLocaleDateString(),
-      overallScore: 82,
-      techDebtHours: 36,
-      stackBreakdown: [
-        { component: "Runtime", name: "Node.js", version: "20.11.0", isEol: false },
-        { component: "Language", name: "TypeScript", version: "5.3.3", isEol: false },
-        { component: "Framework", name: "Next.js", version: "14.1.0", isEol: false },
-        { component: "Styling", name: "Tailwind CSS", version: "3.4.1", isEol: false },
-        { component: "Database", name: "PostgreSQL", version: "16", isEol: false }
-      ],
-      dimensions: {
-        labels: ["Architecture", "Security", "Quality", "Testing", "Dependencies", "Performance", "UI/UX"],
-        scores: [85, 78, 88, 70, 92, 80, 84]
-      },
-      uiUxBreakdown: {
-        labels: ["WCAG Accessibility", "Responsive Layout", "Design Tokens", "State Handling", "Asset/Font Speed"],
-        scores: [72, 90, 85, 78, 92]
-      },
-      palette: [
-        { label: "Primary Accent", hex: "#6366f1", textOnColor: "#ffffff", contrast: "4.8:1", pass: true },
-        { label: "Card Background", hex: "#151e2e", textOnColor: "#94a3b8", contrast: "4.6:1", pass: true },
-        { label: "Subtle Text", hex: "#64748b", textOnColor: "#0b0f19", contrast: "2.8:1", pass: false }
-      ],
-      architectureMermaid: `graph TD
-        Client[Client Browser / Next.js SPA] --> API[App Router / Server Actions]
-        API --> Auth[NextAuth / JWT Session]
-        API --> DB[(PostgreSQL Database)]
-        API --> Cache[Redis Session Cache]
-        Client -.-> CDN[Vercel CDN / WebP Assets]`,
-      severityCounts: { critical: 1, high: 2, medium: 4, low: 6 },
-      findings: [
-        {
-          id: "SEC-001",
-          wave: "Wave 0",
-          severity: "critical",
-          category: "Security",
-          description: "Database connection secret hardcoded in configuration client bundle.",
-          location: "src/config/db.ts:14",
-          effort: "Quick Win",
-          blockedBy: [],
-          recommendation: "Move DATABASE_URL to server-only environment variable.",
-          fixPrompt: "Remove DATABASE_URL from client bundle in src/config/db.ts and wrap with server-only runtime check."
-        },
-        {
-          id: "UIUX-001",
-          wave: "Wave 2",
-          severity: "high",
-          category: "UI/UX",
-          description: "Primary checkout button lacks accessible label and fails WCAG 2.1 color contrast on hover.",
-          location: "components/checkout/PayButton.tsx:28",
-          effort: "Quick Win",
-          blockedBy: [],
-          recommendation: "Add aria-label and increase contrast ratio to at least 4.5:1 against the active background.",
-          fixPrompt: "In components/checkout/PayButton.tsx line 28, add aria-label='Submit Payment' and update hover background class to meet WCAG AA 4.5:1."
-        },
-        {
-          id: "UIUX-002",
-          wave: "Wave 2",
-          severity: "medium",
-          category: "UI/UX",
-          description: "Product list images are uncompressed PNGs missing explicit width/height causing layout shift (CLS).",
-          location: "components/products/ProductCard.tsx:45",
-          effort: "Moderate",
-          blockedBy: [],
-          recommendation: "Use Next.js <Image /> component with sizes and priority attributes.",
-          fixPrompt: "Refactor <img> tag in components/products/ProductCard.tsx:45 to use Next.js next/image with responsive sizes and blur placeholder."
-        }
-      ]
-    };
+  <!--
+    Agent-populated data. Replace the whole JSON below with the contents of audit/audit-data.json.
+    It must be valid JSON (no comments, no trailing commas). Replace every "</" with "<\/" so the
+    data cannot close this script tag early. No other escaping is needed: the renderer escapes all text.
+  -->
+  <script type="application/json" id="audit-data">
+{
+  "projectName": "Sample Project",
+  "date": "2026-01-01",
+  "commit": "abc1234",
+  "overallScore": 74,
+  "grade": "C",
+  "techDebtHours": 21,
+  "weights": { "Security": 15, "Auth": 15, "Data Integrity": 15, "Architecture": 10, "Testing": 10, "Quality": 10, "Performance": 8, "Operations": 7, "Dependencies": 5, "UI/UX": 5 },
+  "stackBreakdown": [
+    { "component": "Runtime", "name": "Node.js", "version": "20.11.0", "isEol": false, "eolNote": "" },
+    { "component": "Framework", "name": "Next.js", "version": "14.1.0", "isEol": false, "eolNote": "Unverified — based on knowledge as of 2026-01-01" }
+  ],
+  "dimensions": {
+    "labels": ["Architecture", "Security", "Auth", "Data Integrity", "Quality", "Testing", "Dependencies", "Performance", "Operations", "UI/UX"],
+    "scores": [86, 65, 80, 71, 88, 60, 95, 84, 79, 90]
+  },
+  "uiUxBreakdown": { "labels": ["Accessibility", "Responsive Layout", "Design Tokens", "State Handling", "Keyboard & Forms"], "scores": [78, 90, 85, 80, 70] },
+  "palette": [
+    { "label": "Primary", "hex": "#4f46e5", "textOnColor": "#ffffff", "contrast": "6.3:1", "pass": true },
+    { "label": "Muted Text", "hex": "#94a3b8", "textOnColor": "#ffffff", "contrast": "2.6:1", "pass": false }
+  ],
+  "typographyAndTheme": { "fontFamily": "Inter, system-ui", "typeScale": "1.25", "bodyLineHeight": "1.5", "relativeUnits": "rem", "darkModeTokens": "CSS variables", "touchTargetCompliance": "n/a", "gridRhythm": "4px" },
+  "architectureMermaid": "graph TD\n  UI[Frontend] --> API[Backend API]\n  API --> DB[(PostgreSQL)]",
+  "severityCounts": { "critical": 1, "high": 1, "medium": 1, "low": 0 },
+  "projectRules": [{ "id": "PR-01", "text": "Posted vouchers are immutable; corrections use reversal.", "source": "CLAUDE.md" }],
+  "strengths": [{ "title": "Clear routes → services layering in the backend", "location": "backend/src/modules/" }],
+  "scope": { "audited": ["backend/src/modules"], "sampled": ["frontend/src/components"], "skipped": ["scripts/ — one-off tooling"], "commandsRun": [] },
+  "comparison": { "previousDate": null, "previousScore": null, "resolved": [], "new": [], "persisting": [] },
+  "findings": [
+    {
+      "id": "SEC-001", "wave": "Wave 0", "severity": "critical", "category": "Security", "confidence": "Confirmed",
+      "description": "Database password committed in a sample env file.",
+      "location": "deployment/.env.backend:3", "locations": ["deployment/.env.backend:3"],
+      "evidence": "DATABASE_URL=postgres://app:****@db:5432/erp", "ruleRef": null,
+      "effort": "Quick Win", "blockedBy": [],
+      "recommendation": "Remove the file from git, rotate the password, and commit only an .env.example with placeholders.",
+      "fixPrompt": "Remove deployment/.env.backend from version control, add it to .gitignore, and create deployment/.env.backend.example with placeholder values."
+    },
+    {
+      "id": "DATA-001", "wave": "Wave 1", "severity": "high", "category": "Data Integrity", "confidence": "Likely",
+      "description": "Stock balance is read then written without a lock, so two concurrent sales can oversell.",
+      "location": "backend/src/modules/sales/sale-post.service.ts:88", "locations": [],
+      "evidence": "const bal = await tx.stockBalance.findUnique(...)\nawait tx.stockBalance.update({ data: { qty: bal.qty - line.qty } })", "ruleRef": "PR-01",
+      "effort": "Moderate", "blockedBy": [],
+      "recommendation": "Use an atomic decrement with a non-negative check, or lock the row with SELECT ... FOR UPDATE.",
+      "fixPrompt": "In sale-post.service.ts, replace the read-then-update of stockBalance with an atomic decrement guarded by qty >= requested, and fail the transaction if no row is updated."
+    },
+    {
+      "id": "TEST-001", "wave": "Wave 3", "severity": "medium", "category": "Testing", "confidence": "Confirmed",
+      "description": "No automated tests cover voucher posting.",
+      "location": "backend/src/modules/vouchers/", "locations": [],
+      "evidence": "", "ruleRef": null,
+      "effort": "Major", "blockedBy": ["DATA-001"],
+      "recommendation": "Add integration tests for post, reverse, and closed-period rejection.",
+      "fixPrompt": "Write integration tests for voucher posting covering balanced entries, reversal, and posting into a closed period."
+    }
+  ]
+}
   </script>
 
-  <!-- Script to Render Everything -->
-  <script>
-    document.getElementById("proj-name").innerText = `${auditData.projectName} Audit Report`;
-    document.getElementById("audit-meta").innerText = `Audit Date: ${auditData.date}`;
+  <script type="module">
+    const data = JSON.parse(document.getElementById('audit-data').textContent);
+    const $ = (id) => document.getElementById(id);
 
-    // Overall Score & Grade
-    const scoreEl = document.getElementById("overall-score");
-    scoreEl.innerText = `${auditData.overallScore}/100`;
-    let grade = "A";
-    if (auditData.overallScore < 60) grade = "F";
-    else if (auditData.overallScore < 70) grade = "D";
-    else if (auditData.overallScore < 80) grade = "C";
-    else if (auditData.overallScore < 90) grade = "B";
-    document.getElementById("letter-grade").innerText = `Grade ${grade}`;
-    if (auditData.overallScore < 70) {
-      scoreEl.style.color = "var(--critical)";
-      scoreEl.style.borderColor = "var(--critical)";
+    const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    const safeHex = (v) => (/^#[0-9a-f]{3,8}$/i.test(v || '') ? v : 'transparent');
+    const sevClass = (s) => ['critical', 'high', 'medium', 'low'].includes((s || '').toLowerCase()) ? `sev-${s.toLowerCase()}` : '';
+    const css = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+    const isNum = (n) => typeof n === 'number' && Number.isFinite(n);
+    const empty = (text) => `<p class="empty">${esc(text)}</p>`;
+
+    const findings = Array.isArray(data.findings) ? data.findings : [];
+    const counts = { critical: 0, high: 0, medium: 0, low: 0 };
+    findings.forEach((f) => { const s = (f.severity || '').toLowerCase(); if (s in counts) counts[s]++; });
+    const severityCounts = data.severityCounts || counts;
+
+    // Header
+    document.title = `${data.projectName || 'Software'} Audit Report`;
+    $('proj-name').textContent = `${data.projectName || 'Project'} Audit Report`;
+    $('audit-meta').textContent = [data.date && `Audit Date: ${data.date}`, data.commit && `Commit: ${data.commit}`, `${findings.length} findings`].filter(Boolean).join('  ·  ');
+
+    // Score & grade
+    const score = data.overallScore;
+    const scoreEl = $('overall-score');
+    if (isNum(score)) {
+      scoreEl.textContent = `${score}/100`;
+      scoreEl.className = `score-badge ${score >= 80 ? 'ok' : score >= 70 ? 'sev-medium' : 'bad'}`;
     }
+    let grade = data.grade;
+    if (!grade && isNum(score)) grade = score >= 90 ? 'A' : score >= 80 ? 'B' : score >= 70 ? 'C' : score >= 60 ? 'D' : 'F';
+    $('letter-grade').textContent = grade ? `Grade ${grade}` : 'Not Scored';
+    $('grade-note').textContent = severityCounts.critical > 0 ? 'Capped at C while a Critical finding is open' : `Weighted across ${(data.dimensions?.labels || []).length} dimensions`;
 
-    // Top Metric Cards
-    const uiuxScore = auditData.dimensions.scores[auditData.dimensions.labels.indexOf("UI/UX")] || 80;
-    document.getElementById("uiux-score").innerText = `${uiuxScore}%`;
-    document.getElementById("tech-debt-hours").innerText = `${auditData.techDebtHours || 24} hrs`;
-    document.getElementById("critical-high-count").innerText = `${(auditData.severityCounts.critical || 0) + (auditData.severityCounts.high || 0)}`;
+    $('critical-high-count').textContent = (severityCounts.critical || 0) + (severityCounts.high || 0);
+    $('severity-line').textContent = `Critical ${severityCounts.critical || 0} · High ${severityCounts.high || 0} · Medium ${severityCounts.medium || 0} · Low ${severityCounts.low || 0}`;
+    $('tech-debt-hours').textContent = isNum(data.techDebtHours) ? `${data.techDebtHours} hrs` : 'Not Estimated';
 
-    // Stack & Versions with EOL check
-    const stackContainer = document.getElementById("stack-container");
-    auditData.stackBreakdown.forEach(item => {
-      const pill = document.createElement("div");
-      pill.className = "stack-pill";
-      let eolHtml = item.isEol ? `<span class="eol-badge">EOL Warning</span>` : '';
-      pill.innerHTML = `
-        <span class="component">${item.component}</span>
-        <span class="name-version">${item.name} ${item.version || ''}</span>
-        ${eolHtml}
-      `;
-      stackContainer.appendChild(pill);
-    });
-
-    // Render Mermaid Diagram
-    const mermaidContainer = document.getElementById("mermaid-diagram");
-    if (auditData.architectureMermaid) {
-      mermaidContainer.textContent = auditData.architectureMermaid;
+    // Comparison
+    const cmp = data.comparison || {};
+    if (isNum(cmp.previousScore) && isNum(score)) {
+      const d = score - cmp.previousScore;
+      $('delta-score').textContent = `${d > 0 ? '+' : ''}${d}`;
+      $('delta-score').className = `metric-value ${d >= 0 ? 'ok' : 'bad'}`;
+      $('delta-note').textContent = `vs ${cmp.previousScore}/100 on ${cmp.previousDate || 'previous run'}`;
+      $('comparison-container').innerHTML = `
+        <div class="kv">
+          <div><div class="k">Resolved</div><div class="v ok">${(cmp.resolved || []).length}</div></div>
+          <div><div class="k">New</div><div class="v bad">${(cmp.new || []).length}</div></div>
+          <div><div class="k">Still Open</div><div class="v">${(cmp.persisting || []).length}</div></div>
+        </div>
+        ${(cmp.resolved || []).length ? `<p class="metric-sub" style="margin-top:0.75rem;">Resolved: ${(cmp.resolved).map(esc).join(', ')}</p>` : ''}
+        ${(cmp.new || []).length ? `<p class="metric-sub">New: ${(cmp.new).map(esc).join(', ')}</p>` : ''}`;
     } else {
-      document.getElementById("mermaid-section").style.display = "none";
+      $('delta-score').textContent = 'First Audit';
+      $('delta-note').textContent = 'No previous audit to compare with';
+      $('comparison-container').innerHTML = empty('No previous audit found. The next run will compare against this one.');
     }
 
-    // 1. Radar Chart: 7 Dimensions
-    new Chart(document.getElementById('radarChart'), {
-      type: 'radar',
-      data: {
-        labels: auditData.dimensions.labels,
-        datasets: [{
-          label: 'Health Score (0-100)',
-          data: auditData.dimensions.scores,
-          backgroundColor: 'rgba(99, 102, 241, 0.25)',
-          borderColor: '#6366f1',
-          pointBackgroundColor: '#818cf8',
-          borderWidth: 2
-        }]
-      },
-      options: {
-        scales: {
-          r: { min: 0, max: 100, ticks: { display: false }, grid: { color: '#223049' } }
+    // Stack
+    const stack = data.stackBreakdown || [];
+    $('stack-container').innerHTML = stack.length ? stack.map((s) => `
+      <span class="pill" title="${esc(s.eolNote)}">
+        <span class="k">${esc(s.component)}</span>
+        <span class="v">${esc(s.name)} ${esc(s.version)}</span>
+        ${s.isEol ? '<span class="tag bad">EOL</span>' : s.eolNote ? '<span class="tag sev-medium">Unverified</span>' : ''}
+      </span>`).join('') : empty('Stack not detected.');
+
+    // Weights
+    if (data.weights) $('weights-line').textContent = 'Weights: ' + Object.entries(data.weights).map(([k, v]) => `${k} ${v}`).join(' · ');
+
+    // Strengths
+    const strengths = data.strengths || [];
+    $('strengths-list').innerHTML = strengths.length
+      ? strengths.map((s) => `<li>${esc(s.title)}${s.location ? `<br><code>${esc(s.location)}</code>` : ''}</li>`).join('')
+      : `<li class="empty">No strengths recorded.</li>`;
+
+    // Project rules
+    const rules = data.projectRules || [];
+    $('rules-list').innerHTML = rules.length
+      ? rules.map((r) => `<li><strong>${esc(r.id)}</strong> ${esc(r.text)} <span class="meta">(${esc(r.source)})</span></li>`).join('')
+      : `<li class="empty">No project rule files found.</li>`;
+
+    // Scope
+    const scope = data.scope || {};
+    const scopeBlock = (label, items) => `<h2 style="margin-top:0.75rem;">${label}</h2>` + ((items || []).length
+      ? `<ul class="list">${items.map((i) => `<li><code>${esc(i)}</code></li>`).join('')}</ul>` : empty('None'));
+    $('scope-container').innerHTML = scopeBlock('Fully Audited', scope.audited) + scopeBlock('Sampled', scope.sampled)
+      + scopeBlock('Skipped', scope.skipped) + scopeBlock('Commands Run', scope.commandsRun);
+
+    // UI/UX section (hidden for headless projects)
+    const hasUi = (data.uiUxBreakdown?.labels || []).length || (data.palette || []).length || data.typographyAndTheme;
+    if (!hasUi) $('uiux-section').style.display = 'none';
+
+    $('palette-container').innerHTML = (data.palette || []).length ? data.palette.map((p) => `
+      <div class="swatch">
+        <div class="color" style="background:${safeHex(p.hex)};color:${safeHex(p.textOnColor)};">Aa</div>
+        <div class="meta2">
+          <div><strong>${esc(p.label)}</strong></div>
+          <div class="mono meta">${esc(p.hex)}</div>
+          <span class="tag ${p.pass ? 'ok' : 'bad'}" style="margin-top:0.3rem;">${esc(p.contrast)} ${p.pass ? 'Pass' : 'Fail'}</span>
+        </div>
+      </div>`).join('') : empty('No palette extracted.');
+
+    const t = data.typographyAndTheme;
+    $('typography-container').innerHTML = t ? [
+      ['Font Stack', t.fontFamily], ['Type Scale', t.typeScale], ['Body Line Height', t.bodyLineHeight],
+      ['Relative Units', t.relativeUnits], ['Theme System', t.darkModeTokens], ['Touch Targets', t.touchTargetCompliance], ['Spacing Rhythm', t.gridRhythm]
+    ].filter(([, v]) => v).map(([k, v]) => `<div><div class="k">${k}</div><div class="v">${esc(v)}</div></div>`).join('') : empty('Not assessed.');
+
+    // Charts (re-drawn on theme change)
+    const charts = [];
+    function drawCharts() {
+      if (!window.Chart) return;
+      charts.splice(0).forEach((c) => c.destroy());
+      const text = css('--text'), muted = css('--muted'), grid = css('--grid'), accent = css('--accent');
+      const sevColors = [css('--critical'), css('--high'), css('--medium'), css('--low')];
+      Chart.defaults.color = muted;
+
+      if ((data.dimensions?.labels || []).length) {
+        charts.push(new Chart($('radarChart'), {
+          type: 'radar',
+          data: { labels: data.dimensions.labels, datasets: [{ label: 'Score', data: data.dimensions.scores, backgroundColor: css('--accent-soft'), borderColor: accent, pointBackgroundColor: accent, borderWidth: 2 }] },
+          options: { maintainAspectRatio: false, scales: { r: { min: 0, max: 100, ticks: { display: false }, grid: { color: grid }, angleLines: { color: grid }, pointLabels: { color: text } } }, plugins: { legend: { display: false } } }
+        }));
+      }
+
+      const waves = ['Wave 0', 'Wave 1', 'Wave 2', 'Wave 3'];
+      const sevs = ['critical', 'high', 'medium', 'low'];
+      charts.push(new Chart($('waveChart'), {
+        type: 'bar',
+        data: {
+          labels: waves,
+          datasets: sevs.map((s, i) => ({ label: s[0].toUpperCase() + s.slice(1), backgroundColor: sevColors[i], data: waves.map((w) => findings.filter((f) => f.wave === w && (f.severity || '').toLowerCase() === s).length) }))
         },
-        plugins: { legend: { labels: { color: '#f1f5f9' } } }
-      }
-    });
+        options: { maintainAspectRatio: false, scales: { x: { stacked: true, grid: { display: false }, ticks: { color: text } }, y: { stacked: true, beginAtZero: true, ticks: { precision: 0 }, grid: { color: grid } } }, plugins: { legend: { labels: { color: text } } } }
+      }));
 
-    // 2. UI/UX Elements Horizontal Bar Chart
-    new Chart(document.getElementById('uiuxBarChart'), {
-      type: 'bar',
-      data: {
-        labels: auditData.uiUxBreakdown.labels,
-        datasets: [{
-          label: 'UI/UX Compliance %',
-          data: auditData.uiUxBreakdown.scores,
-          backgroundColor: [
-            '#38bdf8', '#818cf8', '#a78bfa', '#34d399', '#f472b6'
-          ],
-          borderRadius: 6
-        }]
-      },
-      options: {
-        indexAxis: 'y',
-        scales: {
-          x: { min: 0, max: 100, grid: { color: '#223049' }, ticks: { color: '#94a3b8' } },
-          y: { grid: { display: false }, ticks: { color: '#f1f5f9' } }
-        },
-        plugins: { legend: { display: false } }
+      if ((data.uiUxBreakdown?.labels || []).length) {
+        charts.push(new Chart($('uiuxBarChart'), {
+          type: 'bar',
+          data: { labels: data.uiUxBreakdown.labels, datasets: [{ label: 'Score', data: data.uiUxBreakdown.scores, backgroundColor: accent, borderRadius: 4 }] },
+          options: { indexAxis: 'y', maintainAspectRatio: false, scales: { x: { min: 0, max: 100, grid: { color: grid } }, y: { grid: { display: false }, ticks: { color: text } } }, plugins: { legend: { display: false } } }
+        }));
       }
-    });
-
-    // 3. Doughnut Chart: Severity
-    new Chart(document.getElementById('doughnutChart'), {
-      type: 'doughnut',
-      data: {
-        labels: ['Critical', 'High', 'Medium', 'Low'],
-        datasets: [{
-          data: [
-            auditData.severityCounts.critical,
-            auditData.severityCounts.high,
-            auditData.severityCounts.medium,
-            auditData.severityCounts.low
-          ],
-          backgroundColor: ['#ef4444', '#f97316', '#eab308', '#3b82f6'],
-          borderWidth: 0
-        }]
-      },
-      options: {
-        plugins: { legend: { labels: { color: '#f1f5f9' } } }
-      }
-    });
-
-    // 4. Palette & Contrast Swatches
-    const paletteContainer = document.getElementById('palette-container');
-    if (auditData.palette && auditData.palette.length > 0) {
-      auditData.palette.forEach(p => {
-        const swatch = document.createElement('div');
-        swatch.className = 'swatch-card';
-        swatch.innerHTML = `
-          <div class="swatch-color" style="background-color: ${p.hex}"></div>
-          <div class="swatch-meta">
-            <div style="font-weight: 600; color: #f1f5f9;">${p.label}</div>
-            <div style="color: #94a3b8; font-family: monospace;">${p.hex}</div>
-            <div style="margin-top: 0.35rem;">
-              <span class="contrast-badge ${p.pass ? 'contrast-pass' : 'contrast-fail'}">
-                ${p.contrast} ${p.pass ? '✓ Pass' : '✗ Fail'}
-              </span>
-            </div>
-          </div>
-        `;
-        paletteContainer.appendChild(swatch);
-      });
     }
 
-    // Findings Table & Interactive Filters
-    const tbody = document.getElementById('findings-table-body');
-    let currentFilter = 'all';
-    let searchQuery = '';
+    // Mermaid (re-rendered on theme change)
+    let mermaidLib = null;
+    async function drawMermaid() {
+      if (!data.architectureMermaid) { $('mermaid-section').style.display = 'none'; return; }
+      try {
+        mermaidLib ??= (await import('https://cdn.jsdelivr.net/npm/mermaid@10.9.1/dist/mermaid.esm.min.mjs')).default;
+        const dark = css('color-scheme') === 'dark';
+        mermaidLib.initialize({ startOnLoad: false, theme: dark ? 'dark' : 'default', securityLevel: 'strict' });
+        const { svg } = await mermaidLib.render(`arch-${Date.now()}`, data.architectureMermaid);
+        $('mermaid-diagram').innerHTML = svg;
+      } catch (e) {
+        $('mermaid-diagram').innerHTML = `<pre class="evidence" style="text-align:left;">${esc(data.architectureMermaid)}</pre>`;
+      }
+    }
 
+    // Findings table
+    const fill = (id, values) => { const sel = $(id); [...new Set(values.filter(Boolean))].sort().forEach((v) => sel.add(new Option(v, v))); };
+    fill('f-wave', findings.map((f) => f.wave));
+    fill('f-sev', ['critical', 'high', 'medium', 'low'].filter((s) => findings.some((f) => (f.severity || '').toLowerCase() === s)));
+    fill('f-cat', findings.map((f) => f.category));
+    fill('f-conf', findings.map((f) => f.confidence));
+    // Keep severity in severity order, not alphabetical
+    const sevSel = $('f-sev'); const sevOpts = [...sevSel.options].slice(1);
+    sevOpts.sort((a, b) => ['critical', 'high', 'medium', 'low'].indexOf(a.value) - ['critical', 'high', 'medium', 'low'].indexOf(b.value)).forEach((o) => sevSel.appendChild(o));
+
+    const newIds = new Set(cmp.new || []);
     function renderTable() {
-      tbody.innerHTML = '';
-      const filtered = auditData.findings.filter(f => {
-        const fWave = (f.wave || '').toLowerCase();
-        const matchesFilter = 
-          currentFilter === 'all' ||
-          (currentFilter.startsWith('wave') && fWave.includes(currentFilter)) ||
-          (currentFilter === 'uiux' && f.category.toLowerCase().includes('ui')) ||
-          (currentFilter === 'security' && f.category.toLowerCase().includes('security')) ||
-          f.severity.toLowerCase() === currentFilter;
+      const wave = $('f-wave').value, sev = $('f-sev').value, cat = $('f-cat').value, conf = $('f-conf').value;
+      const q = $('f-search').value.toLowerCase().trim();
+      const rows = findings.filter((f) =>
+        (!wave || f.wave === wave) && (!sev || (f.severity || '').toLowerCase() === sev) && (!cat || f.category === cat) && (!conf || f.confidence === conf) &&
+        (!q || [f.id, f.description, f.location, f.recommendation, ...(f.locations || [])].some((v) => (v || '').toLowerCase().includes(q))));
 
-        const matchesSearch = 
-          !searchQuery ||
-          (f.id && f.id.toLowerCase().includes(searchQuery)) ||
-          f.description.toLowerCase().includes(searchQuery) ||
-          f.location.toLowerCase().includes(searchQuery) ||
-          f.recommendation.toLowerCase().includes(searchQuery);
+      $('f-count').textContent = `Showing ${rows.length} of ${findings.length} findings`;
+      if (!rows.length) { $('findings-body').innerHTML = `<tr><td colspan="5" class="empty" style="text-align:center;padding:2rem;">No findings match these filters.</td></tr>`; return; }
 
-        return matchesFilter && matchesSearch;
-      });
-
-      if (filtered.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; color: var(--muted); padding: 2rem;">No matching findings discovered.</td></tr>`;
-        return;
-      }
-
-      filtered.forEach((f, idx) => {
-        const waveNum = (f.wave || '0').replace(/[^0-9]/g, '') || '0';
-        const tr = document.createElement('tr');
-        tr.innerHTML = `
-          <td><span class="step-id-badge">${f.id || `STEP-${idx+1}`}</span></td>
+      $('findings-body').innerHTML = rows.map((f) => {
+        const extra = (f.locations || []).filter((l) => l !== f.location);
+        return `<tr>
+          <td><span class="id mono">${esc(f.id)}</span>${newIds.has(f.id) ? '<br><span class="tag new-tag">New</span>' : ''}</td>
+          <td><div class="stack">
+            <span class="tag">${esc(f.wave)}</span>
+            <span class="tag ${sevClass(f.severity)}">${esc((f.severity || '').toUpperCase())}</span>
+            ${f.confidence ? `<span class="meta">${esc(f.confidence)}</span>` : ''}
+          </div></td>
           <td>
-            <div style="display: flex; flex-direction: column; gap: 0.35rem; align-items: flex-start;">
-              <span class="wave-pill wave-${waveNum}">${f.wave || 'Wave 0'}</span>
-              <span class="badge ${f.severity.toLowerCase()}">${f.severity}</span>
-            </div>
+            <div><strong>${esc(f.category)}</strong>${f.ruleRef ? ` · <span class="meta">Breaks ${esc(f.ruleRef)}</span>` : ''}</div>
+            <div>${esc(f.description)}</div>
+            <div style="margin-top:0.3rem;"><code style="color:var(--link);">${esc(f.location)}</code></div>
+            ${extra.length ? `<details><summary>${extra.length} more location${extra.length > 1 ? 's' : ''}</summary>${extra.map((l) => `<div><code>${esc(l)}</code></div>`).join('')}</details>` : ''}
+            ${f.evidence ? `<details><summary>Evidence</summary><pre class="evidence mono">${esc(f.evidence)}</pre></details>` : ''}
           </td>
-          <td><strong>${f.category}</strong></td>
+          <td><span class="tag">${esc(f.effort || 'Not Estimated')}</span>
+            ${(f.blockedBy || []).length ? `<div class="meta" style="margin-top:0.3rem;">Needs: ${f.blockedBy.map(esc).join(', ')}</div>` : ''}</td>
           <td>
-            <div>${f.description}</div>
-            <div style="margin-top: 0.35rem;"><code style="color: #93c5fd; font-size: 0.8rem;">${f.location}</code></div>
+            <div>${esc(f.recommendation)}</div>
+            ${f.fixPrompt ? `<button class="btn copy-btn" type="button" data-id="${esc(f.id)}">Copy AI Fix Prompt</button>` : ''}
           </td>
-          <td>
-            <span class="effort-pill">${f.effort || 'Quick Win'}</span>
-            ${f.blockedBy && f.blockedBy.length > 0 ? `<div style="font-size: 0.7rem; color: var(--muted); margin-top: 0.25rem;">Needs: ${f.blockedBy.join(', ')}</div>` : ''}
-          </td>
-          <td>
-            <div>${f.recommendation}</div>
-            <button class="copy-fix-btn" onclick="copyPrompt('${encodeURIComponent(f.fixPrompt || f.recommendation)}', this)">
-              📋 Copy AI Fix
-            </button>
-          </td>
-        `;
-        tbody.appendChild(tr);
-      });
+        </tr>`;
+      }).join('');
     }
 
-    window.copyPrompt = function(encodedPrompt, btn) {
-      const text = decodeURIComponent(encodedPrompt);
-      navigator.clipboard.writeText(text).then(() => {
-        const orig = btn.innerHTML;
-        btn.innerHTML = '✓ Copied!';
-        setTimeout(() => { btn.innerHTML = orig; }, 2000);
-      });
-    };
-
-    // Filter Buttons Listener
-    document.querySelectorAll('.filter-btn').forEach(btn => {
-      btn.addEventListener('click', () => {
-        document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-        currentFilter = btn.getAttribute('data-filter');
-        renderTable();
-      });
+    $('findings-body').addEventListener('click', async (e) => {
+      const btn = e.target.closest('.copy-btn');
+      if (!btn) return;
+      const f = findings.find((x) => x.id === btn.dataset.id);
+      try {
+        await navigator.clipboard.writeText(f?.fixPrompt || '');
+        btn.textContent = 'Copied';
+      } catch {
+        btn.textContent = 'Copy Failed';
+      }
+      setTimeout(() => { btn.textContent = 'Copy AI Fix Prompt'; }, 1800);
     });
+    ['f-wave', 'f-sev', 'f-cat', 'f-conf'].forEach((id) => $(id).addEventListener('change', renderTable));
+    $('f-search').addEventListener('input', renderTable);
 
-    // Search Input Listener
-    document.getElementById('table-search').addEventListener('input', (e) => {
-      searchQuery = e.target.value.toLowerCase().trim();
-      renderTable();
+    // Theme toggle
+    try { const saved = localStorage.getItem('audit-theme'); if (saved) document.documentElement.dataset.theme = saved; } catch {}
+    $('theme-btn').addEventListener('click', () => {
+      const dark = css('color-scheme') === 'dark';
+      document.documentElement.dataset.theme = dark ? 'light' : 'dark';
+      try { localStorage.setItem('audit-theme', document.documentElement.dataset.theme); } catch {}
+      drawCharts(); drawMermaid();
     });
 
     renderTable();
+    drawCharts();
+    drawMermaid();
   </script>
 </body>
 </html>

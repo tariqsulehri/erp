@@ -1,4 +1,5 @@
 import type { Prisma, PrismaClient } from '@prisma/client';
+import { partyError } from './party-rules.js';
 
 const CUSTOMER_ACCOUNT_CODE_PREFIX = '0103';
 const SUPPLIER_ACCOUNT_CODE_PREFIX = '0201';
@@ -50,7 +51,7 @@ export class PartyAccountService {
     const range = isCustomer
       ? `${CUSTOMER_ACCOUNT_CODE_START}-${CUSTOMER_ACCOUNT_CODE_END}`
       : `${SUPPLIER_ACCOUNT_CODE_START}-${SUPPLIER_ACCOUNT_CODE_END}`;
-    throw new Error(`${label} linked account range (${range}) is full. Please extend the Chart of Accounts.`);
+    throw partyError(`${label} linked account range (${range}) is full. Please extend the Chart of Accounts.`);
   }
 
   async createLinkedAccount(companyId: string, role: PartyAccountRole, partyName: string, client: TransactionClient) {

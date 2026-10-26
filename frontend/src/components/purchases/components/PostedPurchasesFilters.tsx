@@ -3,7 +3,8 @@
 import { FieldLabel } from '@/components/ui/FieldLabel';
 import { DateField, NumericField, SelectField, TextField } from '@/components/ui/FormFields';
 import { SearchableSelect } from '@/components/ui/SearchableSelect';
-import { compactButtonStyle } from '../PurchaseVoucherStyles';
+import { Button } from '@/components/ui/Button';
+import { PostedListFilters } from '@/components/documents';
 import type { SupplierOption, WarehouseOption } from '../PurchaseVoucherTypes';
 
 interface PostedPurchasesFiltersProps {
@@ -58,7 +59,7 @@ export function PostedPurchasesFilters({
   onResetFilters,
 }: PostedPurchasesFiltersProps) {
   return (
-    <div className="filter-grid">
+    <PostedListFilters label="Purchase Filters">
       <TextField
         label="Search"
         value={search}
@@ -66,13 +67,8 @@ export function PostedPurchasesFilters({
         placeholder="Purchase No., Bill No., Supplier, Reference"
         inputProps={{ onKeyDown: event => { if (event.key === 'Enter') onSearchSubmit(); } }}
       />
-      <button type="button" className="btn-secondary" onClick={onSearchSubmit} disabled={loading} style={{ ...compactButtonStyle, alignSelf: 'end' }}>
-        {loading && <span className="spinner" style={{ width: 12, height: 12, borderWidth: 2 }} />}
-        {loading ? 'Searching...' : 'Search'}
-      </button>
-      <button type="button" className="btn-secondary" onClick={onSearchClear} disabled={loading || (!search && !searchApplied)} style={{ ...compactButtonStyle, alignSelf: 'end' }}>
-        Clear
-      </button>
+      <Button variant="secondary" onClick={onSearchSubmit} loading={loading}>Search</Button>
+      <Button variant="ghost" onClick={onSearchClear} disabled={loading || (!search && !searchApplied)}>Clear</Button>
       <FieldLabel label="Supplier">
         <SearchableSelect value={supplierId} options={suppliers} onChange={onSupplierChange} placeholder="All Suppliers" />
       </FieldLabel>
@@ -90,9 +86,7 @@ export function PostedPurchasesFilters({
       <DateField label="Date To" value={dateTo} onChange={onDateToChange} />
       <NumericField label="Amount From" value={amountFrom} onChange={onAmountFromChange} />
       <NumericField label="Amount To" value={amountTo} onChange={onAmountToChange} />
-      <button type="button" className="btn-secondary" onClick={onResetFilters} style={{ ...compactButtonStyle, alignSelf: 'end' }}>
-        Clear Filters
-      </button>
-    </div>
+      <Button variant="ghost" onClick={onResetFilters}>Clear Filters</Button>
+    </PostedListFilters>
   );
 }

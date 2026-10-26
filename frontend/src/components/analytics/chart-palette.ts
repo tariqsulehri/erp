@@ -1,17 +1,19 @@
 'use client';
 
-import { useEffect, useState, type CSSProperties } from 'react';
+import { useEffect, useState } from 'react';
 
 /**
  * The one chart palette for every ERP chart (Calm Ledger).
  * Built from Ledger Blue plus neutrals and the status hues, so charts read as one system.
  * Order matters: series 1 is always Ledger Blue, series 2 Slate, and so on.
  * This file is the only place where chart hex values are allowed.
+ * Blue, Teal and Amber pass the dataviz palette checks (lightness, chroma, colour-blind separation, contrast)
+ * against the light surface #ffffff and the dark surface #141c2a.
  */
 const LIGHT_SERIES = {
   blue: '#1f56c7',     // Ledger Blue — the main figure
   slate: '#64748b',    // Slate — the comparison figure
-  teal: '#0f766e',     // Teal
+  teal: '#12907f',     // Teal
   amber: '#b45309',    // Amber (warning hue)
   red: '#c62828',      // Red (danger hue)
   blueSoft: '#93b4f5', // Light Ledger Blue — background or total bars behind a Ledger Blue bar
@@ -19,10 +21,10 @@ const LIGHT_SERIES = {
 
 /** Same roles, lifted so they stay legible on the dark ground. */
 const DARK_SERIES = {
-  blue: '#6b9bff',
+  blue: '#5c8cf5',
   slate: '#9aa7b9',
-  teal: '#2fb3a3',
-  amber: '#f0b35a',
+  teal: '#1fa595',
+  amber: '#c9802a',
   red: '#f38b8b',
   blueSoft: '#3b5a9a',
 } as const;
@@ -97,5 +99,21 @@ export function chartAxisTick(theme: ChartTheme) {
   return { fontSize: 12, fill: theme.axisText };
 }
 
-/** Legend text style for Recharts' Legend wrapper. */
-export const chartLegendStyle: CSSProperties = { fontSize: 'var(--font-size-xs)', color: 'var(--color-text-muted)', paddingTop: 4 };
+
+function mixHex(hex: string, target: number, amount: number) {
+  const value = hex.replace('#', '');
+  const channels = [0, 2, 4].map(start => parseInt(value.slice(start, start + 2), 16));
+  return `#${channels.map(channel => Math.round(channel + (target - channel) * amount).toString(16).padStart(2, '0')).join('')}`;
+}
+
+/**
+ * Stops for the 3D bar fill: lit at the top, the true series colour through the body, a deeper base.
+ * Follows the Directional Lighting Rule (vertical, light to deep). The middle stop keeps the validated colour.
+ */
+export function barGradientStops(color: string) {
+  return [
+    { offset: '0%', color: mixHex(color, 255, 0.28) },
+    { offset: '45%', color },
+    { offset: '100%', color: mixHex(color, 0, 0.18) },
+  ];
+}

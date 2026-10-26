@@ -137,8 +137,9 @@ export function AccountGroupView({ accounts }: AccountGroupViewProps) {
   const buckets = new Map<string, AccountListItem[]>();
   for (const acct of accounts) {
     const cat = categoryOf(acct.code);
-    if (!buckets.has(cat)) buckets.set(cat, []);
-    buckets.get(cat)!.push(acct);
+    const bucket = buckets.get(cat) ?? [];
+    bucket.push(acct);
+    buckets.set(cat, bucket);
   }
 
   // Render in numeric order

@@ -20,7 +20,7 @@ import {
 } from '@/lib/api/parties';
 import type { CreateSupplierInput } from '@/modules/suppliers/supplier.schema';
 import { SUPPLIER_TYPES } from '@/modules/suppliers/supplier.schema';
-import { APP_CURRENCY_OPTIONS } from '@/lib/app-settings';
+import { APP_CURRENCY_OPTIONS, defaultAppFormatSettings } from '@/lib/app-settings';
 import { friendlyErrorMessage } from '@/lib/erp-utils';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
@@ -56,7 +56,7 @@ const EMPTY_FORM: CreateSupplierInput = {
   party_type: 'Supplier', main_role: 'Supplier',
   tax_registration_no: '', email: '', phone: '', mobile: '',
   address: '', city: '', country: '', postal_code: '',
-  payment_terms_days: 30, currency_code: 'PKR',
+  payment_terms_days: 30, currency_code: defaultAppFormatSettings.currencyCode,
   ap_account_id: undefined, advance_account_id: undefined,
   bank_name: '', bank_account_no: '', bank_swift_code: '', bank_iban: '',
   is_active: true, notes: '',

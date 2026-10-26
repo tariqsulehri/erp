@@ -22,10 +22,14 @@ import { warehousesRouter } from './warehouses.routes.js';
 import { statesRouter } from './states.routes.js';
 import { citiesRouter } from './cities.routes.js';
 import { areasRouter } from './areas.routes.js';
+import { authRouter } from './auth.routes.js';
+import { usersRouter } from './users.routes.js';
 
 export const apiRouter = Router();
 
 apiRouter.use('/health', healthRouter);
+apiRouter.use('/auth', authRouter);
+apiRouter.use('/users', usersRouter);
 apiRouter.use('/accounts', accountsRouter);
 apiRouter.use('/bank-accounts', bankAccountsRouter);
 apiRouter.use('/bank-cheques', bankChequesRouter);

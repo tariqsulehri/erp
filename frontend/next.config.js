@@ -1,6 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  output: 'standalone',
   // Keep the dev-only Next.js badge away from the sidebar's collapse toggle.
   devIndicators: { position: 'bottom-right' },
   compiler: {
@@ -12,19 +13,7 @@ const nextConfig = {
     }
     return config;
   },
-  async rewrites() {
-    const backendUrl =
-      process.env.BACKEND_API_INTERNAL_URL ||
-      (process.env.NEXT_PUBLIC_BACKEND_API_URL && !process.env.NEXT_PUBLIC_BACKEND_API_URL.startsWith('/')
-        ? process.env.NEXT_PUBLIC_BACKEND_API_URL
-        : 'http://localhost:4000/api/v1');
-    return [
-      {
-        source: '/api/v1/:path*',
-        destination: `${backendUrl}/:path*`,
-      },
-    ];
-  },
+  // /api/v1 is served by src/app/api/v1/[...path]/route.ts, which adds the signed-in user's token.
 
   // Specify output file tracing root to avoid workspace detection warnings
   outputFileTracingRoot: __dirname,

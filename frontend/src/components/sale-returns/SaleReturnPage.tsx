@@ -19,31 +19,31 @@ import {
   PurchaseHeaderForm,
   PurchaseLineEntry,
   PurchaseLineTable,
-  PurchaseMessageBanner,
   PurchaseSummaryFooter,
   PurchaseToolbar,
 } from '@/components/purchases/components';
+import { DocumentMessage, DocumentPage, LineShortcutHint, LinesPanel, useLineEntryKeyboard } from '@/components/documents';
 import { usePurchaseLineEditor } from '@/components/purchases/hooks/usePurchaseLineEditor';
 import { usePurchaseTotals } from '@/components/purchases/hooks/usePurchaseTotals';
 import { today } from '@/components/purchases/PurchaseVoucherHelpers';
+import { useSaleBranch, useSaleBranchOptions } from '@/components/sales/hooks/useSaleBranch';
 import { useSaleSupportOptions } from '@/components/sales/hooks/useSaleSupportOptions';
 import type { SaleMessageKind, SalePaymentType } from '@/components/sales/SaleVoucherTypes';
 
 export default function SaleReturnPage() {
   const { data: generalSettings } = useGeneralSettings();
-  const supportQuery = useSaleReturnSupportData();
+  const branch = useSaleBranch();
+  const supportQuery = useSaleReturnSupportData(branch.branchId || undefined);
   const createDraft = useCreateSaleReturnDraft();
   const createAndPost = useCreateAndPostSaleReturn();
   const invalidateReturnQueries = useInvalidateSaleReturnQueries();
 
-  const [viewMode, setViewMode] = useState<'posted' | 'entry' | 'analytics'>('posted');
+  const [viewMode, setViewMode] = useState<'posted' | 'entry' | 'analytics'>('analytics');
   const [saleReturnDate, setSaleReturnDate] = useState(today());
   const [customerId, setCustomerId] = useState('');
   const [paymentType, setPaymentType] = useState<SalePaymentType>('Credit');
   const [customerReturnNumber, setCustomerReturnNumber] = useState('');
   const [customerReturnDate, setCustomerReturnDate] = useState(today());
-  const [warehouseId, setWarehouseId] = useState('');
-  const [locationId, setLocationId] = useState('');
   const [referenceNumber, setReferenceNumber] = useState('');
   const [freightAmount, setFreightAmount] = useState('');
   const [message, setMessage] = useState<{ kind: SaleMessageKind; text: string } | null>(null);
@@ -53,10 +53,10 @@ export default function SaleReturnPage() {
   const postingDateGuard = usePostingDateGuard(saleReturnDate, 'Sale Return Date');
   const isSaleReturnDateValid = postingDateGuard.dateIsValid;
   const money = useMemo(() => (value: number) => formatMoney(value, generalSettings), [generalSettings]);
-  const { customers, items, warehouses, locations } = useSaleSupportOptions(supportQuery.data);
+  const { customers, items, branches, locations } = useSaleSupportOptions(supportQuery.data);
+  const { selectedBranch, branchLocations, resetBranch } = useSaleBranchOptions(branch, branches, locations);
+  const { branchId, isBranchUser, locationId, setLocationId, changeBranch } = branch;
   const selectedCustomer = customers.find(customer => customer.value === customerId);
-  const selectedWarehouse = warehouses.find(warehouse => warehouse.value === warehouseId);
-  const warehouseLocations = useMemo(() => locations.filter(location => location.warehouseId === warehouseId), [locations, warehouseId]);
 
   const {
     lineDraft,
@@ -73,7 +73,8 @@ export default function SaleReturnPage() {
     resetLineEditor,
   } = usePurchaseLineEditor({
     items,
-    onDefaultWarehouseChange: setWarehouseId,
+    // Sale items are always taken from the selected Branch, so an item's default Warehouse is ignored.
+    onDefaultWarehouseChange: () => undefined,
     onError: text => setMessage({ kind: 'error', text }),
     onClearMessage: () => setMessage(null),
   });
@@ -83,21 +84,6 @@ export default function SaleReturnPage() {
   const dateStatusMessage = postingDateGuard.isChecking ? 'Checking Sale Return Date...' : postingDateGuard.statusMessage;
   const newDisabled = postingDateGuard.disabled;
   const newDisabledReason = dateStatusMessage || 'Sale Return Date is being checked.';
-
-  useEffect(() => {
-    if (!warehouseId && warehouses.length > 0) {
-      setWarehouseId(warehouses.find(warehouse => warehouse.isDefault)?.value ?? warehouses[0].value);
-    }
-  }, [warehouseId, warehouses]);
-
-  useEffect(() => {
-    if (!warehouseId || !selectedWarehouse?.useLocations) {
-      setLocationId('');
-      return;
-    }
-    if (locationId && warehouseLocations.some(location => location.value === locationId)) return;
-    setLocationId(warehouseLocations.find(location => location.isDefault)?.value ?? '');
-  }, [locationId, selectedWarehouse?.useLocations, warehouseId, warehouseLocations]);
 
   useEffect(() => {
     if (supportQuery.error) {
@@ -114,8 +100,7 @@ export default function SaleReturnPage() {
     setPaymentType('Credit');
     setCustomerReturnNumber('');
     setCustomerReturnDate(today());
-    setWarehouseId(warehouses.find(warehouse => warehouse.isDefault)?.value ?? warehouses[0]?.value ?? '');
-    setLocationId('');
+    resetBranch();
     setReferenceNumber('');
     setFreightAmount('');
     resetLineEditor();
@@ -129,9 +114,8 @@ export default function SaleReturnPage() {
       postingDateError: postingDateGuard.isBlocked ? dateStatusMessage : undefined,
       customerId,
       selectedCustomer,
-      warehouseId,
-      locationId,
-      selectedWarehouse,
+      branchId,
+      selectedBranch,
       customerReturnDate,
       lines,
       freightAmount,
@@ -169,7 +153,7 @@ export default function SaleReturnPage() {
       customerReturnNumber,
       customerReturnDate,
       paymentType,
-      warehouseId,
+      branchId,
       locationId,
       referenceNumber,
       generatedVoucherDetails,
@@ -211,12 +195,21 @@ export default function SaleReturnPage() {
   }
 
   const actionDisabled = saving || supportQuery.isLoading || supportQuery.isError || postingDateGuard.disabled;
+  const lineKeyboard = useLineEntryKeyboard({
+    enabled: viewMode === 'entry',
+    onSave: () => saveSaleReturn(false),
+    saveDisabled: actionDisabled,
+    onCommitLine: addItemLine,
+    commitDisabled: supportQuery.isLoading || supportQuery.isError,
+    onNewLine: cancelLineEdit,
+  });
 
   if (viewMode === 'posted') {
     return (
       <PostedSaleReturnsView
         customers={customers}
-        warehouses={warehouses}
+        branches={branches}
+        showBranchFilter={!isBranchUser}
         money={money}
         generalSettings={generalSettings}
         onNewReturn={openNewReturn}
@@ -240,7 +233,7 @@ export default function SaleReturnPage() {
   }
 
   return (
-    <main style={{ height: '100%', minHeight: 0, boxSizing: 'border-box', padding: 10, display: 'flex', flexDirection: 'column', gap: 8, overflow: 'hidden' }}>
+    <DocumentPage>
       <PurchaseToolbar
         title="Sale Return"
         documentCode="SR"
@@ -273,53 +266,56 @@ export default function SaleReturnPage() {
         onCancel={() => setProcessConfirmOpen(false)}
       />
 
-      {message && <PurchaseMessageBanner message={message} />}
+      <DocumentMessage message={message} onDismiss={() => setMessage(null)} />
 
-      <section className="workspace-card" style={{ padding: 10, flex: 1, minHeight: 0, display: 'grid', gridTemplateRows: 'auto auto auto 1fr auto', gap: 7, overflow: 'hidden' }}>
-        <PurchaseHeaderForm
-          documentNumberLabel="Return Number"
-          documentDateLabel="Return Date"
-          supplierDocumentDateLabel="Customer Return Date"
-          supplierDocumentNumberLabel="Customer Return No."
-          supplierDocumentPlaceholder="Return No."
-          partyLabel="Customer"
-          partyPlaceholder="Search Customer"
-          showDueDate={false}
-          balanceLabel="Return Amount"
-          balanceValue={money(totals.netAmount)}
-          purchaseDate={saleReturnDate}
-          paymentType={paymentType}
-          supplierInvoiceDate={customerReturnDate}
-          supplierInvoiceNumber={customerReturnNumber}
-          supplierId={customerId}
-          warehouseId={warehouseId}
-          locationId={locationId}
-          showLocation={Boolean(selectedWarehouse?.useLocations)}
-          referenceNumber={referenceNumber}
-          dueDate={saleReturnDate}
-          generatedVoucherDetails={generatedVoucherDetails}
-          dateStatusMessage={dateStatusMessage}
-          suppliers={customers}
-          warehouses={warehouses}
-          locations={warehouseLocations}
-          loadingSupportData={supportQuery.isLoading}
-          supportDataHasError={supportQuery.isError}
-          money={money}
-          onPurchaseDateChange={setSaleReturnDate}
-          onPaymentTypeChange={value => setPaymentType(value as SalePaymentType)}
-          onSupplierInvoiceDateChange={setCustomerReturnDate}
-          onSupplierInvoiceNumberChange={setCustomerReturnNumber}
-          onSupplierChange={setCustomerId}
-          onWarehouseChange={value => {
-            setWarehouseId(value);
-            setLocationId('');
-          }}
-          onLocationChange={setLocationId}
-          onReferenceNumberChange={setReferenceNumber}
-          onDueDateChange={() => undefined}
-        />
+      <PurchaseHeaderForm
+        documentNumberLabel="Return Number"
+        documentDateLabel="Return Date"
+        supplierDocumentDateLabel="Customer Return Date"
+        supplierDocumentNumberLabel="Customer Return No."
+        supplierDocumentPlaceholder="Return No."
+        partyLabel="Customer"
+        partyPlaceholder="Search Customer"
+        showDueDate={false}
+        balanceLabel="Return Amount"
+        balanceValue={money(totals.netAmount)}
+        purchaseDate={saleReturnDate}
+        paymentType={paymentType}
+        supplierInvoiceDate={customerReturnDate}
+        supplierInvoiceNumber={customerReturnNumber}
+        supplierId={customerId}
+        warehouseId={branchId}
+        holderLabel="Branch"
+        holderReadOnly={isBranchUser}
+        locationId={locationId}
+        showLocation={branchLocations.length > 0}
+        referenceNumber={referenceNumber}
+        dueDate={saleReturnDate}
+        generatedVoucherDetails={generatedVoucherDetails}
+        dateStatusMessage={dateStatusMessage}
+        suppliers={customers}
+        warehouses={branches}
+        locations={branchLocations}
+        loadingSupportData={supportQuery.isLoading}
+        supportDataHasError={supportQuery.isError}
+        money={money}
+        onPurchaseDateChange={setSaleReturnDate}
+        onPaymentTypeChange={value => setPaymentType(value as SalePaymentType)}
+        onSupplierInvoiceDateChange={setCustomerReturnDate}
+        onSupplierInvoiceNumberChange={setCustomerReturnNumber}
+        onSupplierChange={setCustomerId}
+        onWarehouseChange={changeBranch}
+        onLocationChange={setLocationId}
+        onReferenceNumberChange={setReferenceNumber}
+        onDueDateChange={() => undefined}
+      />
 
-        <div style={{ minHeight: 0, display: 'grid', gridTemplateRows: 'auto 1fr', overflow: 'visible' }}>
+      <LinesPanel
+        title="Lines"
+        hint={<LineShortcutHint mode="entry" />}
+        linesRef={lineKeyboard.linesRef}
+        onKeyDown={lineKeyboard.onLinesKeyDown}
+        entry={(
           <PurchaseLineEntry
             priceLabel="Return Price"
             lineDraft={lineDraft}
@@ -334,33 +330,35 @@ export default function SaleReturnPage() {
             onAddOrUpdate={addItemLine}
             onCancelEdit={cancelLineEdit}
           />
-
-          <PurchaseLineTable
-            priceColumnLabel="Return Price"
-            lines={lines}
+        )}
+        summary={(
+          <PurchaseSummaryFooter
+            freightLabel="Freight Reversal"
+            balanceLabel="Return Amount"
+            totalItems={lines.length}
+            grossAmount={totals.grossAmount}
+            discountAmount={totals.discountAmount}
+            taxAmount={totals.taxAmount}
+            freightAmount={freightAmount}
+            netAmount={totals.netAmount}
+            balanceDue={totals.netAmount}
             generalSettings={generalSettings}
             money={money}
-            onMoveLine={moveLine}
-            onEditLine={editLine}
-            onRemoveLine={removeLine}
+            onFreightAmountChange={setFreightAmount}
           />
-        </div>
-
-        <PurchaseSummaryFooter
-          freightLabel="Freight Reversal"
-          balanceLabel="Return Amount"
-          totalItems={lines.length}
-          grossAmount={totals.grossAmount}
-          discountAmount={totals.discountAmount}
-          taxAmount={totals.taxAmount}
-          freightAmount={freightAmount}
-          netAmount={totals.netAmount}
-          balanceDue={totals.netAmount}
+        )}
+      >
+        <PurchaseLineTable
+          priceColumnLabel="Return Price"
+          lines={lines}
+          editingLineId={editingLineId}
           generalSettings={generalSettings}
           money={money}
-          onFreightAmountChange={setFreightAmount}
+          onMoveLine={moveLine}
+          onEditLine={editLine}
+          onRemoveLine={removeLine}
         />
-      </section>
-    </main>
+      </LinesPanel>
+    </DocumentPage>
   );
 }

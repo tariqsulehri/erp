@@ -173,11 +173,18 @@ Duplicate reference prevention should use company-scoped indexes or backend chec
 
 ## Branch And Warehouse
 
-- Use a `branches` table for business branches.
-- Use `inventory_warehouses.branch_id` to connect Warehouses to Branches.
-- Keep `branch_id` optional only while old data is being migrated. New sales, purchase, transfer, and stock screens should select a Branch when the workflow needs branch-wise control.
-- Stock remains stored by `item_id + warehouse_id + location_id` in `inventory_stock_balances`.
-- Branch stock reports should sum Warehouses for the selected Branch instead of storing duplicate branch stock rows.
+- Use a `branches` table for shops and an `inventory_warehouses` table for storage places.
+- A stock row belongs to exactly one holder: `branch_id` or `warehouse_id`, never both. Tables that hold or move stock (`inventory_stock_balances`, `inventory_stock_movements`, `inventory_warehouse_locations`, `stock_adjustments`, sale and sale return headers and lines) enforce this with a check constraint.
+- Stock is stored by `item_id + branch_id/warehouse_id + location_id` in `inventory_stock_balances`, with one unique index using `NULLS NOT DISTINCT`.
+- `stock_transfers` stores `from_branch_id`/`from_warehouse_id` and `to_branch_id`/`to_warehouse_id`, with exactly one per side.
+- `inventory_warehouses.branch_id` is no longer used. Do not use it in new code.
+- Backend code builds stock-holder conditions with the shared helpers in `backend/src/modules/inventory/stock-holder.ts` and checks user access with `stock-holder-access.ts`.
+
+## Users And Access
+
+- `users` stores sign-in accounts (email is unique ignoring letter case, password stored as an scrypt hash).
+- `user_company_access` stores one access record per user per company: `access_level` is `ALL_BRANCHES`, `BRANCH` (with `branch_id`) or `WAREHOUSE` (with `warehouse_id`).
+- Created, updated, and posted by fields must use the signed-in user's ID from the backend, never a value sent by the browser.
 
 ## Accounting
 

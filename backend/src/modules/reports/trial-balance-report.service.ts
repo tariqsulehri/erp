@@ -1,5 +1,6 @@
 import { Decimal } from 'decimal.js';
 import { prisma } from '../../db/prisma.js';
+import { dateOnlyText, openingBalanceForRange } from '../accounts/account-balance.js';
 import type { TrialBalanceReportQuery } from './trial-balance-report.schema.js';
 
 function businessError(message: string) {
@@ -12,11 +13,6 @@ function databaseDate(dateText: string) {
   const date = new Date(`${dateText}T12:00:00`);
   if (Number.isNaN(date.getTime())) throw businessError('Report Date is not valid.');
   return date;
-}
-
-function signedOpeningBalance(openingBalance: unknown, normalBalance: string) {
-  const amount = new Decimal(String(openingBalance ?? '0'));
-  return normalBalance === 'Credit' ? amount.negated() : amount;
 }
 
 function debitAmount(balance: Decimal) {
@@ -66,10 +62,26 @@ function hierarchyCodes(accountCode: string) {
 export class TrialBalanceReportService {
   constructor(private readonly companyId: string) {}
 
+  /** Default Date From: start of the fiscal year that contains Date To, or 1 January when no fiscal year exists. */
+  private async fiscalYearStartText(dateToText: string) {
+    const fiscalYear = await prisma.fiscalYear.findFirst({
+      where: {
+        companyId: this.companyId,
+        isDeleted: false,
+        startDate: { lte: new Date(`${dateToText}T00:00:00Z`) },
+        endDate: { gte: new Date(`${dateToText}T00:00:00Z`) },
+      },
+      orderBy: { startDate: 'desc' },
+      select: { startDate: true },
+    });
+    return fiscalYear ? dateOnlyText(fiscalYear.startDate) : `${dateToText.slice(0, 4)}-01-01`;
+  }
+
   async getTrialBalance(query: TrialBalanceReportQuery) {
-    const dateTo = databaseDate(query.date_to);
-    const dateFrom = query.date_from ? databaseDate(query.date_from) : new Date(dateTo.getFullYear(), 0, 1, 12);
-    if (dateTo < dateFrom) throw businessError('Date To cannot be earlier than Date From.');
+    databaseDate(query.date_to);
+    if (query.date_from) databaseDate(query.date_from);
+    const dateFromText = query.date_from ?? await this.fiscalYearStartText(query.date_to);
+    if (query.date_to < dateFromText) throw businessError('Date To cannot be earlier than Date From.');
 
     const accounts = await prisma.account.findMany({
       where: {
@@ -104,14 +116,14 @@ export class TrialBalanceReportService {
     const movements = await prisma.$queryRaw<MovementRow[]>`
       SELECT
         vl.account_id::text,
-        COALESCE(SUM(vl.dr_amount) FILTER (WHERE v.voucher_date < CAST(${dateFrom.toISOString().slice(0, 10)} AS date)), 0)::text AS debit_before,
-        COALESCE(SUM(vl.cr_amount) FILTER (WHERE v.voucher_date < CAST(${dateFrom.toISOString().slice(0, 10)} AS date)), 0)::text AS credit_before,
+        COALESCE(SUM(vl.dr_amount) FILTER (WHERE v.voucher_date < CAST(${dateFromText} AS date)), 0)::text AS debit_before,
+        COALESCE(SUM(vl.cr_amount) FILTER (WHERE v.voucher_date < CAST(${dateFromText} AS date)), 0)::text AS credit_before,
         COALESCE(SUM(vl.dr_amount) FILTER (
-          WHERE v.voucher_date >= CAST(${dateFrom.toISOString().slice(0, 10)} AS date)
+          WHERE v.voucher_date >= CAST(${dateFromText} AS date)
             AND v.voucher_date <= CAST(${query.date_to} AS date)
         ), 0)::text AS period_debit,
         COALESCE(SUM(vl.cr_amount) FILTER (
-          WHERE v.voucher_date >= CAST(${dateFrom.toISOString().slice(0, 10)} AS date)
+          WHERE v.voucher_date >= CAST(${dateFromText} AS date)
             AND v.voucher_date <= CAST(${query.date_to} AS date)
         ), 0)::text AS period_credit
       FROM voucher_lines vl
@@ -133,13 +145,12 @@ export class TrialBalanceReportService {
 
     const lines = accounts.map(account => {
       const movement = movementMap.get(account.id);
-      const includeOpening = !account.openingBalanceDate || account.openingBalanceDate <= dateFrom;
-      const baseOpening = includeOpening ? signedOpeningBalance(account.openingBalance, account.normalBalance) : new Decimal(0);
+      const accountOpening = openingBalanceForRange(account, dateFromText, query.date_to);
       const debitBefore = new Decimal(movement?.debit_before ?? '0');
       const creditBefore = new Decimal(movement?.credit_before ?? '0');
-      const periodDebit = new Decimal(movement?.period_debit ?? '0');
-      const periodCredit = new Decimal(movement?.period_credit ?? '0');
-      const openingBalance = baseOpening.plus(debitBefore).minus(creditBefore);
+      const periodDebit = new Decimal(movement?.period_debit ?? '0').plus(accountOpening.periodDebit);
+      const periodCredit = new Decimal(movement?.period_credit ?? '0').plus(accountOpening.periodCredit);
+      const openingBalance = accountOpening.opening.plus(debitBefore).minus(creditBefore);
       const closingBalance = openingBalance.plus(periodDebit).minus(periodCredit);
 
       const openingDebit = new Decimal(debitAmount(openingBalance));
@@ -177,7 +188,7 @@ export class TrialBalanceReportService {
     });
 
     return {
-      date_from: dateFrom.toISOString().slice(0, 10),
+      date_from: dateFromText,
       date_to: query.date_to,
       include_zero_balances: query.include_zero_balances,
       totals: {

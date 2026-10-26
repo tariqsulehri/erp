@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { requirePermission } from '../http/access-context.js';
 import { resolveCompanyId } from '../http/company-context.js';
 import { StateService } from '../modules/states/state.service.js';
 import { createStateSchema, idParams, listStatesQuery, updateStateSchema } from '../modules/states/state.schema.js';
@@ -15,7 +16,7 @@ statesRouter.get('/', async (req, res, next) => {
   }
 });
 
-statesRouter.post('/', async (req, res, next) => {
+statesRouter.post('/', requirePermission('locations.manage'), async (req, res, next) => {
   try {
     const service = new StateService(resolveCompanyId(req));
     const body = createStateSchema.parse(req.body);
@@ -41,7 +42,7 @@ statesRouter.get('/:id', async (req, res, next) => {
   }
 });
 
-statesRouter.patch('/:id', async (req, res, next) => {
+statesRouter.patch('/:id', requirePermission('locations.manage'), async (req, res, next) => {
   try {
     const service = new StateService(resolveCompanyId(req));
     const { id } = idParams.parse(req.params);

@@ -97,12 +97,23 @@ New frontend modules must follow the same structure established in the Purchase 
 
 ## Branch And Warehouse
 
-- A Branch represents where business happens, such as sales, users, cash, bank, and reporting.
-- A Warehouse represents where stock is stored.
-- Each Branch can be attached to one or more Warehouses.
-- Sales should use the selected Branch and reduce stock from a Warehouse attached to that Branch.
-- Branch-wise stock should be calculated by summing stock balances of Warehouses attached to that Branch.
-- Do not store stock directly on the Branch or Item master record.
+- A Branch is a shop in a city. It holds its own physical stock and is the only place that sells.
+- A Warehouse is a storage place. It receives purchases and sends stock to Branches. Warehouses do not sell.
+- Warehouses do not belong to Branches. Stock moves between them with Stock Transfers: Warehouse to Branch, Branch to Branch, Warehouse to Warehouse, and Branch to Warehouse.
+- Sales and Sale Returns happen at a Branch and change that Branch's stock.
+- Purchases and Purchase Returns happen at a Warehouse (Branches may buy directly in a later phase).
+- Stock Adjustments can correct Branch stock or Warehouse stock.
+- Branches and Warehouses can have optional shelves or racks (Locations).
+- Do not store stock on the Item master record. Company, city, and other combined stock figures are totals of Branch and Warehouse stock.
+
+## Users And Access
+
+- Every user signs in with their own account. There are no shared or default users.
+- Each user works in one Branch or one Warehouse and sees only that place's stock and documents.
+- Admin and Top Management users see All Branches and all Warehouses, and can manage users.
+- Sales Staff must be assigned to a Branch; Warehouse Staff must be assigned to a Warehouse.
+- Branch users cannot open purchases. Warehouse users cannot create sales.
+- The backend enforces these rules on every request. Hiding a screen in the frontend is not enough.
 
 ## Rule Ownership
 

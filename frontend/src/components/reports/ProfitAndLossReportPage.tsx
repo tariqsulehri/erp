@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import { IconRefresh, IconSearch } from '@tabler/icons-react';
 import { Button } from '@/components/ui/Button';
 import { CheckboxField, DateField } from '@/components/ui/FormFields';
@@ -11,8 +12,10 @@ import { formatDate, formatMoney } from '@/lib/app-settings';
 import { ProfitAndLossLine, useProfitAndLossReport } from '@/lib/api/reports';
 import { useGeneralSettings } from '@/lib/api/settings';
 import { friendlyErrorMessage, isValidDateInput } from '@/lib/erp-utils';
-import { firstDayOfCurrentYear, todayInputDate } from './LedgerReportHelpers';
+import { useReportDateRange } from './LedgerReportHelpers';
 import { amountStyle, embeddedReportStyle, reportFilterGridStyle, reportGroupRowStyle, reportIndentStyle } from './LedgerReportStyles';
+import { ReportActions } from './ReportActions';
+import type { ReportDocument } from './report-output';
 
 interface ProfitAndLossReportPageProps {
   embedded?: boolean;
@@ -31,6 +34,8 @@ type ProfitAndLossDisplayRow =
       key: string;
       line: ProfitAndLossLine;
     };
+
+const linkStyle = { color: 'var(--color-primary-text)' };
 
 function amountCents(value: string | number) {
   return Math.round(Number(value || 0) * 100);
@@ -98,8 +103,7 @@ function buildGroupedRows(lines: ProfitAndLossLine[], includeZeroBalances: boole
 
 export function ProfitAndLossReportPage({ embedded = false }: ProfitAndLossReportPageProps) {
   const { data: generalSettings } = useGeneralSettings();
-  const [dateFrom, setDateFrom] = useState(firstDayOfCurrentYear());
-  const [dateTo, setDateTo] = useState(todayInputDate());
+  const { dateFrom, setDateFrom, dateTo, setDateTo } = useReportDateRange();
   const [includeZeroBalances, setIncludeZeroBalances] = useState(false);
   const [shouldLoad, setShouldLoad] = useState(false);
   const [message, setMessage] = useState('');
@@ -162,6 +166,32 @@ export function ProfitAndLossReportPage({ embedded = false }: ProfitAndLossRepor
   const accountCount = displayRows.filter(row => row.kind === 'account').length;
   const netIsLoss = netAmount < 0;
 
+  function buildReport(): ReportDocument | null {
+    if (!report) return null;
+    return {
+      title: 'Profit And Loss',
+      subtitle: `${formatDate(dateFrom, generalSettings)} to ${formatDate(dateTo, generalSettings)}`,
+      columns: [
+        { label: 'Account Code' },
+        { label: 'Account Name' },
+        { label: 'Debit', kind: 'money' },
+        { label: 'Credit', kind: 'money' },
+        { label: 'Amount', kind: 'money' },
+      ],
+      rows: [
+        ...displayRows.map(row => (row.kind !== 'account'
+          ? { style: 'group' as const, cells: [row.code, row.name, '', '', row.amount] }
+          : { cells: [row.line.account_code, row.line.account_name, row.line.debit_amount, row.line.credit_amount, row.line.amount] })),
+        { style: 'total' as const, cells: ['', 'Total Revenue', '', '', report.totals.revenue] },
+        { style: 'total' as const, cells: ['', 'Total Expenses', '', '', report.totals.expenses] },
+        { style: 'total' as const, cells: ['', `Net ${netLabel} (${accountCount} Accounts)`, '', '', centsText(Math.abs(amountCents(netAmount)))] },
+      ],
+      fileName: `profit-and-loss-${dateFrom}-to-${dateTo}`,
+    };
+  }
+
+  const ledgerHref = (accountId: string) => `/reports?report=ledger&account=${accountId}&from=${dateFrom}&to=${dateTo}`;
+
   const Root = embedded ? 'div' : 'main';
 
   return (
@@ -183,6 +213,7 @@ export function ProfitAndLossReportPage({ embedded = false }: ProfitAndLossRepor
             <CheckboxField label="Show Zero Balances" checked={includeZeroBalances} onChange={updateZeroBalanceFilter} />
             <Button variant="primary" icon={<IconSearch size={16} stroke={1.8} />} onClick={viewReport} loading={reportQuery.isFetching}>View Report</Button>
             <Button icon={<IconRefresh size={16} stroke={1.8} />} onClick={refreshReport} disabled={reportQuery.isFetching}>Refresh</Button>
+            <ReportActions buildReport={buildReport} disabled={!report} onError={setMessage} />
           </div>
         </div>
 
@@ -229,8 +260,12 @@ export function ProfitAndLossReportPage({ embedded = false }: ProfitAndLossRepor
                 const { line } = row;
                 return (
                   <tr key={line.account_id}>
-                    <td className="cell-strong" style={reportIndentStyle(3)}>{line.account_code}</td>
-                    <td>{line.account_name}</td>
+                    <td className="cell-strong" style={reportIndentStyle(3)}>
+                      <Link href={ledgerHref(line.account_id)} style={linkStyle}>{line.account_code}</Link>
+                    </td>
+                    <td>
+                      <Link href={ledgerHref(line.account_id)} style={linkStyle}>{line.account_name}</Link>
+                    </td>
                     <td className="num" style={amountStyle(line.debit_amount)}>{moneyOrBlank(line.debit_amount, generalSettings)}</td>
                     <td className="num" style={amountStyle(line.credit_amount)}>{moneyOrBlank(line.credit_amount, generalSettings)}</td>
                     <td className="num" style={amountStyle(line.amount)}>{moneyOrBlank(line.amount, generalSettings)}</td>

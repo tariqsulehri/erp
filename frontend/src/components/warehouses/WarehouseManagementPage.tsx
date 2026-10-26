@@ -6,13 +6,11 @@ import { IconArrowLeft, IconCheck, IconPencil, IconPlus, IconRefresh, IconSearch
 import { formatMoney, formatNumber, type AppFormatSettingsSource } from '@/lib/app-settings';
 import { friendlyErrorMessage } from '@/lib/erp-utils';
 import { useGeneralSettings } from '@/lib/api/settings';
-import { useBranchesList } from '@/lib/api/branches';
 import {
   type WarehouseLocationPayload,
   type WarehouseLocationRow,
   type WarehousePayload,
   type WarehouseRow,
-  type WarehouseStockRow,
   useCreateWarehouse,
   useCreateWarehouseLocation,
   useUpdateWarehouse,
@@ -24,13 +22,12 @@ import {
 } from '@/lib/api/warehouses';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
-import { FieldLabel } from '@/components/ui/FieldLabel';
 import { CheckboxField, TextField, TextareaField } from '@/components/ui/FormFields';
 import { InlineAlert } from '@/components/ui/InlineAlert';
+import { StockSummaryTable } from './StockSummaryTable';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { PaginationBar } from '@/components/ui/PaginationBar';
 import { SearchField } from '@/components/ui/SearchField';
-import { SearchableSelect } from '@/components/ui/SearchableSelect';
 import { SegmentedControl } from '@/components/ui/SegmentedControl';
 import { TableMessageRow } from '@/components/ui/TableMessageRow';
 
@@ -49,7 +46,6 @@ const EMPTY_WAREHOUSE_FORM = {
   name: '',
   description: '',
   address: '',
-  branch_id: '',
   is_default: false,
   use_locations: false,
   is_active: true,
@@ -81,7 +77,6 @@ export default function WarehouseManagementPage() {
   const [stockSearch, setStockSearch] = useState('');
 
   const warehousesQuery = useWarehousesList({ page, limit: 50, search: search.trim() || undefined, status });
-  const branchesQuery = useBranchesList({ page: 1, limit: 200, status: 'Active' });
   const locationsQuery = useWarehouseLocations(selectedWarehouseId || undefined);
   const stockQuery = useWarehouseStockSummary(selectedWarehouseId || undefined, { page: 1, limit: 100, search: stockSearch.trim() || undefined });
   const createWarehouse = useCreateWarehouse();
@@ -92,11 +87,6 @@ export default function WarehouseManagementPage() {
   const selectedWarehouse = useMemo(() => {
     return warehousesQuery.data?.data.find(row => row.id === selectedWarehouseId);
   }, [selectedWarehouseId, warehousesQuery.data?.data]);
-
-  const branchOptions = useMemo(() => [
-    { value: '', label: 'No Branch', searchText: '' },
-    ...(branchesQuery.data?.data ?? []).map(branch => ({ value: branch.id, label: `${branch.code} - ${branch.name}`, searchText: `${branch.code} ${branch.name}` })),
-  ], [branchesQuery.data?.data]);
 
   const savingWarehouse = createWarehouse.isPending || updateWarehouse.isPending;
   const savingLocation = createLocation.isPending || updateLocation.isPending;
@@ -141,7 +131,6 @@ export default function WarehouseManagementPage() {
       name: warehouse.name,
       description: warehouse.description ?? '',
       address: warehouse.address ?? '',
-      branch_id: warehouse.branch_id ?? '',
       is_default: warehouse.is_default,
       use_locations: warehouse.use_locations,
       is_active: warehouse.is_active,
@@ -178,7 +167,6 @@ export default function WarehouseManagementPage() {
       name: warehouseForm.name.trim(),
       description: warehouseForm.description.trim(),
       address: warehouseForm.address.trim(),
-      branch_id: warehouseForm.branch_id,
       is_default: warehouseForm.is_default,
       use_locations: warehouseForm.use_locations,
       is_active: warehouseForm.is_active,
@@ -275,7 +263,7 @@ export default function WarehouseManagementPage() {
       <main className="page-shell">
         <PageHeader
           title={selectedWarehouseId ? `Edit Warehouse ${warehouseForm.code}` : 'New Warehouse'}
-          description={selectedWarehouse ? `${selectedWarehouse.code} - ${selectedWarehouse.name}` : 'A Warehouse is a place where stock is kept. Stock transactions always name a Warehouse.'}
+          description={selectedWarehouse ? `${selectedWarehouse.code} - ${selectedWarehouse.name}` : 'A Warehouse stores stock. It receives purchases and sends stock to Branches by Stock Transfer.'}
           actions={(
             <>
               <Button variant="secondary" icon={<IconArrowLeft size={16} stroke={1.8} />} onClick={closeForm}>Back To List</Button>
@@ -297,15 +285,6 @@ export default function WarehouseManagementPage() {
                   <div className="span-2">
                     <TextField label="Warehouse Name" required value={warehouseForm.name} onChange={value => setWarehouseForm(form => ({ ...form, name: value }))} placeholder="Main Warehouse" />
                   </div>
-                  <FieldLabel label="Branch">
-                    <SearchableSelect
-                      value={warehouseForm.branch_id}
-                      options={branchOptions}
-                      onChange={value => setWarehouseForm(form => ({ ...form, branch_id: value }))}
-                      placeholder={branchesQuery.isLoading ? 'Loading Branches' : 'Search Branch'}
-                      disabled={branchesQuery.isLoading}
-                    />
-                  </FieldLabel>
                   <div className="span-2">
                     <TextareaField label="Address" value={warehouseForm.address} onChange={value => setWarehouseForm(form => ({ ...form, address: value }))} rows={2} />
                   </div>
@@ -370,7 +349,7 @@ export default function WarehouseManagementPage() {
               </div>
             </div>
             <div className="table-scroll">
-              <StockSummaryTable rows={stockQuery.data?.data ?? []} loading={stockQuery.isLoading && !noWarehouse} noWarehouse={noWarehouse} isFiltered={Boolean(stockSearch)} settings={generalSettings} />
+              <StockSummaryTable placeLabel="Warehouse" rows={stockQuery.data?.data ?? []} loading={stockQuery.isLoading && !noWarehouse} notSaved={noWarehouse} isFiltered={Boolean(stockSearch)} settings={generalSettings} />
             </div>
           </section>
         </div>
@@ -382,7 +361,7 @@ export default function WarehouseManagementPage() {
     <main className="page-shell">
       <PageHeader
         title="Warehouses"
-        description="Places where stock is kept. Each Warehouse can belong to a Branch and can use Locations such as racks or bins."
+        description="Places that store stock. Warehouses receive purchases and send stock to Branches, and can use Locations such as racks or bins."
         actions={(
           <>
             <Button variant="secondary" icon={<IconRefresh size={16} stroke={1.8} />} onClick={refreshAll} loading={warehousesQuery.isFetching && !warehousesQuery.isLoading}>Refresh</Button>
@@ -440,12 +419,11 @@ function WarehouseTable({ rows, loading, isFiltered, onEdit, onNew, settings }: 
   settings?: AppFormatSettingsSource | null;
 }) {
   return (
-    <table className="data-table" style={{ tableLayout: 'fixed', minWidth: 1080 }}>
+    <table className="data-table" style={{ tableLayout: 'fixed', minWidth: 900 }}>
       <thead>
         <tr>
           <th style={{ width: 110 }}>Code</th>
           <th>Warehouse Name</th>
-          <th style={{ width: 190 }}>Branch</th>
           <th>Address</th>
           <th style={{ width: 110 }}>Locations</th>
           <th style={{ width: 100 }}>Status</th>
@@ -455,11 +433,11 @@ function WarehouseTable({ rows, loading, isFiltered, onEdit, onNew, settings }: 
         </tr>
       </thead>
       <tbody>
-        {loading && <TableMessageRow colSpan={9} title="Loading Warehouses…" loading />}
+        {loading && <TableMessageRow colSpan={8} title="Loading Warehouses…" loading />}
         {!loading && rows.length === 0 && (
           isFiltered
-            ? <TableMessageRow colSpan={9} title="No Warehouses Match" description="Change the search text or the status filter to see more Warehouses." />
-            : <TableMessageRow colSpan={9} title="No Warehouses Yet" description="Add your first Warehouse so stock can be received and issued." action={<Button variant="primary" icon={<IconPlus size={16} stroke={1.8} />} onClick={onNew}>New Warehouse</Button>} />
+            ? <TableMessageRow colSpan={8} title="No Warehouses Match" description="Change the search text or the status filter to see more Warehouses." />
+            : <TableMessageRow colSpan={8} title="No Warehouses Yet" description="Add your first Warehouse so stock can be received and issued." action={<Button variant="primary" icon={<IconPlus size={16} stroke={1.8} />} onClick={onNew}>New Warehouse</Button>} />
         )}
         {!loading && rows.map(row => (
           <tr key={row.id} onDoubleClick={() => onEdit(row)}>
@@ -470,7 +448,6 @@ function WarehouseTable({ rows, loading, isFiltered, onEdit, onNew, settings }: 
                 {row.is_default && <Badge variant="info">Default</Badge>}
               </span>
             </td>
-            <td className={row.branch ? undefined : 'cell-muted'}>{row.branch ? `${row.branch.code} - ${row.branch.name}` : 'Not Set'}</td>
             <td className={row.address ? undefined : 'cell-muted'}>{row.address || 'Not Set'}</td>
             <td className={row.use_locations ? undefined : 'cell-muted'}>{row.use_locations ? <Badge variant="info">Enabled</Badge> : 'Not Used'}</td>
             <td><Badge variant={row.is_active ? 'success' : 'neutral'}>{row.is_active ? 'Active' : 'Inactive'}</Badge></td>
@@ -525,53 +502,6 @@ function LocationsTable({ rows, loading, noWarehouse, editingId, onEdit }: {
             <td className="cell-actions">
               <Button variant="ghost" size="sm" icon={<IconPencil size={16} stroke={1.8} />} onClick={() => onEdit(row)} aria-label={`Edit Location ${row.code}`} title="Edit Location" />
             </td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
-  );
-}
-
-function StockSummaryTable({ rows, loading, noWarehouse, isFiltered, settings }: {
-  rows: WarehouseStockRow[];
-  loading: boolean;
-  noWarehouse: boolean;
-  isFiltered: boolean;
-  settings?: AppFormatSettingsSource | null;
-}) {
-  return (
-    <table className="data-table" style={{ tableLayout: 'fixed', minWidth: 1000 }}>
-      <thead>
-        <tr>
-          <th style={{ width: 130 }}>Item Code</th>
-          <th>Item Name</th>
-          <th style={{ width: 170 }}>Location</th>
-          <th className="num" style={{ width: 120 }}>Stock On Hand</th>
-          <th className="num" style={{ width: 110 }}>Reserved</th>
-          <th className="num" style={{ width: 110 }}>Available</th>
-          <th className="num" style={{ width: 130 }}>Average Cost</th>
-          <th className="num" style={{ width: 140 }}>Stock Value</th>
-        </tr>
-      </thead>
-      <tbody>
-        {loading && <TableMessageRow colSpan={8} title="Loading Stock Summary…" loading />}
-        {!loading && rows.length === 0 && (
-          noWarehouse
-            ? <TableMessageRow colSpan={8} title="No Stock Yet" description="Save the Warehouse first. Stock appears here after it is received into this Warehouse." />
-            : isFiltered
-              ? <TableMessageRow colSpan={8} title="No Stock Matches" description="Change or clear the search text to see all stock in this Warehouse." />
-              : <TableMessageRow colSpan={8} title="No Stock In This Warehouse" description="Stock appears here after a purchase, transfer, or adjustment is posted to this Warehouse." />
-        )}
-        {!loading && rows.map(row => (
-          <tr key={row.id}>
-            <td className="cell-strong">{row.sku || row.item_code}</td>
-            <td>{row.item_name}</td>
-            <td className={row.location_name ? undefined : 'cell-muted'}>{row.location_name ? `${row.location_code ?? ''} - ${row.location_name}` : 'Not Set'}</td>
-            <td className="num">{formatNumber(row.stock_on_hand, settings)}</td>
-            <td className="num">{formatNumber(row.reserved_stock, settings)}</td>
-            <td className="num">{formatNumber(row.available_stock, settings)}</td>
-            <td className="num">{formatMoney(row.average_cost, settings)}</td>
-            <td className="num">{formatMoney(row.total_stock_value, settings)}</td>
           </tr>
         ))}
       </tbody>

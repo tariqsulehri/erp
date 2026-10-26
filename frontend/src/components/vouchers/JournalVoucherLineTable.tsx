@@ -2,16 +2,11 @@
 
 import { IconTrash } from '@tabler/icons-react';
 import type { AppFormatSettingsSource } from '@/lib/app-settings';
-import { SearchableSelect, type VoucherSelectOption } from './VoucherControls';
-import {
-  cleanAmount,
-  compactInputStyle,
-  compactMoneyInputStyle,
-  formatAmountInput,
-  sanitizeAmountInput,
-  tableCellStyle,
-  tableHeadStyle,
-} from './VoucherShared';
+import { Button } from '@/components/ui/Button';
+import { SearchableSelect, type SelectOption } from '@/components/ui/SearchableSelect';
+import { LinesTable } from '@/components/documents';
+import { amountValue, cleanAmount, formatAmountInput, sanitizeAmountInput } from './VoucherShared';
+import styles from '@/components/documents/documents.module.css';
 
 export interface JournalVoucherLine {
   id: number;
@@ -21,14 +16,9 @@ export interface JournalVoucherLine {
   credit: string;
 }
 
-const journalLineColumns = [
-  { label: 'No.', width: 44 },
-  { label: 'Account', width: '42%' },
-  { label: 'Description', width: undefined },
-  { label: 'Debit', width: 150, right: true },
-  { label: 'Credit', width: 150, right: true },
-  { label: '', width: 44 },
-] as const;
+function isEmptyLine(line: JournalVoucherLine) {
+  return !line.accountId && !line.description.trim() && amountValue(line.debit) <= 0 && amountValue(line.credit) <= 0;
+}
 
 export function JournalVoucherLineTable({
   lines,
@@ -40,7 +30,7 @@ export function JournalVoucherLineTable({
   onRemoveLine,
 }: {
   lines: JournalVoucherLine[];
-  accountOptions: VoucherSelectOption[];
+  accountOptions: SelectOption[];
   accountsLoading: boolean;
   accountsError: boolean;
   generalSettings?: AppFormatSettingsSource | null;
@@ -48,47 +38,54 @@ export function JournalVoucherLineTable({
   onRemoveLine: (id: number) => void;
 }) {
   return (
-    <div style={{ minHeight: 0, overflowY: 'auto', overflowX: 'auto', border: '1px solid var(--color-border)', borderRadius: 'var(--radius)' }}>
-      <table style={{ width: '100%', minWidth: 860, borderCollapse: 'collapse', fontSize: 'var(--font-size-sm)', tableLayout: 'fixed' }}>
-        <colgroup>
-          {journalLineColumns.map(column => (
-            <col key={column.label || 'action'} style={{ width: column.width }} />
-          ))}
-        </colgroup>
-        <thead>
-          <tr>
-            {journalLineColumns.map(column => (
-              <th key={column.label || 'action'} style={tableHeadStyle('right' in column && Boolean(column.right))}>
-                {column.label}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {lines.map((line, index) => (
-            <tr key={line.id}>
-              <td style={tableCellStyle()}><strong>{index + 1}</strong></td>
-              <td style={tableCellStyle()}>
+    <LinesTable editable>
+      <colgroup>
+        <col style={{ width: 52 }} />
+        <col style={{ width: '38%' }} />
+        <col />
+        <col style={{ width: 140 }} />
+        <col style={{ width: 140 }} />
+        <col style={{ width: 48 }} />
+      </colgroup>
+      <thead>
+        <tr>
+          <th className="num">No.</th>
+          <th>Account<span className="field-required" aria-hidden="true">*</span></th>
+          <th>Description</th>
+          <th className="num">Debit</th>
+          <th className="num">Credit</th>
+          <th><span className="sr-only">Actions</span></th>
+        </tr>
+      </thead>
+      <tbody>
+        {lines.map((line, index) => {
+          const lineNo = index + 1;
+          return (
+            <tr key={line.id} data-line-row data-line-empty={isEmptyLine(line) ? 'true' : undefined}>
+              <td className="num cell-muted">{lineNo}</td>
+              <td data-line-first>
                 <SearchableSelect
                   value={line.accountId}
                   options={accountOptions}
                   onChange={value => onUpdateLine(line.id, { accountId: value })}
                   placeholder={accountsLoading ? 'Loading Accounts' : accountsError ? 'Accounts Not Loaded' : 'Search Account'}
                   disabled={accountsLoading || accountsError}
+                  ariaLabel={`Account, Line ${lineNo}`}
                 />
               </td>
-              <td style={tableCellStyle()}>
+              <td>
                 <input
                   className="form-input"
                   value={line.description}
                   onChange={event => onUpdateLine(line.id, { description: event.currentTarget.value })}
                   placeholder="Description"
-                  style={compactInputStyle}
+                  aria-label={`Description, Line ${lineNo}`}
                 />
               </td>
-              <td style={tableCellStyle()}>
+              {/* Debit and Credit both end a line: a line has one or the other. */}
+              <td data-line-last>
                 <input
-                  className="form-input"
+                  className={`form-input ${styles.numInput}`}
                   inputMode="decimal"
                   value={line.debit}
                   onChange={event => {
@@ -98,12 +95,12 @@ export function JournalVoucherLineTable({
                   onFocus={() => onUpdateLine(line.id, { debit: cleanAmount(line.debit) })}
                   onBlur={() => onUpdateLine(line.id, { debit: formatAmountInput(line.debit, generalSettings) })}
                   placeholder="0.00"
-                  style={compactMoneyInputStyle}
+                  aria-label={`Debit, Line ${lineNo}`}
                 />
               </td>
-              <td style={tableCellStyle()}>
+              <td data-line-last>
                 <input
-                  className="form-input"
+                  className={`form-input ${styles.numInput}`}
                   inputMode="decimal"
                   value={line.credit}
                   onChange={event => {
@@ -113,26 +110,24 @@ export function JournalVoucherLineTable({
                   onFocus={() => onUpdateLine(line.id, { credit: cleanAmount(line.credit) })}
                   onBlur={() => onUpdateLine(line.id, { credit: formatAmountInput(line.credit, generalSettings) })}
                   placeholder="0.00"
-                  style={compactMoneyInputStyle}
+                  aria-label={`Credit, Line ${lineNo}`}
                 />
               </td>
-              <td style={tableCellStyle()}>
-                <button
-                  type="button"
-                  className="btn-ghost"
+              <td className="cell-actions">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  icon={<IconTrash size={16} stroke={1.8} aria-hidden />}
                   onClick={() => onRemoveLine(line.id)}
                   disabled={lines.length <= 2}
+                  aria-label={`Remove Line ${lineNo}`}
                   title="Remove Line"
-                  aria-label={`Remove Line ${index + 1}`}
-                  style={{ width: 'var(--control-h)', padding: 0 }}
-                >
-                  <IconTrash size={16} />
-                </button>
+                />
               </td>
             </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+          );
+        })}
+      </tbody>
+    </LinesTable>
   );
 }

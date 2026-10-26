@@ -101,7 +101,7 @@ export function ChequeBooksTab({ settings }: { settings?: AppFormatSettingsSourc
   const [issueTarget, setIssueTarget] = useState<any | null>(null);
   const [issueForm, setIssueForm] = useState({ issue_date: new Date().toISOString().slice(0, 10), payee_name: '', payment_reference: '', amount: '' });
 
-  const bankAccounts = supportQuery.data?.bank_accounts ?? [];
+  const bankAccounts = useMemo(() => supportQuery.data?.bank_accounts ?? [], [supportQuery.data]);
   const bankOptions = useMemo(() => bankAccounts.map((account: any) => ({
     value: account.id,
     label: bankLabel(account),
@@ -415,7 +415,10 @@ export function ChequeBooksTab({ settings }: { settings?: AppFormatSettingsSourc
             </thead>
             <tbody>
               {bookQuery.isLoading && <TableMessageRow colSpan={8} title="Loading Cheque Books…" loading />}
-              {!bookQuery.isLoading && books.length === 0 && (
+              {!bookQuery.isLoading && bookQuery.error && (
+                <TableMessageRow colSpan={8} title="Cheque Books Could Not Be Loaded" description={friendlyErrorMessage(bookQuery.error, 'Please check your connection and try again.')} action={<Button onClick={() => bookQuery.refetch()}>Try Again</Button>} />
+              )}
+              {!bookQuery.isLoading && !bookQuery.error && books.length === 0 && (
                 <TableMessageRow
                   colSpan={8}
                   title="No Cheque Books Yet"

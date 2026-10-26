@@ -1,11 +1,7 @@
 'use client';
 
 import { cleanNumber, formatAmountInput } from '@/lib/erp-utils';
-import { SummaryBox, SummaryInputBox } from '@/components/vouchers/SummaryBoxes';
-import {
-  summaryFooterStyle,
-  summaryValuesStyle,
-} from '../PurchaseVoucherStyles';
+import { DocumentSummary, SummaryAmount, SummaryAmountInput } from '@/components/documents';
 
 interface PurchaseSummaryFooterProps {
   freightLabel?: string;
@@ -37,24 +33,19 @@ export function PurchaseSummaryFooter({
   onFreightAmountChange,
 }: PurchaseSummaryFooterProps) {
   return (
-    <div style={summaryFooterStyle}>
-      <span style={{ color: 'var(--color-text-muted)', fontSize: 'var(--font-size-sm)', whiteSpace: 'nowrap' }}>
-        Total Items: <strong style={{ color: 'var(--color-text)' }}>{totalItems}</strong>
-      </span>
-      <div style={summaryValuesStyle}>
-        <SummaryBox label="Gross Amount" value={grossAmount} money={money} />
-        <SummaryBox label="Discount" value={discountAmount} money={money} />
-        <SummaryBox label="Tax" value={taxAmount} money={money} />
-        <SummaryInputBox
-          label={freightLabel}
-          value={freightAmount}
-          onChange={onFreightAmountChange}
-          onFocus={() => onFreightAmountChange(cleanNumber(freightAmount))}
-          onBlur={() => onFreightAmountChange(formatAmountInput(freightAmount, generalSettings))}
-        />
-        <SummaryBox label="Net Amount" value={netAmount} strong money={money} />
-        <SummaryBox label={balanceLabel} value={balanceDue} money={money} />
-      </div>
-    </div>
+    <DocumentSummary countLabel="Total Items" count={totalItems}>
+      <SummaryAmount label="Gross Amount" value={money(grossAmount)} />
+      <SummaryAmount label="Discount" value={money(discountAmount)} />
+      <SummaryAmount label="Tax" value={money(taxAmount)} />
+      <SummaryAmountInput
+        label={freightLabel}
+        value={freightAmount}
+        onChange={onFreightAmountChange}
+        onFocus={() => onFreightAmountChange(cleanNumber(freightAmount))}
+        onBlur={() => onFreightAmountChange(formatAmountInput(freightAmount, generalSettings))}
+      />
+      <SummaryAmount label="Net Amount" value={money(netAmount)} strong />
+      <SummaryAmount label={balanceLabel} value={money(balanceDue)} />
+    </DocumentSummary>
   );
 }

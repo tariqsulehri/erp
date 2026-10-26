@@ -1,0 +1,5 @@
+audit-results/
+results/
+*.log
+.DS_Store
+node_modules/

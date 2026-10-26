@@ -14,7 +14,7 @@
  *  - Import Template (only when no accounts exist)
  */
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import Link from 'next/link';
 import { useQueryClient } from '@tanstack/react-query';
 import {
@@ -28,7 +28,7 @@ import {
   IconUpload,
   IconX,
 } from '@tabler/icons-react';
-import { accountsQueryKey, fetchAllAccountsForExport, useAccountsList, useBulkSetAccountActive, type AccountListItem } from '@/lib/api/accounts';
+import { accountsQueryKey, fetchAllAccountsForExport, useAccountsList, useBulkSetAccountActive, useOpeningBalanceSummary, type AccountListItem } from '@/lib/api/accounts';
 import { useCompanyProfile, useGeneralSettings } from '@/lib/api/settings';
 import { AccountsTable }     from '@/components/tables/AccountsTable';
 import { AccountTreeView }   from '@/components/accounts/AccountTreeView';
@@ -135,6 +135,7 @@ export default function AccountsPage() {
   const queryClient = useQueryClient();
   const { data: generalSettings } = useGeneralSettings();
   const { data: company } = useCompanyProfile();
+  const { data: openingSummary } = useOpeningBalanceSummary();
 
   /* ── Table / stats query ──────────────────────────────────────────── */
   const { data, isLoading, isFetching, error } = useAccountsList(
@@ -173,7 +174,7 @@ export default function AccountsPage() {
     );
   };
 
-  const accounts    = data?.data    ?? [];
+  const accounts    = useMemo(() => data?.data ?? [], [data]);
   const groupAccounts = groupData?.data ?? [];
   const total       = data?.pagination?.total ?? 0;
   const totalText   = formatNumber(total, { ...(generalSettings ?? {}), decimal_places: 0 });
@@ -280,6 +281,18 @@ export default function AccountsPage() {
 
       {error && <InlineAlert tone="danger">{friendlyErrorMessage(error, 'Unable to load accounts.')}</InlineAlert>}
       {exportError && <InlineAlert tone="danger">{exportError}</InlineAlert>}
+      {openingSummary && !openingSummary.is_balanced && (
+        <InlineAlert tone="warning">
+          Opening Balances are not balanced. Total Debit {formatNumber(Number(openingSummary.total_debit), generalSettings)} and
+          Total Credit {formatNumber(Number(openingSummary.total_credit), generalSettings)} differ
+          by {formatNumber(Number(openingSummary.difference), generalSettings)}. The Trial Balance will not balance until they match.
+        </InlineAlert>
+      )}
+      {openingSummary && openingSummary.accounts_without_date > 0 && (
+        <InlineAlert tone="warning">
+          {openingSummary.accounts_without_date} account(s) have an Opening Balance without an Opening Balance Date. Add the go-live date to each one.
+        </InlineAlert>
+      )}
       {groupTruncated && (
         <InlineAlert tone="warning">
           Group view shows the first {groupAccounts.length} accounts. Use the Table view with search or filters to see the full list.

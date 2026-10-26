@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { resolveCompanyId } from '../http/company-context.js';
+import { resolveAccessScope } from '../http/access-context.js';
 import { ProductService } from '../modules/inventory/product.service.js';
 import {
   createCategorySchema,
@@ -17,9 +17,10 @@ export const productsRouter = Router();
 
 productsRouter.get('/suggest-sku', async (req, res, next) => {
   try {
-    const companyId = resolveCompanyId(req);
+    const scope = resolveAccessScope(req);
+    const companyId = scope.companyId;
     const { prefix } = suggestSkuQuery.parse(req.query);
-    const service = new ProductService(companyId);
+    const service = new ProductService(companyId, scope);
     res.json({ sku: await service.suggestSku(prefix) });
   } catch (error) {
     next(error);
@@ -28,9 +29,10 @@ productsRouter.get('/suggest-sku', async (req, res, next) => {
 
 productsRouter.get('/', async (req, res, next) => {
   try {
-    const companyId = resolveCompanyId(req);
+    const scope = resolveAccessScope(req);
+    const companyId = scope.companyId;
     const query = listProductsQuery.parse(req.query);
-    const service = new ProductService(companyId);
+    const service = new ProductService(companyId, scope);
     res.json(await service.list(query));
   } catch (error) {
     next(error);
@@ -39,9 +41,10 @@ productsRouter.get('/', async (req, res, next) => {
 
 productsRouter.post('/', async (req, res, next) => {
   try {
-    const companyId = resolveCompanyId(req);
+    const scope = resolveAccessScope(req);
+    const companyId = scope.companyId;
     const body = createProductSchema.parse(req.body);
-    const service = new ProductService(companyId);
+    const service = new ProductService(companyId, scope);
     res.status(201).json(await service.create(body));
   } catch (error) {
     next(error);
@@ -50,8 +53,9 @@ productsRouter.post('/', async (req, res, next) => {
 
 productsRouter.get('/categories', async (req, res, next) => {
   try {
-    const companyId = resolveCompanyId(req);
-    const service = new ProductService(companyId);
+    const scope = resolveAccessScope(req);
+    const companyId = scope.companyId;
+    const service = new ProductService(companyId, scope);
     res.json(await service.listCategories());
   } catch (error) {
     next(error);
@@ -60,9 +64,10 @@ productsRouter.get('/categories', async (req, res, next) => {
 
 productsRouter.post('/categories', async (req, res, next) => {
   try {
-    const companyId = resolveCompanyId(req);
+    const scope = resolveAccessScope(req);
+    const companyId = scope.companyId;
     const body = createCategorySchema.parse(req.body);
-    const service = new ProductService(companyId);
+    const service = new ProductService(companyId, scope);
     res.status(201).json(await service.createCategory(body));
   } catch (error) {
     next(error);
@@ -71,10 +76,11 @@ productsRouter.post('/categories', async (req, res, next) => {
 
 productsRouter.patch('/categories/:id', async (req, res, next) => {
   try {
-    const companyId = resolveCompanyId(req);
+    const scope = resolveAccessScope(req);
+    const companyId = scope.companyId;
     const { id } = idParams.parse(req.params);
     const body = updateCategorySchema.parse({ ...req.body, id });
-    const service = new ProductService(companyId);
+    const service = new ProductService(companyId, scope);
     res.json(await service.updateCategory(body));
   } catch (error) {
     next(error);
@@ -83,9 +89,10 @@ productsRouter.patch('/categories/:id', async (req, res, next) => {
 
 productsRouter.delete('/categories/:id', async (req, res, next) => {
   try {
-    const companyId = resolveCompanyId(req);
+    const scope = resolveAccessScope(req);
+    const companyId = scope.companyId;
     const { id } = idParams.parse(req.params);
-    const service = new ProductService(companyId);
+    const service = new ProductService(companyId, scope);
     await service.deleteCategory(id);
     res.json({ ok: true });
   } catch (error) {
@@ -95,8 +102,9 @@ productsRouter.delete('/categories/:id', async (req, res, next) => {
 
 productsRouter.get('/brands', async (req, res, next) => {
   try {
-    const companyId = resolveCompanyId(req);
-    const service = new ProductService(companyId);
+    const scope = resolveAccessScope(req);
+    const companyId = scope.companyId;
+    const service = new ProductService(companyId, scope);
     res.json(await service.listBrands());
   } catch (error) {
     next(error);
@@ -105,8 +113,9 @@ productsRouter.get('/brands', async (req, res, next) => {
 
 productsRouter.get('/units-of-measure', async (req, res, next) => {
   try {
-    const companyId = resolveCompanyId(req);
-    const service = new ProductService(companyId);
+    const scope = resolveAccessScope(req);
+    const companyId = scope.companyId;
+    const service = new ProductService(companyId, scope);
     res.json(await service.listUom());
   } catch (error) {
     next(error);
@@ -115,9 +124,10 @@ productsRouter.get('/units-of-measure', async (req, res, next) => {
 
 productsRouter.post('/units-of-measure', async (req, res, next) => {
   try {
-    const companyId = resolveCompanyId(req);
+    const scope = resolveAccessScope(req);
+    const companyId = scope.companyId;
     const body = createUomSchema.parse(req.body);
-    const service = new ProductService(companyId);
+    const service = new ProductService(companyId, scope);
     res.status(201).json(await service.createUom(body));
   } catch (error) {
     next(error);
@@ -126,10 +136,11 @@ productsRouter.post('/units-of-measure', async (req, res, next) => {
 
 productsRouter.patch('/units-of-measure/:id', async (req, res, next) => {
   try {
-    const companyId = resolveCompanyId(req);
+    const scope = resolveAccessScope(req);
+    const companyId = scope.companyId;
     const { id } = idParams.parse(req.params);
     const body = updateUomSchema.parse({ ...req.body, id });
-    const service = new ProductService(companyId);
+    const service = new ProductService(companyId, scope);
     res.json(await service.updateUom(body));
   } catch (error) {
     next(error);
@@ -138,9 +149,10 @@ productsRouter.patch('/units-of-measure/:id', async (req, res, next) => {
 
 productsRouter.delete('/units-of-measure/:id', async (req, res, next) => {
   try {
-    const companyId = resolveCompanyId(req);
+    const scope = resolveAccessScope(req);
+    const companyId = scope.companyId;
     const { id } = idParams.parse(req.params);
-    const service = new ProductService(companyId);
+    const service = new ProductService(companyId, scope);
     await service.deleteUom(id);
     res.json({ ok: true });
   } catch (error) {
@@ -150,9 +162,10 @@ productsRouter.delete('/units-of-measure/:id', async (req, res, next) => {
 
 productsRouter.get('/:id', async (req, res, next) => {
   try {
-    const companyId = resolveCompanyId(req);
+    const scope = resolveAccessScope(req);
+    const companyId = scope.companyId;
     const { id } = idParams.parse(req.params);
-    const service = new ProductService(companyId);
+    const service = new ProductService(companyId, scope);
     const product = await service.getById(id);
     if (!product) {
       const error = new Error('Product not found.');
@@ -167,10 +180,11 @@ productsRouter.get('/:id', async (req, res, next) => {
 
 productsRouter.patch('/:id', async (req, res, next) => {
   try {
-    const companyId = resolveCompanyId(req);
+    const scope = resolveAccessScope(req);
+    const companyId = scope.companyId;
     const { id } = idParams.parse(req.params);
     const body = updateProductSchema.parse({ ...req.body, id });
-    const service = new ProductService(companyId);
+    const service = new ProductService(companyId, scope);
     res.json(await service.update(body));
   } catch (error) {
     next(error);
@@ -179,9 +193,10 @@ productsRouter.patch('/:id', async (req, res, next) => {
 
 productsRouter.patch('/:id/archive', async (req, res, next) => {
   try {
-    const companyId = resolveCompanyId(req);
+    const scope = resolveAccessScope(req);
+    const companyId = scope.companyId;
     const { id } = idParams.parse(req.params);
-    const service = new ProductService(companyId);
+    const service = new ProductService(companyId, scope);
     await service.archive(id);
     res.json({ ok: true });
   } catch (error) {
@@ -191,9 +206,10 @@ productsRouter.patch('/:id/archive', async (req, res, next) => {
 
 productsRouter.delete('/:id', async (req, res, next) => {
   try {
-    const companyId = resolveCompanyId(req);
+    const scope = resolveAccessScope(req);
+    const companyId = scope.companyId;
     const { id } = idParams.parse(req.params);
-    const service = new ProductService(companyId);
+    const service = new ProductService(companyId, scope);
     await service.delete(id);
     res.json({ ok: true });
   } catch (error) {

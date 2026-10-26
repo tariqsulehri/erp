@@ -16,7 +16,7 @@
  *   - Deactivate requires confirmation before executing
  */
 
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { IconArrowRight, IconBan, IconCheck, IconCopy, IconX } from '@tabler/icons-react';
 import {
@@ -67,8 +67,10 @@ function DetailsTab({ account, onSaved }: { account: AccountListItem; onSaved: (
   const [saveErr,     setSaveErr]     = useState('');
   const [confirmOpen, setConfirmOpen] = useState(false);
 
-  /* Reset when account changes */
-  useEffect(() => {
+  /* Reset the form when a different account is opened (React's "adjust state while rendering" pattern). */
+  const [loadedAccountId, setLoadedAccountId] = useState(account.id);
+  if (loadedAccountId !== account.id) {
+    setLoadedAccountId(account.id);
     setName(account.name);
     setDesc(account.description ?? '');
     setObAmount(account.opening_balance?.toString() ?? '');
@@ -77,7 +79,7 @@ function DetailsTab({ account, onSaved }: { account: AccountListItem; onSaved: (
       : '');
     setDirty(false);
     setSaveErr('');
-  }, [account.id]);
+  }
 
   const queryClient = useQueryClient();
 

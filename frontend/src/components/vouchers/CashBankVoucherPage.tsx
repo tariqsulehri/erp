@@ -2,18 +2,31 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import {
-  IconCalendarDollar,
-} from '@tabler/icons-react';
 import { formatMoney } from '@/lib/app-settings';
 import { useAccountsList } from '@/lib/api/accounts';
 import { useBankAccountsList } from '@/lib/api/bank-accounts';
 import { usePostingDateGuard } from '@/lib/api/fiscal-years';
 import { useGeneralSettings } from '@/lib/api/settings';
 import { useCreateVoucher, useUpdateVoucher, useVoucherDetail } from '@/lib/api/vouchers';
-import { FieldLabel, SearchableSelect, SummaryRow } from './VoucherControls';
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
+import { FieldLabel } from '@/components/ui/FieldLabel';
+import { DateField, NumericField, TextField } from '@/components/ui/FormFields';
+import { SearchableSelect } from '@/components/ui/SearchableSelect';
+import {
+  AddLineButton,
+  DocumentActions,
+  DocumentFormPanel,
+  DocumentHeader,
+  DocumentMessage,
+  DocumentPage,
+  DocumentStatusBadges,
+  DocumentSummary,
+  LineShortcutHint,
+  LinesPanel,
+  SummaryAmount,
+  useLineEntryKeyboard,
+} from '@/components/documents';
 import { CashBankVoucherLineTable, type CashBankVoucherLine } from './CashBankVoucherLineTable';
-import { VoucherActionButtons, VoucherLineSection, VoucherMessageBanner, VoucherPageHeader, VoucherSummaryFooter } from './VoucherLayout';
 import { useDefaultVoucherDate } from './VoucherFiscalDate';
 import { getBankAccountOptions, getCashAccountOptions, getVoucherLineAccountOptions, type VoucherAccountOption } from './VoucherAccountRules';
 import { buildCashBankVoucherLines } from './VoucherPayload';
@@ -21,8 +34,6 @@ import { saveVoucherDocument } from './VoucherSaveFlow';
 import { validateCashBankVoucher } from './VoucherValidation';
 import {
   amountValue,
-  compactInputStyle,
-  compactNumericInputStyle,
   friendlyErrorMessage,
   today,
   type VoucherMessageKind,
@@ -132,6 +143,7 @@ export default function CashBankVoucherPage({ voucherType }: { voucherType: Vouc
   const [lines, setLines] = useState<CashBankLine[]>(initialLines);
   const [nextLineId, setNextLineId] = useState(INITIAL_LINE_COUNT + 1);
   const [message, setMessage] = useState<{ kind: MessageKind; text: string } | null>(null);
+  const [processConfirmOpen, setProcessConfirmOpen] = useState(false);
   const postingDateGuard = usePostingDateGuard(voucherDate, config.dateLabel);
   const dateValidation = postingDateGuard.dateValidation;
   const isVoucherDateValid = postingDateGuard.dateIsValid;
@@ -151,8 +163,8 @@ export default function CashBankVoucherPage({ voucherType }: { voucherType: Vouc
   const updateVoucher = useUpdateVoucher();
   const detailQuery = useVoucherDetail(editingVoucherId ?? undefined);
 
-  const allAccounts = accountsQuery.data?.data ?? [];
-  const activeBankAccounts = bankAccountsQuery.data?.data ?? [];
+  const allAccounts = useMemo(() => accountsQuery.data?.data ?? [], [accountsQuery.data]);
+  const activeBankAccounts = useMemo(() => bankAccountsQuery.data?.data ?? [], [bankAccountsQuery.data]);
   const cashAccountOptions = useMemo(() => getCashAccountOptions(allAccounts), [allAccounts]);
   const bankAccountOptions = useMemo(() => getBankAccountOptions(activeBankAccounts), [activeBankAccounts]);
   const lineAccountOptions = useMemo(() => getVoucherLineAccountOptions(allAccounts, activeBankAccounts), [allAccounts, activeBankAccounts]);
@@ -177,6 +189,11 @@ export default function CashBankVoucherPage({ voucherType }: { voucherType: Vouc
   const primaryAccountsLoading = config.primaryAccountKind === 'Bank' ? bankAccountsQuery.isLoading : accountsQuery.isLoading;
   const primaryAccountsError = config.primaryAccountKind === 'Bank' ? bankAccountsQuery.error : accountsError;
   const actionDisabled = saving || accountsLoading || postingDateGuard.disabled || detailQuery.isLoading;
+  const lineKeyboard = useLineEntryKeyboard({
+    onSave: () => saveVoucher(false),
+    saveDisabled: actionDisabled,
+    onAddLine: addLine,
+  });
   const dateStatusMessage = postingDateGuard.isChecking ? `Checking ${config.dateLabel}...` : postingDateGuard.statusMessage;
 
   useEffect(() => {
@@ -316,6 +333,7 @@ export default function CashBankVoucherPage({ voucherType }: { voucherType: Vouc
   }
 
   async function saveVoucher(submitForApproval: boolean) {
+    setProcessConfirmOpen(false);
     setMessage(null);
     if (saving) {
       setMessage({ kind: 'error', text: 'Voucher is already being saved. Please wait.' });
@@ -366,15 +384,29 @@ export default function CashBankVoucherPage({ voucherType }: { voucherType: Vouc
     setMessage(result);
   }
 
+  /** Save For Approval: validate first, then ask for confirmation. */
+  function requestProcessConfirmation() {
+    setMessage(null);
+    if (saving) {
+      setMessage({ kind: 'error', text: 'Voucher is already being saved. Please wait.' });
+      return;
+    }
+    const error = validateForm();
+    if (error) {
+      setMessage({ kind: 'error', text: error });
+      return;
+    }
+    setProcessConfirmOpen(true);
+  }
+
 
   return (
-    <main style={{ height: '100%', minHeight: 0, boxSizing: 'border-box', padding: 10, display: 'flex', flexDirection: 'column', gap: 8, overflow: 'hidden' }}>
-      <VoucherPageHeader
+    <DocumentPage>
+      <DocumentHeader
         title={config.title}
-        badgeText={config.voucherType}
-        mode={editingVoucherId ? 'Edit' : 'Add'}
-        actions={
-          <VoucherActionButtons
+        badges={<DocumentStatusBadges code={config.voucherType} mode={editingVoucherId ? 'Edit' : 'Add'} />}
+        actions={(
+          <DocumentActions
             saving={saving}
             actionDisabled={actionDisabled}
             newDisabled={postingDateGuard.disabled}
@@ -385,37 +417,18 @@ export default function CashBankVoucherPage({ voucherType }: { voucherType: Vouc
             onCancel={() => resetForm()}
             onSaveDraft={() => saveVoucher(false)}
             processLabel="Save For Approval"
-            onProcess={() => saveVoucher(true)}
+            onProcess={requestProcessConfirmation}
           />
-        }
+        )}
       />
 
-      <VoucherMessageBanner message={message} />
+      <DocumentMessage message={message} onDismiss={() => setMessage(null)} />
 
-      <section className="workspace-card" style={{ padding: 10, flex: 1, minHeight: 0, display: 'grid', gridTemplateRows: 'auto auto auto auto 1fr auto', gap: 8, overflow: 'hidden' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: '120px 145px minmax(160px, 1fr) minmax(270px, 1.45fr) 145px', gap: 8, alignItems: 'end' }}>
-          <FieldLabel label={config.documentLabel}><input className="form-input" value={detailQuery.data?.voucher_number ?? 'Auto'} disabled style={compactInputStyle} /></FieldLabel>
-          <FieldLabel label={config.dateLabel} required>
-            <div style={{ position: 'relative' }}>
-              <IconCalendarDollar size={15} style={{ position: 'absolute', left: 8, top: 7, color: 'var(--color-text-muted)' }} />
-              <input
-                className="form-input"
-                type="date"
-                value={voucherDate}
-                onChange={event => setVoucherDate(event.currentTarget.value)}
-                style={{ ...compactInputStyle, paddingLeft: 28 }}
-              />
-            </div>
-          </FieldLabel>
-          <FieldLabel label="Reference Number">
-            <input
-              className="form-input"
-              value={referenceNumber}
-              onChange={event => setReferenceNumber(event.currentTarget.value)}
-              placeholder="Reference, Note, or Document No."
-              style={compactInputStyle}
-            />
-          </FieldLabel>
+      <DocumentFormPanel columns={6} statusMessage={dateStatusMessage}>
+        <TextField label={config.documentLabel} value={detailQuery.data?.voucher_number ?? 'Auto'} disabled />
+        <DateField label={config.dateLabel} required value={voucherDate} onChange={setVoucherDate} />
+        <TextField label="Reference Number" value={referenceNumber} onChange={setReferenceNumber} placeholder="Reference, Note, or Document No." />
+        <div className="span-2">
           <FieldLabel label={config.primaryAccountLabel} required>
             <SearchableSelect
               value={primaryAccountId}
@@ -425,67 +438,51 @@ export default function CashBankVoucherPage({ voucherType }: { voucherType: Vouc
               disabled={primaryAccountsLoading || Boolean(primaryAccountsError)}
             />
           </FieldLabel>
-          <FieldLabel label="Current Balance"><input className="form-input" value={money(currentBalance)} disabled style={compactNumericInputStyle} /></FieldLabel>
         </div>
-
-        <div style={{ display: 'grid', gridTemplateColumns: '130px minmax(160px, 1fr)', gap: 8, alignItems: 'end' }}>
-          <FieldLabel label="Attachments">
-            <input className="form-input" value="0 Files" disabled style={compactInputStyle} />
-          </FieldLabel>
-          <div style={{ color: 'var(--color-text-muted)', fontSize: 'var(--font-size-xs)', lineHeight: 1.2, alignSelf: 'center' }}>
-            Attachments and approval history will use the shared transaction workflow area.
-          </div>
+        <NumericField label="Current Balance" value={money(currentBalance)} disabled />
+        <div className="span-3">
+          <TextField label="Voucher Details" required value={description} onChange={setDescription} placeholder={config.detailsPlaceholder} />
         </div>
+        <TextField label="Attachments" value="0 Files" disabled hint="Attachments and approval history will use the shared transaction workflow area." />
+      </DocumentFormPanel>
 
-        <div
-          style={{
-            minHeight: dateStatusMessage ? 16 : 0,
-            display: 'flex',
-            alignItems: 'center',
-            border: 'none',
-            background: 'transparent',
-            color: 'var(--color-danger-text)',
-            fontWeight: 500,
-            fontSize: 'var(--font-size-xs)',
-            lineHeight: 1.2,
-            padding: 0,
-            overflow: 'hidden',
-          }}
-        >
-          {dateStatusMessage}
-        </div>
+      <LinesPanel
+        title={config.linesTitle}
+        hint={<LineShortcutHint mode="grid" />}
+        actions={<AddLineButton onClick={addLine} />}
+        linesRef={lineKeyboard.linesRef}
+        onKeyDown={lineKeyboard.onLinesKeyDown}
+        summary={(
+          <DocumentSummary countLabel="Active Lines" count={enteredLines.length}>
+            <SummaryAmount label={config.totalLabel} value={money(totalAmount)} strong={totalAmount > 0} />
+            <SummaryAmount label={`${config.primaryAccountKind} Line`} value={money(totalAmount)} />
+            <SummaryAmount label="Difference" value={money(difference)} danger={difference > 0} />
+          </DocumentSummary>
+        )}
+      >
+        <CashBankVoucherLineTable
+          config={config}
+          lines={lines}
+          accountOptions={lineAccountOptions}
+          accountsLoading={accountsLoading}
+          accountsError={Boolean(accountsError)}
+          generalSettings={generalSettings}
+          onUpdateLine={updateLine}
+          onRemoveLine={removeLine}
+        />
+      </LinesPanel>
 
-        <div>
-          <FieldLabel label="Voucher Details" required>
-            <input
-              className="form-input"
-              value={description}
-              onChange={event => setDescription(event.currentTarget.value)}
-              placeholder={config.detailsPlaceholder}
-              style={compactInputStyle}
-            />
-          </FieldLabel>
-        </div>
-
-        <VoucherLineSection title={config.linesTitle} onAddLine={addLine}>
-          <CashBankVoucherLineTable
-            config={config}
-            lines={lines}
-            accountOptions={lineAccountOptions}
-            accountsLoading={accountsLoading}
-            accountsError={Boolean(accountsError)}
-            generalSettings={generalSettings}
-            onUpdateLine={updateLine}
-            onRemoveLine={removeLine}
-          />
-        </VoucherLineSection>
-
-        <VoucherSummaryFooter activeLines={enteredLines.length}>
-          <SummaryRow label={config.totalLabel} value={totalAmount} strong={totalAmount > 0} width={126} formatMoneyValue={money} />
-          <SummaryRow label={`${config.primaryAccountKind} Line`} value={totalAmount} width={126} formatMoneyValue={money} />
-          <SummaryRow label="Difference" value={difference} danger={difference > 0} width={126} formatMoneyValue={money} />
-        </VoucherSummaryFooter>
-      </section>
-    </main>
+      <ConfirmDialog
+        open={processConfirmOpen}
+        title={`Save ${config.title} For Approval?`}
+        message={`This saves the ${config.title} (${money(totalAmount)}) and sends it for approval. It is posted after approval.`}
+        confirmLabel="Yes, Save For Approval"
+        cancelLabel="No"
+        variant="warning"
+        loading={saving}
+        onConfirm={() => saveVoucher(true)}
+        onCancel={() => setProcessConfirmOpen(false)}
+      />
+    </DocumentPage>
   );
 }

@@ -84,6 +84,9 @@ type PostingAccountForm = {
     adjustment_gain_account_id: string;
     adjustment_loss_account_id: string;
   };
+  year_end: {
+    retained_earnings_account_id: string;
+  };
 };
 
 type PostingAccountSectionKey = keyof PostingAccountForm;
@@ -200,6 +203,9 @@ function postingAccountFormFromSettings(settings: PostingAccountSettings): Posti
       adjustment_gain_account_id: settings.stock_adjustment?.adjustment_gain_account_id ?? '',
       adjustment_loss_account_id: settings.stock_adjustment?.adjustment_loss_account_id ?? '',
     },
+    year_end: {
+      retained_earnings_account_id: settings.year_end?.retained_earnings_account_id ?? '',
+    },
   };
 }
 
@@ -236,6 +242,7 @@ function isRelevantPostingAccount(account: AccountListItem, field: PostingAccoun
 function categoryLabel(prefix: string) {
   if (prefix.startsWith('01')) return `Asset ${prefix}`;
   if (prefix.startsWith('02')) return `Liability ${prefix}`;
+  if (prefix.startsWith('03')) return `Equity ${prefix}`;
   if (prefix.startsWith('04')) return `Revenue ${prefix}`;
   if (prefix.startsWith('05')) return `Expense ${prefix}`;
   return prefix;
@@ -409,6 +416,20 @@ const STOCK_ADJUSTMENT_POSTING_FIELDS: PostingAccountField[] = [
   },
 ];
 
+const YEAR_END_POSTING_FIELDS: PostingAccountField[] = [
+  {
+    section: 'year_end',
+    idKey: 'retained_earnings_account_id',
+    codeKey: 'retained_earnings_account_code',
+    nameKey: 'retained_earnings_account_name',
+    label: 'Retained Earnings Account',
+    hint: 'Receives the yearly profit or loss when a Fiscal Year is closed',
+    accountTypes: ['Equity'],
+    accountCodePrefixes: ['0302'],
+    required: true,
+  },
+];
+
 /* ── Regional Settings tab ─────────────────────────────────────────── */
 function RegionalTab({ settings }: { settings: any }) {
   const [form, setForm] = useState({
@@ -445,7 +466,7 @@ function RegionalTab({ settings }: { settings: any }) {
     setDirty(false);
     setSaved(false);
     setError('');
-  }, [settings?.id]);
+  }, [settings]);
 
   const mutation = useUpdateGeneralSettings();
 
@@ -637,7 +658,7 @@ function CompanyTab({ company }: { company: any }) {
   const [saved, setSaved]   = useState(false);
   const [error, setError]   = useState('');
 
-  useEffect(() => { setForm({ ...company }); setDirty(false); }, [company?.id]);
+  useEffect(() => { setForm({ ...company }); setDirty(false); }, [company]);
 
   const mutation = useUpdateCompanyProfile();
 
@@ -727,7 +748,7 @@ function AccountingTab({ company }: { company: any }) {
     setFyBasis(company.fiscal_year_basis ?? 'calendar');
     setPeriods(String(company.number_of_periods ?? 12));
     setDirty(false);
-  }, [company?.id]);
+  }, [company?.id, company?.fiscal_year_basis, company?.number_of_periods]);
 
   const mutation = useUpdateCompanyProfile();
 
@@ -844,6 +865,7 @@ function PostingAccountsTab() {
     ...PURCHASE_POSTING_FIELDS,
     ...SALES_POSTING_FIELDS,
     ...STOCK_ADJUSTMENT_POSTING_FIELDS,
+    ...YEAR_END_POSTING_FIELDS,
   ];
   const missingRequiredFields = form
     ? allFields.filter(field => field.required && !postingFieldValue(form, field).trim())
@@ -916,7 +938,7 @@ function PostingAccountsTab() {
     </Button>
   );
 
-  const panelDescription = 'Used automatically when Purchase, Sales, Returns, and Stock Adjustment documents are posted.';
+  const panelDescription = 'Used automatically when Purchase, Sales, Returns, and Stock Adjustment documents are posted, and when a Fiscal Year is closed.';
 
   if (settingsQuery.error) {
     return (
@@ -949,6 +971,7 @@ function PostingAccountsTab() {
       {renderSection('Purchase Posting Accounts', 'Default accounts used by purchase invoices and purchase returns.', PURCHASE_POSTING_FIELDS, true)}
       {renderSection('Sales Posting Accounts', 'Default accounts used by sale invoices and sale returns.', SALES_POSTING_FIELDS)}
       {renderSection('Stock Adjustment Posting Accounts', 'Default accounts used when stock value increases or decreases.', STOCK_ADJUSTMENT_POSTING_FIELDS)}
+      {renderSection('Year-End Closing Account', 'Used when a Fiscal Year is closed to move the year profit or loss into equity.', YEAR_END_POSTING_FIELDS)}
     </SettingsPanel>
   );
 }

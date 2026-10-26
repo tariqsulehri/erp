@@ -20,7 +20,7 @@ function dateTextOrNull(value?: string | Date | null) {
 }
 
 function userIdOrNull(userId?: string | null) {
-  return userId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userId) ? userId : null;
+  return userId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userId) ? userId : null;
 }
 
 export class BankAccountService {

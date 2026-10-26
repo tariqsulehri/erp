@@ -24,6 +24,7 @@ import { PageHeader } from '@/components/ui/PageHeader';
 import { SegmentedControl } from '@/components/ui/SegmentedControl';
 import { SidePanel } from '@/components/ui/SidePanel';
 import { TableMessageRow } from '@/components/ui/TableMessageRow';
+import { friendlyErrorMessage } from '@/lib/erp-utils';
 
 /* Types / constants */
 interface UomRow {
@@ -54,7 +55,7 @@ export default function UomPage() {
   const queryClient = useQueryClient();
 
   /* Queries / mutations */
-  const { data: uoms = [], isLoading } = useProductUnitsOfMeasure();
+  const { data: uoms = [], isLoading, error: loadError, refetch } = useProductUnitsOfMeasure();
   const refreshUom = () => queryClient.invalidateQueries({ queryKey: productsQueryKey });
 
   const createMut = useCreateProductUom();
@@ -144,7 +145,10 @@ export default function UomPage() {
               </thead>
               <tbody>
                 {isLoading && <TableMessageRow colSpan={5} title="Loading Units…" loading />}
-                {!isLoading && filtered.length === 0 && (
+                {!isLoading && loadError && (
+                  <TableMessageRow colSpan={5} title="Units Could Not Be Loaded" description={friendlyErrorMessage(loadError, 'Please check your connection and try again.')} action={<Button onClick={() => refetch()}>Try Again</Button>} />
+                )}
+                {!isLoading && !loadError && filtered.length === 0 && (
                   typeFilter
                     ? <TableMessageRow colSpan={5} title={`No ${typeFilter} Units`} description="Choose All or a different Type to see more Units." />
                     : <TableMessageRow colSpan={5} title="No Units Yet" description="Add your first Unit Of Measure, such as Piece or Kilogram." action={<Button variant="primary" icon={<IconPlus size={16} stroke={1.8} />} onClick={openNew}>New Unit</Button>} />

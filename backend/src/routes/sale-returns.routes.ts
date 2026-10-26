@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { resolveCompanyId } from '../http/company-context.js';
+import { currentUserId, resolveAccessScope } from '../http/access-context.js';
+import { resolveSellingBranchId } from '../modules/inventory/stock-holder-access.js';
 import { SaleReturnDetailService } from '../modules/sale-returns/sale-return-detail.service.js';
 import { SaleReturnDraftService } from '../modules/sale-returns/sale-return-draft.service.js';
 import { ListSaleReturnsQuery, SaleReturnListService } from '../modules/sale-returns/sale-return-list.service.js';
@@ -14,11 +15,22 @@ const saleReturnIdParams = z.object({
   id: z.string().uuid(),
 });
 
+const supportDataQuery = z.object({
+  branch_id: z.string().uuid().optional(),
+});
+
+/** Sale Returns come back to a Branch: Branch users always get their own Branch, whatever the request says. */
+function saleReturnInputFor(req: Parameters<typeof resolveAccessScope>[0]) {
+  const scope = resolveAccessScope(req);
+  const input = ValidateSaleReturnInput.parse(req.body);
+  return { scope, input: { ...input, branch_id: resolveSellingBranchId(scope, input.branch_id, 'Sale Return') } };
+}
+
 saleReturnsRouter.get('/', async (req, res, next) => {
   try {
-    const companyId = resolveCompanyId(req);
+    const scope = resolveAccessScope(req);
     const query = ListSaleReturnsQuery.parse(req.query);
-    const service = new SaleReturnListService(companyId);
+    const service = new SaleReturnListService(scope.companyId, scope);
     res.json(await service.list(query));
   } catch (error) {
     next(error);
@@ -27,9 +39,10 @@ saleReturnsRouter.get('/', async (req, res, next) => {
 
 saleReturnsRouter.get('/support-data', async (req, res, next) => {
   try {
-    const companyId = resolveCompanyId(req);
-    const service = new SaleSupportService(companyId);
-    res.json(await service.getSupportData());
+    const scope = resolveAccessScope(req);
+    const { branch_id } = supportDataQuery.parse(req.query);
+    const service = new SaleSupportService(scope.companyId);
+    res.json(await service.getSupportData(scope, branch_id ?? null));
   } catch (error) {
     next(error);
   }
@@ -37,9 +50,8 @@ saleReturnsRouter.get('/support-data', async (req, res, next) => {
 
 saleReturnsRouter.post('/validate', async (req, res, next) => {
   try {
-    const companyId = resolveCompanyId(req);
-    const input = ValidateSaleReturnInput.parse(req.body);
-    const service = new SaleReturnValidationService(companyId);
+    const { scope, input } = saleReturnInputFor(req);
+    const service = new SaleReturnValidationService(scope.companyId);
     res.json(await service.validate(input));
   } catch (error) {
     next(error);
@@ -48,10 +60,9 @@ saleReturnsRouter.post('/validate', async (req, res, next) => {
 
 saleReturnsRouter.post('/drafts', async (req, res, next) => {
   try {
-    const companyId = resolveCompanyId(req);
-    const input = ValidateSaleReturnInput.parse(req.body);
-    const service = new SaleReturnDraftService(companyId);
-    res.status(201).json(await service.createDraft(input, req.header('x-user-id')));
+    const { scope, input } = saleReturnInputFor(req);
+    const service = new SaleReturnDraftService(scope.companyId);
+    res.status(201).json(await service.createDraft(input, currentUserId(req)));
   } catch (error) {
     next(error);
   }
@@ -59,13 +70,12 @@ saleReturnsRouter.post('/drafts', async (req, res, next) => {
 
 saleReturnsRouter.post('/create-and-post', async (req, res, next) => {
   try {
-    const companyId = resolveCompanyId(req);
-    const input = ValidateSaleReturnInput.parse(req.body);
-    const userId = req.header('x-user-id');
-    const draftService = new SaleReturnDraftService(companyId);
-    const postService = new SaleReturnPostService(companyId);
+    const { scope, input } = saleReturnInputFor(req);
+    const userId = currentUserId(req);
+    const draftService = new SaleReturnDraftService(scope.companyId);
+    const postService = new SaleReturnPostService(scope.companyId);
     const draft = await draftService.createDraft(input, userId);
-    res.status(201).json(await postService.post(draft.id, userId));
+    res.status(201).json(await postService.post(draft.id, userId, scope));
   } catch (error) {
     next(error);
   }
@@ -73,10 +83,10 @@ saleReturnsRouter.post('/create-and-post', async (req, res, next) => {
 
 saleReturnsRouter.post('/:id/post', async (req, res, next) => {
   try {
-    const companyId = resolveCompanyId(req);
+    const scope = resolveAccessScope(req);
     const { id } = saleReturnIdParams.parse(req.params);
-    const service = new SaleReturnPostService(companyId);
-    res.json(await service.post(id, req.header('x-user-id')));
+    const service = new SaleReturnPostService(scope.companyId);
+    res.json(await service.post(id, currentUserId(req), scope));
   } catch (error) {
     next(error);
   }
@@ -84,9 +94,9 @@ saleReturnsRouter.post('/:id/post', async (req, res, next) => {
 
 saleReturnsRouter.get('/:id', async (req, res, next) => {
   try {
-    const companyId = resolveCompanyId(req);
+    const scope = resolveAccessScope(req);
     const { id } = saleReturnIdParams.parse(req.params);
-    const service = new SaleReturnDetailService(companyId);
+    const service = new SaleReturnDetailService(scope.companyId, scope);
     res.json(await service.getById(id));
   } catch (error) {
     next(error);

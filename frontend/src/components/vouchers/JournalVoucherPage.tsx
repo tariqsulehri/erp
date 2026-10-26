@@ -2,24 +2,38 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import {
-  IconCalendarDollar,
-} from '@tabler/icons-react';
-import { formatMoney } from '@/lib/app-settings';
+import { formatDate, formatMoney } from '@/lib/app-settings';
 import { useAccountsList } from '@/lib/api/accounts';
 import { usePostingDateGuard } from '@/lib/api/fiscal-years';
 import { useGeneralSettings } from '@/lib/api/settings';
 import { useCreateVoucher, useUpdateVoucher, useVoucherDetail } from '@/lib/api/vouchers';
-import { FieldLabel, SummaryRow, type VoucherSelectOption } from './VoucherControls';
+import { DateField, TextField } from '@/components/ui/FormFields';
+import type { SelectOption as VoucherSelectOption } from '@/components/ui/SearchableSelect';
+import {
+  AddLineButton,
+  DetailFields,
+  DocumentActions,
+  DocumentFormPanel,
+  DocumentHeader,
+  DocumentMessage,
+  DocumentPage,
+  DocumentReviewDialog,
+  DocumentStatusBadges,
+  DocumentSummary,
+  LineShortcutHint,
+  LinesPanel,
+  LinesTable,
+  SummaryAmount,
+  useLineEntryKeyboard,
+} from '@/components/documents';
+import styles from '@/components/documents/documents.module.css';
 import { JournalVoucherLineTable, type JournalVoucherLine } from './JournalVoucherLineTable';
-import { VoucherActionButtons, VoucherLineSection, VoucherMessageBanner, VoucherPageHeader, VoucherSummaryFooter } from './VoucherLayout';
 import { useDefaultVoucherDate } from './VoucherFiscalDate';
 import { buildJournalVoucherLines } from './VoucherPayload';
 import { saveVoucherDocument } from './VoucherSaveFlow';
 import { validateJournalVoucher } from './VoucherValidation';
 import {
   amountValue,
-  compactInputStyle,
   friendlyErrorMessage,
   today,
   type VoucherMessageKind,
@@ -268,6 +282,13 @@ export default function JournalVoucherPage() {
     setMessage(result);
   }
 
+  const lineKeyboard = useLineEntryKeyboard({
+    onSave: () => saveVoucher(false),
+    saveDisabled: actionDisabled,
+    onAddLine: addLine,
+  });
+
+  /** Save For Approval: validate, then show the review dialog before saving. */
   function reviewVoucher() {
     setMessage(null);
     if (saving) {
@@ -283,13 +304,12 @@ export default function JournalVoucherPage() {
   }
 
   return (
-    <main style={{ height: '100%', minHeight: 0, boxSizing: 'border-box', padding: 10, display: 'flex', flexDirection: 'column', gap: 8, overflow: 'hidden' }}>
-      <VoucherPageHeader
+    <DocumentPage>
+      <DocumentHeader
         title="Journal Voucher"
-        badgeText="JV"
-        mode={editingVoucherId ? 'Edit' : 'Add'}
-        actions={
-          <VoucherActionButtons
+        badges={<DocumentStatusBadges code="JV" mode={editingVoucherId ? 'Edit' : 'Add'} />}
+        actions={(
+          <DocumentActions
             saving={saving}
             actionDisabled={actionDisabled}
             newDisabled={postingDateGuard.disabled}
@@ -300,117 +320,70 @@ export default function JournalVoucherPage() {
             onCancel={() => resetForm()}
             onSaveDraft={() => saveVoucher(false)}
             processLabel="Save For Approval"
-            onProcess={() => saveVoucher(true)}
+            onProcess={reviewVoucher}
           />
-        }
+        )}
       />
 
-      <VoucherMessageBanner message={message} />
+      <DocumentMessage message={message} onDismiss={() => setMessage(null)} />
 
-      <section className="workspace-card" style={{ padding: 10, flex: 1, minHeight: 0, display: 'grid', gridTemplateRows: 'auto auto auto auto 1fr auto', gap: 8, overflow: 'hidden' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: '120px 145px minmax(190px, 1fr)', gap: 8, alignItems: 'end' }}>
-          <FieldLabel label="Voucher Number"><input className="form-input" value={detailQuery.data?.voucher_number ?? 'Auto'} disabled style={compactInputStyle} /></FieldLabel>
-          <FieldLabel label="Voucher Date" required>
-            <div style={{ position: 'relative' }}>
-              <IconCalendarDollar size={15} style={{ position: 'absolute', left: 8, top: 7, color: 'var(--color-text-muted)' }} />
-              <input
-                className="form-input"
-                type="date"
-                value={voucherDate}
-                onChange={event => setVoucherDate(event.currentTarget.value)}
-                style={{ ...compactInputStyle, paddingLeft: 28 }}
-              />
-            </div>
-          </FieldLabel>
-          <FieldLabel label="Reference Number">
-            <input
-              className="form-input"
-              value={referenceNumber}
-              onChange={event => setReferenceNumber(event.currentTarget.value)}
-              placeholder="Reference, Note, or Document No."
-              style={compactInputStyle}
-            />
-          </FieldLabel>
+      <DocumentFormPanel columns={6} statusMessage={dateStatusMessage}>
+        <TextField label="Voucher Number" value={detailQuery.data?.voucher_number ?? 'Auto'} disabled />
+        <DateField label="Voucher Date" required value={voucherDate} onChange={setVoucherDate} />
+        <div className="span-3">
+          <TextField label="Reference Number" value={referenceNumber} onChange={setReferenceNumber} placeholder="Reference, Note, or Document No." />
         </div>
-
-        <div style={{ display: 'grid', gridTemplateColumns: '130px minmax(160px, 1fr)', gap: 8, alignItems: 'end' }}>
-          <FieldLabel label="Attachments">
-            <input className="form-input" value="0 Files" disabled style={compactInputStyle} />
-          </FieldLabel>
-          <div style={{ color: 'var(--color-text-muted)', fontSize: 'var(--font-size-xs)', lineHeight: 1.2, alignSelf: 'center' }}>
-            Attachments and approval history will use the shared transaction workflow area.
-          </div>
+        <TextField label="Attachments" value="0 Files" disabled hint="Attachments and approval history will use the shared transaction workflow area." />
+        <div className="span-all">
+          <TextField label="Voucher Details" value={description} onChange={setDescription} placeholder="Optional Description For This Journal Voucher" />
         </div>
+      </DocumentFormPanel>
 
-        <div
-          style={{
-            minHeight: dateStatusMessage ? 16 : 0,
-            display: 'flex',
-            alignItems: 'center',
-            border: 'none',
-            background: 'transparent',
-            color: 'var(--color-danger-text)',
-            fontWeight: 500,
-            fontSize: 'var(--font-size-xs)',
-            lineHeight: 1.2,
-            padding: 0,
-            overflow: 'hidden',
-          }}
-        >
-          {dateStatusMessage}
-        </div>
-
-        <div>
-          <FieldLabel label="Voucher Details">
-            <input
-              className="form-input"
-              value={description}
-              onChange={event => setDescription(event.currentTarget.value)}
-              placeholder="Optional Description For This Journal Voucher"
-              style={compactInputStyle}
-            />
-          </FieldLabel>
-        </div>
-
-        <VoucherLineSection title="Journal Lines" onAddLine={addLine}>
-          <JournalVoucherLineTable
-            lines={lines}
-            accountOptions={accountOptions}
-            accountsLoading={accountsQuery.isLoading}
-            accountsError={accountsQuery.isError}
-            generalSettings={generalSettings}
-            onUpdateLine={updateLine}
-            onRemoveLine={removeLine}
-          />
-        </VoucherLineSection>
-
-        <VoucherSummaryFooter activeLines={activeLines.length}>
-          <SummaryRow label="Debit Total" value={totalDebit} strong={isBalanced} formatMoneyValue={money} />
-          <SummaryRow label="Credit Total" value={totalCredit} strong={isBalanced} formatMoneyValue={money} />
-          <SummaryRow label="Out Of Balance" value={outOfBalance} danger={!isBalanced && outOfBalance > 0} formatMoneyValue={money} />
-        </VoucherSummaryFooter>
-      </section>
-
-      {reviewOpen && (
-        <JournalVoucherReviewDialog
-          voucherDate={voucherDate}
-          referenceNumber={referenceNumber}
-          description={description}
-          lines={enteredLines}
+      <LinesPanel
+        title="Journal Lines"
+        hint={<LineShortcutHint mode="grid" />}
+        actions={<AddLineButton onClick={addLine} />}
+        linesRef={lineKeyboard.linesRef}
+        onKeyDown={lineKeyboard.onLinesKeyDown}
+        summary={(
+          <DocumentSummary countLabel="Active Lines" count={activeLines.length}>
+            <SummaryAmount label="Debit Total" value={money(totalDebit)} strong={isBalanced} />
+            <SummaryAmount label="Credit Total" value={money(totalCredit)} strong={isBalanced} />
+            <SummaryAmount label="Out Of Balance" value={money(outOfBalance)} danger={!isBalanced && outOfBalance > 0} />
+          </DocumentSummary>
+        )}
+      >
+        <JournalVoucherLineTable
+          lines={lines}
           accountOptions={accountOptions}
-          totalDebit={totalDebit}
-          totalCredit={totalCredit}
+          accountsLoading={accountsQuery.isLoading}
+          accountsError={accountsQuery.isError}
           generalSettings={generalSettings}
-          saving={saving}
-          onClose={() => setReviewOpen(false)}
-          onPost={() => saveVoucher(true)}
+          onUpdateLine={updateLine}
+          onRemoveLine={removeLine}
         />
-      )}
-    </main>
+      </LinesPanel>
+
+      <JournalVoucherReviewDialog
+        open={reviewOpen}
+        voucherDate={voucherDate}
+        referenceNumber={referenceNumber}
+        description={description}
+        lines={enteredLines}
+        accountOptions={accountOptions}
+        totalDebit={totalDebit}
+        totalCredit={totalCredit}
+        generalSettings={generalSettings}
+        saving={saving}
+        onClose={() => setReviewOpen(false)}
+        onPost={() => saveVoucher(true)}
+      />
+    </DocumentPage>
   );
 }
 
 function JournalVoucherReviewDialog({
+  open,
   voucherDate,
   referenceNumber,
   description,
@@ -423,6 +396,7 @@ function JournalVoucherReviewDialog({
   onClose,
   onPost,
 }: {
+  open: boolean;
   voucherDate: string;
   referenceNumber: string;
   description: string;
@@ -435,176 +409,63 @@ function JournalVoucherReviewDialog({
   onClose: () => void;
   onPost: () => void;
 }) {
-  const accountName = (accountId: string) => accountOptions.find(account => account.value === accountId)?.label ?? 'Account not found';
+  const accountName = (accountId: string) => accountOptions.find(account => account.value === accountId)?.label ?? 'Account Not Found';
+  const amount = (value: string) => (amountValue(value) ? formatMoney(amountValue(value), generalSettings) : '');
   return (
-    <div style={reviewOverlayStyle} role="dialog" aria-modal="true" aria-label="Review Journal Voucher">
-      <button type="button" aria-label="Close Review" style={reviewBackdropStyle} onClick={onClose} />
-      <section style={reviewDialogStyle}>
-        <div style={reviewHeaderStyle}>
-          <div>
-            <h2 style={reviewTitleStyle}>Review Journal Voucher</h2>
-            <p style={reviewSubtitleStyle}>Confirm the accounting entry before posting.</p>
-          </div>
-          <button type="button" className="btn-secondary" onClick={onClose} disabled={saving} style={compactInputStyle}>Close</button>
-        </div>
-
-        <div style={reviewMetaGridStyle}>
-          <ReviewMeta label="Voucher Date" value={voucherDate} />
-          <ReviewMeta label="Reference Number" value={referenceNumber || '-'} />
-          <ReviewMeta label="Voucher Details" value={description} wide />
-        </div>
-
-        <div style={reviewTableWrapStyle}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 760 }}>
-            <thead>
-              <tr>
-                {['No.', 'Account', 'Description', 'Debit', 'Credit'].map(header => (
-                  <th key={header} style={header === 'Debit' || header === 'Credit' ? { ...reviewHeadStyle, textAlign: 'right' } : reviewHeadStyle}>{header}</th>
-                ))}
+    <DocumentReviewDialog
+      open={open}
+      title="Review Journal Voucher"
+      description="Check the accounting entry, then save it for approval."
+      confirmLabel="Save For Approval"
+      saving={saving}
+      onConfirm={onPost}
+      onClose={onClose}
+    >
+      <DetailFields
+        items={[
+          ['Voucher Date', formatDate(voucherDate, generalSettings)],
+          ['Reference Number', referenceNumber],
+          ['Voucher Details', description],
+        ]}
+      />
+      <div className={styles.reviewTable}>
+        <LinesTable>
+          <colgroup>
+            <col style={{ width: 52 }} />
+            <col style={{ width: '34%' }} />
+            <col />
+            <col style={{ width: 130 }} />
+            <col style={{ width: 130 }} />
+          </colgroup>
+          <thead>
+            <tr>
+              <th className="num">No.</th>
+              <th>Account</th>
+              <th>Description</th>
+              <th className="num">Debit</th>
+              <th className="num">Credit</th>
+            </tr>
+          </thead>
+          <tbody>
+            {lines.map((line, index) => (
+              <tr key={line.id}>
+                <td className="num cell-muted">{index + 1}</td>
+                <td title={accountName(line.accountId)}>{accountName(line.accountId)}</td>
+                <td>{line.description || description}</td>
+                <td className="num">{amount(line.debit)}</td>
+                <td className="num">{amount(line.credit)}</td>
               </tr>
-            </thead>
-            <tbody>
-              {lines.map((line, index) => (
-                <tr key={line.id}>
-                  <td style={reviewCellStyle}>{index + 1}</td>
-                  <td style={reviewCellStyle}>{accountName(line.accountId)}</td>
-                  <td style={reviewCellStyle}>{line.description || description}</td>
-                  <td style={{ ...reviewCellStyle, textAlign: 'right', fontVariantNumeric: 'tabular-nums', fontWeight: 500 }}>{amountValue(line.debit) ? formatMoney(amountValue(line.debit), generalSettings) : '-'}</td>
-                  <td style={{ ...reviewCellStyle, textAlign: 'right', fontVariantNumeric: 'tabular-nums', fontWeight: 500 }}>{amountValue(line.credit) ? formatMoney(amountValue(line.credit), generalSettings) : '-'}</td>
-                </tr>
-              ))}
-            </tbody>
-            <tfoot>
-              <tr>
-                <td colSpan={3} style={reviewTotalCellStyle}>Totals</td>
-                <td style={reviewTotalAmountStyle}>{formatMoney(totalDebit, generalSettings)}</td>
-                <td style={reviewTotalAmountStyle}>{formatMoney(totalCredit, generalSettings)}</td>
-              </tr>
-            </tfoot>
-          </table>
-        </div>
-
-        <div style={reviewFooterStyle}>
-          <button type="button" className="btn-secondary" onClick={onClose} disabled={saving} style={compactInputStyle}>Back To Edit</button>
-          <button type="button" className="btn-primary" onClick={onPost} disabled={saving} style={compactInputStyle}>
-            {saving ? 'Saving...' : 'Save For Approval'}
-          </button>
-        </div>
-      </section>
-    </div>
+            ))}
+          </tbody>
+          <tfoot>
+            <tr>
+              <td colSpan={3} className="num">Totals</td>
+              <td className="num">{formatMoney(totalDebit, generalSettings)}</td>
+              <td className="num">{formatMoney(totalCredit, generalSettings)}</td>
+            </tr>
+          </tfoot>
+        </LinesTable>
+      </div>
+    </DocumentReviewDialog>
   );
 }
-
-function ReviewMeta({ label, value, wide = false }: { label: string; value: string; wide?: boolean }) {
-  return (
-    <div style={wide ? { ...reviewMetaItemStyle, gridColumn: '1 / -1' } : reviewMetaItemStyle}>
-      <span style={reviewMetaLabelStyle}>{label}</span>
-      <strong style={reviewMetaValueStyle}>{value}</strong>
-    </div>
-  );
-}
-
-const reviewOverlayStyle: React.CSSProperties = {
-  position: 'fixed',
-  inset: 0,
-  zIndex: 90,
-};
-const reviewBackdropStyle: React.CSSProperties = {
-  position: 'absolute',
-  inset: 0,
-  border: 'none',
-  background: 'var(--color-scrim)',
-};
-const reviewDialogStyle: React.CSSProperties = {
-  position: 'absolute',
-  top: '50%',
-  left: '50%',
-  transform: 'translate(-50%, -50%)',
-  width: 'min(980px, 94vw)',
-  maxHeight: '88vh',
-  background: 'var(--color-surface)',
-  border: '1px solid var(--color-border)',
-  boxShadow: 'var(--shadow-overlay)',
-  display: 'grid',
-  gridTemplateRows: 'auto auto 1fr auto',
-  overflow: 'hidden',
-};
-const reviewHeaderStyle: React.CSSProperties = {
-  display: 'flex',
-  justifyContent: 'space-between',
-  gap: 10,
-  alignItems: 'center',
-  padding: '12px 14px',
-  borderBottom: '1px solid var(--color-border)',
-};
-const reviewTitleStyle: React.CSSProperties = {
-  margin: 0,
-  color: 'var(--color-heading)',
-  fontSize: 'var(--font-size-lg)',
-  fontWeight: 600,
-};
-const reviewSubtitleStyle: React.CSSProperties = {
-  margin: '3px 0 0',
-  color: 'var(--color-text-muted)',
-  fontSize: 'var(--font-size-xs)',
-  fontWeight: 600,
-};
-const reviewMetaGridStyle: React.CSSProperties = {
-  display: 'grid',
-  gridTemplateColumns: '140px minmax(180px, 1fr)',
-  gap: 8,
-  padding: 12,
-  borderBottom: '1px solid var(--color-border-subtle)',
-};
-const reviewMetaItemStyle: React.CSSProperties = {
-  display: 'grid',
-  gap: 3,
-};
-const reviewMetaLabelStyle: React.CSSProperties = {
-  color: 'var(--color-text-muted)',
-  fontSize: 'var(--font-size-xs)',
-  fontWeight: 600,
-};
-const reviewMetaValueStyle: React.CSSProperties = {
-  color: 'var(--color-heading)',
-  fontSize: 'var(--font-size-sm)',
-  fontWeight: 600,
-};
-const reviewTableWrapStyle: React.CSSProperties = {
-  minHeight: 0,
-  overflow: 'auto',
-  padding: 12,
-};
-const reviewHeadStyle: React.CSSProperties = {
-  background: 'var(--color-table-head-bg)',
-  color: 'var(--color-table-head-text)',
-  border: '1px solid var(--color-border)',
-  padding: '7px 8px',
-  textAlign: 'left',
-  fontSize: 'var(--font-size-xs)',
-  fontWeight: 600,
-};
-const reviewCellStyle: React.CSSProperties = {
-  border: '1px solid var(--color-border)',
-  padding: '7px 8px',
-  fontSize: 'var(--font-size-xs)',
-  color: 'var(--color-text)',
-};
-const reviewTotalCellStyle: React.CSSProperties = {
-  ...reviewCellStyle,
-  textAlign: 'right',
-  color: 'var(--color-heading)',
-  fontWeight: 600,
-  background: 'var(--color-surface-alt)',
-};
-const reviewTotalAmountStyle: React.CSSProperties = {
-  ...reviewTotalCellStyle,
-  fontFamily: 'var(--font-mono)',
-};
-const reviewFooterStyle: React.CSSProperties = {
-  display: 'flex',
-  justifyContent: 'flex-end',
-  gap: 8,
-  padding: 12,
-  borderTop: '1px solid var(--color-border)',
-};

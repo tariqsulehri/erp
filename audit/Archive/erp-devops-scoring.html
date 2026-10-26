@@ -1,0 +1,525 @@
+<title>ERP Scoring for DevOps</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@600;700;800&family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap">
+<style>
+/* Layout: an engineering explainer. Formula pipeline, then a working calculator, then the DevOps skill tree and calibration findings.
+   Colors are the ERP Prism tokens. */
+:root {
+  --bg:#F3F6FB; --surface:#FFFFFF; --surface-2:#EEF2F9; --surface-3:#E4E9F2; --line:#D5DCE8; --line-strong:#B9C3D4;
+  --ink:#0B1630; --ink-2:#3D4A63; --ink-3:#5A6780;
+  --accent:#1D46F3; --accent-ink:#0A2DC1; --accent-soft:#EAF0FF;
+  --ok:#15803D; --ok-soft:#DCFCE7; --warn:#B45309; --warn-soft:#FEF3C7; --crit:#B91C1C; --crit-soft:#FEE2E2;
+  --t1:#1D5BF0; --t2:#0F9F8F; --t3:#EB6834;
+  --h0:#F1F4FA; --h1:#CFD9FD; --h2:#B4CCF8; --h3:#86A8F5; --h4:#4D7BFF; --h5:#1D46F3; --h6:#0A2DC1;
+  --code-bg:#0B1630; --code-ink:#E4E9F2;
+  --display:"Plus Jakarta Sans","Segoe UI",system-ui,sans-serif;
+  --body:"IBM Plex Sans","Segoe UI",system-ui,sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,"SF Mono",Menlo,monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg:#0A0F1E; --surface:#111827; --surface-2:#1A2234; --surface-3:#243049; --line:#2A3550; --line-strong:#3A4766;
+  --ink:#F3F6FC; --ink-2:#C5CEDF; --ink-3:#98A3B8; --accent:#2F5BFF; --accent-ink:#7AA2FF; --accent-soft:#14204A;
+  --ok:#4ADE80; --ok-soft:#052E16; --warn:#FBBF24; --warn-soft:#451A03; --crit:#F87171; --crit-soft:#450A0A;
+  --t1:#3D7BFF; --t2:#13A08F; --t3:#D95926;
+  --h0:#1A2234; --h1:#14204A; --h2:#1D3A8F; --h3:#2F5BFF; --h4:#4D7BFF; --h5:#7AA2FF; --h6:#B4CCF8;
+  --code-bg:#060A15; color-scheme:dark; } }
+:root[data-theme="dark"] {
+  --bg:#0A0F1E; --surface:#111827; --surface-2:#1A2234; --surface-3:#243049; --line:#2A3550; --line-strong:#3A4766;
+  --ink:#F3F6FC; --ink-2:#C5CEDF; --ink-3:#98A3B8; --accent:#2F5BFF; --accent-ink:#7AA2FF; --accent-soft:#14204A;
+  --ok:#4ADE80; --ok-soft:#052E16; --warn:#FBBF24; --warn-soft:#451A03; --crit:#F87171; --crit-soft:#450A0A;
+  --t1:#3D7BFF; --t2:#13A08F; --t3:#D95926;
+  --h0:#1A2234; --h1:#14204A; --h2:#1D3A8F; --h3:#2F5BFF; --h4:#4D7BFF; --h5:#7AA2FF; --h6:#B4CCF8;
+  --code-bg:#060A15; color-scheme:dark; }
+* { box-sizing:border-box; }
+html { scroll-behavior:smooth; }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior:auto; } }
+body { background:var(--bg); color:var(--ink); font:15px/1.6 var(--body); padding-inline:16px; padding-block:0 64px; }
+.wrap { max-width:1140px; margin:0 auto; }
+a { color:var(--accent-ink); }
+a:focus-visible, button:focus-visible, select:focus-visible, summary:focus-visible { outline:2px solid var(--accent-ink); outline-offset:2px; }
+nav.top { position:sticky; top:env(safe-area-inset-top,0px); z-index:10; background:var(--bg); display:flex; gap:6px; overflow-x:auto; padding:12px 0; border-bottom:1px solid var(--line); }
+nav.top a { white-space:nowrap; font-size:13px; text-decoration:none; color:var(--ink-2); padding:5px 11px; border:1px solid var(--line); border-radius:999px; background:var(--surface); }
+header.page { padding-block:34px 4px; }
+h1, h2, h3 { font-family:var(--display); letter-spacing:-.015em; margin:0; text-wrap:balance; }
+h1 { font-size:clamp(28px,4.2vw,40px); line-height:1.1; font-weight:800; }
+h2 { font-size:23px; font-weight:700; }
+h3 { font-size:16px; font-weight:700; }
+p { margin:0 0 12px; color:var(--ink-2); max-width:74ch; }
+.eyebrow { font:600 12px var(--body); letter-spacing:.08em; text-transform:uppercase; color:var(--accent-ink); margin-bottom:12px; }
+.lead { font-size:17px; margin-top:12px; }
+.meta { display:flex; flex-wrap:wrap; gap:6px 20px; font-size:13.5px; color:var(--ink-3); margin-top:12px; }
+.meta b { color:var(--ink); font-weight:600; }
+code, .mono { font-family:var(--mono); font-size:.88em; }
+code { background:var(--surface-2); padding:1px 5px; border-radius:4px; color:var(--ink); }
+section { padding-block:34px 4px; scroll-margin-top:60px; }
+.sec-head { display:flex; align-items:center; gap:10px; margin-bottom:6px; }
+.sec-head::before { content:""; width:4px; height:20px; border-radius:2px; background:var(--accent); flex:0 0 auto; }
+.sub { color:var(--ink-3); margin-bottom:16px; }
+.kpis { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:10px; margin-top:22px; }
+@media (max-width: 760px) { .kpis { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+.kpi { background:var(--surface); border:1px solid var(--line); border-radius:12px; padding:14px 16px; }
+.kpi b { display:block; font:600 28px/1.1 var(--mono); }
+.kpi span { font-size:13px; color:var(--ink-3); }
+.headline { margin-top:14px; display:grid; gap:10px; }
+.callout { border-radius:12px; padding:14px 16px; border:1px solid var(--line); background:var(--surface); border-left:4px solid var(--c); display:grid; grid-template-columns:auto minmax(0,1fr); gap:4px 12px; }
+.callout .sev { font:600 11.5px var(--body); color:var(--c); background:var(--cb); border-radius:999px; padding:2px 9px; align-self:start; white-space:nowrap; }
+.callout b { color:var(--ink); }
+.callout p { margin:0; font-size:14px; grid-column:2; }
+
+/* pipeline */
+.pipe { display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:10px; }
+@media (max-width: 960px) { .pipe { grid-template-columns:minmax(0,1fr); } }
+.step { background:var(--surface); border:1px solid var(--line); border-radius:12px; padding:14px; position:relative; min-width:0; }
+.step .n { font:600 12px var(--mono); color:var(--accent-ink); }
+.step h3 { font-size:15px; margin:2px 0 6px; }
+.step .f { font:500 12.5px/1.5 var(--mono); background:var(--surface-2); border-radius:8px; padding:8px 10px; color:var(--ink); overflow-wrap:anywhere; }
+.step p { font-size:13px; margin:8px 0 0; }
+.step .src { font:500 11.5px var(--mono); color:var(--ink-3); margin-top:6px; overflow-wrap:anywhere; }
+
+/* calculator */
+.calc { background:var(--surface); border:1px solid var(--line); border-radius:14px; padding:18px; display:grid; grid-template-columns:minmax(0,1.25fr) minmax(0,1fr); gap:20px; }
+@media (max-width: 860px) { .calc { grid-template-columns:minmax(0,1fr); } }
+.slot { display:grid; grid-template-columns:110px minmax(0,1fr) minmax(0,1fr) 70px; gap:8px; align-items:center; padding:10px 0; border-bottom:1px solid var(--line); }
+@media (max-width: 520px) { .slot { grid-template-columns:minmax(0,1fr) minmax(0,1fr); } .slot .nm { grid-column:1/-1; } .slot .sv { grid-column:1/-1; text-align:left; } }
+.slot .nm { font-weight:600; display:flex; align-items:center; gap:8px; }
+.slot .nm i { width:10px; height:10px; border-radius:3px; background:var(--c); }
+.slot .nm small { display:block; font:500 11.5px var(--mono); color:var(--ink-3); }
+.slot label { font-size:11.5px; color:var(--ink-3); display:block; }
+.slot select { width:100%; font:14px var(--body); color:var(--ink); background:var(--surface); border:1px solid var(--line-strong); border-radius:8px; padding:6px 8px; }
+.slot .sv { font:600 15px var(--mono); text-align:right; }
+.slot .sv small { display:block; font:500 11px var(--mono); color:var(--ink-3); }
+.result { display:grid; gap:12px; align-content:start; }
+.big { font:600 44px/1 var(--mono); }
+.stack { display:flex; height:16px; border-radius:999px; overflow:hidden; background:var(--surface-3); gap:2px; }
+.stack span { display:block; height:100%; }
+.scale { display:flex; justify-content:space-between; font:500 11px var(--mono); color:var(--ink-3); margin-top:3px; }
+.badges { display:flex; flex-wrap:wrap; gap:6px; }
+.badge { font:600 12px var(--body); padding:3px 10px; border-radius:999px; background:var(--accent-soft); color:var(--accent-ink); }
+.vs { width:100%; border-collapse:collapse; font-size:13.5px; }
+.vs td, .vs th { padding:7px 8px; border-bottom:1px solid var(--line); text-align:left; }
+.vs th { font:600 11px var(--body); letter-spacing:.05em; text-transform:uppercase; color:var(--ink-3); }
+.vs td.num { font-family:var(--mono); text-align:right; }
+.ok { color:var(--ok); font-weight:600; } .no { color:var(--crit); font-weight:600; }
+.presets { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:6px; }
+.presets button { font:500 12.5px var(--body); border:1px solid var(--line); background:var(--surface-2); color:var(--ink-2); border-radius:999px; padding:4px 11px; cursor:pointer; }
+.presets button:hover { border-color:var(--accent); color:var(--accent-ink); }
+
+/* tables */
+.tablewrap { overflow-x:auto; border:1px solid var(--line); border-radius:12px; background:var(--surface); margin:10px 0 18px; }
+table.t { border-collapse:collapse; width:100%; font-size:13.5px; }
+table.t th, table.t td { text-align:left; padding:8px 12px; border-bottom:1px solid var(--line); vertical-align:top; }
+table.t th { font-size:11.5px; letter-spacing:.05em; text-transform:uppercase; color:var(--ink-3); background:var(--surface-2); font-weight:600; }
+table.t tr:last-child td { border-bottom:0; }
+table.t td.num { text-align:right; font-family:var(--mono); font-variant-numeric:tabular-nums; }
+.grid2 { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; }
+.grid3 { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:16px; }
+@media (max-width: 960px) { .grid3 { grid-template-columns:minmax(0,1fr); } }
+@media (max-width: 760px) { .grid2 { grid-template-columns:minmax(0,1fr); } }
+.card { background:var(--surface); border:1px solid var(--line); border-radius:12px; padding:16px 18px; min-width:0; }
+.card h3 { margin-bottom:4px; }
+.card .def { font-size:13px; color:var(--ink-3); margin-bottom:10px; }
+
+/* heat table */
+table.heat { border-collapse:separate; border-spacing:3px; font-size:13px; width:100%; min-width:640px; }
+table.heat th { font:600 11px var(--body); letter-spacing:.05em; text-transform:uppercase; color:var(--ink-3); text-align:center; padding:4px; }
+table.heat th.l, table.heat td.l { text-align:left; }
+table.heat td.l { padding:4px 8px 4px 0; white-space:nowrap; }
+table.heat td.l small { color:var(--ink-3); font-size:11.5px; }
+table.heat td.h { text-align:center; font:600 12px var(--mono); border-radius:6px; padding:6px 4px; }
+table.heat tr.grp td { padding-top:10px; font:700 12.5px var(--display); color:var(--accent-ink); }
+.crit { font:600 10.5px var(--body); color:var(--crit); background:var(--crit-soft); border-radius:999px; padding:1px 6px; margin-left:6px; }
+
+/* skill tree */
+.tree { display:grid; grid-template-columns:repeat(auto-fill,minmax(320px,1fr)); gap:12px; }
+.sgroup { background:var(--surface); border:1px solid var(--line); border-radius:12px; padding:14px 16px; border-top:3px solid var(--gc); min-width:0; }
+.sgroup h3 { display:flex; justify-content:space-between; gap:8px; align-items:baseline; }
+.sgroup h3 small { font:500 12px var(--mono); color:var(--ink-3); white-space:nowrap; }
+.sgroup .gd { font-size:13px; color:var(--ink-3); margin:2px 0 10px; }
+.sgroup.empty { border-top-style:dashed; opacity:.85; }
+details.sk { border-top:1px solid var(--line); padding:7px 0; }
+details.sk summary { cursor:pointer; list-style:none; display:flex; gap:8px; align-items:center; font-size:14px; font-weight:600; }
+details.sk summary::-webkit-details-marker { display:none; }
+details.sk summary::before { content:"›"; color:var(--ink-3); transition:transform .15s; }
+details.sk[open] summary::before { transform:rotate(90deg); }
+details.sk summary .cnt { margin-left:auto; font:500 11.5px var(--mono); color:var(--ink-3); white-space:nowrap; }
+.techs { display:flex; flex-wrap:wrap; gap:5px; margin:8px 0 2px 16px; }
+.techs span { font-size:12px; background:var(--surface-2); border:1px solid var(--line); border-radius:6px; padding:2px 7px; }
+.skdesc { font-size:12.5px; color:var(--ink-3); margin:6px 0 0 16px; }
+.filterbar { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-bottom:12px; }
+.filterbar input { flex:1 1 220px; font:14px var(--body); color:var(--ink); background:var(--surface); border:1px solid var(--line-strong); border-radius:8px; padding:7px 10px; min-width:0; }
+.filterbar button { font:500 13px var(--body); border:1px solid var(--line); background:var(--surface); color:var(--ink-2); border-radius:999px; padding:5px 12px; cursor:pointer; }
+.filterbar button[aria-pressed="true"] { background:var(--accent-soft); color:var(--accent-ink); border-color:var(--accent); }
+mark { background:var(--warn-soft); color:var(--ink); border-radius:3px; padding:0 2px; }
+
+/* findings */
+.find { display:grid; gap:10px; }
+.fi { background:var(--surface); border:1px solid var(--line); border-left:4px solid var(--c); border-radius:10px; padding:14px 16px; }
+.fi .fh { display:flex; flex-wrap:wrap; gap:6px 10px; align-items:baseline; }
+.fi .fh b { font-family:var(--display); font-size:15px; flex:1 1 300px; }
+.fi .fh .id { font:600 12px var(--mono); color:var(--ink-3); }
+.fi .fh .s { font:600 11.5px var(--body); color:var(--c); background:var(--cb); padding:2px 9px; border-radius:999px; }
+.fi p { margin:6px 0 0; font-size:14px; }
+.fi .fix { font-size:13.5px; color:var(--ink); margin-top:6px; }
+.fi .fix::before { content:"Recommendation: "; font-weight:600; color:var(--accent-ink); }
+pre.code { margin:8px 0 0; background:var(--code-bg); color:var(--code-ink); padding:14px; border-radius:8px; font:12.5px/1.55 var(--mono); white-space:pre-wrap; overflow-wrap:anywhere; }
+ul.tidy { margin:6px 0 14px; padding-left:20px; color:var(--ink-2); max-width:80ch; }
+ul.tidy li { margin-bottom:6px; } ul.tidy b { color:var(--ink); }
+.duo { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+.rl { font-size:13px; color:var(--ink-3); }
+.big.muted { color:var(--ink-3); font-size:34px; }
+.diffnote { font-size:13px; border-radius:8px; padding:6px 10px; }
+.diffnote.same { background:var(--ok-soft); color:var(--ok); }
+.diffnote.diff { background:var(--warn-soft); color:var(--warn); }
+.excel { margin-top:12px; font:500 12.5px/1.6 var(--mono); background:var(--surface-2); border-radius:8px; padding:10px 12px; overflow-wrap:anywhere; }
+.excel div { color:var(--ink-2); }
+.excel b { color:var(--ink); }
+.slot .sv .now { display:block; font:500 11.5px var(--mono); color:var(--ink-3); }
+.slot .sv .now.diff { color:var(--warn); }
+tr.mm td { background:var(--warn-soft); }
+footer { margin-top:36px; padding-top:14px; border-top:1px solid var(--line); font-size:13px; color:var(--ink-3); }
+</style>
+
+<div class="wrap">
+<nav class="top" aria-label="Sections">
+  <a href="#pipeline">How a score is built</a><a href="#calculator">Calculator</a><a href="#crosscheck">Cross-check</a><a href="#tables">Scoring tables</a><a href="#readiness">Promotion readiness</a><a href="#tree">DevOps skill tree</a><a href="#targets">Targets by grade</a><a href="#weights">Group weights</a><a href="#findings">Findings</a>
+</nav>
+
+<header class="page">
+  <div class="eyebrow">ERP · scoring explained · DevOps department</div>
+  <h1>How ERP scores a DevOps engineer</h1>
+  <p class="lead">ERP turns a manager's rating of a tool into a skill score, then a skill-group score, then an overall percentage. It then checks every skill against the targets for the person's target grade. This page walks through each formula as the code implements it. It applies them to the DevOps department's 14 skill groups and 26 skills, and shows where the current settings make promotion hard or impossible to reach.</p>
+  <div class="meta"><span>Source <b>erp-be master · Release 1.1.1 (9 Oct 2026)</b></span><span>Formulas <code>src/scoring/*</code></span><span>DevOps data <code>prisma/seed/seed.ts</code> defaults</span></div>
+  <div class="kpis">
+    <div class="kpi"><b id="kGroups">14</b><span>skill groups (12 technical, 2 professional)</span></div>
+    <div class="kpi"><b id="kSkills">26</b><span>skills, 10 marked critical</span></div>
+    <div class="kpi"><b id="kTech">285</b><span>technologies and certifications</span></div>
+    <div class="kpi"><b>9</b><span>grades, G13 to G21; targets only for G13–G16</span></div>
+  </div>
+  <div class="headline">
+    <div class="callout" style="--c:var(--crit);--cb:var(--crit-soft)"><span class="sev">Critical</span><b>Principal (G16) requires a perfect score in every skill.</b><p>The most a skill can score is 1.00, and only when all three tool slots are rated Expert with 3+ projects. The G16 target is 1.00 for 25 of 26 skills and 0.95 for the 26th, so promotion to G16 needs 78 tools at Expert.</p></div>
+    <div class="callout" style="--c:var(--warn);--cb:var(--warn-soft)"><span class="sev">High</span><b>Senior (G15) needs two Expert tools in every one of the 26 skills.</b><p>This includes MLOps, AIOps, DataOps and Platform Engineering. A G15 target of 0.75 can't be reached with one tool, because one tool tops out at 0.50.</p></div>
+    <div class="callout" style="--c:var(--warn);--cb:var(--warn-soft)"><span class="sev">High</span><b>Nobody targeting G17, G18 or G19 can be assessed for readiness.</b><p>The default settings define no technical targets above G16. 5 of the 29 seeded DevOps people target those grades.</p></div>
+  </div>
+</header>
+
+<section id="pipeline">
+  <div class="sec-head"><h2>How a score is built</h2></div>
+  <p class="sub">There are five steps. Steps 1 and 2 are stored in the database; steps 3–5 are computed when a report is read. Only <b>approved</b> assessments count.</p>
+  <div class="pipe">
+    <div class="step"><div class="n">Step 1</div><h3>Tool score</h3>
+      <div class="f">base = type × projects/3 + type<br>tool = base × level<br><span style="color:var(--ink-3)">Your rule: Expert 1.0 · Intermediate 0.5 · None 0.1<br>Today: Intermediate 0.4 · Unset 0 · rounded to 2 dp</span></div>
+      <p>A manager rates one technology (e.g. Terraform) in one slot. The slot type sets the starting value, projects add up to double it, and the level scales the result.</p>
+      <div class="src">scoring.engine.ts · computeAssessmentScore</div></div>
+    <div class="step"><div class="n">Step 2</div><h3>Skill score</h3>
+      <div class="f">skill = min(1, Σ tool scores)<br>max one Primary, one Secondary, one Tertiary</div>
+      <p>The skill's tools are added up and capped at 1.00. Because each slot type can be used only once per skill, the most a skill can score is 0.50 + 0.30 + 0.20 = <b>1.00</b>.</p>
+      <div class="src">computeCompetencyScore · stored in competency_scores</div></div>
+    <div class="step"><div class="n">Step 3</div><h3>Skill-group score</h3>
+      <div class="f">group = average of the group's skills with score &gt; 0</div>
+      <p>Skills not yet assessed are left out of the average. They don't pull the group down.</p>
+      <div class="src">reporting.engine.ts · buildDomainScores</div></div>
+    <div class="step"><div class="n">Step 4</div><h3>Overall %</h3>
+      <div class="f">overall = Σ(group × weight) ÷ Σ weight<br>weights for the <b>target</b> grade</div>
+      <p>This is a weighted average of the scored groups, shown as a percentage. A group with no configured weight counts as 1.0.</p>
+      <div class="src">weightedOverall</div></div>
+    <div class="step"><div class="n">Step 5</div><h3>Technical readiness</h3>
+      <div class="f">ready = every skill with a target<br>has skill ≥ target</div>
+      <p>The overall % doesn't decide readiness. Every skill with a target at the target grade must meet it, and unassessed skills count as 0. "Near ready" means meeting at least 75% of them.</p>
+      <div class="src">summarizeReadiness · isNearReady</div></div>
+  </div>
+</section>
+
+<section id="calculator">
+  <div class="sec-head"><h2>Calculator: business rule vs ERP today</h2></div>
+  <p class="sub">Use this to cross-check by hand. Each slot is scored with <b>your Excel rule</b> and with <b>what ERP calculates today</b>, side by side, and the arithmetic is written out. Your rule: Primary 0.25, Secondary 0.15, Tertiary 0.10; Expert ×1.0, Intermediate ×0.5, no level ×0.1. The blank option is the hidden "None" level.</p>
+  <div class="presets" id="presets"></div>
+  <div class="calc">
+    <div>
+      <label for="skillSel" style="font-size:12.5px;color:var(--ink-3)">Skill (for the target check)</label>
+      <select id="skillSel" style="width:100%;font:14px var(--body);color:var(--ink);background:var(--surface);border:1px solid var(--line-strong);border-radius:8px;padding:7px 9px;margin:4px 0 6px"></select>
+      <div id="slots"></div>
+      <div class="excel" id="excelLine"></div>
+    </div>
+    <div class="result">
+      <div class="duo">
+        <div><div class="rl">Your rule (Excel)</div><div class="big" id="total">0.0000</div></div>
+        <div><div class="rl">ERP today</div><div class="big muted" id="totalNow">0.00</div></div>
+      </div>
+      <div id="diffNote" class="diffnote"></div>
+      <div><div class="stack" id="stack" role="img" aria-label="Contribution by slot"></div><div class="scale"><span>0</span><span>0.25</span><span>0.50</span><span>0.75</span><span>1.00</span></div></div>
+      <div class="badges" id="badges"></div>
+      <table class="vs" id="vs"></table>
+    </div>
+  </div>
+</section>
+
+<section id="crosscheck">
+  <div class="sec-head"><h2>Cross-check table: all 36 combinations</h2></div>
+  <p class="sub">Every type × projects × level, scored with your Excel rule and with ERP today. Mismatched rows are highlighted. Use "Copy for Excel" to paste the rows into a sheet next to your own formula.</p>
+  <div class="filterbar">
+    <button type="button" id="onlyDiff" aria-pressed="false">Show mismatches only</button>
+    <button type="button" id="copyTsv">Copy for Excel</button>
+    <span id="xcCount" style="font-size:13px;color:var(--ink-3)" aria-live="polite"></span>
+  </div>
+  <div class="tablewrap"><table class="t" id="xc"></table></div>
+  <pre class="code" id="tsv" hidden></pre>
+</section>
+
+<section id="tables">
+  <div class="sec-head"><h2>Scoring tables (defaults)</h2></div>
+  <p class="sub">Admins can change the slot, level and project values on the Setup screens. The backend uses the values in the database and falls back to these defaults.</p>
+  <div class="grid3">
+    <div class="card"><h3>Slot type</h3><div class="def">Starting value per tool slot. Max = Expert with 3+ projects.</div>
+      <table class="t"><tr><th>Type</th><th>Value</th><th>Max tool</th></tr><tr><td>Primary</td><td class="num">0.25</td><td class="num">0.50</td></tr><tr><td>Secondary</td><td class="num">0.15</td><td class="num">0.30</td></tr><tr><td>Tertiary</td><td class="num">0.10</td><td class="num">0.20</td></tr></table></div>
+    <div class="card"><h3>Level</h3><div class="def">Multiplier applied to the base. Your rule vs ERP today.</div>
+      <table class="t"><tr><th>Level</th><th>Your rule</th><th>ERP today</th></tr><tr><td>Expert</td><td class="num">1.0</td><td class="num">1.00</td></tr><tr><td>Intermediate</td><td class="num">0.5</td><td class="num no">0.40</td></tr><tr><td>(blank) None, hidden</td><td class="num">0.1</td><td class="num no">0.00 (Unset)</td></tr><tr><td>Advanced</td><td class="num">removed</td><td class="num">0.80</td></tr><tr><td>Proficient</td><td class="num">removed</td><td class="num">0.60</td></tr><tr><td>Beginner, Foundational</td><td class="num">removed</td><td class="num">0.40</td></tr><tr><td>Awareness</td><td class="num">removed</td><td class="num">0.20</td></tr></table></div>
+    <div class="card"><h3>Projects</h3><div class="def">Project credit, capped at 3.</div>
+      <table class="t"><tr><th>Projects</th><th>Credit</th><th>Base ×</th></tr><tr><td>0</td><td class="num">0</td><td class="num">1.00</td></tr><tr><td>1 (1–3 months)</td><td class="num">0.33</td><td class="num">1.33</td></tr><tr><td>2 (3–6 months)</td><td class="num">0.67</td><td class="num">1.67</td></tr><tr><td>3+ (6+ months)</td><td class="num">1.00</td><td class="num">2.00</td></tr></table></div>
+  </div>
+  <div class="grid2" style="margin-top:16px">
+    <div class="card"><h3>Labels and stars for a skill score</h3><div class="def">Display only. These don't affect readiness.</div>
+      <table class="t"><tr><th>Score</th><th>Label</th><th>Stars</th></tr><tr><td class="num">≥ 0.95</td><td>L4 Expert</td><td>★★★★★</td></tr><tr><td class="num">0.80–0.94</td><td>L4 Expert</td><td>★★★★</td></tr><tr><td class="num">0.65–0.79</td><td>L3 Proficient</td><td>★★★★</td></tr><tr><td class="num">0.60–0.64</td><td>L3 Proficient</td><td>★★★</td></tr><tr><td class="num">0.40–0.59</td><td>L2 Intermediate</td><td>★★★</td></tr><tr><td class="num">0.20–0.39</td><td>L1 Beginner</td><td>★★</td></tr><tr><td class="num">0.01–0.19</td><td>L1 Beginner</td><td>★</td></tr></table></div>
+    <div class="card"><h3>Easiest way to reach each target</h3><div class="def">The fewest slots needed, with the lowest levels and project counts, under your rule (Expert 1.0, Intermediate 0.5, blank 0.1).</div>
+      <table class="t" id="paths"></table></div>
+  </div>
+</section>
+
+<section id="readiness">
+  <div class="sec-head"><h2>Promotion readiness across the three pillars</h2></div>
+  <p class="sub">"Ready on all checks" requires all four of these to be true. Every check uses the person's <b>target</b> grade.</p>
+  <div class="grid2">
+    <div class="card"><h3>1 · Technical</h3><div class="def">Every skill with a target at the target grade must reach that target (step 5 above).</div><div class="mono" style="font-size:12.5px">promotion_ready</div></div>
+    <div class="card"><h3>2 · CEFR communication</h3><div class="def">The 6 areas are rated A1–C2, and their weights are averaged. Readiness is the overall weight against the target grade's baseline, but only if that grade is gated. Ungated grades pass automatically.</div>
+      <table class="t"><tr><th>Level</th><th>Weight</th><th>Band from</th></tr><tr><td>A1</td><td class="num">0.17</td><td class="num">0</td></tr><tr><td>A2</td><td class="num">0.33</td><td class="num">0.25</td></tr><tr><td>B1</td><td class="num">0.50</td><td class="num">0.415</td></tr><tr><td>B2</td><td class="num">0.67</td><td class="num">0.585</td></tr><tr><td>C1</td><td class="num">0.83</td><td class="num">0.75</td></tr><tr><td>C2</td><td class="num">1.00</td><td class="num">0.915</td></tr></table>
+      <p style="font-size:12.5px;margin-top:8px">Default baselines: G13 B1 (presentation and stakeholder areas A2), G14 B1, G15 B2, G16 B2, G17 C1. Live values are on the CEFR config screen.</p></div>
+    <div class="card"><h3>3 · Behavioral</h3><div class="def">Each competency is rated L1–L5, scored 20/40/60/80/100. Overall = the rounded average of rated competencies, and it must be ≥ the expected average for the target grade. The performance label comes from the gap: each 20 points is one step, capped at ±2.</div>
+      <table class="t"><tr><th>Grade</th><th>Core six</th><th>Leadership five</th></tr><tr><td>G13</td><td>L1 (communication L2, integrity L3)</td><td>—</td></tr><tr><td>G14</td><td>L2 (integrity L3)</td><td>—</td></tr><tr><td>G15</td><td>L3 (integrity L4)</td><td>—</td></tr><tr><td>G16</td><td>L4 (adaptability L3)</td><td>L3</td></tr><tr><td>G17</td><td>L4–L5</td><td>L4</td></tr></table></div>
+    <div class="card"><h3>4 · Combined rule</h3><div class="def">From <code>report-row.helpers.ts · meetsAllChecks</code>:</div>
+<pre class="code">ready_all_checks =
+     technical promotion_ready
+ AND CEFR level recorded AND not CEFR-gated
+ AND behavioral score > 0
+ AND behavioral score ≥ expected for target grade</pre>
+      <p style="font-size:12.5px;margin-top:8px">No CEFR benchmark or behavioral expectation exists above G17. For anyone targeting G18 or higher, those checks can never pass.</p></div>
+  </div>
+</section>
+
+<section id="tree">
+  <div class="sec-head"><h2>DevOps skill tree</h2></div>
+  <p class="sub">Skill group → skill → technologies and certifications that managers can rate. Search across all 285, or show critical skills only.</p>
+  <div class="filterbar">
+    <label for="q" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)">Search skills and technologies</label>
+    <input id="q" type="search" placeholder="Search, e.g. Terraform, Kubernetes, SLO">
+    <button type="button" id="critOnly" aria-pressed="false">Critical skills only</button>
+    <button type="button" id="expandAll">Expand all</button>
+    <span id="treeCount" style="font-size:13px;color:var(--ink-3)" aria-live="polite"></span>
+  </div>
+  <div class="tree" id="treeBox"></div>
+</section>
+
+<section id="targets">
+  <div class="sec-head"><h2>Targets by grade</h2></div>
+  <p class="sub">The minimum skill score needed at each target grade, from the DevOps grade matrix. Darker cells mean a higher bar. A target of 1.00 needs all three slots at Expert with 3+ projects.</p>
+  <div class="tablewrap" style="padding:10px"><table class="heat" id="heat"></table></div>
+</section>
+
+<section id="weights">
+  <div class="sec-head"><h2>Skill-group weights by grade</h2></div>
+  <p class="sub">These weights feed the overall % (step 4). Within each grade they are almost identical, so the "weighted" overall is effectively a plain average.</p>
+  <div class="tablewrap" style="padding:10px"><table class="heat" id="wheat"></table></div>
+</section>
+
+<section id="findings">
+  <div class="sec-head"><h2>Calibration findings and recommendations</h2></div>
+  <p class="sub">These come from the shipped defaults. If an admin has changed targets or weights on the Setup screens, production may differ. Check with the query at the end before acting.</p>
+  <div class="find" id="findBox"></div>
+  <h3 style="margin-top:18px">Check what production actually uses</h3>
+<pre class="code">-- DevOps targets per grade (count of skills, min / max / avg target)
+SELECT g.code AS grade, count(*) AS skills_with_target,
+       min(m.threshold) AS min_t, max(m.threshold) AS max_t, round(avg(m.threshold)::numeric, 2) AS avg_t
+FROM competency_grade_thresholds m
+JOIN grades g ON g.id = m.grade_id
+JOIN departments d ON d.id = m.department_id
+WHERE d.name = 'DevOps' AND m.threshold > 0
+GROUP BY g.code ORDER BY g.code;
+
+-- People whose target grade has no technical targets
+SELECT tg.code AS target_grade, count(*) AS people
+FROM employees e JOIN grades tg ON tg.id = e.target_grade_id
+LEFT JOIN competency_grade_thresholds m ON m.grade_id = e.target_grade_id AND m.department_id = e.department_id AND m.threshold > 0
+WHERE e.deleted_at IS NULL AND m.id IS NULL
+GROUP BY tg.code ORDER BY tg.code;</pre>
+  <footer>The formulas come from <code>erp-be/src/scoring/</code> and <code>src/modules/reports/</code>. The skill tree, targets and weights are the defaults in <code>prisma/seed/seed.ts</code> and <code>src/modules/config/config.shared.ts</code> on <code>master</code> (Release 1.1.1). The page shows no employee names, only counts.</footer>
+</section>
+</div>
+
+<script>
+const DATA = {"competencies": [{"name": "Deployment and Delivery", "category": "Technical", "is_critical": true, "description": "Designing and executing deployment strategies including blue/green, canary, rolling, and GitOps", "domains": ["Core DevOps"], "technologies": [{"name": "Blue/Green Deployments"}, {"name": "Canary Releases"}, {"name": "Rolling Deployments"}, {"name": "GitOps Framework"}, {"name": "AWS DevOps Engineer Professional (DOP-C02)"}, {"name": "AZ-400: Azure DevOps Engineer Expert"}, {"name": "GCP Professional DevOps Engineer"}, {"name": "OCI DevOps Professional"}, {"name": "IBM DevOps Engineer"}, {"name": "ACP DevOps Engineer"}]}, {"name": "Automation and Scripting", "category": "Technical", "is_critical": true, "description": "Writing and maintaining automation scripts across multiple languages", "domains": ["Core DevOps"], "technologies": [{"name": "Bash/Shell"}, {"name": "PowerShell"}, {"name": "Python"}, {"name": "Golang"}, {"name": "Ruby"}, {"name": "Batch"}, {"name": "Red Hat Certified Engineer (RHCE)"}, {"name": "Red Hat Ansible Automation Specialist"}, {"name": "Red Hat Certified Architect (RHCA)"}, {"name": "CompTIA Linux+"}, {"name": "CompTIA Server+"}, {"name": "LSRE - Linux Foundation SRE Practitioner"}]}, {"name": "CI/CD", "category": "Technical", "is_critical": true, "description": "Building, maintaining and optimising continuous integration and delivery pipelines", "domains": ["Core DevOps"], "technologies": [{"name": "GitHub Actions"}, {"name": "Azure DevOps Pipelines"}, {"name": "AWS Code Pipelines"}, {"name": "GitLab CI"}, {"name": "Jenkins"}, {"name": "ArgoCD"}, {"name": "FluxCD"}, {"name": "BitBucket Pipelines"}, {"name": "CircleCI"}, {"name": "Harness CI/CD"}, {"name": "Tekton"}, {"name": "DroneCI"}, {"name": "Spinnaker"}, {"name": "Octopus Deploy"}, {"name": "Bamboo"}, {"name": "Cloud Build"}, {"name": "Cloud Deploy"}]}, {"name": "Containerization", "category": "Technical", "is_critical": true, "description": "Building and managing container images and container runtimes", "domains": ["Core DevOps"], "technologies": [{"name": "Docker"}, {"name": "Podman"}, {"name": "Buildah"}, {"name": "CRI-O"}, {"name": "Red Hat OpenShift Application Developer II"}]}, {"name": "Containerization and Orchestration", "category": "Technical", "is_critical": true, "description": "Operating, scaling and securing container orchestration platforms", "domains": ["Core DevOps"], "technologies": [{"name": "Kubernetes"}, {"name": "EKS"}, {"name": "AKS"}, {"name": "GKE"}, {"name": "OpenShift"}, {"name": "Docker Swarm"}, {"name": "Nomad"}, {"name": "ECS"}, {"name": "KCNA - Kubernetes & Cloud Native Associate"}, {"name": "CKAD - Kubernetes Application Developer"}, {"name": "CKA - Kubernetes Administrator"}, {"name": "CKS - Kubernetes Security Specialist"}, {"name": "KCSA - Kubernetes Security Associate"}, {"name": "Red Hat OpenShift Administrator"}, {"name": "Red Hat OpenShift Expert"}]}, {"name": "Infrastructure", "category": "Technical", "is_critical": true, "description": "Designing and managing cloud and on-premises infrastructure including compute, storage, and virtualisation", "domains": ["Cloud"], "technologies": [{"name": "Compute"}, {"name": "Storage"}, {"name": "Databases"}, {"name": "Networking (Infra)"}, {"name": "Identity & Access"}, {"name": "Serverless"}, {"name": "On-premises"}, {"name": "MLOps"}, {"name": "DataOps"}, {"name": "AIOps"}, {"name": "CompTIA A+"}, {"name": "VMware Data Center Virtualization Foundations"}, {"name": "VMware Cloud Foundations"}, {"name": "VCP - VMware Certified Professional"}, {"name": "VCAP - Advanced Professional"}, {"name": "VCDX - Expert / Architect"}]}, {"name": "Infrastructure as Code (IaC)", "category": "Technical", "is_critical": true, "description": "Building modular, scalable infrastructure using IaC frameworks", "domains": ["Cloud"], "technologies": [{"name": "Terraform"}, {"name": "Terragrunt"}, {"name": "Pulumi"}, {"name": "Azure Bicep"}, {"name": "AWS CloudFormation"}, {"name": "ARM Templates"}, {"name": "Crossplane"}, {"name": "Google Deployment Manager"}, {"name": "HashiCorp Terraform Associate"}, {"name": "HashiCorp Consul Associate"}, {"name": "AWS Solutions Architect Associate"}, {"name": "AZ-104 / AZ-305"}, {"name": "GCP Professional Cloud Architect"}, {"name": "OCI Architect Associate"}]}, {"name": "Cloud Services Architecture", "category": "Technical", "is_critical": false, "description": "Designing scalable and resilient architectures across major cloud platforms", "domains": ["Cloud"], "technologies": [{"name": "AWS"}, {"name": "Azure"}, {"name": "GCP"}, {"name": "IBM Cloud"}, {"name": "OCI"}, {"name": "Alibaba Cloud"}, {"name": "DigitalOcean"}, {"name": "Linode"}, {"name": "Heroku"}, {"name": "AWS Solutions Architect Professional"}, {"name": "AZ-305: Azure Solutions Architect Expert"}, {"name": "GCP Professional Cloud Architect (Arch)"}, {"name": "OCI Architect Professional"}, {"name": "IBM Cloud Architect"}, {"name": "ACE - Alibaba Cloud Expert"}, {"name": "ACE Cloud Native Architect"}]}, {"name": "Multi-Cloud Strategy", "category": "Technical", "is_critical": false, "description": "Designing and governing workloads across multiple cloud providers", "domains": ["Cloud"], "technologies": [{"name": "Anthos"}, {"name": "Azure Arc"}, {"name": "Terraform for Multi-Cloud"}, {"name": "AWS Outposts"}, {"name": "Unified Kubernetes Clusters Across Clouds"}, {"name": "Cloudflare for Multi-Cloud Networking"}, {"name": "Multi-Cloud Governance"}, {"name": "OCI Multicloud Architect Associate"}, {"name": "CCSP"}, {"name": "GCP Professional Cloud Architect (Multi-Cloud)"}, {"name": "IBM Cloud Professional Architect"}, {"name": "ACE - Alibaba Cloud Expert (Multi-Cloud)"}]}, {"name": "Configuration Management", "category": "Technical", "is_critical": false, "description": "Managing system configuration, drift, and secrets at scale", "domains": ["SysOps"], "technologies": [{"name": "Ansible"}, {"name": "Puppet"}, {"name": "Chef"}, {"name": "SaltStack"}, {"name": "Red Hat Ansible Automation Specialist (CM)"}, {"name": "RHCE / RHCA"}, {"name": "HashiCorp Vault Associate"}, {"name": "HashiCorp Consul Associate (CM)"}]}, {"name": "System Administration", "category": "Technical", "is_critical": false, "description": "Managing Linux and Windows operating systems, processes and filesystems", "domains": ["SysOps"], "technologies": [{"name": "Linux Administration"}, {"name": "Windows Server Administration"}, {"name": "Process Management"}, {"name": "Filesystem Configuration"}, {"name": "Package Management"}, {"name": "systemd"}, {"name": "top / htop"}, {"name": "journalctl"}, {"name": "PowerShell (SysAdmin)"}, {"name": "CompTIA ITF+"}, {"name": "CompTIA A+ (SysAdmin)"}, {"name": "CompTIA Linux+ (SysAdmin)"}, {"name": "RHCSA"}, {"name": "RHCE (SysAdmin)"}]}, {"name": "Server Administration", "category": "Technical", "is_critical": false, "description": "Managing physical and virtual server platforms including VMware and Hyper-V", "domains": ["SysOps"], "technologies": [{"name": "Linux Servers"}, {"name": "Windows Servers"}, {"name": "VMware ESXi"}, {"name": "Proxmox"}, {"name": "Hyper-V"}, {"name": "Identity & Access Management"}, {"name": "Patching"}, {"name": "Hardening"}, {"name": "Server Clustering"}, {"name": "Storage Configuration"}, {"name": "CompTIA Server+ (ServerAdmin)"}, {"name": "VMware VCP / VCAP"}, {"name": "RHCE (ServerAdmin)"}]}, {"name": "Observability (Logging, Monitoring and Tracing)", "category": "Technical", "is_critical": true, "description": "Building observability stacks with logging, metrics, distributed tracing and dashboards", "domains": ["SRE"], "technologies": [{"name": "Prometheus"}, {"name": "Grafana"}, {"name": "Datadog"}, {"name": "New Relic"}, {"name": "CloudWatch"}, {"name": "Azure Monitor"}, {"name": "GCP Operations"}, {"name": "OpenTelemetry"}, {"name": "ELK Stack"}, {"name": "Dynatrace"}, {"name": "Loki"}, {"name": "Splunk"}, {"name": "Fluentd / Fluentbit"}, {"name": "Jaeger"}, {"name": "Zipkin"}, {"name": "Nagios"}, {"name": "Zabbix"}, {"name": "site24x7"}, {"name": "CrowdStrike"}]}, {"name": "Incident Management and Response", "category": "Technical", "is_critical": true, "description": "Managing incidents, on-call rotations, runbooks and post-incident processes", "domains": ["SRE"], "technologies": [{"name": "PagerDuty"}, {"name": "OpsGenie"}, {"name": "VictorOps"}, {"name": "Statuspage"}, {"name": "Incident Command Structure (ICS)"}, {"name": "Runbook Automation"}, {"name": "On-call Rotations"}, {"name": "SRE Foundation / Practitioner"}, {"name": "IBM SRE Professional"}, {"name": "CompTIA CySA+"}, {"name": "GIAC Security Expert"}]}, {"name": "Error Budgets and SLOs", "category": "Technical", "is_critical": false, "description": "Defining, managing and aligning SLOs and error budgets with business objectives", "domains": ["SRE"], "technologies": [{"name": "Nobl9"}, {"name": "Dynatrace SLO"}, {"name": "SRE Dashboards"}, {"name": "Service Level Indicator Tools"}, {"name": "SRE Book (Google)"}, {"name": "Error Budget Policies"}, {"name": "SLO-driven Development"}, {"name": "LSRE - Linux Foundation SRE Practitioner (SLO)"}, {"name": "IBM SRE Professional (SLO)"}]}, {"name": "Reliability, Performance and Scalability", "category": "Technical", "is_critical": false, "description": "Designing systems for high availability, scalability and performance under load", "domains": ["SRE"], "technologies": [{"name": "Auto-scaling"}, {"name": "Load Balancing"}, {"name": "Performance Profiling"}, {"name": "Capacity Planning"}, {"name": "High Concurrency Tuning"}, {"name": "k6"}, {"name": "Datadog APM"}, {"name": "New Relic APM"}, {"name": "Cloud Provider Metrics"}, {"name": "AWS Solutions Architect Professional (Reliability)"}, {"name": "GCP Professional Cloud Architect (Reliability)"}, {"name": "OCI Architect Professional (Reliability)"}, {"name": "RHCA (Reliability)"}]}, {"name": "Postmortem Analysis", "category": "Technical", "is_critical": false, "description": "Conducting blameless post-incident reviews and driving systemic improvements", "domains": ["SRE"], "technologies": [{"name": "Blameless Postmortem"}, {"name": "RCA (Root Cause Analysis)"}, {"name": "5 Whys"}, {"name": "Fishbone Analysis"}, {"name": "SRE Foundation / Practitioner (Postmortem)"}, {"name": "IBM SRE Professional (Postmortem)"}, {"name": "LSRE - Linux Foundation SRE Practitioner (Postmortem)"}]}, {"name": "HA, DR and Backup", "category": "Technical", "is_critical": false, "description": "Designing high-availability architectures, disaster recovery and backup strategies", "domains": ["SRE"], "technologies": [{"name": "AWS Route53 Failover"}, {"name": "AWS Backup"}, {"name": "Azure Site Recovery"}, {"name": "GCP Regional/Multiregional Services"}, {"name": "Multi-region Failover"}, {"name": "Data Replication"}, {"name": "RPO/RTO Design"}, {"name": "Infrastructure Redundancy"}, {"name": "Cloud Native Backup (Velero)"}, {"name": "NetApp"}, {"name": "Veeam"}, {"name": "VCDX (DR)"}]}, {"name": "Security and Performance", "category": "Technical", "is_critical": true, "description": "Implementing security controls, compliance, threat modelling and performance tuning", "domains": ["DevSecOps"], "technologies": [{"name": "IAM (AWS IAM, Azure AD, GCP IAM)"}, {"name": "Zero Trust"}, {"name": "Secrets Management (Vault, KMS, SSM)"}, {"name": "SIEM (Splunk, QRadar, ELK SIEM)"}, {"name": "Compliance (ISO, SOC2, CIS)"}, {"name": "Load Testing (k6, JMeter, Locust)"}, {"name": "Auto-scaling Frameworks"}, {"name": "Performance Tuning (CPU, Memory, Network)"}, {"name": "SC-900 / AZ-500 / SC-100"}, {"name": "AWS Security Specialty"}, {"name": "CCSP - Certified Cloud Security Professional"}, {"name": "CISSP"}, {"name": "CompTIA Security+"}, {"name": "GIAC GSEC"}, {"name": "OCI Security Professional"}, {"name": "IBM Cloud Security Engineer"}, {"name": "ACP Cloud Security"}, {"name": "ACE Security Expert"}]}, {"name": "Cost Optimization", "category": "Technical", "is_critical": false, "description": "Tracking, optimising and governing cloud spend with FinOps practices", "domains": ["FinOps"], "technologies": [{"name": "AWS Cost Explorer"}, {"name": "AWS Budgets"}, {"name": "Azure Cost Management"}, {"name": "GCP Billing & Budgets"}, {"name": "FinOps Dashboards"}, {"name": "Cloudability"}, {"name": "CloudHealth"}, {"name": "Right-sizing & Reservation Strategy"}, {"name": "FinOps Foundation"}, {"name": "Cloud Cost Governance"}, {"name": "FinOps Practitioner (FOC)"}, {"name": "FinOps Professional (Advanced)"}, {"name": "AWS Solutions Architect (FinOps)"}, {"name": "AZ-305 (FinOps)"}]}, {"name": "Networking", "category": "Technical", "is_critical": false, "description": "Designing and securing network infrastructure across cloud and on-premises environments", "domains": ["Networking"], "technologies": [{"name": "TCP/IP, OSI Model, Subnetting"}, {"name": "Routing & Switching (BGP, OSPF, VLANs)"}, {"name": "DNS, DHCP, Load Balancers"}, {"name": "VNETs/Subnets, Peering, NSGs"}, {"name": "Firewalls, WAF, DDoS Protection"}, {"name": "Service Endpoints, Private Link"}, {"name": "CompTIA Network+"}, {"name": "AWS Advanced Networking Specialty"}, {"name": "GCP Professional Cloud Network Engineer"}, {"name": "VCP - Network Virtualization"}, {"name": "ACE Network Expert"}]}, {"name": "MLOps", "category": "Technical", "is_critical": false, "description": "Machine learning pipeline design, model deployment, versioning and monitoring in production", "domains": ["MLOps"], "technologies": [{"name": "MLflow"}, {"name": "Kubeflow"}, {"name": "SageMaker Pipelines"}, {"name": "Azure ML"}, {"name": "Vertex AI"}]}, {"name": "AIOps", "category": "Technical", "is_critical": false, "description": "AI-driven IT operations including anomaly detection, predictive alerting and intelligent automation", "domains": ["AIOps"], "technologies": [{"name": "Dynatrace Davis AI"}, {"name": "Moogsoft"}, {"name": "BigPanda"}]}, {"name": "DataOps", "category": "Technical", "is_critical": false, "description": "Data pipeline engineering, data quality, orchestration and platform operations", "domains": ["DataOps"], "technologies": [{"name": "Apache Airflow"}, {"name": "dbt"}, {"name": "Apache Kafka"}, {"name": "Great Expectations"}]}, {"name": "AI-Augmented DevOps", "category": "Technical", "is_critical": false, "description": "Integrating AI/ML tooling into DevOps workflows including code generation, test automation and intelligent pipelines", "domains": ["AI-Augmented DevOps"], "technologies": [{"name": "GitHub Copilot"}, {"name": "Amazon CodeWhisperer"}, {"name": "Tabnine"}]}, {"name": "Platform Engineering", "category": "Technical", "is_critical": false, "description": "Building internal developer platforms, golden paths and self-service infrastructure to improve developer experience", "domains": ["Platform Engineering"], "technologies": [{"name": "Backstage"}, {"name": "Port"}, {"name": "Crossplane"}, {"name": "Kratix"}]}], "matrix": {"Automation and Scripting": {"G13": 0.3, "G14": 0.6, "G15": 0.75, "G16": 1}, "CI/CD": {"G13": 0.2, "G14": 0.6, "G15": 0.75, "G16": 1}, "Cloud Services Architecture": {"G13": 0.3, "G14": 0.6, "G15": 0.75, "G16": 1}, "Configuration Management": {"G13": 0.4, "G14": 0.6, "G15": 0.75, "G16": 1}, "Containerization": {"G13": 0.2, "G14": 0.6, "G15": 0.75, "G16": 1}, "Containerization and Orchestration": {"G13": 0.1, "G14": 0.5, "G15": 0.75, "G16": 1}, "Cost Optimization": {"G13": 0.2, "G14": 0.5, "G15": 0.75, "G16": 1}, "Deployment and Delivery": {"G13": 0.4, "G14": 0.6, "G15": 0.75, "G16": 1}, "Error Budgets and SLOs": {"G13": 0.2, "G14": 0.4, "G15": 0.75, "G16": 1}, "HA, DR and Backup": {"G13": 0.2, "G14": 0.5, "G15": 0.75, "G16": 1}, "Infrastructure as Code (IaC)": {"G13": 0.3, "G14": 0.5, "G15": 0.75, "G16": 1}, "Incident Management and Response": {"G13": 0.2, "G14": 0.5, "G15": 0.75, "G16": 1}, "Infrastructure": {"G13": 0.4, "G14": 0.5, "G15": 0.75, "G16": 1}, "Multi-Cloud Strategy": {"G13": 0.2, "G14": 0.5, "G15": 0.75, "G16": 1}, "Networking": {"G13": 0.2, "G14": 0.5, "G15": 0.75, "G16": 1}, "Observability (Logging, Monitoring and Tracing)": {"G13": 0.25, "G14": 0.5, "G15": 0.75, "G16": 1}, "Postmortem Analysis": {"G13": 0.2, "G14": 0.5, "G15": 0.75, "G16": 1}, "Reliability, Performance and Scalability": {"G13": 0.3, "G14": 0.5, "G15": 0.75, "G16": 1}, "Security and Performance": {"G13": 0.25, "G14": 0.6, "G15": 0.75, "G16": 0.95}, "Server Administration": {"G13": 0.3, "G14": 0.6, "G15": 0.75, "G16": 1}, "System Administration": {"G13": 0.3, "G14": 0.6, "G15": 0.75, "G16": 1}, "MLOps": {"G13": 0.3, "G14": 0.5, "G15": 0.75, "G16": 1}, "AIOps": {"G13": 0.3, "G14": 0.5, "G15": 0.75, "G16": 1}, "DataOps": {"G13": 0.3, "G14": 0.5, "G15": 0.75, "G16": 1}, "AI-Augmented DevOps": {"G13": 0.3, "G14": 0.5, "G15": 0.75, "G16": 1}, "Platform Engineering": {"G13": 0.3, "G14": 0.5, "G15": 0.75, "G16": 1}}, "domains": [{"name": "Core DevOps", "category": "Technical", "description": "Deployment, automation, CI/CD, containerisation and orchestration", "color": "#3B82F6"}, {"name": "Cloud", "category": "Technical", "description": "Cloud infrastructure, IaC, cloud architecture and multi-cloud strategy", "color": "#06B6D4"}, {"name": "SysOps", "category": "Technical", "description": "System and server administration, configuration management", "color": "#10B981"}, {"name": "SRE", "category": "Technical", "description": "Observability, incident management, SLOs, reliability, DR", "color": "#F59E0B"}, {"name": "DevSecOps", "category": "Technical", "description": "Security controls, compliance, threat modelling and performance tuning", "color": "#EF4444"}, {"name": "FinOps", "category": "Technical", "description": "Cloud cost optimisation and financial governance", "color": "#84CC16"}, {"name": "Networking", "category": "Technical", "description": "Network design, protocols, cloud networking and security", "color": "#EC4899"}, {"name": "MLOps", "category": "Technical", "description": "Machine learning pipelines, model deployment and monitoring", "color": "#A855F7"}, {"name": "AIOps", "category": "Technical", "description": "AI-driven operations, anomaly detection and intelligent automation", "color": "#F97316"}, {"name": "DataOps", "category": "Technical", "description": "Data pipeline engineering, data quality and platform operations", "color": "#14B8A6"}, {"name": "AI-Augmented DevOps", "category": "Technical", "description": "DevOps practices enhanced with AI/ML tooling and workflows", "color": "#6366F1"}, {"name": "Platform Engineering", "category": "Technical", "description": "Internal developer platforms, golden paths and self-service infrastructure", "color": "#0EA5E9"}, {"name": "Functional", "category": "Professional", "description": "Functional domain knowledge and analysis", "color": "#14B8A6"}, {"name": "Delivery", "category": "Professional", "description": "Project management and delivery coordination", "color": "#6366F1"}], "weights": {"Cloud": {"G13": 0.3, "G14": 0.55, "G15": 0.75, "G16": 1}, "Core DevOps": {"G13": 0.3, "G14": 0.6, "G15": 0.75, "G16": 1}, "DevSecOps": {"G13": 0.25, "G14": 0.6, "G15": 0.75, "G16": 0.95}, "FinOps": {"G13": 0.2, "G14": 0.5, "G15": 0.75, "G16": 1}, "Networking": {"G13": 0.3, "G14": 0.6, "G15": 0.75, "G16": 1}, "SRE": {"G13": 0.25, "G14": 0.55, "G15": 0.75, "G16": 1}, "SysOps": {"G13": 0.3, "G14": 0.6, "G15": 0.75, "G16": 1}, "MLOps": {"G13": 0.3, "G14": 0.6, "G15": 0.75, "G16": 1}, "AIOps": {"G13": 0.3, "G14": 0.6, "G15": 0.75, "G16": 1}, "DataOps": {"G13": 0.3, "G14": 0.6, "G15": 0.75, "G16": 1}, "AI-Augmented DevOps": {"G13": 0.3, "G14": 0.6, "G15": 0.75, "G16": 1}, "Platform Engineering": {"G13": 0.3, "G14": 0.6, "G15": 0.75, "G16": 1}}, "paths": [[0.1, 1, "Primary · Intermediate · 0 projects"], [0.2, 1, "Primary · Advanced · 0 projects"], [0.25, 1, "Primary · Expert · 0 projects"], [0.3, 1, "Primary · Proficient · 3+ projects"], [0.4, 1, "Primary · Advanced · 3+ projects"], [0.5, 1, "Primary · Expert · 3+ projects (the most one tool can give)"], [0.6, 2, "Primary Expert 3+ and Secondary Intermediate 2"], [0.75, 2, "Primary Expert 3+ and Secondary Expert 2"], [0.95, 3, "Primary Expert 3+, Secondary Expert 2, Tertiary Expert 3+"], [1.0, 3, "All three slots Expert with 3+ projects (no slack at all)"]], "findings": [["SC-01", "Critical", "G16 (Principal) requires a perfect score in every skill", "Each skill is capped at 1.00, the sum of one Primary (0.50), one Secondary (0.30) and one Tertiary (0.20) tool, all Expert with 3+ projects. The G16 target is 1.00 for 25 skills and 0.95 for Security and Performance. Readiness needs every skill to meet its target, so a G15→G16 candidate needs 78 Expert ratings with 3+ projects each. 12 of the 29 seeded DevOps people target G16.", "Rescale the G16 targets (for example 0.80 for critical skills and 0.60 for the rest), or change readiness to \"all critical skills + at least 80% of the others\"."], ["SC-02", "High", "G15 (Senior) needs two Expert tools in each of the 26 skills", "A 0.75 target can't be reached with one tool (max 0.50). The cheapest path is Primary Expert 3+ plus Secondary Expert 2. That applies to every skill, including emerging specialisms (MLOps, AIOps, DataOps, AI-Augmented DevOps, Platform Engineering) that most Senior engineers won't hold. 10 seeded people target G15.", "Split skills into core (required for the grade) and specialist (pick N of M). Set specialist targets to 0 at G13–G15 so they don't block readiness."], ["SC-03", "High", "No technical targets or group weights above G16", "The seed only writes the grade matrix and group weights for G13–G16. People targeting G17, G18 or G19 (5 of 29 seeded) get no targets, so technical readiness is always false (summarizeReadiness needs at least one target). CEFR and behavioral expectations stop at G17.", "Define architect-track targets (G17–G21), or mark those grades \"not assessed by ERP\" so the UI says so instead of showing \"not ready\"."], ["SC-04", "Medium", "Group \"weights\" are almost identical within each grade", "At G15 every group weight is 0.75. At G16 every group is 1.00 except DevSecOps at 0.95. Within a grade the weighted overall is therefore effectively a plain average. The values look like expected levels from the career sheet, imported as weights.", "Decide what the weights should express (relative importance per grade, e.g. Core DevOps 0.25, Cloud 0.20, summing to 1) and document it. Or remove the weighting and say the overall is an average."], ["SC-05", "Medium", "The overall % and readiness disagree by design", "Skill-group and overall scores skip unassessed skills (a score of 0 is excluded from the average), but readiness counts them as failures. Someone with three strong skills assessed can show a high overall % while being far from ready.", "Show assessed coverage (e.g. \"9 of 26 skills assessed\") next to every overall %, or compute the overall over all required skills."], ["SC-06", "Medium", "Levels that don't separate", "Beginner and Intermediate both weigh 0.40, so choosing between them changes nothing. The engine also accepts Foundational (0.40), which isn't in the default level list. Score labels run L0–L4, while the skill-level descriptors seeded for each skill run L1–L5.", "Give each level a distinct weight (e.g. Beginner 0.30, Intermediate 0.45), drop unused codes, and use one ladder (L1–L5) for labels and descriptors."], ["SC-07", "Medium", "Technology lists vary a lot between skills", "Observability has 19 rateable technologies, AIOps and AI-Augmented DevOps have 3. Only three slots count per skill, so a long list doesn't raise the ceiling. It does make rating slower and less consistent between managers.", "Curate 5–10 representative tools per skill, and move certifications into their own evidence field rather than rateable tools."], ["SC-08", "Low", "Two professional groups have no skills", "Functional and Delivery exist as skill groups, but no skills are mapped to them, so they never score and never count.", "Map skills to them (e.g. requirements analysis, estimation, stakeholder delivery), or hide them until they're populated."], ["SC-09", "Low", "Eight groups contain a single skill", "DevSecOps, FinOps, Networking, MLOps, AIOps, DataOps, AI-Augmented DevOps and Platform Engineering each have one skill, so the group score is just that skill. Each still carries a full group weight in the overall %.", "Either merge them into broader groups (e.g. AI and Data Ops) or add skills, so group weights reflect breadth."]]};
+(function () {
+  const $ = id => document.getElementById(id);
+  const el = (tag, attrs = {}, ...kids) => { const n = document.createElement(tag);
+    for (const [k, v] of Object.entries(attrs)) { if (k === 'style') n.style.cssText = v; else if (k === 'text') n.textContent = v; else if (k.startsWith('on')) n.addEventListener(k.slice(2), v); else n.setAttribute(k, v); }
+    kids.flat().forEach(c => c != null && n.append(c)); return n; };
+  const TYPE = { Primary:.25, Secondary:.15, Tertiary:.10 };
+  const LEVEL = { Expert:1, Advanced:.8, Proficient:.6, Intermediate:.4, Beginner:.4, Awareness:.2, Unset:0 };
+  const r2 = x => Math.round(x * 100) / 100;
+  const toolScore = (t, p, l) => r2((TYPE[t] * (Math.min(Math.max(p, 0), 3) / 3) + TYPE[t]) * LEVEL[l]);
+  const stars = s => s >= .95 ? 5 : s >= .65 ? 4 : s >= .40 ? 3 : s >= .20 ? 2 : 1;
+  const label = s => s >= .8 ? 'L4 Expert' : s >= .6 ? 'L3 Proficient' : s >= .4 ? 'L2 Intermediate' : s > 0 ? 'L1 Beginner' : 'L0 Developing';
+  const C = DATA.competencies, GM = DATA.matrix, GRADES = ['G13', 'G14', 'G15', 'G16'];
+
+  // calculator: business rule (Excel) vs ERP today
+  const RULE_LEVEL = { Expert:1.0, Intermediate:0.5, None:0.1 };
+  const NOW_LEVEL = { Expert:1.0, Intermediate:0.4, None:0.0 };          // today: blank = Unset = 0
+  const nowTool = (t, p, l) => r2(((TYPE[t] * Math.min(p, 3) / 3) + TYPE[t]) * NOW_LEVEL[l]);
+  const f4 = x => x.toFixed(4);
+  const LV_LABEL = l => l === 'None' ? '(blank)' : l;
+  const sel = $('skillSel');
+  C.forEach((c, i) => sel.append(el('option', { value:i, text:`${c.domains[0]} · ${c.name}${c.is_critical ? ' (critical)' : ''}` })));
+  const SLOT_C = { Primary:'var(--t1)', Secondary:'var(--t2)', Tertiary:'var(--t3)' };
+  const state = { Primary:['Intermediate', 2], Secondary:['Expert', 1], Tertiary:['None', 0] };
+  const slotsBox = $('slots');
+  Object.keys(TYPE).forEach(t => {
+    const lv = el('select', { id:'lv-' + t, 'aria-label':`${t} level` },
+      el('option', { value:'Expert', text:'Expert' }), el('option', { value:'Intermediate', text:'Intermediate' }), el('option', { value:'None', text:'', 'aria-label':'No level' }));
+    const pj = el('select', { id:'pj-' + t, 'aria-label':`${t} projects` }, ...[0, 1, 2, 3].map(p => el('option', { value:p, text:p === 3 ? '3+ projects' : `${p} project${p === 1 ? '' : 's'}` })));
+    lv.value = state[t][0]; pj.value = state[t][1];
+    lv.addEventListener('change', () => { state[t][0] = lv.value; calc(); }); pj.addEventListener('change', () => { state[t][1] = +pj.value; calc(); });
+    slotsBox.append(el('div', { class:'slot' },
+      el('div', { class:'nm', style:`--c:${SLOT_C[t]}` }, el('i'), el('span', {}, t, el('small', { text:`type ${TYPE[t].toFixed(2)}` }))),
+      el('div', {}, el('label', { for:'lv-' + t, text:'Level' }), lv), el('div', {}, el('label', { for:'pj-' + t, text:'Projects' }), pj),
+      el('div', { class:'sv', id:'sv-' + t })));
+  });
+  const PRESETS = [
+    ['Mixed example', { Primary:['Intermediate', 2], Secondary:['Expert', 1], Tertiary:['None', 0] }],
+    ['All blank (no level)', { Primary:['None', 3], Secondary:['None', 3], Tertiary:['None', 3] }],
+    ['All Intermediate, 3+ projects', { Primary:['Intermediate', 3], Secondary:['Intermediate', 3], Tertiary:['Intermediate', 3] }],
+    ['One Expert tool', { Primary:['Expert', 3], Secondary:['None', 0], Tertiary:['None', 0] }],
+    ['Maximum possible', { Primary:['Expert', 3], Secondary:['Expert', 3], Tertiary:['Expert', 3] }],
+  ];
+  PRESETS.forEach(([n, s]) => $('presets').append(el('button', { type:'button', text:n, onclick:() => {
+    Object.entries(s).forEach(([t, [l, p]]) => { state[t] = [l, p]; $('lv-' + t).value = l; $('pj-' + t).value = p; }); calc(); } })));
+  sel.addEventListener('change', calc);
+  function calc() {
+    const rows = Object.keys(TYPE).map(t => { const [l, p] = state[t]; return { t, l, p, rule:((TYPE[t] * p / 3) + TYPE[t]) * RULE_LEVEL[l], now:nowTool(t, p, l) }; });
+    rows.forEach(r => { const d = Math.abs(r.rule - r.now) > 0.00005;
+      $('sv-' + r.t).replaceChildren(f4(r.rule), el('span', { class:'now' + (d ? ' diff' : ''), text:`today ${r.now.toFixed(2)}` })); });
+    const total = Math.min(1, rows.reduce((a, r) => a + r.rule, 0));
+    const totalNow = r2(Math.min(1, rows.reduce((a, r) => a + r.now, 0)));
+    $('total').textContent = f4(total); $('totalNow').textContent = totalNow.toFixed(2);
+    const diff = r2(total) !== totalNow;
+    const dn = $('diffNote'); dn.className = 'diffnote ' + (diff ? 'diff' : 'same');
+    dn.textContent = diff ? `ERP today gives ${totalNow.toFixed(2)}, not ${f4(total)} (difference ${(totalNow - total >= 0 ? '+' : '') + (totalNow - total).toFixed(4)}).` : 'ERP today gives the same result (to 2 decimals).';
+    $('excelLine').replaceChildren(el('div', { style:'font-weight:600;color:var(--ink);margin-bottom:4px', text:'Worked arithmetic (your rule)' }),
+      ...rows.map(r => el('div', {}, `${r.t}: (${TYPE[r.t].toFixed(2)} × ${r.p}/3 + ${TYPE[r.t].toFixed(2)}) × ${RULE_LEVEL[r.l].toFixed(1)} [${LV_LABEL(r.l)}] = `, el('b', { text:f4(r.rule) }))),
+      el('div', { style:'margin-top:4px' }, 'Skill = min(1, ', rows.map(r => f4(r.rule)).join(' + '), ') = ', el('b', { text:f4(total) })),
+      el('div', { style:'margin-top:6px;color:var(--ink-3)', text:`Excel check: =IF(type="Primary",(0.25*projs/3)+0.25,IF(type="Secondary",(0.15*projs/3)+0.15,IF(type="Tertiary",(0.1*projs/3)+0.1,0)))*multiplier` }));
+    $('stack').replaceChildren(...rows.filter(r => r.rule > 0).map(r => el('span', { style:`width:${r.rule * 100}%;background:${SLOT_C[r.t]}`, title:`${r.t} ${f4(r.rule)}` })));
+    $('stack').setAttribute('aria-label', 'Contribution by slot (your rule): ' + rows.map(r => `${r.t} ${f4(r.rule)}`).join(', '));
+    $('badges').replaceChildren(el('span', { class:'badge', text:label(total) }), el('span', { class:'badge', text:'★'.repeat(stars(total)) + '☆'.repeat(5 - stars(total)) }), el('span', { class:'badge', text:`${Math.round(total * 100)}% of the skill maximum` }));
+    const c = C[+sel.value], th = GM[c.name] || {};
+    $('vs').replaceChildren(el('tr', {}, el('th', { text:'Target grade' }), el('th', { text:'Target' }), el('th', { text:'Your rule' }), el('th', { text:'Today' })),
+      ...GRADES.map(g => { const tg = th[g], a = total >= tg - 1e-9, b = totalNow >= tg - 1e-9;
+        return el('tr', {}, el('td', { text:g }), el('td', { class:'num', style:'text-align:left', text:tg.toFixed(2) }),
+          el('td', {}, el('span', { class:a ? 'ok' : 'no', text:a ? '✓ Meets' : '✗ Below' })), el('td', {}, el('span', { class:b ? 'ok' : 'no', text:b ? '✓ Meets' : '✗ Below' }))); }),
+      el('tr', {}, el('td', { text:'G17–G21' }), el('td', { colspan:3, style:'color:var(--ink-3)', text:'No target configured by default' })));
+  }
+  calc();
+
+  // cross-check table (36 rows)
+  const XC = [];
+  ['Primary', 'Secondary', 'Tertiary'].forEach(t => [0, 1, 2, 3].forEach(p => ['Expert', 'Intermediate', 'None'].forEach(l => {
+    const rule = ((TYPE[t] * p / 3) + TYPE[t]) * RULE_LEVEL[l], now = nowTool(t, p, l);
+    XC.push({ t, p, l, rule, now, mm:Math.abs(rule - now) > 0.005 });
+  })));
+  let onlyDiff = false;
+  function renderXC() {
+    const rows = XC.filter(r => !onlyDiff || r.mm);
+    $('xc').replaceChildren(el('tr', {}, ...['Type', 'Projects', 'Level', 'Excel formula', 'Your rule', 'ERP today', 'Difference'].map(h => el('th', { text:h }))),
+      ...rows.map(r => el('tr', { class:r.mm ? 'mm' : '' }, el('td', { text:r.t }), el('td', { class:'num', style:'text-align:left', text:r.p }), el('td', { text:LV_LABEL(r.l) }),
+        el('td', { class:'mono', style:'font-size:12px', text:`(${TYPE[r.t].toFixed(2)}×${r.p}/3+${TYPE[r.t].toFixed(2)})×${RULE_LEVEL[r.l]}` }),
+        el('td', { class:'num', text:f4(r.rule) }), el('td', { class:'num', text:r.now.toFixed(2) }),
+        el('td', { class:'num ' + (r.mm ? 'no' : ''), text:(r.now - r.rule >= 0 ? '+' : '') + (r.now - r.rule).toFixed(4) }))));
+    $('xcCount').textContent = `${XC.filter(r => r.mm).length} of 36 combinations differ by more than rounding`;
+  }
+  $('onlyDiff').addEventListener('click', e => { onlyDiff = !onlyDiff; e.currentTarget.setAttribute('aria-pressed', onlyDiff); renderXC(); });
+  $('copyTsv').addEventListener('click', e => {
+    const b = e.currentTarget;
+    const tsv = ['Type\tProjects\tLevel\tYourRule\tCalibrToday', ...XC.map(r => `${r.t}\t${r.p}\t${r.l === 'None' ? '' : r.l}\t${f4(r.rule)}\t${r.now.toFixed(2)}`)].join('\n');
+    const pre = $('tsv'); pre.textContent = tsv;
+    const done = m => { b.textContent = m; setTimeout(() => { b.textContent = 'Copy for Excel'; }, 1800); };
+    const fb = () => { pre.hidden = false; const rg = document.createRange(); rg.selectNodeContents(pre); const s = getSelection(); s.removeAllRanges(); s.addRange(rg); done('Selected below, press ⌘C'); };
+    try { navigator.clipboard.writeText(tsv).then(() => done('Copied: paste into Excel'), fb); } catch (err) { fb(); }
+  });
+  renderXC();
+
+  // easiest paths (your rule)
+  $('paths').append(el('tr', {}, ...['Target', 'Slots needed', 'Lightest combination (your rule)'].map(h => el('th', { text:h }))));
+  const LVR = ['None', 'Intermediate', 'Expert'], opt = {};
+  Object.keys(TYPE).forEach(t => { opt[t] = []; [0, 1, 2, 3].forEach(p => LVR.forEach((l, li) => opt[t].push({ v:((TYPE[t] * p / 3) + TYPE[t]) * RULE_LEVEL[l], p, l, cost:li * 4 + p }))); });
+  const slotsets = [['Primary'], ['Secondary'], ['Tertiary'], ['Primary', 'Secondary'], ['Primary', 'Tertiary'], ['Secondary', 'Tertiary'], ['Primary', 'Secondary', 'Tertiary']];
+  [0.10, 0.20, 0.25, 0.30, 0.40, 0.50, 0.60, 0.75, 0.95, 1.00].forEach(th => {
+    let best = null;
+    slotsets.forEach(ss => { const rec = (i, acc) => { if (i === ss.length) { const v = acc.reduce((a, o) => a + o.v, 0);
+        if (v >= th - 1e-9) { const cost = [ss.length, acc.reduce((a, o) => a + o.cost, 0)]; if (!best || cost[0] < best.cost[0] || (cost[0] === best.cost[0] && cost[1] < best.cost[1])) best = { cost, acc:[...acc], ss, v }; } return; }
+      opt[ss[i]].forEach(o => { acc.push(o); rec(i + 1, acc); acc.pop(); }); }; rec(0, []); });
+    $('paths').append(el('tr', {}, el('td', { class:'num', style:'text-align:left', text:th.toFixed(2) }), el('td', { class:'num', style:'text-align:left', text:best ? best.ss.length : '—' }),
+      el('td', { text:best ? best.acc.map((o, i) => `${best.ss[i]} ${LV_LABEL(o.l)} ${o.p === 3 ? '3+' : o.p}p`).join(' + ') + ` = ${f4(best.v)}` : 'Not reachable' })));
+  });
+
+  // skill tree
+  const byDom = {}; C.forEach(c => (byDom[c.domains[0]] = byDom[c.domains[0]] || []).push(c));
+  const tree = $('treeBox'); let critOnly = false;
+  function esc(s) { return s.replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch])); }
+  function hl(text, q) { if (!q) return esc(text); const i = text.toLowerCase().indexOf(q); if (i < 0) return esc(text); return esc(text.slice(0, i)) + '<mark>' + esc(text.slice(i, i + q.length)) + '</mark>' + esc(text.slice(i + q.length)); }
+  function renderTree() {
+    const q = $('q').value.trim().toLowerCase(); let nSk = 0, nT = 0;
+    tree.replaceChildren();
+    DATA.domains.forEach(d => {
+      let skills = (byDom[d.name] || []).filter(c => !critOnly || c.is_critical);
+      if (q) skills = skills.filter(c => c.name.toLowerCase().includes(q) || c.technologies.some(t => t.name.toLowerCase().includes(q)) || d.name.toLowerCase().includes(q));
+      if ((q || critOnly) && !skills.length) return;
+      const g = el('article', { class:'sgroup' + ((byDom[d.name] || []).length ? '' : ' empty'), style:`--gc:${d.color}` });
+      const techCount = skills.reduce((a, c) => a + c.technologies.length, 0);
+      g.append(el('h3', {}, d.name, el('small', { text:`${skills.length} skill${skills.length === 1 ? '' : 's'} · ${techCount} tech` })), el('div', { class:'gd', text:`${d.category} · ${d.description}` }));
+      if (!(byDom[d.name] || []).length) g.append(el('div', { class:'gd', style:'color:var(--warn)', text:'No skills are mapped to this group yet.' }));
+      skills.forEach(c => {
+        nSk++; nT += c.technologies.length;
+        const sm = el('summary'); sm.innerHTML = hl(c.name, q); if (c.is_critical) sm.append(el('span', { class:'crit', text:'Critical' }));
+        sm.append(el('span', { class:'cnt', text:`${c.technologies.length} tech · G15 ${GM[c.name].G15.toFixed(2)} · G16 ${GM[c.name].G16.toFixed(2)}` }));
+        const tw = el('div', { class:'techs' }); c.technologies.forEach(t => { const s = el('span'); s.innerHTML = hl(t.name, q); tw.append(s); });
+        const det = el('details', { class:'sk' }, sm, el('div', { class:'skdesc', text:c.description || '' }), tw);
+        if (q && c.technologies.some(t => t.name.toLowerCase().includes(q))) det.open = true;
+        g.append(det);
+      });
+      tree.append(g);
+    });
+    $('treeCount').textContent = `${nSk} skills · ${nT} technologies shown`;
+  }
+  $('q').addEventListener('input', renderTree);
+  $('critOnly').addEventListener('click', e => { critOnly = !critOnly; e.currentTarget.setAttribute('aria-pressed', critOnly); renderTree(); });
+  $('expandAll').addEventListener('click', e => { const open = e.currentTarget.textContent === 'Expand all'; tree.querySelectorAll('details').forEach(d => d.open = open); e.currentTarget.textContent = open ? 'Collapse all' : 'Expand all'; });
+  renderTree();
+
+  // heat tables
+  const shade = v => { const s = [[.15, 'h1'], [.3, 'h2'], [.45, 'h3'], [.6, 'h4'], [.8, 'h5'], [2, 'h6']].find(([m]) => v < m)[1]; const dark = ['h4', 'h5', 'h6'].includes(s);
+    return `background:var(--${s});color:${dark ? '#FFFFFF' : 'var(--ink)'}`; };
+  const heat = $('heat');
+  heat.append(el('tr', {}, el('th', { class:'l', text:'Skill group / skill' }), ...GRADES.map(g => el('th', { text:g })), ...['G17', 'G18', 'G19'].map(g => el('th', { text:g }))));
+  DATA.domains.filter(d => byDom[d.name]).forEach(d => {
+    heat.append(el('tr', { class:'grp' }, el('td', { class:'l', colspan:8, text:d.name })));
+    byDom[d.name].forEach(c => heat.append(el('tr', {}, el('td', { class:'l' }, c.name, c.is_critical ? el('span', { class:'crit', text:'Critical' }) : null),
+      ...GRADES.map(g => el('td', { class:'h', style:shade(GM[c.name][g]), text:GM[c.name][g].toFixed(2) })),
+      ...[0, 1, 2].map(() => el('td', { class:'h', style:'background:transparent;border:1px dashed var(--line-strong);color:var(--ink-3)', text:'—' })))));
+  });
+  const wheat = $('wheat'), W = DATA.weights;
+  wheat.append(el('tr', {}, el('th', { class:'l', text:'Skill group' }), ...GRADES.map(g => el('th', { text:g }))));
+  Object.keys(W).forEach(d => wheat.append(el('tr', {}, el('td', { class:'l', text:d }), ...GRADES.map(g => el('td', { class:'h', style:shade(W[d][g]), text:W[d][g].toFixed(2) })))));
+
+  // findings
+  const SEV = { Critical:['var(--crit)', 'var(--crit-soft)'], High:['var(--warn)', 'var(--warn-soft)'], Medium:['var(--accent-ink)', 'var(--accent-soft)'], Low:['var(--ink-3)', 'var(--surface-2)'] };
+  DATA.findings.forEach(([id, sev, title, body, fix]) => $('findBox').append(el('article', { class:'fi', style:`--c:${SEV[sev][0]};--cb:${SEV[sev][1]}` },
+    el('div', { class:'fh' }, el('span', { class:'id', text:id }), el('b', { text:title }), el('span', { class:'s', text:sev })), el('p', { text:body }), el('div', { class:'fix', text:fix }))));
+})();
+</script>

@@ -75,20 +75,23 @@ spacing:
   "6": "24px"
 components:
   button-primary:
-    backgroundColor: "{colors.ledger-blue}"
+    background: "linear-gradient(180deg, #256df6 0%, #0755e9 60%, #043ec0 100%)"
     textColor: "{colors.paper}"
     rounded: "{rounded.control}"
     padding: "0 12px"
     height: "32px"
     typography: "{typography.control}"
+    boxShadow: "0 2px 4px rgba(7,85,233,0.28), inset 0 1px 0 rgba(255,255,255,0.32), inset 0 -1px 0 rgba(0,0,0,0.18)"
   button-primary-hover:
-    backgroundColor: "{colors.ledger-blue-hover}"
+    background: "linear-gradient(180deg, #387df7 0%, #1562f1 60%, #0548d8 100%)"
+    boxShadow: "0 3px 6px rgba(7,85,233,0.36), inset 0 1px 0 rgba(255,255,255,0.4)"
   button-secondary:
-    backgroundColor: "{colors.paper}"
+    background: "linear-gradient(180deg, #ffffff 0%, #f6f8fb 100%)"
     textColor: "{colors.ink}"
     rounded: "{rounded.control}"
     padding: "0 12px"
     height: "32px"
+    boxShadow: "0 1px 3px rgba(15,27,45,0.08), inset 0 1px 0 rgba(255,255,255,0.9), inset 0 -1px 0 rgba(0,0,0,0.06)"
   button-ghost:
     backgroundColor: "transparent"
     textColor: "{colors.ink-secondary}"
@@ -102,18 +105,19 @@ components:
     height: "32px"
     typography: "{typography.control}"
   table-header:
-    backgroundColor: "{colors.paper-alt}"
+    background: "linear-gradient(180deg, #f8fafd 0%, #edf1f6 100%)"
     textColor: "{colors.ink-secondary}"
     typography: "{typography.label}"
     height: "36px"
   badge-success:
-    backgroundColor: "{colors.success-tint}"
+    background: "linear-gradient(180deg, #f0fdf4 0%, #dcfce7 100%)"
     textColor: "{colors.success}"
     rounded: "{rounded.full}"
     height: "20px"
   panel:
-    backgroundColor: "{colors.paper}"
+    background: "linear-gradient(180deg, #ffffff 0%, #fafbfc 100%)"
     rounded: "{rounded.container}"
+    boxShadow: "0 2px 6px -1px rgba(15,27,45,0.06), 0 1px 3px rgba(15,27,45,0.04), inset 0 1px 0 rgba(255,255,255,0.85)"
 ---
 
 # Design System: ERP Finance
@@ -124,20 +128,21 @@ components:
 
 ## Overview
 
-**Creative North Star: "The Calm Ledger"**
+**Creative North Star: "The Dimensional Ledger (3D Gradient Style)"**
 
-A well-kept account book: white pages, straight rules, figures that line up, and one blue pen for the things you act on. The staff who use this ERP enter vouchers and maintain records all day, many in their second language. The interface earns their trust by being quiet and predictable, so the numbers stand out, not the chrome. The same task must look the same on every screen, because every surprise costs a clerk a second look.
+A high-precision financial instrument crafted with modern physical dimensionality: crisp surfaces, subtle top-to-bottom gradients that capture directional light, delicate specular inner highlights (`inset 0 1px 0`), and tactile 3D controls. The staff who use this ERP enter vouchers and maintain records all day. The interface earns their trust by pairing strict numerical predictability with satisfying tactile depth—making primary actions, data groupings, and active states unmistakable without visual clutter.
 
-Depth comes from tone and hairline rules, not shadows. Color is kept for meaning: blue means "you can act here" or "this is selected", green, amber and red mean status, and navy exists only in the navigation. Density is compact (32px controls), so a voucher shows many lines without scrolling while targets stay easy to click.
+Depth comes from refined directional lighting, layered multi-stop ambient shadows, and top-edge specular bevels. Primary actions feature smooth 3D gradients with a physical click compression on `:active` (`translateY(1px)` with inset shadow). Density remains strictly compact (32px controls, 36px table rows), so a voucher displays comprehensive lines without scrolling while controls offer clear tactile target affordance.
 
 **Key Characteristics:**
-- White working surfaces on a cool, quiet ground (Workspace Ground)
-- One accent (Ledger Blue) for actions, selection, and focus
-- Navy only in the sidebar
-- 32px controls, 36px table rows, 6px control corners, 8px container corners
-- Flat at rest; shadows only on things that float (dropdowns, dialogs)
-- One typeface (Inter), with tabular figures wherever numbers must line up
-- Two themes, Light and Dark, sharing one set of token names
+- Dimensional working surfaces with subtle directional gradient washes (`--grad-surface`) and top edge highlights on a cool, quiet ground (`Workspace Ground`)
+- Tactile 3D primary actions (`--grad-primary`) with specular top sheen, bottom support border, and active press depression
+- Structured secondary actions with frosted 3D button styling (`--grad-secondary`) and crisp bevel outlines
+- Navy anchor only in the sidebar, styled with deep micro-gradient and sleek active indicators
+- Compact 32px controls, 36px table rows, 6px control corners, 8px container corners
+- Layered 3D elevation: subtle ambient grounding + key light drop shadows for panels and floating modals
+- One open-source typeface (Inter), with tabular figures wherever numbers must line up (strictly NO licensed fonts)
+- Two themes, Light and Dark, sharing identical 3D gradient token architecture
 
 ## Colors
 
@@ -216,16 +221,24 @@ Every screen follows one anatomy, top to bottom:
 | Larger master data | List, then a full-page form with actions at the top | Branches |
 | Documents (vouchers, invoices, transfers) | Full-page voucher form (below) | — |
 
-## Elevation & Depth
+## Elevation & 3D Depth
 
-Flat by default. Surfaces separate by tone (Workspace Ground behind Paper) and 1px rules. `--shadow-overlay` is the only real shadow, used for dropdown menus, dialogs, and popovers, which float above content.
+Surfaces and controls embrace a **3D Dimensional Standard**. Rather than stark flat surfaces, elements express physical depth through directional top-to-bottom gradients, 1px specular inner highlights (`inset 0 1px 0`), layered multi-stop ambient drop shadows, and tactile active depression on click.
 
-### Shadow Vocabulary
-- **Overlay** (`--shadow-overlay`): dropdowns, dialogs, popovers.
-- **Hairline** (`--shadow-sm`, 0 1px 2px): allowed on a raised control inside a group, such as the active segment. Nothing else.
+### Lighting Model & Shadow Vocabulary
+- **Directional Light (180° Top-Down):** A virtual key light casts downward. Surfaces have a brighter top edge (`inset 0 1px 0 rgba(255,255,255,0.85)` in Light theme; `rgba(255,255,255,0.06)` in Dark theme) and subtle bottom grounding.
+- **Primary 3D Action** (`--shadow-3d-primary`): `0 2px 4px rgba(7,85,233,0.28), inset 0 1px 0 rgba(255,255,255,0.32), inset 0 -1px 0 rgba(0,0,0,0.18)` — gives primary buttons a physical, tactile pill affordance.
+- **Secondary 3D Action** (`--shadow-3d-secondary`): `0 1px 3px rgba(15,27,45,0.08), inset 0 1px 0 rgba(255,255,255,0.9), inset 0 -1px 0 rgba(0,0,0,0.06)`.
+- **Destructive 3D Action** (`--shadow-3d-danger`): `0 2px 4px rgba(198,40,40,0.28), inset 0 1px 0 rgba(255,255,255,0.3), inset 0 -1px 0 rgba(0,0,0,0.2)`.
+- **Panel & Container Depth** (`--shadow-3d-panel`): `0 2px 6px -1px rgba(15,27,45,0.06), 0 1px 3px rgba(15,27,45,0.04), inset 0 1px 0 rgba(255,255,255,0.85)` — separates workspaces and tables cleanly from Workspace Ground.
+- **Card & Summary Depth** (`--shadow-3d-card`): `0 3px 8px -1px rgba(15,27,45,0.08), 0 1px 3px rgba(15,27,45,0.04), inset 0 1px 0 rgba(255,255,255,0.85)`.
+- **Active Compression** (`--shadow-3d-pressed`): `inset 0 2px 4px rgba(0,0,0,0.22)` with `transform: translateY(1px)` on `:active` — delivers satisfying tactile feedback.
+- **Overlay** (`--shadow-overlay`): `0 12px 32px rgba(15,27,45,0.14), 0 2px 6px rgba(15,27,45,0.08)` for floating dialogs, dropdowns, and popovers.
 
 ### Named Rules
-**The Flat Panel Rule.** Panels, cards, and tables have a 1px border and no shadow. A hover never lifts or moves an element (no `translateY`).
+**The 3D Dimensional Affordance Rule.** Interactive controls must communicate their physical state: rest has gentle elevation, hover increases specular brilliance, and `:active` provides a 1px physical push-down (`translateY(1px)`).
+
+**The Directional Lighting Rule.** All gradients must follow a 180° vertical flow (lightest at top, deepest at bottom) simulating natural light. Horizontal or diagonal rainbow gradients are strictly forbidden.
 
 ## Shapes
 
@@ -240,20 +253,20 @@ Use the shared component; don't restyle it locally. If a variant is missing, add
 
 ### App Shell — `components/shell/`
 - `nav-config.ts` is the single navigation tree (sections → links or groups → pages). Add a page there and the sidebar, breadcrumb and active state follow. The active route is the longest matching href.
-- `AppSidebar`: navy, 248px, grouped by section; one group open at a time. The active page has a tinted fill; its group only brightens (one selected row at a time). Collapses to a 64px icon rail (remembered per browser) with tooltips; on tablet and phone it is a drawer.
+- `AppSidebar`: navy, 248px, grouped by section; one group open at a time. The active page has a tinted fill and subtle 3D left pip; its group only brightens (one selected row at a time). Collapses to a 64px icon rail (remembered per browser) with tooltips; on tablet and phone it is a drawer.
 - `AppHeader`: breadcrumb (group › page), mobile menu button, and the user menu (Appearance: Light / Dark, then Sign Out).
 
 ### Page Header — `PageHeader`
-- Props: `title`, `description`, `actions`. No icon tiles and no gradient badges beside the title.
+- Props: `title`, `description`, `actions`. No icon tiles and no noisy decorative banners.
 - The primary action sits at the far right. At most one primary button per header.
 
 ### Buttons — `Button` (classes `btn-primary`, `btn-secondary`, `btn-ghost`, `btn-danger`)
 - **Shape:** 6px corners, 32px high (`sm` 28px, `lg` 36px), 0 12px padding, 13px/600 label, 16px Tabler icon at stroke 1.8.
-- **Primary:** Ledger Blue, white text. One per area: Save, Process, New.
-- **Secondary:** Paper with a Rule border. Refresh, Back To List, Print, filters.
-- **Ghost:** no border. Cancel next to Save, and icon-only row actions (`aria-label` required).
-- **Danger:** solid red, always behind a `ConfirmDialog`.
-- **States:** hover changes the background only. Disabled is 50% opacity. `loading` shows a spinner and blocks clicks. Focus is a 2px Ledger Blue outline with a 2px offset (global `:focus-visible`).
+- **Primary:** 3D gradient `--grad-primary` with `--shadow-3d-primary`, white text. One per area: Save, Process, New. On `:hover`, brightens gradient. On `:active`, `translateY(1px)` with inset shadow.
+- **Secondary:** 3D gradient `--grad-secondary` with `--shadow-3d-secondary` and Rule border. Refresh, Back To List, Print, filters. On `:active`, `translateY(1px)`.
+- **Ghost:** flat transparent background, no border. Cancel next to Save, and icon-only row actions (`aria-label` required).
+- **Danger:** 3D gradient `--grad-danger` with `--shadow-3d-danger`, white text, always behind a `ConfirmDialog`. On `:active`, `translateY(1px)`.
+- **States:** hover enhances specular gradient sheen. Disabled is 50% opacity with no 3D shadow. `loading` shows a spinner and blocks clicks. Focus is a 2px Ledger Blue outline with a 2px offset (global `:focus-visible`).
 
 ### Inputs And Fields — `TextField`, `NumericField`, `DateField`, `SelectField`, `SearchableSelect`, `TextareaField`, `CheckboxField`, `SearchField`
 - **Style:** 32px, 1px Control Edge border, 6px corners, 13px text, label above in 12px/600 Title Case.
@@ -266,7 +279,7 @@ Use the shared component; don't restyle it locally. If a variant is missing, add
 - **Yes/No:** `CheckboxField`. Toggle switches are not used in forms, because a toggle suggests the change applies immediately.
 
 ### Tables — class `data-table`
-- **Header:** Paper Alt, 12px/600 Ink Secondary, Title Case, sticky, 36px.
+- **Header:** 3D gradient `--grad-table-head`, 12px/600 Ink Secondary, Title Case, sticky, 36px, with a subtle bottom divider.
 - **Rows:** 36px, 13px, a Rule Subtle divider, a barely-there zebra, hover tint. `tr.is-selected` uses Ledger Blue Tint.
 - **Cells:** `.num` right-aligns with tabular figures (all amounts, quantities, counts). `.cell-strong` is for the record's code or name, `.cell-muted` for secondary columns, and `.cell-actions` for a right-aligned ghost icon button.
 - **Missing value:** show "Not Set" in muted text, not "-".
@@ -277,7 +290,7 @@ Use the shared component; don't restyle it locally. If a variant is missing, add
 - Document lists with many labelled filters (Posted Purchases, Voucher List) use `.filter-grid`: labelled fields that wrap onto a second row, with the first field (search) wider and buttons at natural width. A filter row must never push the page sideways.
 
 ### Status Badges — `Badge`
-- Pill, 20px, 12px/600: `success` (Active, Posted, Approved), `warning` (Pending, Draft awaiting action), `danger` (Rejected, Voided), `info` (Default, Mode), `neutral` (Inactive, Draft).
+- Pill, 20px, 12px/600: subtle 3D gradient fill (`--grad-badge-*`), top highlight, 1px border: `success` (Active, Posted, Approved), `warning` (Pending, Draft awaiting action), `danger` (Rejected, Voided), `info` (Default, Mode), `neutral` (Inactive, Draft).
 
 ### Inline Alert — `InlineAlert`
 - Tones: success, danger, warning, info, with an icon. The text names what happened and what to do next ("Enter a Branch Name.", "Branch BR-001 saved."). Pass `onDismiss` for messages the user may close.
@@ -297,6 +310,13 @@ Use the shared component; don't restyle it locally. If a variant is missing, add
 ### Side Panel — `SidePanel`
 - 380px wide, beside the list, not a modal. Header: title plus a ghost close button. Footer: Cancel (ghost) then the primary action. A form-level error shows at the top of the body.
 
+### Summary Tiles And Analytics — `KpiTile`, `TileIcon`, `ChartCard` (`components/analytics/ProCharts.tsx`)
+- Every summary tile has a tone (`blue`, `teal`, `violet`, `amber`, `rose`, `slate`; tokens `--tone-*`). The tone colours the 3D icon badge, a vertical gradient wash (tone tint at the top fading to the surface), and the tile edge. Dashboard tiles use `stat-card has-tone tone-*` with a `stat-head` (icon + label), `stat-value`, and `stat-foot`.
+- Neighbouring tiles use different tones so figures never blur together. Tones are decoration only; chart series keep the validated palette in `chart-palette.ts`.
+- Analytics screens are split into titled sections (`analytics-section-title`: Key Figures, Trends, Breakdown).
+- Charts sit in a `ChartCard`: raised surface, shaded header band (title, headline figure, Chart/Table switch), plot below. Every card has a Table view.
+- Bars and slices use the vertical light-to-deep gradient from `BarGradientDefs`; the middle stop is the true series colour. One value axis per chart, never two.
+
 ### Voucher And Document Forms
 - **Top:** Page Header with the document title and number, a status badge next to the title, and actions on the right (New, Print as secondary; Save Draft as secondary; the posting action as primary).
 - **Header fields:** one `.form-grid` panel: number (read-only), date, reference, party, and description.
@@ -306,10 +326,10 @@ Use the shared component; don't restyle it locally. If a variant is missing, add
 
 ### Screen Migration Checklist
 When touching a screen that predates this standard:
-1. Replace the local header with `PageHeader`; delete the icon tile and gradients.
+1. Replace the local header with `PageHeader`.
 2. Wrap content in `.page-shell` and a `.panel`; use `.filter-bar` and `.table-scroll`.
 3. Change tables to `data-table`, and delete local `HeaderCell`, `EmptyRow` and `StatusBadge` copies.
-4. Use shared fields and `Button`; delete inline font sizes, weights, colors and radii.
+4. Use shared fields and `Button` (with standard 3D tokens); delete inline font sizes, weights, colors and radii.
 5. Replace `<style>` blocks and hex colors with tokens.
 6. Check Light and Dark, and a 1280px width.
 
@@ -317,15 +337,19 @@ When touching a screen that predates this standard:
 
 ### Do:
 - **Do** build every screen from `PageHeader`, `.panel`, `data-table`, and the shared fields and buttons.
+- **Do** use the standard 3D gradient tokens (`--grad-primary`, `--grad-secondary`, `--grad-surface`, etc.) and dimensional shadows (`--shadow-3d-*`) for rich physical affordance.
+- **Do** provide physical active tactile depression (`translateY(1px)`) on interactive 3D buttons.
 - **Do** right-align every amount, quantity, and count, with tabular figures.
 - **Do** mark required fields with `*` and validate before calling the API.
 - **Do** write labels, buttons, and headers in Title Case, in plain words a non-native English speaker understands.
+- **Do** stick strictly to open-source fonts (Inter and system fallbacks); never introduce licensed font dependencies.
 - **Do** take currency, date, timezone, and number formats from settings.
 - **Do** give every icon-only button an `aria-label` and a `title`.
 - **Do** check every change in both Light and Dark.
 
 ### Don't:
-- **Don't** use gradients anywhere in the working UI: no gradient headers, icon tiles, buttons, or text.
+- **Don't** use arbitrary, neon, or horizontal novelty gradients; all gradients must adhere to the 180° directional top-down lighting tokens.
+- **Don't** require commercial or licensed fonts (e.g. Giorgio Sans); open-source Inter is the single typography standard.
 - **Don't** use navy or blue bars as panel or table headers.
 - **Don't** use uppercase labels or table headers.
 - **Don't** use font sizes below 12px, or weights outside 400–700.

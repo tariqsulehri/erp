@@ -1,28 +1,14 @@
 'use client';
 
-import { useMemo, type CSSProperties } from 'react';
-import { IconFilePlus, IconListSearch, IconRefresh } from '@tabler/icons-react';
-import { formatDate, formatMoney, formatNumber, type AppFormatSettingsSource } from '@/lib/app-settings';
-import { AnalyticsKpi, ChartMetricBadge, ChartTitle, ChartTooltipBox, ChartValueLegend, DonutLayout, chartPanelStyle } from '@/components/analytics/AnalyticsWidgets';
-import { chartAxisTick, chartLegendStyle, useChartTheme } from '@/components/analytics/chart-palette';
+import { useMemo } from 'react';
+import { IconCalculator, IconCreditCard, IconFileInvoice, IconFilePlus, IconListSearch, IconReceipt2, IconRefresh } from '@tabler/icons-react';
+import { formatCount, formatDate, formatMoney, formatNumber, type AppFormatSettingsSource } from '@/lib/app-settings';
+import { BridgeChart, ChartCard, KpiTile, MonthlyColumnChart, RankedBars, StackedMonthlyChart, type MonthPoint } from '@/components/analytics/ProCharts';
+import { compactAxis, fillMonths, lastMonthChange, longMonthLabel, monthLabeler } from '@/components/analytics/chart-data';
+import { useChartTheme } from '@/components/analytics/chart-palette';
 import { Button } from '@/components/ui/Button';
 import { InlineAlert } from '@/components/ui/InlineAlert';
 import { PageHeader } from '@/components/ui/PageHeader';
-import {
-  Bar,
-  BarChart,
-  CartesianGrid,
-  Cell,
-  ComposedChart,
-  Legend,
-  Line,
-  Pie,
-  PieChart,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from 'recharts';
 
 export interface AnalyticsRow {
   id: string;
@@ -41,9 +27,12 @@ interface TransactionAnalyticsViewProps {
   title: string;
   documentLabel: string;
   postedListLabel: string;
+  /** Singular party name for labels, e.g. Customer or Supplier. */
+  partyLabel?: string;
   rows: AnalyticsRow[];
   totalRecords: number;
   loading: boolean;
+  fetching?: boolean;
   error: unknown;
   settings?: AppFormatSettingsSource | null;
   onNew: () => void;
@@ -57,9 +46,11 @@ export function TransactionAnalyticsView({
   title,
   documentLabel,
   postedListLabel,
+  partyLabel = 'Party',
   rows,
   totalRecords,
   loading,
+  fetching = false,
   error,
   settings,
   onNew,
@@ -69,16 +60,20 @@ export function TransactionAnalyticsView({
   newDisabledReason,
 }: TransactionAnalyticsViewProps) {
   const model = useMemo(() => buildAnalyticsModel(rows, settings), [rows, settings]);
-  const chartEmpty = !loading && rows.length === 0;
   const theme = useChartTheme();
-  const { series } = theme;
-  const tick = chartAxisTick(theme);
+  const money = (value: number) => formatMoney(value, settings);
+  const count = (value: number) => formatCount(value, settings);
+  const share = (value: number, total: number) => `${(total > 0 ? value / total * 100 : 0).toFixed(1)}%`;
+  const monthTitle = (point: MonthPoint) => String(point.longLabel ?? point.label);
+  const empty = !loading && rows.length === 0;
+  const { totals, months } = model;
+  const comparison = months.length >= 2 ? `${months[months.length - 1].label} vs ${months[months.length - 2].label}` : '';
 
   return (
     <main className="page-shell">
       <PageHeader
         title={title}
-        description={`${formatNumber(totalRecords, settings)} Posted ${documentLabel}`}
+        description={`${formatCount(totalRecords, settings)} Posted ${documentLabel}`}
         actions={(
           <>
             <Button icon={<IconRefresh size={16} stroke={1.8} />} onClick={onRefresh}>Refresh</Button>
@@ -89,170 +84,195 @@ export function TransactionAnalyticsView({
       />
 
       {Boolean(error) && <InlineAlert tone="danger">Unable to load analytics. Refresh the page and try again.</InlineAlert>}
+      {!loading && totalRecords > rows.length && (
+        <InlineAlert tone="info">{`Charts use the latest ${count(rows.length)} of ${count(totalRecords)} posted ${documentLabel.toLowerCase()}.`}</InlineAlert>
+      )}
 
-      <div style={chartsScrollStyle}>
-        <div style={summaryGridStyle}>
-          <AnalyticsKpi label="Net Amount" value={formatMoney(model.totals.net, settings)} detail={`Gross ${formatMoney(model.totals.gross, settings)}`} />
-          <AnalyticsKpi label="Document Count" value={formatNumber(totalRecords, settings)} detail={`Average ${formatMoney(model.averageDocument, settings)}`} />
-          <AnalyticsKpi label="Credit Amount" value={formatMoney(model.totals.credit, settings)} detail={`${formatNumber(model.creditShare, settings)}% Of Total`} />
-          <AnalyticsKpi label="Tax And Freight" value={formatMoney(model.totals.tax + model.totals.freight, settings)} detail={`Discount ${formatMoney(model.totals.discount, settings)}`} />
-        </div>
-
-        {(loading || chartEmpty) && (
-          <section className="panel">
-            <div className="empty-state" style={{ padding: '32px 16px' }}>
-              <div className="empty-title">{loading ? 'Loading Analytics…' : 'No Posted Records Yet'}</div>
-              {chartEmpty && <div className="empty-desc">Charts appear here after {documentLabel.toLowerCase()} are posted.</div>}
-            </div>
-          </section>
+      <div className={`analytics-stack${fetching && !loading ? ' analytics-loading' : ''}`} style={{ flex: 1 }}>
+        {(loading || empty) && (
+          <div className="chart-card chart-empty">
+            {loading ? 'Loading Analytics…' : `No posted ${documentLabel.toLowerCase()} yet. Charts appear here after the first one is posted.`}
+          </div>
         )}
 
-        {!loading && !chartEmpty && (
+        {!loading && !empty && (
           <>
-            <div style={mainGridStyle}>
-              <div style={chartPanelStyle}>
-                <ChartTitle
-                  title={`Month Wise ${documentLabel} Trend`}
-                  subtitle="Gross amount, net amount, and average document value"
-                  right={<ChartMetricBadge label="Monthly Average" value={formatMoney(model.averageMonthlyNet, settings)} />}
-                />
-                <ResponsiveContainer width="100%" height={230}>
-                  <ComposedChart data={model.monthlyRows} margin={{ top: 6, right: 14, left: 0, bottom: 0 }}>
-                    <CartesianGrid stroke={theme.grid} vertical={false} />
-                    <XAxis dataKey="monthLabel" tick={tick} axisLine={false} tickLine={false} />
-                    <YAxis tickFormatter={model.moneyAxis} tick={tick} axisLine={false} tickLine={false} />
-                    <Tooltip content={tooltipContent(settings)} cursor={{ fill: theme.grid }} />
-                    <Legend wrapperStyle={chartLegendStyle} iconType="square" iconSize={10} />
-                    <Bar dataKey="grossAmount" name="Gross Amount" fill={series.blueSoft} radius={[3, 3, 0, 0]} maxBarSize={28} />
-                    <Bar dataKey="netAmount" name="Net Amount" fill={series.blue} radius={[3, 3, 0, 0]} maxBarSize={22} />
-                    <Line type="monotone" dataKey="averageDocument" name="Average Document" stroke={series.amber} strokeWidth={2} dot={{ r: 3, fill: theme.surface, strokeWidth: 2 }} activeDot={{ r: 4 }} />
-                  </ComposedChart>
-                </ResponsiveContainer>
-              </div>
-
-              <div style={chartPanelStyle}>
-                <ChartTitle
-                  title={`Cash Vs Credit ${documentLabel}`}
-                  subtitle="Monthly payment-type mix and document count"
-                  right={<ChartMetricBadge label="Credit Share" value={`${formatNumber(model.creditShare, settings)}%`} />}
-                />
-                <ResponsiveContainer width="100%" height={230}>
-                  <ComposedChart data={model.monthlyRows} margin={{ top: 6, right: 14, left: 0, bottom: 0 }}>
-                    <CartesianGrid stroke={theme.grid} vertical={false} />
-                    <XAxis dataKey="monthLabel" tick={tick} axisLine={false} tickLine={false} />
-                    <YAxis yAxisId="amount" tickFormatter={model.moneyAxis} tick={tick} axisLine={false} tickLine={false} />
-                    <YAxis yAxisId="count" orientation="right" tickFormatter={value => formatNumber(Number(value), settings)} tick={tick} axisLine={false} tickLine={false} />
-                    <Tooltip content={tooltipContent(settings)} cursor={{ fill: theme.grid }} />
-                    <Legend wrapperStyle={chartLegendStyle} iconType="square" iconSize={10} />
-                    <Bar yAxisId="amount" dataKey="cashAmount" name="Cash Amount" stackId="payment" fill={series.teal} maxBarSize={30} />
-                    <Bar yAxisId="amount" dataKey="creditAmount" name="Credit Amount" stackId="payment" fill={series.blue} radius={[3, 3, 0, 0]} maxBarSize={30} />
-                    <Line yAxisId="count" type="monotone" dataKey="documents" name="Document Count" stroke={series.slate} strokeWidth={2} dot={{ r: 3, fill: theme.surface, strokeWidth: 2 }} />
-                  </ComposedChart>
-                </ResponsiveContainer>
-              </div>
+            <h2 className="analytics-section-title">Key Figures</h2>
+            <div className="analytics-kpis">
+              <KpiTile
+                label={`Net ${documentLabel}`}
+                tone="blue"
+                icon={<IconReceipt2 size={18} stroke={1.8} />}
+                value={money(totals.net)}
+                spark={months.map(month => month.netAmount)}
+                change={{ percent: lastMonthChange(months.map(month => month.netAmount)), text: comparison }}
+                detail={months.length < 2 ? `Gross ${money(totals.gross)}` : undefined}
+              />
+              <KpiTile
+                label="Documents"
+                tone="violet"
+                icon={<IconFileInvoice size={18} stroke={1.8} />}
+                value={count(rows.length)}
+                spark={months.map(month => month.documents)}
+                change={{ percent: lastMonthChange(months.map(month => month.documents)), text: comparison }}
+              />
+              <KpiTile
+                label="Average Document"
+                tone="teal"
+                icon={<IconCalculator size={18} stroke={1.8} />}
+                value={money(model.averageDocument)}
+                detail={model.peakMonth ? `Peak Month ${model.peakMonth.longLabel} · ${money(model.peakMonth.netAmount)}` : undefined}
+              />
+              <KpiTile
+                label="On Credit"
+                tone="amber"
+                icon={<IconCreditCard size={18} stroke={1.8} />}
+                value={money(totals.credit)}
+                detail={`${formatNumber(model.creditShare, settings)}% On Credit · Cash ${money(totals.cash)}`}
+                meter={[
+                  { name: 'Credit', value: totals.credit, color: theme.series.blue },
+                  { name: 'Cash', value: totals.cash, color: theme.series.teal },
+                ]}
+              />
             </div>
 
-            <div style={smallGridStyle}>
-              <div style={chartPanelStyle}>
-                <ChartTitle
-                  title="Top Parties"
-                  subtitle="Highest net amount and document count"
-                  right={<ChartMetricBadge label="Top" value={formatMoney(model.partyRows[0]?.amount ?? 0, settings)} />}
+            <h2 className="analytics-section-title">Trends</h2>
+            <div className="analytics-row-main">
+              <ChartCard
+                title={`Net ${documentLabel} By Month`}
+                subtitle="Posted value each month; the dashed line is the monthly average"
+                metric={{ label: 'Monthly Average', value: money(model.averageMonthlyNet) }}
+                table={{
+                  columns: [
+                    { key: 'month', label: 'Month' },
+                    { key: 'count', label: 'Documents', numeric: true },
+                    { key: 'gross', label: 'Gross', numeric: true },
+                    { key: 'net', label: 'Net', numeric: true },
+                  ],
+                  rows: months.map(month => ({ month: String(month.longLabel), count: count(month.documents), gross: money(month.grossAmount), net: money(month.netAmount) })),
+                }}
+              >
+                <MonthlyColumnChart
+                  data={months}
+                  dataKey="netAmount"
+                  seriesName={`Net ${documentLabel}`}
+                  average={model.averageMonthlyNet}
+                  format={money}
+                  axis={model.axis}
+                  tooltipTitle={monthTitle}
                 />
-                <ResponsiveContainer width="100%" height={185}>
-                  <BarChart data={model.partyRows} layout="vertical" margin={{ top: 2, right: 12, left: 12, bottom: 2 }}>
-                    <CartesianGrid stroke={theme.grid} horizontal={false} />
-                    <XAxis type="number" tickFormatter={model.moneyAxis} tick={tick} axisLine={false} tickLine={false} />
-                    <YAxis type="category" dataKey="name" width={128} tick={tick} axisLine={false} tickLine={false} />
-                    <Tooltip content={tooltipContent(settings)} cursor={{ fill: theme.grid }} />
-                    <Bar dataKey="amount" name="Net Amount" fill={series.blue} radius={[0, 3, 3, 0]} barSize={13} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
+              </ChartCard>
 
-              <div style={chartPanelStyle}>
-                <ChartTitle
-                  title="Amount Composition"
-                  subtitle="Cash, credit, tax, freight, and discount share"
-                  right={<ChartMetricBadge label="Net" value={formatMoney(model.totals.net, settings)} />}
+              <ChartCard
+                title="Gross To Net"
+                subtitle="How discount, tax, and freight move gross value to the net amount"
+                legend={[
+                  { name: 'Total', color: theme.series.blue },
+                  { name: 'Reduces', color: theme.series.teal },
+                  { name: 'Adds', color: theme.series.amber },
+                ]}
+                table={{
+                  columns: [{ key: 'step', label: 'Step' }, { key: 'amount', label: 'Amount', numeric: true }, { key: 'share', label: 'Of Gross', numeric: true }],
+                  rows: [
+                    { step: 'Gross Amount', amount: money(totals.gross), share: share(totals.gross, totals.gross) },
+                    { step: 'Less Discount', amount: money(-totals.discount), share: share(totals.discount, totals.gross) },
+                    { step: 'Add Tax', amount: money(totals.tax), share: share(totals.tax, totals.gross) },
+                    { step: 'Add Freight', amount: money(totals.freight), share: share(totals.freight, totals.gross) },
+                    { step: 'Net Amount', amount: money(totals.net), share: share(totals.net, totals.gross) },
+                  ],
+                }}
+              >
+                <BridgeChart
+                  format={money}
+                  axis={model.axis}
+                  steps={[
+                    { name: 'Gross', amount: totals.gross, kind: 'total' },
+                    { name: 'Discount', amount: -totals.discount, kind: 'decrease' },
+                    { name: 'Tax', amount: totals.tax, kind: 'increase' },
+                    { name: 'Freight', amount: totals.freight, kind: 'increase' },
+                    { name: 'Net', amount: totals.net, kind: 'total' },
+                  ]}
                 />
-                <DonutLayout
-                  centerLabel="Net"
-                  centerValue={formatMoney(model.totals.net, settings)}
-                  chart={(
-                    <ResponsiveContainer width="100%" height="100%">
-                      <PieChart>
-                        <Tooltip content={tooltipContent(settings)} />
-                        <Pie data={model.compositionRows} dataKey="amount" nameKey="name" innerRadius={50} outerRadius={72} paddingAngle={2} stroke={theme.surface} strokeWidth={2}>
-                          {model.compositionRows.map((entry, index) => (
-                            <Cell key={entry.name} fill={theme.categorical[index % theme.categorical.length]} />
-                          ))}
-                        </Pie>
-                      </PieChart>
-                    </ResponsiveContainer>
-                  )}
-                  legend={(
-                    <ChartValueLegend
-                      items={model.compositionRows.map((entry, index) => ({
-                        name: entry.name,
-                        color: theme.categorical[index % theme.categorical.length],
-                        value: formatMoney(entry.amount, settings),
-                      }))}
-                    />
-                  )}
-                />
-              </div>
-
-              <div style={chartPanelStyle}>
-                <ChartTitle
-                  title="Tax Discount And Freight"
-                  subtitle="Monthly cost and concession view"
-                  right={<ChartMetricBadge label="Total Impact" value={formatMoney(model.totals.tax + model.totals.freight + model.totals.discount, settings)} />}
-                />
-                <ResponsiveContainer width="100%" height={185}>
-                  <BarChart data={model.monthlyRows} margin={{ top: 2, right: 12, left: 0, bottom: 2 }}>
-                    <CartesianGrid stroke={theme.grid} vertical={false} />
-                    <XAxis dataKey="monthLabel" tick={tick} axisLine={false} tickLine={false} />
-                    <YAxis tickFormatter={model.moneyAxis} tick={tick} axisLine={false} tickLine={false} />
-                    <Tooltip content={tooltipContent(settings)} cursor={{ fill: theme.grid }} />
-                    <Legend wrapperStyle={chartLegendStyle} iconType="square" iconSize={10} />
-                    <Bar dataKey="taxAmount" name="Tax" fill={series.amber} radius={[3, 3, 0, 0]} maxBarSize={20} />
-                    <Bar dataKey="freightAmount" name="Freight" fill={series.teal} radius={[3, 3, 0, 0]} maxBarSize={20} />
-                    <Bar dataKey="discountAmount" name="Discount" fill={series.slate} radius={[3, 3, 0, 0]} maxBarSize={20} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
+              </ChartCard>
             </div>
 
-            <section className="panel">
-              <div className="panel-header">
-                <h2 className="panel-title">Latest {documentLabel}</h2>
-              </div>
-              <div className="table-scroll">
-                <table className="data-table">
-                  <thead>
-                    <tr>
-                      <th style={{ width: 120 }}>Date</th>
-                      <th style={{ width: 170 }}>Document Number</th>
-                      <th>Party</th>
-                      <th style={{ width: 110 }}>Type</th>
-                      <th className="num" style={{ width: 160 }}>Net Amount</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {rows.slice(0, 12).map(row => (
-                      <tr key={row.id}>
-                        <td>{formatDate(row.documentDate, settings)}</td>
-                        <td className="cell-strong">{row.documentNumber}</td>
-                        <td>{row.partyName || 'Not Set'}</td>
-                        <td className="cell-muted">{row.paymentType || 'Not Set'}</td>
-                        <td className="num">{formatMoney(row.netAmount, settings)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </section>
+            <h2 className="analytics-section-title">Breakdown</h2>
+            <div className="analytics-row-three">
+              <ChartCard
+                title="Cash And Credit By Month"
+                subtitle="Net value settled in cash and left on credit"
+                metric={{ label: 'On Credit', value: `${formatNumber(model.creditShare, settings)}%` }}
+                legend={[
+                  { name: 'Credit', color: theme.series.blue },
+                  { name: 'Cash', color: theme.series.teal },
+                ]}
+                table={{
+                  columns: [
+                    { key: 'month', label: 'Month' },
+                    { key: 'credit', label: 'Credit', numeric: true },
+                    { key: 'cash', label: 'Cash', numeric: true },
+                    { key: 'net', label: 'Net', numeric: true },
+                  ],
+                  rows: months.map(month => ({ month: String(month.longLabel), credit: money(month.creditAmount), cash: money(month.cashAmount), net: money(month.netAmount) })),
+                }}
+              >
+                <StackedMonthlyChart
+                  data={months}
+                  series={[
+                    { key: 'cashAmount', name: 'Cash', color: theme.series.teal },
+                    { key: 'creditAmount', name: 'Credit', color: theme.series.blue },
+                  ]}
+                  format={money}
+                  axis={model.axis}
+                  tooltipTitle={monthTitle}
+                />
+              </ChartCard>
+
+              <ChartCard
+                title={`Top ${partyLabel}s`}
+                subtitle="Net value and share of the total"
+                metric={{ label: `${partyLabel}s`, value: count(model.parties.length) }}
+                table={{
+                  columns: [{ key: 'name', label: partyLabel }, { key: 'count', label: 'Documents', numeric: true }, { key: 'net', label: 'Net', numeric: true }, { key: 'share', label: 'Share', numeric: true }],
+                  rows: model.parties.map(row => ({ name: row.name, count: count(row.count), net: money(row.value), share: share(row.value, totals.net) })),
+                }}
+              >
+                <RankedBars items={model.parties} total={totals.net} format={money} color={theme.series.blue} countLabel={value => `${count(value)} Documents`} />
+              </ChartCard>
+
+              <ChartCard
+                title={`Latest ${documentLabel}`}
+                subtitle="Most recent posted documents"
+                table={{
+                  columns: [
+                    { key: 'date', label: 'Date' },
+                    { key: 'number', label: 'Number' },
+                    { key: 'party', label: partyLabel },
+                    { key: 'type', label: 'Type' },
+                    { key: 'net', label: 'Net', numeric: true },
+                  ],
+                  rows: rows.map(row => ({
+                    date: formatDate(row.documentDate, settings),
+                    number: row.documentNumber,
+                    party: row.partyName || 'Not Set',
+                    type: row.paymentType || 'Not Set',
+                    net: money(Number(row.netAmount || 0)),
+                  })),
+                }}
+              >
+                <ul className="ranked-bars">
+                  {rows.slice(0, 6).map(row => (
+                    <li key={row.id} title={`${row.documentNumber} · ${row.partyName}`}>
+                      <span className="name"><strong style={{ fontWeight: 600, color: 'var(--color-heading)' }}>{row.documentNumber}</strong> · {row.partyName || 'Not Set'}</span>
+                      <span className="value">{money(Number(row.netAmount || 0))}</span>
+                      <span className="name" style={{ gridColumn: '1 / -1', color: 'var(--color-text-muted)', fontSize: 'var(--font-size-xs)' }}>
+                        {`${formatDate(row.documentDate, settings)} · ${row.paymentType || 'Not Set'}`}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </ChartCard>
+            </div>
           </>
         )}
       </div>
@@ -260,21 +280,12 @@ export function TransactionAnalyticsView({
   );
 }
 
-function tooltipContent(settings?: AppFormatSettingsSource | null) {
-  return function AnalyticsTooltip({ active, payload, label }: any) {
-    if (!active || !payload?.length) return null;
-    return (
-      <ChartTooltipBox
-        label={label}
-        entries={payload.map((entry: any) => ({
-          key: `${entry.dataKey}-${entry.name}`,
-          name: entry.name,
-          color: entry.color ?? entry.payload?.fill,
-          value: entry.dataKey === 'documents' ? formatNumber(Number(entry.value), settings) : formatMoney(Number(entry.value), settings),
-        }))}
-      />
-    );
-  };
+interface MonthRow extends MonthPoint {
+  documents: number;
+  grossAmount: number;
+  netAmount: number;
+  cashAmount: number;
+  creditAmount: number;
 }
 
 function buildAnalyticsModel(rows: AnalyticsRow[], settings?: AppFormatSettingsSource | null) {
@@ -288,120 +299,44 @@ function buildAnalyticsModel(rows: AnalyticsRow[], settings?: AppFormatSettingsS
     credit: sum.credit + (row.paymentType === 'Credit' ? Number(row.netAmount || 0) : 0),
   }), { gross: 0, discount: 0, tax: 0, freight: 0, net: 0, cash: 0, credit: 0 });
 
-  const monthlyMap = new Map<string, {
-    monthKey: string;
-    monthLabel: string;
-    documents: number;
-    grossAmount: number;
-    discountAmount: number;
-    taxAmount: number;
-    freightAmount: number;
-    netAmount: number;
-    cashAmount: number;
-    creditAmount: number;
-  }>();
-  const partyMap = new Map<string, { name: string; amount: number; documents: number }>();
+  const emptyMonth = (monthKey: string): MonthRow => ({
+    monthKey, label: monthKey, longLabel: monthKey, documents: 0, grossAmount: 0, netAmount: 0, cashAmount: 0, creditAmount: 0,
+  });
+  const monthlyMap = new Map<string, MonthRow>();
+  const partyMap = new Map<string, { name: string; value: number; count: number }>();
 
   rows.forEach(row => {
     const monthKey = row.documentDate.slice(0, 7);
-    const monthRow = monthlyMap.get(monthKey) ?? {
-      monthKey,
-      monthLabel: formatMonth(monthKey),
-      documents: 0,
-      grossAmount: 0,
-      discountAmount: 0,
-      taxAmount: 0,
-      freightAmount: 0,
-      netAmount: 0,
-      cashAmount: 0,
-      creditAmount: 0,
-    };
-    const grossAmount = Number(row.grossAmount || 0);
-    const discountAmount = Number(row.discountAmount || 0);
-    const taxAmount = Number(row.taxAmount || 0);
-    const freightAmount = Number(row.freightAmount || 0);
+    const month = monthlyMap.get(monthKey) ?? emptyMonth(monthKey);
     const netAmount = Number(row.netAmount || 0);
-    monthRow.documents += 1;
-    monthRow.grossAmount += grossAmount;
-    monthRow.discountAmount += discountAmount;
-    monthRow.taxAmount += taxAmount;
-    monthRow.freightAmount += freightAmount;
-    monthRow.netAmount += netAmount;
-    if (row.paymentType === 'Cash') monthRow.cashAmount += netAmount;
-    if (row.paymentType === 'Credit') monthRow.creditAmount += netAmount;
-    monthlyMap.set(monthKey, monthRow);
+    month.documents += 1;
+    month.grossAmount += Number(row.grossAmount || 0);
+    month.netAmount += netAmount;
+    if (row.paymentType === 'Cash') month.cashAmount += netAmount;
+    if (row.paymentType === 'Credit') month.creditAmount += netAmount;
+    monthlyMap.set(monthKey, month);
 
-    const partyRow = partyMap.get(row.partyName) ?? { name: row.partyName, amount: 0, documents: 0 };
-    partyRow.amount += netAmount;
-    partyRow.documents += 1;
-    partyMap.set(row.partyName, partyRow);
+    const partyName = row.partyName || 'Not Set';
+    const party = partyMap.get(partyName) ?? { name: partyName, value: 0, count: 0 };
+    party.value += netAmount;
+    party.count += 1;
+    partyMap.set(partyName, party);
   });
 
-  const monthlyRows = [...monthlyMap.values()]
-    .sort((left, right) => left.monthKey.localeCompare(right.monthKey))
-    .map(row => ({
-      ...row,
-      averageDocument: row.documents > 0 ? row.netAmount / row.documents : 0,
-    }));
-  const partyRows = [...partyMap.values()]
-    .sort((left, right) => right.amount - left.amount)
-    .slice(0, 8)
-    .map(row => ({ ...row, name: shortLabel(row.name) }));
-  const compositionRows = [
-    { name: 'Cash', amount: totals.cash },
-    { name: 'Credit', amount: totals.credit },
-    { name: 'Tax', amount: totals.tax },
-    { name: 'Freight', amount: totals.freight },
-    { name: 'Discount', amount: totals.discount },
-  ].filter(row => row.amount > 0);
-  const averageDocument = rows.length > 0 ? totals.net / rows.length : 0;
-  const averageMonthlyNet = monthlyRows.length > 0
-    ? monthlyRows.reduce((sum, row) => sum + row.netAmount, 0) / monthlyRows.length
-    : 0;
-  const creditShare = totals.net > 0 ? totals.credit / totals.net * 100 : 0;
-  const moneyAxis = (value: number) => {
-    const absolute = Math.abs(value);
-    if (absolute >= 1_000_000) return `${formatNumber(value / 1_000_000, settings)}M`;
-    if (absolute >= 1_000) return `${formatNumber(value / 1_000, settings)}K`;
-    return formatNumber(value, settings);
+  const filled = fillMonths([...monthlyMap.values()], emptyMonth);
+  const label = monthLabeler(filled.map(month => month.monthKey), settings);
+  const months = filled.map(month => ({ ...month, label: label(month.monthKey), longLabel: longMonthLabel(month.monthKey, settings) }));
+  const parties = [...partyMap.values()].sort((left, right) => right.value - left.value);
+  const peak = months.reduce<MonthRow | null>((best, month) => (!best || month.netAmount > best.netAmount ? month : best), null);
+
+  return {
+    totals,
+    months,
+    parties,
+    peakMonth: peak && peak.netAmount > 0 ? peak : null,
+    averageDocument: rows.length > 0 ? totals.net / rows.length : 0,
+    averageMonthlyNet: months.length > 0 ? months.reduce((sum, month) => sum + month.netAmount, 0) / months.length : 0,
+    creditShare: totals.net > 0 ? totals.credit / totals.net * 100 : 0,
+    axis: compactAxis(settings),
   };
-
-  return { totals, monthlyRows, partyRows, compositionRows, averageDocument, averageMonthlyNet, creditShare, moneyAxis };
 }
-
-function formatMonth(value: string) {
-  const [year, month] = value.split('-').map(Number);
-  const date = new Date(year, month - 1, 1);
-  return date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
-}
-
-function shortLabel(value: string) {
-  return value.length > 28 ? `${value.slice(0, 25)}...` : value;
-}
-
-const chartsScrollStyle: CSSProperties = {
-  flex: 1,
-  minHeight: 0,
-  overflow: 'auto',
-  display: 'grid',
-  alignContent: 'start',
-  gap: 12,
-};
-
-const summaryGridStyle: CSSProperties = {
-  display: 'grid',
-  gridTemplateColumns: 'repeat(4, minmax(138px, 1fr))',
-  gap: 12,
-};
-
-const mainGridStyle: CSSProperties = {
-  display: 'grid',
-  gridTemplateColumns: 'minmax(0, 1.35fr) minmax(0, 1fr)',
-  gap: 12,
-};
-
-const smallGridStyle: CSSProperties = {
-  display: 'grid',
-  gridTemplateColumns: 'minmax(0, 1.15fr) minmax(0, 0.85fr) minmax(0, 1fr)',
-  gap: 12,
-};

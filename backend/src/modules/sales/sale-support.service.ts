@@ -1,5 +1,6 @@
 import type { Prisma } from '@prisma/client';
 import { prisma } from '../../db/prisma.js';
+import type { AccessScope } from '../auth/access-rules.js';
 
 const defaultSaleAccounts = {
   cash: {
@@ -122,18 +123,6 @@ export class SaleSupportService {
     return rows[0];
   }
 
-  private async ensureDefaultWarehouse(transaction: TransactionClient) {
-    const existing = await transaction.$queryRaw<{ id: string; code: string; name: string }[]>`
-      SELECT id, code, name
-      FROM inventory_warehouses
-      WHERE company_id = CAST(${this.companyId} AS uuid)
-        AND is_active = true
-      ORDER BY is_default DESC, code ASC
-      LIMIT 1
-    `;
-    return existing[0];
-  }
-
   private async ensureSaleSettings(transaction: TransactionClient): Promise<SaleSettingsRow> {
     const existing = await transaction.$queryRaw<SaleSettingsRow[]>`
       SELECT *
@@ -192,10 +181,19 @@ export class SaleSupportService {
     return rows[0];
   }
 
-  async getSupportData() {
+  /** Creates the default sale accounts and settings when they are missing. */
+  async ensureSettingsReady() {
+    await prisma.$transaction(transaction => this.ensureSaleSettings(transaction));
+  }
+
+  /**
+   * Data for the Sale Voucher screen. Sales happen at a Branch: a Branch user gets only their Branch;
+   * All Branches users get every active Branch. Item stock is the stock at `branchId` (zero when no Branch is chosen).
+   */
+  async getSupportData(scope: AccessScope, branchId: string | null) {
     return prisma.$transaction(async transaction => {
       const settings = await this.ensureSaleSettings(transaction);
-      await this.ensureDefaultWarehouse(transaction);
+      const stockBranchId = scope.accessLevel === 'BRANCH' ? scope.branchId : branchId;
 
       const customers = await transaction.$queryRaw`
         SELECT
@@ -244,6 +242,7 @@ export class SaleSupportService {
           FROM inventory_stock_balances
           WHERE company_id = i.company_id
             AND item_id = i.id
+            AND branch_id = ${stockBranchId}::uuid
             AND is_active = true
         ) ss ON true
         WHERE i.company_id = CAST(${this.companyId} AS uuid)
@@ -254,21 +253,25 @@ export class SaleSupportService {
         LIMIT 500
       `;
 
-      const warehouses = await transaction.$queryRaw`
-        SELECT id, code, name, is_default, use_locations
-        FROM inventory_warehouses
+      const branches = await transaction.$queryRaw`
+        SELECT id, code, name, city, is_default
+        FROM branches
         WHERE company_id = CAST(${this.companyId} AS uuid)
           AND is_active = true
+          AND (${scope.accessLevel !== 'BRANCH'} OR id = ${scope.branchId}::uuid)
         ORDER BY is_default DESC, code ASC
-        LIMIT 100
+        LIMIT 200
       `;
 
+      // Optional Branch shelves / racks.
       const locations = await transaction.$queryRaw`
-        SELECT id, warehouse_id, code, name, is_default
+        SELECT id, branch_id, code, name, is_default
         FROM inventory_warehouse_locations
         WHERE company_id = CAST(${this.companyId} AS uuid)
+          AND branch_id IS NOT NULL
           AND is_active = true
-        ORDER BY warehouse_id ASC, is_default DESC, code ASC
+          AND (${scope.accessLevel !== 'BRANCH'} OR branch_id = ${scope.branchId}::uuid)
+        ORDER BY branch_id ASC, is_default DESC, code ASC
         LIMIT 500
       `;
 
@@ -304,8 +307,9 @@ export class SaleSupportService {
       return {
         customers,
         items,
-        warehouses,
+        branches,
         locations,
+        stock_branch_id: stockBranchId,
         settings: Array.isArray(settingsAccounts) ? settingsAccounts[0] ?? settings : settings,
       };
     });

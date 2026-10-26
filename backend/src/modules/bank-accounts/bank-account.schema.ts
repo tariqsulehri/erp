@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { queryBoolean } from '../../http/query-boolean.js';
 
 const dateInput = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Use YYYY-MM-DD format.');
 const optionalText = (max = 500) => z.string().trim().max(max).optional().or(z.literal(''));
@@ -46,7 +47,7 @@ export const ListBankAccountsQuery = z.object({
   page: z.coerce.number().int().min(1).default(1),
   limit: z.coerce.number().int().min(1).max(200).default(50),
   search: z.string().trim().optional(),
-  is_active: z.coerce.boolean().optional(),
+  is_active: queryBoolean.optional(),
 });
 
 export const idParams = z.object({ id: z.string().uuid() });

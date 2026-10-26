@@ -205,6 +205,22 @@ export function useAccountDetail(id: string | undefined, enabled = true) {
   });
 }
 
+export interface OpeningBalanceSummary {
+  account_count: number;
+  total_debit: string;
+  total_credit: string;
+  difference: string;
+  is_balanced: boolean;
+  accounts_without_date: number;
+}
+
+export function useOpeningBalanceSummary() {
+  return useQuery<OpeningBalanceSummary>({
+    queryKey: [...accountsQueryKey, 'opening-balance-summary'],
+    queryFn: () => backendGet<OpeningBalanceSummary>('/accounts/opening-balance-summary'),
+  });
+}
+
 export function useAccountHistory(accountId: string | undefined, enabled = true) {
   return useQuery<AccountHistoryItem[]>({
     queryKey: [...accountsQueryKey, 'history', accountId],

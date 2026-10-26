@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { PaginationBar } from '@/components/ui/PaginationBar';
 import { TableMessageRow } from '@/components/ui/TableMessageRow';
+import { TableSkeleton } from '@/components/ui/TableSkeleton';
 
 const COLUMN_COUNT = 8;
 
@@ -89,7 +90,7 @@ export function AccountsTable({
             </tr>
           </thead>
           <tbody>
-            {loading && <TableMessageRow colSpan={COLUMN_COUNT} title="Loading Accounts…" loading />}
+            {loading && <TableSkeleton columns={COLUMN_COUNT} rowCount={6} ariaLabel="Loading Accounts…" />}
             {!loading && accounts.length === 0 && (
               isFiltered ? (
                 <TableMessageRow

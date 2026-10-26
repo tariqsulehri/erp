@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import type { AppFormatSettingsSource } from '@/lib/app-settings';
 import { formatDate, formatMoney } from '@/lib/app-settings';
 import type { LedgerReportResponse } from '@/lib/api/reports';
@@ -53,7 +54,11 @@ export function LedgerReportTable({ report, loading, errorMessage, settings }: L
           {!loading && lines.map(line => (
             <tr key={line.id}>
               <td className="cell-muted">{formatDate(line.voucher_date, settings)}</td>
-              <td className="cell-strong">{line.voucher_number}</td>
+              <td className="cell-strong">
+                {line.voucher_id
+                  ? <Link href={`/vouchers/posted?status=Posted&voucher=${encodeURIComponent(line.voucher_id)}`} title="Open Voucher">{line.voucher_number}</Link>
+                  : line.voucher_number}
+              </td>
               <td className="cell-muted">{line.voucher_type}</td>
               <td className={line.reference ? undefined : 'cell-muted'}>{line.reference || 'Not Set'}</td>
               <td className={line.description ? undefined : 'cell-muted'} title={line.description || undefined}>{line.description || 'Not Set'}</td>

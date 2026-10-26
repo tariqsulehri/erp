@@ -27,7 +27,7 @@ function dateTextOrNull(value?: string | Date | null) {
 }
 
 function userIdOrNull(userId?: string | null) {
-  return userId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userId) ? userId : null;
+  return userId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userId) ? userId : null;
 }
 
 function chequeRange(input: CreateChequeBookInput) {
@@ -182,7 +182,7 @@ export class BankChequeService {
           CAST(${book.id} AS uuid),
           CAST(${input.bank_account_id} AS uuid),
           (gs - CAST(${input.start_cheque_number} AS bigint) + 1)::int AS serial_number,
-          (${prefix} || LPAD(gs::text, ${range.width}, '0') || ${suffix}) AS cheque_number,
+          (${prefix} || LPAD(gs::text, CAST(${range.width} AS int), '0') || ${suffix}) AS cheque_number,
           'Available',
           true,
           ${userIdValue}::uuid,
@@ -428,7 +428,7 @@ export class BankChequeService {
   ) {
     const rows = await transaction.$queryRaw<any[]>`
       WITH generated AS (
-        SELECT (${prefix} || LPAD(gs::text, ${width}, '0') || ${suffix}) AS cheque_number
+        SELECT (${prefix} || LPAD(gs::text, CAST(${width} AS int), '0') || ${suffix}) AS cheque_number
         FROM generate_series(CAST(${startChequeNumber} AS bigint), CAST(${endChequeNumber} AS bigint)) AS gs
       )
       SELECT c.cheque_number

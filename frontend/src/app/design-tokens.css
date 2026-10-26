@@ -39,7 +39,7 @@
   --color-sidebar-text-active: #ffffff;
   --color-sidebar-border:      rgba(255,255,255,.08);
   --color-sidebar-logo-bg:     #1f56c7;
-  --color-sidebar-section:     #8a95a6;
+  --color-sidebar-section:     #9fb0c7;
 
   --color-topbar-bg:     #ffffff;
   --color-topbar-border: #e3e8ee;
@@ -93,7 +93,7 @@
   --color-text:             #1e2a3b;
   --color-text-secondary:   #3b4859;
   --color-text-muted:       #556274;
-  --color-text-light:       #6b7787;
+  --color-text-light:       #626e7e;
   --color-text-placeholder: #6b7787;
 
   /* Status */
@@ -111,6 +111,50 @@
   --color-negative: #c62828;
 
   --color-login-panel: #182130;
+
+  /* 3D Directional Gradients (180deg Top-Down Lighting) */
+  --grad-primary:          linear-gradient(180deg, #256df6 0%, #0755e9 60%, #043ec0 100%);
+  --grad-primary-hover:    linear-gradient(180deg, #2b6cf0 0%, #1562f1 60%, #0548d8 100%);
+  --grad-primary-active:   linear-gradient(180deg, #043ec0 0%, #0755e9 100%);
+
+  --grad-secondary:        linear-gradient(180deg, #ffffff 0%, #f6f8fb 100%);
+  --grad-secondary-hover:  linear-gradient(180deg, #ffffff 0%, #edf1f7 100%);
+  --grad-secondary-active: linear-gradient(180deg, #edf1f7 0%, #ffffff 100%);
+
+  --grad-danger:           linear-gradient(180deg, #e53935 0%, #c62828 60%, #b71c1c 100%);
+  --grad-danger-hover:     linear-gradient(180deg, #ef5350 0%, #d32f2f 60%, #c62828 100%);
+  --grad-danger-active:    linear-gradient(180deg, #b71c1c 0%, #c62828 100%);
+
+  --grad-surface:          linear-gradient(180deg, #ffffff 0%, #fafbfc 100%);
+  --grad-surface-alt:      linear-gradient(180deg, #fbfcfd 0%, #f1f4f8 100%);
+  --grad-table-head:       linear-gradient(180deg, #f8fafd 0%, #edf1f6 100%);
+
+  --grad-badge-success:    linear-gradient(180deg, #f0fdf4 0%, #dcfce7 100%);
+  --grad-badge-warning:    linear-gradient(180deg, #fffbeb 0%, #fef3c7 100%);
+  --grad-badge-danger:     linear-gradient(180deg, #fef2f2 0%, #fee2e2 100%);
+  --grad-badge-info:       linear-gradient(180deg, #eff6ff 0%, #dbeafe 100%);
+  --grad-badge-neutral:    linear-gradient(180deg, #f8fafc 0%, #e2e8f0 100%);
+
+  /* 3D Dimensional Shadows & Bevels */
+  --shadow-3d-primary:       0 2px 4px rgba(7,85,233,0.28), inset 0 1px 0 rgba(255,255,255,0.32), inset 0 -1px 0 rgba(0,0,0,0.18);
+  --shadow-3d-primary-hover: 0 3px 6px rgba(7,85,233,0.36), inset 0 1px 0 rgba(255,255,255,0.4), inset 0 -1px 0 rgba(0,0,0,0.18);
+  --shadow-3d-secondary:     0 1px 3px rgba(15,27,45,0.08), inset 0 1px 0 rgba(255,255,255,0.9), inset 0 -1px 0 rgba(0,0,0,0.06);
+  --shadow-3d-secondary-hover: 0 2px 4px rgba(15,27,45,0.12), inset 0 1px 0 rgba(255,255,255,1), inset 0 -1px 0 rgba(0,0,0,0.08);
+  --shadow-3d-danger:        0 2px 4px rgba(198,40,40,0.28), inset 0 1px 0 rgba(255,255,255,0.3), inset 0 -1px 0 rgba(0,0,0,0.2);
+  --shadow-3d-danger-hover:  0 3px 6px rgba(198,40,40,0.36), inset 0 1px 0 rgba(255,255,255,0.38), inset 0 -1px 0 rgba(0,0,0,0.2);
+  --shadow-3d-panel:         0 2px 6px -1px rgba(15,27,45,0.06), 0 1px 3px rgba(15,27,45,0.04), inset 0 1px 0 rgba(255,255,255,0.85);
+  --shadow-3d-card:          0 3px 8px -1px rgba(15,27,45,0.08), 0 1px 3px rgba(15,27,45,0.04), inset 0 1px 0 rgba(255,255,255,0.85);
+  --shadow-3d-pressed:       inset 0 2px 4px rgba(0,0,0,0.22);
+
+  /* Tile tones — the colour identity of a summary tile (icon badge, gradient wash, value accent).
+     Decoration only: chart series keep their own palette in components/analytics/chart-palette.ts. */
+  --tone-blue:   #1f56c7;
+  --tone-teal:   #0f8577;
+  --tone-violet: #6747c9;
+  --tone-amber:  #b45309;
+  --tone-rose:   #be3a5f;
+  --tone-slate:  #475569;
+  --shadow-3d-card-hover: 0 10px 22px -6px rgba(15,27,45,0.16), 0 2px 6px rgba(15,27,45,0.06), inset 0 1px 0 rgba(255,255,255,0.9);
 
   --focus-ring: 0 0 0 3px rgba(31,86,199,.28);
   --shadow-overlay: 0 12px 32px rgba(15,27,45,.14), 0 2px 6px rgba(15,27,45,.08);
@@ -213,6 +257,48 @@
   --color-negative: #f38b8b;
 
   --color-login-panel: #0a101b;
+
+  /* 3D Directional Gradients (Dark Mode) */
+  --grad-primary:          linear-gradient(180deg, #3b6fe0 0%, #3361d0 60%, #295bcc 100%);
+  --grad-primary-hover:    linear-gradient(180deg, #5e8cf0 0%, #4679ea 60%, #3365d6 100%);
+  --grad-primary-active:   linear-gradient(180deg, #244ea8 0%, #3b6fe0 100%);
+
+  --grad-secondary:        linear-gradient(180deg, #1e2838 0%, #161f2c 100%);
+  --grad-secondary-hover:  linear-gradient(180deg, #243044 0%, #1a2434 100%);
+  --grad-secondary-active: linear-gradient(180deg, #131b27 0%, #1c2738 100%);
+
+  --grad-danger:           linear-gradient(180deg, #cf3c3c 0%, #c62828 60%, #9e1c1c 100%);
+  --grad-danger-hover:     linear-gradient(180deg, #f06565 0%, #d32f2f 60%, #ad2222 100%);
+  --grad-danger-active:    linear-gradient(180deg, #8a1717 0%, #c62828 100%);
+
+  --grad-surface:          linear-gradient(180deg, #16202f 0%, #141c2a 100%);
+  --grad-surface-alt:      linear-gradient(180deg, #1a2435 0%, #172030 100%);
+  --grad-table-head:       linear-gradient(180deg, #1a2536 0%, #151d2b 100%);
+
+  --grad-badge-success:    linear-gradient(180deg, #143224 0%, #10261b 100%);
+  --grad-badge-warning:    linear-gradient(180deg, #362813 0%, #2a1f0e 100%);
+  --grad-badge-danger:     linear-gradient(180deg, #38191c 0%, #2c1416 100%);
+  --grad-badge-info:       linear-gradient(180deg, #1c2d4e 0%, #16233d 100%);
+  --grad-badge-neutral:    linear-gradient(180deg, #242f42 0%, #1d2636 100%);
+
+  /* 3D Dimensional Shadows & Bevels (Dark Mode) */
+  --shadow-3d-primary:       0 2px 5px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.22), inset 0 -1px 0 rgba(0,0,0,0.4);
+  --shadow-3d-primary-hover: 0 3px 8px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.32), inset 0 -1px 0 rgba(0,0,0,0.4);
+  --shadow-3d-secondary:     0 1px 3px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.08), inset 0 -1px 0 rgba(0,0,0,0.3);
+  --shadow-3d-secondary-hover: 0 2px 5px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.12), inset 0 -1px 0 rgba(0,0,0,0.3);
+  --shadow-3d-danger:        0 2px 5px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.2), inset 0 -1px 0 rgba(0,0,0,0.4);
+  --shadow-3d-danger-hover:  0 3px 8px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.28), inset 0 -1px 0 rgba(0,0,0,0.4);
+  --shadow-3d-panel:         0 2px 8px -1px rgba(0,0,0,0.4), 0 1px 3px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.06);
+  --shadow-3d-card:          0 4px 12px -2px rgba(0,0,0,0.5), 0 2px 4px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.06);
+  --shadow-3d-pressed:       inset 0 2px 4px rgba(0,0,0,0.5);
+
+  --tone-blue:   #5c8cf5;
+  --tone-teal:   #22a596;
+  --tone-violet: #9a80f0;
+  --tone-amber:  #d4913a;
+  --tone-rose:   #e0708f;
+  --tone-slate:  #94a3b8;
+  --shadow-3d-card-hover: 0 12px 26px -6px rgba(0,0,0,0.6), 0 2px 6px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.08);
 
   --focus-ring: 0 0 0 3px rgba(107,155,255,.35);
   --shadow-overlay: 0 12px 32px rgba(0,0,0,.45), 0 2px 6px rgba(0,0,0,.3);

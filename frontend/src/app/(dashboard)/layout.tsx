@@ -7,7 +7,8 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useDefaultPostingDate } from '@/lib/api/fiscal-years';
 import { AppHeader } from '@/components/shell/AppHeader';
 import { AppSidebar } from '@/components/shell/AppSidebar';
-import { resolveRoute } from '@/components/shell/nav-config';
+import { navSectionsFor, resolveRoute } from '@/components/shell/nav-config';
+import { canManageUsers } from '@/lib/auth/session-user';
 
 const COLLAPSED_KEY = 'erp-sidebar-collapsed';
 
@@ -57,11 +58,12 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
 
   if (!session) return null;
 
-  const user = session.user as { name?: string; email?: string; role?: string };
+  const user = session.user;
 
   return (
     <div className={`app-shell${collapsed ? ' is-collapsed' : ''}${drawerOpen ? ' is-drawer-open' : ''}`}>
       <AppSidebar
+        sections={navSectionsFor({ canManageUsers: canManageUsers(user.role), accessLevel: user.accessLevel, role: user.role })}
         activeHref={route?.item.href}
         activeGroupKey={route?.group?.key}
         collapsed={collapsed}

@@ -3,12 +3,13 @@
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { IconChevronDown, IconHomeDollar, IconLayoutSidebarLeftCollapse, IconLayoutSidebarLeftExpand } from '@tabler/icons-react';
-import { NAV_SECTIONS, type NavGroup, type NavLeaf } from './nav-config';
+import { NAV_SECTIONS, type NavGroup, type NavLeaf, type NavSection } from './nav-config';
 
 const ICON = { size: 18, stroke: 1.8 } as const;
 const SUB_ICON = { size: 16, stroke: 1.8 } as const;
 
 export function AppSidebar({
+  sections = NAV_SECTIONS,
   activeHref,
   activeGroupKey,
   collapsed,
@@ -17,6 +18,8 @@ export function AppSidebar({
   postingDisabled,
   postingReason,
 }: {
+  /** The menu to show; defaults to the full menu. */
+  sections?: NavSection[];
   activeHref?: string;
   activeGroupKey?: string;
   collapsed: boolean;
@@ -50,7 +53,7 @@ export function AppSidebar({
       </Link>
 
       <nav className="sidebar-nav">
-        {NAV_SECTIONS.map(section => (
+        {sections.map(section => (
           <div key={section.label}>
             <div className="sidebar-section-label">{section.label}</div>
             <div className="sidebar-section-divider" aria-hidden />

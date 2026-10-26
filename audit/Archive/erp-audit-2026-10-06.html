@@ -1,0 +1,1066 @@
+<title>ERP Audit and Roadmap</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@600;700;800&family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: an audit dossier. Sticky section index on the left, one reading column on the right.
+   Colors are the proposed "ERP Prism" tokens, so the report previews the new system. */
+:root {
+  --bg:#F6F8FC; --surface:#FFFFFF; --surface-2:#EEF2F9; --line:#D5DCE8; --line-strong:#B9C3D4;
+  --ink:#0B1630; --ink-2:#3D4A63; --ink-3:#5A6780;
+  --accent:#1D46F3; --accent-ink:#0A2DC1; --accent-soft:#EAF0FF; --on-accent:#FFFFFF;
+  --crit:#B91C1C; --crit-bg:#FEE2E2; --high:#C2410C; --high-bg:#FFEDD5;
+  --med:#A15C07; --med-bg:#FEF3C7; --low:#475569; --low-bg:#E2E8F0;
+  --ok:#15803D;
+  --eng:#1D46F3; --ui:#0F9F8F;
+  --code-bg:#0B1630; --code-ink:#E4E9F2;
+  --display:"Plus Jakarta Sans", "Segoe UI", system-ui, sans-serif;
+  --body:"IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --mono:"JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  --radius:10px;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg:#0A0F1E; --surface:#111827; --surface-2:#1A2234; --line:#2A3550; --line-strong:#3A4766;
+  --ink:#F3F6FC; --ink-2:#C5CEDF; --ink-3:#98A3B8;
+  --accent:#2F5BFF; --accent-ink:#7AA2FF; --accent-soft:#14204A; --on-accent:#FFFFFF;
+  --crit:#F87171; --crit-bg:#450A0A; --high:#FB923C; --high-bg:#431407;
+  --med:#FBBF24; --med-bg:#3D2604; --low:#CBD5E1; --low-bg:#243049;
+  --ok:#4ADE80; --eng:#3D7BFF; --ui:#13A08F;
+  --code-bg:#060A15; --code-ink:#E4E9F2;
+  color-scheme:dark; } }
+:root[data-theme="dark"] {
+  --bg:#0A0F1E; --surface:#111827; --surface-2:#1A2234; --line:#2A3550; --line-strong:#3A4766;
+  --ink:#F3F6FC; --ink-2:#C5CEDF; --ink-3:#98A3B8;
+  --accent:#2F5BFF; --accent-ink:#7AA2FF; --accent-soft:#14204A; --on-accent:#FFFFFF;
+  --crit:#F87171; --crit-bg:#450A0A; --high:#FB923C; --high-bg:#431407;
+  --med:#FBBF24; --med-bg:#3D2604; --low:#CBD5E1; --low-bg:#243049;
+  --ok:#4ADE80; --eng:#3D7BFF; --ui:#13A08F;
+  --code-bg:#060A15; --code-ink:#E4E9F2;
+  color-scheme:dark; }
+
+* { box-sizing:border-box; }
+html { scroll-behavior:smooth; }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior:auto; } * { transition:none !important; } }
+body { background:var(--bg); color:var(--ink); font:15px/1.6 var(--body); padding-inline:16px; padding-block:0 64px; }
+.wrap { max-width:1240px; margin:0 auto; display:grid; grid-template-columns:220px minmax(0,1fr); gap:48px; }
+@media (max-width: 960px) { .wrap { grid-template-columns:minmax(0,1fr); gap:0; } nav.toc { display:none; } }
+
+nav.toc { position:sticky; top:env(safe-area-inset-top,0px); align-self:start; padding-top:40px; max-height:100vh; overflow:auto; }
+nav.toc .brand { font:800 15px/1 var(--display); letter-spacing:-.01em; display:flex; gap:8px; align-items:center; margin-bottom:20px; }
+nav.toc .brand i { width:18px; height:18px; border-radius:50%; border:3px solid var(--accent); display:inline-block; }
+nav.toc a { display:block; color:var(--ink-3); text-decoration:none; font-size:13.5px; padding:6px 10px; border-radius:6px; }
+nav.toc a:hover { color:var(--ink); background:var(--surface-2); }
+nav.toc a:focus-visible, a:focus-visible, button:focus-visible, select:focus-visible, input:focus-visible, summary:focus-visible { outline:2px solid var(--accent-ink); outline-offset:2px; }
+.mobile-toc { display:none; gap:6px; overflow-x:auto; padding:12px 0; position:sticky; top:env(safe-area-inset-top,0px); background:var(--bg); z-index:5; border-bottom:1px solid var(--line); }
+.mobile-toc a { white-space:nowrap; font-size:13px; color:var(--ink-2); text-decoration:none; padding:5px 10px; border:1px solid var(--line); border-radius:999px; background:var(--surface); }
+@media (max-width: 960px) { .mobile-toc { display:flex; } }
+
+main { min-width:0; padding-top:40px; }
+section { padding-block:40px 8px; border-top:1px solid var(--line); scroll-margin-top:56px; }
+section:first-of-type { border-top:0; padding-top:0; }
+h1, h2, h3 { font-family:var(--display); letter-spacing:-.015em; text-wrap:balance; margin:0; }
+h1 { font-size:clamp(30px,4.4vw,44px); line-height:1.1; font-weight:800; }
+h2 { font-size:24px; line-height:1.25; font-weight:700; margin-bottom:6px; }
+h3 { font-size:17px; font-weight:700; margin-bottom:6px; }
+p { margin:0 0 12px; max-width:72ch; color:var(--ink-2); }
+.eyebrow { font:600 12px/1 var(--body); letter-spacing:.08em; text-transform:uppercase; color:var(--accent-ink); margin-bottom:14px; }
+.lead { font-size:17px; color:var(--ink-2); max-width:68ch; margin-top:14px; }
+.sub { color:var(--ink-3); margin-bottom:20px; }
+code, .mono { font-family:var(--mono); font-size:.86em; }
+code { background:var(--surface-2); padding:1px 5px; border-radius:4px; color:var(--ink); }
+
+.meta { display:flex; flex-wrap:wrap; gap:8px 24px; margin-top:20px; font-size:13.5px; color:var(--ink-3); }
+.meta b { color:var(--ink); font-weight:600; }
+
+.verdict { margin-top:28px; background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); padding:20px; display:grid; grid-template-columns:minmax(0,1.2fr) minmax(0,1fr); gap:24px; }
+@media (max-width: 760px) { .verdict { grid-template-columns:minmax(0,1fr); } }
+.verdict .tag { display:inline-flex; align-items:center; gap:8px; font-weight:600; color:var(--crit); background:var(--crit-bg); padding:4px 10px; border-radius:999px; font-size:13px; margin-bottom:10px; }
+.sev-tiles { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; }
+.sev-tile { text-align:left; cursor:pointer; border:1px solid var(--line); background:var(--surface); border-radius:8px; padding:12px 14px; color:var(--ink); font:inherit; border-left:4px solid var(--c); }
+.sev-tile:hover { background:var(--surface-2); }
+.sev-tile .n { font:800 30px/1 var(--display); font-variant-numeric:tabular-nums; }
+.sev-tile .l { font-size:13px; color:var(--ink-3); }
+.sev-total { grid-column:1/-1; font-size:13px; color:var(--ink-3); }
+
+.score { display:grid; gap:10px; margin-top:8px; }
+.score-row { display:grid; grid-template-columns:200px minmax(0,1fr) 36px; gap:14px; align-items:center; }
+@media (max-width: 600px) { .score-row { grid-template-columns:minmax(0,1fr) 36px; } .score-row .bar { grid-column:1/-1; order:3; } }
+.score-row .name { font-weight:600; font-size:14px; }
+.score-row .why { font-size:12.5px; color:var(--ink-3); font-weight:400; display:block; }
+.bar { position:relative; height:10px; background:var(--surface-2); border-radius:999px; }
+.bar::before { content:""; position:absolute; inset:0; background:repeating-linear-gradient(90deg, transparent 0 calc(20% - 1px), var(--line-strong) calc(20% - 1px) 20%); border-radius:999px; opacity:.7; }
+.bar span { position:absolute; left:0; top:0; bottom:0; border-radius:999px; background:var(--c); }
+.score-row .v { font:700 15px/1 var(--display); font-variant-numeric:tabular-nums; text-align:right; }
+.axis { display:grid; grid-template-columns:200px minmax(0,1fr) 36px; gap:14px; font-size:11.5px; color:var(--ink-3); }
+.axis div:nth-child(2) { display:flex; justify-content:space-between; }
+@media (max-width: 600px) { .axis { display:none; } }
+
+ol.priorities { list-style:none; padding:0; margin:12px 0 0; display:grid; gap:10px; counter-reset:p; }
+ol.priorities li { counter-increment:p; display:grid; grid-template-columns:34px minmax(0,1fr); gap:12px; background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); padding:14px 16px; }
+ol.priorities li::before { content:counter(p); font:800 16px/34px var(--display); text-align:center; width:34px; height:34px; border-radius:50%; background:var(--accent-soft); color:var(--accent-ink); }
+ol.priorities b { color:var(--ink); }
+ol.priorities p { margin:2px 0 0; font-size:14px; }
+
+.tablewrap { overflow-x:auto; border:1px solid var(--line); border-radius:var(--radius); background:var(--surface); margin:12px 0 20px; }
+table { border-collapse:collapse; width:100%; font-size:14px; }
+th, td { text-align:left; padding:9px 14px; border-bottom:1px solid var(--line); vertical-align:top; }
+th { font-size:12px; letter-spacing:.05em; text-transform:uppercase; color:var(--ink-3); background:var(--surface-2); font-weight:600; }
+tr:last-child td { border-bottom:0; }
+td.num { font-variant-numeric:tabular-nums; text-align:right; }
+pre.diagram { margin:12px 0 20px; padding:16px; overflow-x:auto; background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); font:12.5px/1.45 var(--mono); color:var(--ink-2); }
+.grid2 { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:20px; }
+@media (max-width: 760px) { .grid2 { grid-template-columns:minmax(0,1fr); } }
+
+/* findings explorer */
+.filters { display:flex; flex-wrap:wrap; gap:10px; align-items:center; background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); padding:12px; position:sticky; top:env(safe-area-inset-top,0px); z-index:4; }
+@media (max-width: 960px) { .filters { position:static; } }
+.chip { border:1px solid var(--line); background:var(--surface); color:var(--ink-2); padding:5px 12px; border-radius:999px; font:500 13px var(--body); cursor:pointer; display:inline-flex; gap:6px; align-items:center; }
+.chip[aria-pressed="true"] { background:var(--c-bg); color:var(--c); border-color:var(--c); }
+.chip .dot { width:8px; height:8px; border-radius:50%; background:var(--c); }
+.filters select, .filters input { font:14px var(--body); color:var(--ink); background:var(--surface); border:1px solid var(--line-strong); border-radius:8px; padding:6px 10px; min-width:0; }
+.filters input { flex:1 1 180px; }
+.filters label.vh { position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); }
+.count { font-size:13px; color:var(--ink-3); margin:12px 2px; }
+.findings { display:grid; gap:8px; }
+.f { background:var(--surface); border:1px solid var(--line); border-left:4px solid var(--c); border-radius:8px; padding:12px 16px; display:grid; gap:6px; }
+.f-head { display:flex; flex-wrap:wrap; gap:6px 10px; align-items:baseline; }
+.f-id { font:500 12.5px var(--mono); color:var(--ink-3); }
+.f-title { font-weight:600; color:var(--ink); flex:1 1 300px; min-width:0; }
+.pill { font:600 11.5px/1 var(--body); padding:4px 8px; border-radius:999px; background:var(--c-bg); color:var(--c); white-space:nowrap; }
+.pill.area { background:var(--surface-2); color:var(--ink-2); font-weight:500; }
+.f-body { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:6px 20px; font-size:13.5px; color:var(--ink-2); }
+@media (max-width: 700px) { .f-body { grid-template-columns:minmax(0,1fr); } }
+.f-body b { display:block; font-size:11px; letter-spacing:.06em; text-transform:uppercase; color:var(--ink-3); font-weight:600; }
+.f-body div { min-width:0; overflow-wrap:anywhere; }
+.f-phase { font-size:12.5px; color:var(--ink-3); }
+.empty { padding:24px; text-align:center; color:var(--ink-3); border:1px dashed var(--line-strong); border-radius:var(--radius); }
+
+/* roadmap */
+.gantt { overflow-x:auto; background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); margin:14px 0 24px; }
+.gantt-inner { min-width:720px; padding:14px 16px 16px; }
+.g-row { display:grid; grid-template-columns:210px minmax(0,1fr); align-items:center; min-height:34px; }
+.g-label { font-size:13px; color:var(--ink-2); padding-right:12px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.g-label b { font-family:var(--mono); font-weight:500; color:var(--ink-3); margin-right:6px; font-size:12px; }
+.g-track { position:relative; height:34px; background:repeating-linear-gradient(90deg, transparent 0 calc(100%/12 - 1px), var(--line) calc(100%/12 - 1px) calc(100%/12)); }
+.g-bar { position:absolute; top:7px; height:20px; border-radius:5px; background:var(--c); color:#fff; font:600 11.5px/20px var(--body); padding:0 8px; white-space:nowrap; overflow:hidden; text-decoration:none; }
+.g-bar.ongoing { background:repeating-linear-gradient(135deg, var(--c) 0 8px, color-mix(in srgb, var(--c) 70%, transparent) 8px 16px); }
+.g-weeks { display:grid; grid-template-columns:210px minmax(0,1fr); font-size:11.5px; color:var(--ink-3); margin-bottom:4px; }
+.g-weeks div:nth-child(2) { display:grid; grid-template-columns:repeat(12,1fr); }
+.g-group { font:700 12px var(--body); letter-spacing:.06em; text-transform:uppercase; color:var(--ink-3); margin:10px 0 2px; display:flex; align-items:center; gap:8px; }
+.g-group i { width:10px; height:10px; border-radius:3px; background:var(--c); }
+.phases { display:grid; gap:14px; }
+.phase { background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); padding:18px; border-top:3px solid var(--c); scroll-margin-top:64px; }
+.phase-head { display:flex; flex-wrap:wrap; gap:6px 12px; align-items:baseline; margin-bottom:6px; }
+.phase-head .pid { font:500 13px var(--mono); color:var(--c); }
+.phase-head h3 { margin:0; flex:1 1 240px; }
+.phase-head .when { font-size:13px; color:var(--ink-3); }
+.ids { display:flex; flex-wrap:wrap; gap:6px; margin:10px 0 4px; }
+.ids button { font:500 12px var(--mono); border:1px solid var(--line); background:var(--surface-2); color:var(--ink-2); border-radius:6px; padding:3px 7px; cursor:pointer; }
+.ids button:hover { border-color:var(--accent); color:var(--accent-ink); }
+details.prompt { margin-top:10px; border:1px solid var(--line); border-radius:8px; background:var(--surface-2); }
+details.prompt summary { cursor:pointer; padding:10px 14px; font-weight:600; font-size:14px; display:flex; gap:10px; align-items:center; list-style:none; }
+details.prompt summary::-webkit-details-marker { display:none; }
+details.prompt summary::before { content:"›"; display:inline-block; transition:transform .15s; font-size:18px; line-height:1; color:var(--ink-3); }
+details.prompt[open] summary::before { transform:rotate(90deg); }
+details.prompt summary .k { font:500 12px var(--mono); color:var(--ink-3); margin-left:auto; }
+.prompt-body { position:relative; padding:0 14px 14px; }
+pre.code { margin:0; background:var(--code-bg); color:var(--code-ink); padding:16px; border-radius:8px; overflow-x:auto; font:12.5px/1.55 var(--mono); white-space:pre-wrap; overflow-wrap:anywhere; }
+.copy { position:absolute; right:22px; top:8px; font:600 12px var(--body); border:1px solid #3A4766; background:#1A2234; color:#E4E9F2; border-radius:6px; padding:5px 10px; cursor:pointer; }
+.copy:hover { background:#243049; }
+.howto { background:var(--accent-soft); border-radius:var(--radius); padding:14px 16px; color:var(--ink); font-size:14px; margin:12px 0; }
+.howto p { color:var(--ink); margin:0 0 6px; }
+
+/* visual system */
+.swatches { display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:12px; margin:12px 0 22px; }
+.sw { background:var(--surface); border:1px solid var(--line); border-radius:8px; overflow:hidden; }
+.sw .chips { display:grid; grid-template-columns:1fr 1fr; height:54px; }
+.sw .chips span { display:block; }
+.sw .lbl { padding:8px 10px; font-size:12.5px; }
+.sw .lbl b { display:block; font-family:var(--mono); font-weight:500; color:var(--ink); font-size:12px; }
+.sw .lbl small { color:var(--ink-3); font-family:var(--mono); font-size:11px; }
+.vizrow { display:grid; grid-template-columns:70px repeat(8,minmax(0,1fr)); gap:6px; align-items:center; margin-bottom:6px; font-size:12px; color:var(--ink-3); }
+.vizrow span.c { height:38px; border-radius:6px; position:relative; }
+.vizrow.dark span.c { outline:6px solid #111827; outline-offset:-6px; }
+.vizwrap { overflow-x:auto; } .vizwrap > div { min-width:560px; }
+.vizcap { white-space:pre-line; display:grid; grid-template-columns:70px repeat(8,minmax(0,1fr)); gap:6px; font:11px var(--mono); color:var(--ink-3); }
+.grads { display:grid; grid-template-columns:repeat(auto-fill,minmax(230px,1fr)); gap:12px; margin:12px 0 22px; }
+.grad { border:1px solid var(--line); border-radius:8px; overflow:hidden; background:var(--surface); }
+.grad div { height:60px; }
+.grad p { margin:0; padding:8px 10px; font-size:12.5px; color:var(--ink-2); }
+.grad p b { color:var(--ink); }
+.typescale { display:grid; gap:4px; background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); padding:16px; margin:12px 0 22px; }
+.typescale div { display:grid; grid-template-columns:90px minmax(0,1fr); gap:12px; align-items:baseline; }
+.typescale small { font:11px var(--mono); color:var(--ink-3); }
+ul.tidy { margin:8px 0 16px; padding-left:20px; color:var(--ink-2); max-width:78ch; }
+ul.tidy li { margin-bottom:6px; }
+ul.tidy b { color:var(--ink); }
+
+/* architecture & security sections */
+.flow { display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin:12px 0; }
+.node { background:var(--surface); border:1px solid var(--line-strong); border-radius:8px; padding:10px 12px; min-width:0; flex:1 1 150px; }
+.node b { display:block; font-family:var(--display); font-size:14px; }
+.node span { display:block; font-size:12.5px; color:var(--ink-3); }
+.node.warn { border-color:var(--high); background:var(--high-bg); }
+.node.ext { border-style:dashed; }
+.stack { display:grid; gap:6px; flex:1 1 180px; min-width:0; }
+.arrow { color:var(--ink-3); font-size:20px; flex:0 0 auto; }
+@media (max-width: 700px) { .arrow { transform:rotate(90deg); width:100%; text-align:center; } }
+.chain { display:flex; flex-wrap:wrap; gap:6px; margin:10px 0; counter-reset:c; }
+.chain span { font-size:12.5px; background:var(--accent-soft); color:var(--accent-ink); border-radius:6px; padding:5px 9px; display:inline-flex; align-items:center; gap:4px; }
+.chain span:not(:last-child)::after { content:"→"; margin-left:6px; color:var(--ink-3); }
+.chain span small { color:var(--ink-3); font-size:11px; }
+.chain.small span { font-size:12px; }
+.target { display:grid; grid-template-columns:minmax(0,1.6fr) minmax(0,1fr); gap:12px; margin:12px 0; }
+@media (max-width: 760px) { .target { grid-template-columns:minmax(0,1fr); } }
+.tbox { border:1px solid var(--line-strong); border-radius:var(--radius); padding:12px; background:var(--surface); min-width:0; }
+.tbox > b { display:block; font-family:var(--display); margin-bottom:8px; }
+.tbox.db { grid-column:1/-1; border-color:var(--accent); background:var(--accent-soft); }
+.tbox.db span { font-size:13px; color:var(--ink-2); }
+.mods { display:grid; grid-template-columns:repeat(auto-fill,minmax(140px,1fr)); gap:6px; }
+.mods span { font-size:12.5px; border:1px solid var(--line); border-radius:6px; padding:6px 8px; background:var(--surface-2); }
+.mods small { display:block; color:var(--ink-3); font-size:11px; }
+.chains { display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:12px; margin:12px 0 20px; }
+.chainCard { background:var(--surface); border:1px solid var(--line); border-top:3px solid var(--crit); border-radius:var(--radius); padding:14px 16px; font-size:13.5px; color:var(--ink-2); }
+.chainCard > b { color:var(--ink); font-family:var(--display); }
+.chainCard ol { margin:8px 0 0; padding-left:20px; display:grid; gap:4px; }
+.bad { color:var(--crit); font-weight:600; } .good { color:var(--ok); font-weight:600; } .partial { color:var(--med); font-weight:600; }
+footer { margin-top:40px; padding-top:16px; border-top:1px solid var(--line); font-size:13px; color:var(--ink-3); }
+</style>
+
+<div class="mobile-toc" aria-label="Sections">
+  <a href="#summary">Summary</a><a href="#structure">Structure</a><a href="#evidence">Evidence</a><a href="#architecture">Architecture</a><a href="#security">Security</a><a href="#findings">Findings</a><a href="#roadmap">Roadmap</a><a href="#prism">Visual system</a><a href="#ux">UI/UX notes</a><a href="#gaps">Gaps</a>
+</div>
+<div class="wrap">
+<nav class="toc" aria-label="Sections">
+  <div class="brand"><i aria-hidden="true"></i>ERP audit</div>
+  <a href="#summary">Executive summary</a>
+  <a href="#priorities">Fix first</a>
+  <a href="#structure">Project structure</a>
+  <a href="#evidence">Tool evidence</a>
+  <a href="#architecture">Architecture audit</a>
+  <a href="#security">Security audit</a>
+  <a href="#findings">All findings</a>
+  <a href="#ux">UI/UX and visual notes</a>
+  <a href="#roadmap">Roadmap and prompts</a>
+  <a href="#prism">ERP Prism visual system</a>
+  <a href="#strengths">Strengths to keep</a>
+  <a href="#gaps">Evidence gaps</a>
+</nav>
+
+<main>
+<section id="summary">
+  <div class="eyebrow">Expert audit · 6 October 2026</div>
+  <h1>ERP audit and upgrade roadmap</h1>
+  <p class="lead">ERP is a capability and appraisal platform that rates people on three pillars: Technical skills, CEFR communication and Behavioral competencies. This audit covers both repositories from nine perspectives: architecture, security, data, performance, testing, operations, UI/UX, accessibility, and visual design. Architecture and security also get dedicated deep-dive sections: C4 views, ADRs and a target state; an authorization matrix, STRIDE, OWASP and ASVS. It ends with a roadmap and ready-to-run Claude Code prompts for each phase.</p>
+  <div class="meta">
+    <span>Frontend <b>tkxel/erp-fe</b> · <span class="mono">master 00c32c4</span></span>
+    <span>Backend <b>tkxel/erp-be</b> · <span class="mono">master 3f0da5a</span></span>
+    <span>Method <b>read-only review + tool runs</b></span>
+  </div>
+
+  <div class="verdict">
+    <div>
+      <span class="tag">Not production-ready</span>
+      <p>The product is well documented and well tested. It has 2,872 passing tests, a token-based theme, httpOnly refresh cookies, gitleaks and SonarQube. But six problems block a production launch:</p>
+      <ul class="tidy">
+        <li>A path from line manager to admin, through leaked password hashes.</li>
+        <li>Access-control gaps on behavioral reviews and on CEFR approvals.</li>
+        <li>Past appraisal results get overwritten when a skill is re-assessed.</li>
+        <li>Login tokens written to the server logs, and logout that never ends the server session.</li>
+        <li>Test credentials shipped in the public frontend code.</li>
+        <li>A UI with no real page routing and no protection against crashes.</li>
+      </ul>
+      <p style="font-size:13.5px;color:var(--ink-3)">The default branch <code>main</code> is 226 commits behind <code>master</code>, and both branches deploy to production. This audit covers <code>master</code>.</p>
+    </div>
+    <div class="sev-tiles" id="sevTiles"></div>
+  </div>
+
+  <h3 style="margin-top:32px">Scorecard (0–5)</h3>
+  <div class="axis" aria-hidden="true"><div></div><div><span>0</span><span>1</span><span>2</span><span>3</span><span>4</span><span>5</span></div><div></div></div>
+  <div class="score" id="score"></div>
+</section>
+
+<section id="priorities">
+  <h2>Fix first</h2>
+  <p class="sub">I confirmed each of these in the source code. They are in priority order.</p>
+  <ol class="priorities">
+    <li><div><b>Stop returning password hashes.</b> <span class="mono">BE-SEC-01</span><p>The employees list is open to every manager and returns line managers' full user rows, hash included. Hashes are also saved in audit-log JSON. Test accounts use <code>password123</code> and usernames are employee codes, so a manager can crack their way to admin.</p></div></li>
+    <li><div><b>Protect appraisal history.</b> <span class="mono">BE-ARC-04</span><p>Assessments are unique per person and technology, not per period, so re-assessing overwrites last period's record. Scores have no period at all. Add the period to the keys, and snapshot each period when it closes.</p></div></li>
+    <li><div><b>Close the CEFR and behavioral access gaps.</b> <span class="mono">BE-SEC-17 · BE-SEC-02</span><p>Any manager can approve or rewrite any employee's CEFR result by ID. Behavioral reads and writes have no scope check at all.</p></div></li>
+    <li><div><b>Fix the confirm dialog.</b> <span class="mono">A11Y-01</span><p>Pressing Enter carries out the delete, archive or deactivate action even when Cancel is focused. This affects 19 screens.</p></div></li>
+    <li><div><b>Redact tokens from logs and make logout real.</b> <span class="mono">BE-SEC-06 · FE-SEC-12</span><p>Every request logs the bearer token and the refresh cookie. The UI's logout never calls the server, so the session stays valid for 7 days. Purge the logs, rotate the JWT secrets, and call <code>/auth/logout</code>.</p></div></li>
+    <li><div><b>Remove demo credentials and add security headers.</b> <span class="mono">FE-SEC-01 · FE-SEC-02</span><p>The production bundle contains the admin code and test password. nginx sends no CSP or frame protection.</p></div></li>
+    <li><div><b>Use one production branch, and add routing and crash guards.</b> <span class="mono">FE-OPS-01 · UX-01 · FE-ARC-02</span><p>Stop <code>main</code> from deploying. Give every screen a URL. One render error should not blank the whole app.</p></div></li>
+  </ol>
+</section>
+
+<section id="structure">
+  <h2>Project structure</h2>
+  <p class="sub">The app has two repositories: a React single-page app served by nginx, and an Express API on PostgreSQL that calls OpenAI for AI insights.</p>
+<pre class="diagram">                ┌──────────────── Browser ────────────────┐
+                │ erp-fe  (React 18 + Vite 4 + TS)     │
+                │ Tailwind 3 tokens · Recharts · RQ v5    │
+                │ zustand (auth in memory, theme persisted)│
+                └───────────────┬─────────────────────────┘
+                                │ /api/v1  (Bearer access JWT, 15 min)
+                                │ httpOnly refresh cookie (7 d)
+                ┌───────────────▼─────────────────────────┐
+                │ nginx (FE image) → proxy api:4000       │
+                └───────────────┬─────────────────────────┘
+                ┌───────────────▼─────────────────────────┐
+                │ erp-be (Express 4 + TS, Node 24)     │
+                │ pino-http → helmet → cors → json        │
+                │ → authenticate (JWT + DB user reload)   │
+                │ → requireRole / requirePermission       │
+                │ → validate (zod) → controller           │
+                │ → accessScopeService (row-level) → svc  │
+                └──────┬─────────────────┬────────────────┘
+                       │ Prisma 5        │ fetch
+                ┌──────▼──────┐   ┌──────▼────────────────┐
+                │ PostgreSQL  │   │ OpenAI Responses API  │
+                │ 51 models   │   │ (AI Insights / chat)  │
+                └─────────────┘   └───────────────────────┘</pre>
+
+  <div class="grid2">
+    <div>
+      <h3>Frontend · erp-fe</h3>
+      <div class="tablewrap"><table>
+        <tr><th>Folder</th><th>Purpose</th></tr>
+        <tr><td><code>pages/</code></td><td>LoginPage and DashboardPage, a 549-line shell holding every tab</td></tr>
+        <tr><td><code>hooks/</code></td><td>23 react-query hooks per domain (<code>useConfig.ts</code> is 1,622 LOC)</td></tr>
+        <tr><td><code>lib/</code></td><td>axios client with single-flight refresh, units, chart colors, CSV, domain math</td></tr>
+        <tr><td><code>components/ui</code></td><td>40 primitives: Modal, ConfirmDialog, Toast, Skeleton, ProgressBar, charts</td></tr>
+        <tr><td><code>components/*</code></td><td>dashboard tabs, 10 reports, 16 Setup screens, CEFR, behavioral, assessments</td></tr>
+        <tr><td><code>styles/</code></td><td>830 lines of tokens for light, dark and midnight themes</td></tr>
+        <tr><td><code>e2e/</code></td><td>5 Playwright specs on a stubbed API</td></tr>
+      </table></div>
+    </div>
+    <div>
+      <h3>Backend · erp-be</h3>
+      <div class="tablewrap"><table>
+        <tr><th>Folder</th><th>Purpose</th></tr>
+        <tr><td><code>middleware/</code></td><td>authenticate, authorize (roles and permissions), zod validate, error handler</td></tr>
+        <tr><td><code>modules/config</code></td><td>86 admin endpoints: roles, users, employees, taxonomy, scoring, periods</td></tr>
+        <tr><td><code>modules/*</code></td><td>auth, access scope, assessment, behavioral, communication (CEFR), reports, AI, improvement plans</td></tr>
+        <tr><td><code>scoring/</code></td><td>scoring, reporting, CEFR, behavioral and star-rating engines, plus score recompute</td></tr>
+        <tr><td><code>prisma/</code></td><td>51 models, 40 migrations, a 1,101-line seed</td></tr>
+        <tr><td>API surface</td><td>132 endpoints: 56 GET, 58 writes, 17 DELETE, plus health</td></tr>
+      </table></div>
+    </div>
+  </div>
+
+  <h3>Who sees what</h3>
+  <div class="tablewrap"><table>
+    <tr><th>Section</th><th>Visible to</th></tr>
+    <tr><td>Admin Dashboard, Setup (16 sections)</td><td>ADMIN</td></tr>
+    <tr><td>Overview</td><td>Top management, manager, line manager, engineer</td></tr>
+    <tr><td>Pending Approvals, Team Roster, AI Dashboard</td><td>Leaders (admin, top management, manager, line manager)</td></tr>
+    <tr><td>Skill Assessments, CEFR Communication</td><td>All roles except the two expert roles</td></tr>
+    <tr><td>Reports (10)</td><td>Leaders with the <code>reports.view</code> permission</td></tr>
+    <tr><td>Skill Targets</td><td>Top management, manager, line manager</td></tr>
+    <tr><td><i>No section</i></td><td>Communication expert, language expert (they see an empty sidebar)</td></tr>
+  </table></div>
+</section>
+
+<section id="evidence">
+  <h2>Tool evidence</h2>
+  <p class="sub">All checks were run on 6 October 2026 against <code>master</code>.</p>
+  <div class="tablewrap"><table>
+    <tr><th>Check</th><th>erp-fe</th><th>erp-be</th></tr>
+    <tr><td>Type-check</td><td>0 errors</td><td>0 errors</td></tr>
+    <tr><td>Lint</td><td>0 errors, 91 warnings (63 <code>any</code>)</td><td>Clean, but only basic rules are enabled</td></tr>
+    <tr><td>Unit tests</td><td>135 files, <b>2,331 pass</b></td><td>37 suites, <b>541 pass</b></td></tr>
+    <tr><td>Line coverage</td><td>83.4% (no threshold enforced)</td><td>65.3% (routers excluded)</td></tr>
+    <tr><td>Dependency scan</td><td>18 issues (3 critical, 10 high), mostly build tools. Runtime: axios 1.19</td><td>39 issues (1 critical, 32 high), mostly jest. Runtime: proxy-addr</td></tr>
+    <tr><td>Production build</td><td>994 kB main chunk (238 kB gz). About 424 kB gz of JS on first load</td><td>n/a</td></tr>
+  </table></div>
+</section>
+
+<section id="findings">
+  <h2>All findings</h2>
+  <p class="sub">Filter by severity, area or repository, or search by ID or keyword. Each finding names the roadmap phase that fixes it.</p>
+  <div class="filters" role="group" aria-label="Filter findings">
+    <span id="sevChips" style="display:flex;flex-wrap:wrap;gap:6px"></span>
+    <label class="vh" for="fArea">Area</label>
+    <select id="fArea"><option value="">All areas</option></select>
+    <label class="vh" for="fRepo">Repository</label>
+    <select id="fRepo"><option value="">Both repos</option><option>erp-be</option><option>erp-fe</option></select>
+    <label class="vh" for="fSearch">Search findings</label>
+    <input id="fSearch" type="search" placeholder="Search ID, file or keyword">
+  </div>
+  <div class="count" id="fCount" aria-live="polite"></div>
+  <div class="findings" id="fList"></div>
+</section>
+
+<section id="architecture">
+  <h2>Architecture audit</h2>
+  <p class="sub">C4 views, coupling, domain integrity, quality attributes, API design, decisions to record, and a 12-month target state.</p>
+  <div class="verdict" style="grid-template-columns:minmax(0,1fr)">
+    <div>
+      <span class="tag">Appraisal integrity at risk</span>
+      <p>The backend import graph is a clean DAG, but the coupling is at the table level. Every service calls Prisma directly, <code>employee</code> is touched by 8 of 10 areas, and <code>config</code> owns 66% of all routes. The most serious gap is that past appraisal results can't be reproduced:</p>
+      <ul class="tidy">
+        <li>The appraisal period is not part of any assessment's or score's identity.</li>
+        <li>Scoring config is not versioned.</li>
+        <li>Closed periods are not immutable.</li>
+        <li>Re-assessing a skill moves last year's evidence into this year (BE-ARC-04, verified).</li>
+      </ul>
+    </div>
+  </div>
+
+  <h3 style="margin-top:28px">Architecture fitness (0–5)</h3>
+  <div class="axis" aria-hidden="true"><div></div><div><span>0</span><span>1</span><span>2</span><span>3</span><span>4</span><span>5</span></div><div></div></div>
+  <div class="score" id="archScore"></div>
+
+  <h3 style="margin-top:28px">Current state: containers</h3>
+  <div class="flow" role="img" aria-label="Browser SPA to nginx to Express API, which talks to PostgreSQL, a missing Python script and OpenAI">
+    <div class="node"><b>Browser SPA</b><span>React 18 · react-query · zustand · in-memory JWT</span></div>
+    <div class="arrow" aria-hidden="true">→</div>
+    <div class="node"><b>nginx</b><span>static files · /api proxy · no security headers</span></div>
+    <div class="arrow" aria-hidden="true">→</div>
+    <div class="node"><b>Express API</b><span>Node 24 · single process · no workers or cron</span></div>
+    <div class="arrow" aria-hidden="true">→</div>
+    <div class="stack">
+      <div class="node"><b>PostgreSQL</b><span>Prisma 5 · 51 models · 41 migrations</span></div>
+      <div class="node warn"><b>python3 script</b><span>execFile · missing from both repos</span></div>
+      <div class="node ext"><b>OpenAI</b><span>employee names in payload</span></div>
+    </div>
+  </div>
+  <p style="font-size:13.5px">Delivery: Bitbucket Pipelines <i>and</i> GitHub Actions both push mutable <code>latest</code> / <code>production</code> tags to a personal Docker Hub namespace. No pipeline runs migrations.</p>
+
+  <h3>Request path inside the API</h3>
+  <div class="chain" role="img" aria-label="Middleware chain">
+    <span>pino-http</span><span>helmet</span><span>cors</span><span>json 1 MB</span><span>authenticate <small>DB read</small></span><span>role / permission <small>DB read</small></span><span>zod validate</span><span>controller</span><span>access scope</span><span>service → Prisma</span>
+  </div>
+
+  <div class="grid2" style="margin-top:20px">
+    <div>
+      <h3>Backend coupling</h3>
+      <div class="tablewrap"><table>
+        <tr><th>Import edge</th><th>Count</th></tr>
+        <tr><td>reports → scoring</td><td class="num">9</td></tr>
+        <tr><td>communication → scoring</td><td class="num">7</td></tr>
+        <tr><td>assessment → scoring</td><td class="num">3</td></tr>
+        <tr><td>ai → reports</td><td class="num">2</td></tr>
+        <tr><td>reports → communication / access</td><td class="num">2 / 2</td></tr>
+        <tr><td>middleware → modules/access (inverted)</td><td class="num">1</td></tr>
+      </table></div>
+      <p style="font-size:13.5px">There are no module-level cycles. Data coupling is the real problem: config touches 30 models, reports 12 (it reads the CEFR and behavioral tables directly), and two components write <code>competency_scores</code>.</p>
+    </div>
+    <div>
+      <h3>Frontend coupling</h3>
+      <div class="tablewrap"><table>
+        <tr><th>Cycle or leak</th><th>Edges</th></tr>
+        <tr><td>lib ↔ hooks (domain types live in hooks)</td><td class="num">18 / 3</td></tr>
+        <tr><td>lib ↔ components/ui</td><td class="num">6 / 2</td></tr>
+        <tr><td>lib/api → routes → pages → lib</td><td class="num">cycle</td></tr>
+        <tr><td>dashboard → behavioral, communication</td><td class="num">3 / 3</td></tr>
+        <tr><td>Fan-in: lib/formatters, hooks/useConfig</td><td class="num">46 / 37</td></tr>
+      </table></div>
+    </div>
+  </div>
+
+  <h3>Domain invariants: where they are enforced</h3>
+  <div class="tablewrap"><table>
+    <tr><th>Invariant</th><th>Enforced by</th></tr>
+    <tr><td>One active line manager per employee</td><td>DB partial unique (raw SQL only) + service</td></tr>
+    <tr><td>One Primary / Secondary / Tertiary per competency</td><td>DB unique + service</td></tr>
+    <tr><td>One assessment per employee per technology</td><td>DB unique, <b>but it should be per period</b></td></tr>
+    <tr><td>Only one active period</td><td><span class="bad">Nowhere</span></td></tr>
+    <tr><td>Period lifecycle DRAFT → OPEN → LOCKED → ARCHIVED</td><td><span class="bad">Nowhere</span>: any status can be set</td></tr>
+    <tr><td>Closed-period results are immutable</td><td><span class="bad">Nowhere</span></td></tr>
+    <tr><td>No self-approval</td><td>Service, but only for line managers and managers</td></tr>
+    <tr><td>Behavioral subject is a real, in-scope employee</td><td><span class="bad">Nowhere</span></td></tr>
+    <tr><td>CEFR scale frozen after first use</td><td><span class="good">DB trigger ✔</span></td></tr>
+    <tr><td>Scoring weights versioned once used</td><td><span class="bad">Nowhere</span></td></tr>
+  </table></div>
+
+  <h3>Scoring and appraisal integrity</h3>
+  <ul class="tidy">
+    <li><b>Wrong uniqueness key.</b> <code>SkillAssessment</code> is unique on (employee, technology), and the update overwrites <code>appraisal_period_id</code> with the current period. <code>CompetencyScore</code> has no period at all.</li>
+    <li><b>Config changes don't propagate.</b> Scoring config edits are neither versioned nor recomputed, so stored scores mix old and new weights until someone runs a manual backfill.</li>
+    <li><b>YoY uses a second formula.</b> It rebuilds history with a different formula and <i>current</i> weights. <code>domain_scores</code> is never written.</li>
+    <li><b>Deleting a period orphans its evidence.</b> All of its assessments lose their period (<code>SetNull</code>).</li>
+  </ul>
+
+  <h3>12-factor and quality attributes</h3>
+  <div class="tablewrap"><table>
+    <tr><th>Factor</th><th>Status</th></tr>
+    <tr><td>Config</td><td>Partial: zod-validated, but two dead keys and the FE API URL baked in at build time</td></tr>
+    <tr><td>Build, release, run</td><td><span class="bad">Weak</span>: no migration step, two CIs, mutable tags, prebuilt <code>dist</code></td></tr>
+    <tr><td>Processes</td><td>Mostly stateless; in-memory limiter, shared report file and seeding on GET break multi-replica</td></tr>
+    <tr><td>Concurrency</td><td>No worker process type; all recompute runs inside requests</td></tr>
+    <tr><td>Disposability</td><td>Duplicate SIGTERM handlers race and drop in-flight requests</td></tr>
+    <tr><td>Logs</td><td>stdout, but the error object is dropped in 138 call sites; no request ID, metrics or tracing</td></tr>
+  </table></div>
+
+  <h3>API design</h3>
+  <ul class="tidy">
+    <li><b>Inconsistent prefixes:</b> <code>/assessments/skill-assessments</code>, <code>/comm</code>, <code>/behav</code>, <code>/improvement-plans</code>.</li>
+    <li><b>Mixed identifiers:</b> routes use both <code>:empCode</code> and <code>:employeeId</code>, and the behavioral resolver accepts either, so code "12" and id 12 collide.</li>
+    <li><b>Four error envelope shapes.</b> Domain errors come back as 500, and only one Prisma error code is mapped.</li>
+    <li><b>Duplicate submissions:</b> CEFR and behavioral POSTs create a duplicate on double-submit. The skill POST is an upsert, which makes it accidentally destructive.</li>
+    <li><b>No shared contract:</b> no OpenAPI spec, the FE declares 7 roles to the BE's 5, and the scoring formula is copied into the FE.</li>
+  </ul>
+
+  <h3>Architecture decisions to record</h3>
+  <div class="tablewrap"><table>
+    <tr><th>ADR</th><th>Recommended decision</th></tr>
+    <tr><td>Modular monolith with enforced boundaries</td><td>One module per bounded context, public service API, owned tables; dependency-cruiser in CI</td></tr>
+    <tr><td>Appraisal period as aggregate root</td><td>Every assessment and score keyed by <code>period_id</code>; copy forward at rollover</td></tr>
+    <tr><td>Period lifecycle and immutability</td><td>DRAFT → OPEN → LOCKED → ARCHIVED; snapshot on LOCK; DB rejects writes to locked periods</td></tr>
+    <tr><td>Versioned scoring configuration</td><td>Config versions bound to a period; scores record <code>config_version_id</code></td></tr>
+    <tr><td>Async recompute via transactional outbox</td><td>Outbox row in the same transaction; pg-boss worker recomputes idempotently</td></tr>
+    <tr><td>Report read models</td><td>Worker-maintained readiness and competency projections; paginated reports</td></tr>
+    <tr><td>Single authorization policy</td><td>Permissions only, plus a PolicyService with a SQL scope predicate</td></tr>
+    <tr><td>Identity conventions</td><td><code>emp_code</code> is the only public ID; actors are always a <code>user_id</code> FK</td></tr>
+    <tr><td>OpenAPI-first contract and RFC 7807 errors</td><td>Spec generated from zod; FE client and types generated from the spec</td></tr>
+    <tr><td>AI gateway policy</td><td>Timeout, single model, cache, pseudonymized payloads, quotas</td></tr>
+    <tr><td>Single CI/CD, immutable releases</td><td>One CI, org registry, digest tags, migrations as a release step</td></tr>
+    <tr><td>Frontend structure</td><td>URL routes, lazy feature slices, query-key factory, event-driven invalidation</td></tr>
+    <tr><td>Tenancy model</td><td>Single-tenant deployment, or <code>organization_id</code> with Postgres RLS</td></tr>
+  </table></div>
+
+  <h3>Target architecture (12 months)</h3>
+  <p>A modular monolith with two process types (web and worker), with Postgres as the only backing store.</p>
+  <div class="target" role="img" aria-label="Target architecture: API process with bounded-context modules, worker process with outbox relay, scoring, projections and snapshots, all on PostgreSQL">
+    <div class="tbox">
+      <b>API process</b>
+      <div class="mods"><span>Policy service</span><span>Org and People</span><span>IAM</span><span>Framework and Taxonomy <small>versioned config</small></span><span>Appraisal Cycle <small>state machine</small></span><span>Technical</span><span>CEFR</span><span>Behavioral</span><span>Reporting <small>reads projections</small></span><span>AI gateway</span></div>
+    </div>
+    <div class="tbox">
+      <b>Worker process</b>
+      <div class="chain small"><span>Outbox relay</span><span>Scoring engines</span><span>Projection builders</span></div>
+      <div class="chain small" style="margin-top:8px"><span>PeriodLocked</span><span>Snapshotter</span></div>
+    </div>
+    <div class="tbox db"><b>PostgreSQL</b><span>module-owned schemas · outbox · projections · period snapshots · pg-boss jobs</span></div>
+  </div>
+  <ol class="priorities" style="margin-top:14px">
+    <li><div><b>Stabilize and fence (months 0–2).</b><p>Add the period to the uniqueness keys and a period state machine. Add behavioral scope checks, remove the Python shell-out, run migrations in the pipeline, keep one CI, and freeze today's DAG with dependency-cruiser.</p></div></li>
+    <li><div><b>Contracts and policy (months 2–4).</b><p>Generate OpenAPI and the FE types. Add a PolicyService and RFC 7807 errors. Split <code>config</code> into Org, IAM, Taxonomy and Cycle behind unchanged routes.</p></div></li>
+    <li><div><b>Async scoring and snapshots (months 4–8).</b><p>Add the outbox and a worker, and dual-run the new recompute against the old one for a full period. Version the scoring config. Snapshot each period on LOCK and rebuild YoY from the snapshots.</p></div></li>
+    <li><div><b>Read models and frontend restructure (months 8–12).</b><p>Serve reports from paginated projections, put a cache in front of AI, and give the FE URL routes and an invalidation map.</p></div></li>
+  </ol>
+</section>
+
+<section id="security">
+  <h2>Security audit</h2>
+  <p class="sub">A route-by-route authorization matrix over all 132 endpoints, a STRIDE threat model, attack chains, and OWASP Top 10 and ASVS L2 mappings. Tool scans: <b>gitleaks</b> over full history found no leaks; <b>trivy config</b> found root containers and missing <code>--no-install-recommends</code>.</p>
+  <div class="verdict" style="grid-template-columns:minmax(0,1fr)">
+    <div>
+      <span class="tag">Fail: 7 of 10 OWASP categories</span>
+      <p><b>Authentication mechanics are good:</b> an in-memory access token, an httpOnly SameSite=Strict refresh cookie hashed at rest, bcrypt-12, CSRF-safe, no SSRF, no injection sinks.</p>
+      <p><b>What fails:</b> authorization, session lifecycle, auditability and supply chain.</p>
+    </div>
+  </div>
+
+  <h3 style="margin-top:24px">Authorization matrix (summary)</h3>
+  <div class="tablewrap"><table>
+    <tr><th>Module</th><th>Routes</th><th>Guard</th><th>Row scope</th><th>Problems</th></tr>
+    <tr><td>auth</td><td class="num">5</td><td>limiter, cookie, auth</td><td>self</td><td>UI never calls logout (FE-SEC-12); password change keeps sessions (BE-SEC-20)</td></tr>
+    <tr><td>assessments</td><td class="num">9</td><td>role + inline engineer check</td><td><span class="good">✔</span></td><td>Top management and admin can self-approve (BE-SEC-18); engineers delete approved records (BE-DATA-02); operator injection (BE-SEC-24)</td></tr>
+    <tr><td>comm (CEFR)</td><td class="num">11</td><td>role</td><td><span class="good">✔</span> except 1</td><td><b>Status PATCH has no scope check (BE-SEC-17)</b></td></tr>
+    <tr><td>behav</td><td class="num">6</td><td>role; <b>/config is public</b></td><td><span class="bad">none</span></td><td>BE-SEC-02</td></tr>
+    <tr><td>improvement-plans</td><td class="num">2</td><td>role, auth</td><td><span class="good">✔</span></td><td>none</td></tr>
+    <tr><td>reports</td><td class="num">10</td><td>auth + no-op guard</td><td><span class="good">✔</span></td><td><code>reports.view</code> never enforced; unscoped download (BE-SEC-03)</td></tr>
+    <tr><td>ai</td><td class="num">2</td><td>leaders</td><td><span class="good">✔</span></td><td>Denial-of-wallet (BE-SEC-11)</td></tr>
+    <tr><td>config</td><td class="num">86</td><td>permission, role</td><td>mostly none</td><td>Unscoped <code>/employees</code> (BE-SEC-19); hashes (BE-SEC-01); weights leak to engineers (BE-SEC-25); self-serving thresholds (BE-SEC-22)</td></tr>
+  </table></div>
+  <p style="font-size:13.5px">Mass assignment is not exploitable, because zod output replaces the request body. AI chat can't reach data outside the caller's scope.</p>
+
+  <h3>Attack chains</h3>
+  <div class="chains">
+    <article class="chainCard">
+      <b>A · Line manager to admin</b>
+      <ol>
+        <li>Default <code>employees.view</code> grant</li>
+        <li><code>/config/employees</code> returns everyone, unscoped (BE-SEC-19)</li>
+        <li>Each row embeds a <code>password_hash</code> (BE-SEC-01)</li>
+        <li>Crack <code>password123</code>-era hashes offline (BE-SEC-12)</li>
+        <li>Log in as admin, mint more admins (BE-SEC-05), leave no audit trail (BE-SEC-21)</li>
+      </ol>
+    </article>
+    <article class="chainCard">
+      <b>B · Stored HTML to a 7-day session</b>
+      <ol>
+        <li>Unescaped CEFR values in the print view (FE-SEC-03)</li>
+        <li>No CSP, so script runs in the app origin (FE-SEC-02)</li>
+        <li><code>/auth/refresh</code> mints a token, which is exfiltrated</li>
+        <li>Logout and password change never revoke it (FE-SEC-12, BE-SEC-20)</li>
+        <li>Rewrite any employee's CEFR (BE-SEC-17)</li>
+      </ol>
+    </article>
+    <article class="chainCard">
+      <b>C · Insider promotion fraud</b>
+      <ol>
+        <li>Top manager self-approves at Expert; own CEFR auto-approved (BE-SEC-18)</li>
+        <li>Line manager lowers own thresholds (BE-SEC-22) or swaps approvals with a peer (BE-SEC-23)</li>
+        <li>Unfavorable records hard-deleted (BE-DATA-02)</li>
+        <li>No database audit (BE-SEC-21)</li>
+      </ol>
+    </article>
+  </div>
+
+  <h3>STRIDE: top 10 threats</h3>
+  <div class="tablewrap"><table>
+    <tr><th>#</th><th>STRIDE</th><th>Actor → asset</th><th>L / I</th><th>Gap → mitigation</th></tr>
+    <tr><td>1</td><td>Tampering</td><td>Line manager → CEFR results org-wide</td><td>M / H</td><td>BE-SEC-17 → scope check + audit</td></tr>
+    <tr><td>2</td><td>Info disclosure</td><td>Line manager → password hashes</td><td>H / H</td><td>BE-SEC-01/19 → safe DTOs, scoping, rotation</td></tr>
+    <tr><td>3</td><td>Spoofing</td><td>Shared device, XSS → victim session</td><td>M / H</td><td>FE-SEC-12, BE-SEC-20 → revoke on logout, password change, archive</td></tr>
+    <tr><td>4</td><td>Elevation</td><td><code>users.manage</code> holder → ADMIN</td><td>L–M / Crit</td><td>BE-SEC-05/04/21 → admin-only grants, four-eyes, audit</td></tr>
+    <tr><td>5</td><td>Tampering</td><td>Top management → own evaluation</td><td>M / M–H</td><td>BE-SEC-18 → block self-approval for all roles</td></tr>
+    <tr><td>6</td><td>Repudiation</td><td>Engineer → approved history</td><td>M / M</td><td>BE-DATA-02, BE-SEC-21 → soft delete, period lock, audit</td></tr>
+    <tr><td>7</td><td>Tampering</td><td>Dept manager → promotion thresholds</td><td>M / M</td><td>BE-SEC-22 → exclude own grade, approval, audit</td></tr>
+    <tr><td>8</td><td>DoS / cost</td><td>Any manager → OpenAI budget</td><td>M / M</td><td>BE-SEC-11/13 → rate limit, budget, timeout, cache</td></tr>
+    <tr><td>9</td><td>Info disclosure</td><td>Processor → PII and evaluations</td><td>H / M–H</td><td>BE-SEC-11/27 → DPA, pseudonymization, retention</td></tr>
+    <tr><td>10</td><td>Supply chain</td><td>Personal registry → production</td><td>L / Crit</td><td>BE-OPS-02, FE-SEC-13 → org registry, cosign, deploy by digest</td></tr>
+  </table></div>
+
+  <div class="grid2">
+    <div>
+      <h3>OWASP Top 10 (2021)</h3>
+      <div class="tablewrap"><table>
+        <tr><th>Category</th><th>Status</th></tr>
+        <tr><td>A01 Broken Access Control</td><td><span class="bad">Fail</span></td></tr>
+        <tr><td>A02 Cryptographic Failures</td><td><span class="bad">Fail</span></td></tr>
+        <tr><td>A03 Injection</td><td><span class="partial">Partial</span></td></tr>
+        <tr><td>A04 Insecure Design</td><td><span class="bad">Fail</span></td></tr>
+        <tr><td>A05 Security Misconfiguration</td><td><span class="bad">Fail</span></td></tr>
+        <tr><td>A06 Vulnerable Components</td><td><span class="partial">Partial</span></td></tr>
+        <tr><td>A07 Identification and Authentication</td><td><span class="bad">Fail</span></td></tr>
+        <tr><td>A08 Software and Data Integrity</td><td><span class="bad">Fail</span></td></tr>
+        <tr><td>A09 Logging and Monitoring</td><td><span class="bad">Fail</span></td></tr>
+        <tr><td>A10 SSRF</td><td><span class="good">Pass</span></td></tr>
+      </table></div>
+    </div>
+    <div>
+      <h3>ASVS 4.0 Level 2</h3>
+      <div class="tablewrap"><table>
+        <tr><th>Chapter</th><th>Result</th></tr>
+        <tr><td>V1 Architecture</td><td><span class="partial">Partial</span></td></tr>
+        <tr><td>V2 Authentication</td><td><span class="bad">Fail</span></td></tr>
+        <tr><td>V3 Session Management</td><td><span class="bad">Fail</span></td></tr>
+        <tr><td>V4 Access Control</td><td><span class="bad">Fail</span></td></tr>
+        <tr><td>V5 Validation and Encoding</td><td><span class="partial">Partial</span></td></tr>
+        <tr><td>V6 Cryptography</td><td><span class="partial">Partial</span></td></tr>
+        <tr><td>V7 Errors and Logging</td><td><span class="bad">Fail</span></td></tr>
+        <tr><td>V8 Data Protection</td><td><span class="bad">Fail</span></td></tr>
+        <tr><td>V9 Communications</td><td><span class="partial">Partial</span></td></tr>
+        <tr><td>V10 Malicious Code</td><td><span class="partial">Partial</span></td></tr>
+        <tr><td>V11 Business Logic</td><td><span class="bad">Fail</span></td></tr>
+        <tr><td>V12 Files and Resources</td><td><span class="partial">Partial</span></td></tr>
+        <tr><td>V13 API</td><td><span class="partial">Partial</span></td></tr>
+        <tr><td>V14 Configuration</td><td><span class="bad">Fail</span></td></tr>
+      </table></div>
+    </div>
+  </div>
+
+  <h3>Verified passes</h3>
+  <div class="tablewrap"><table>
+    <tr><th>Check</th><th>Result</th></tr>
+    <tr><td>SSRF</td><td>Pass: the only outbound URL is the hard-coded OpenAI endpoint</td></tr>
+    <tr><td>CSRF</td><td>Pass: SameSite=Strict refresh cookie, single-origin CORS, Bearer for state changes</td></tr>
+    <tr><td>ReDoS, prototype pollution, deserialization</td><td>Pass</td></tr>
+    <tr><td>Timing-safe secrets, token randomness</td><td>Pass: bcrypt compare, SHA-256 token lookup, <code>randomUUID</code> jti</td></tr>
+    <tr><td>Deactivated user with a live token</td><td>Pass: the user is re-read on every request (fails for archive and password change)</td></tr>
+    <tr><td>Secrets in git history</td><td>Pass: gitleaks found nothing in either repo</td></tr>
+    <tr><td>Open redirect, sourcemaps, <code>.git</code> exposure</td><td>Pass</td></tr>
+  </table></div>
+  <p style="font-size:13.5px">Every security finding, including the 13 new ones from this pass, is in the filterable <a href="#findings">findings list</a>. Use the Security area filter.</p>
+</section>
+
+<section id="ux">
+  <h2>UI/UX and visual notes</h2>
+  <p class="sub">The UX, accessibility, visual and design-system findings are in the list above. This section adds the overall verdicts and the measured contrast data.</p>
+  <div class="grid2">
+    <div>
+      <h3>UI/UX verdict</h3>
+      <p>Underneath, the design system is real. It has token-driven themes, documented contrast reasoning, ordinal meters instead of fake percentages, clear nav states and rich toasts. What is missing is the experience layer around it:</p>
+      <ul class="tidy">
+        <li>Screens have no URLs.</li>
+        <li>There is no system theme.</li>
+        <li>Phones get no usable navigation.</li>
+        <li>Nothing shows that data is loading.</li>
+        <li>Errors look like empty data.</li>
+        <li>Dialogs and menus are not keyboard-safe.</li>
+      </ul>
+    </div>
+    <div>
+      <h3>Visual verdict</h3>
+      <p>The logo is electric blue and navy, but the app is violet, the login hero is indigo and the Midnight theme is cyan. Nearly every label is tiny, black-weight and uppercase, and most surfaces stack glass, glow and gradient. An appraisal tool affects people's careers, so it should feel calm and precise, with color kept for meaning.</p>
+    </div>
+  </div>
+  <h3>Measured contrast failures</h3>
+  <div class="tablewrap"><table>
+    <tr><th>Pair</th><th>Ratio</th><th>Needs</th></tr>
+    <tr><td>Focus ring <code>#C4B5FD</code> on white</td><td class="num">1.85</td><td>3.0</td></tr>
+    <tr><td>Dark focus ring <code>#6D28D9</code> on <code>#18181B</code></td><td class="num">2.49</td><td>3.0</td></tr>
+    <tr><td>Midnight tab: white on <code>#06B6D4</code></td><td class="num">2.43</td><td>4.5</td></tr>
+    <tr><td>Login hero word <code>#6D28D9</code> on <code>#1E1B4B</code></td><td class="num">2.25</td><td>3.0</td></tr>
+    <tr><td><code>text-amber-500</code> on white</td><td class="num">2.15</td><td>4.5</td></tr>
+    <tr><td><code>text-slate-400</code> / <code>zinc-400</code> on white</td><td class="num">2.56</td><td>4.5</td></tr>
+    <tr><td>Info <code>#0284C7</code> on white</td><td class="num">4.10</td><td>4.5</td></tr>
+    <tr><td>Dark accent text <code>#8B5CF6</code> on <code>#18181B</code></td><td class="num">4.18</td><td>4.5</td></tr>
+    <tr><td>Input border <code>#E2E8F0</code> on white</td><td class="num">1.23</td><td>3.0</td></tr>
+  </table></div>
+</section>
+
+<section id="roadmap">
+  <h2>Roadmap and Claude Code prompts</h2>
+  <p class="sub">Two tracks run in parallel, Engineering and UI/UX. The schedule assumes one full-stack developer and one frontend developer. UI-2 waits for the routes delivered in Phase 1.</p>
+  <div class="gantt"><div class="gantt-inner" id="gantt"></div></div>
+
+  <div class="howto">
+    <p><b>How to run a phase.</b> Open Claude Code in the repository named on the prompt, create the branch it names off <code>master</code>, and paste the prompt. For UI phases, paste the shared guardrails below first. Open one pull request per phase. Never merge the <code>chore/pause-sonar-quality-gate</code> branch.</p>
+  </div>
+  <details class="prompt" id="guardrails">
+    <summary>Shared guardrails for every UI phase <span class="k">paste first</span></summary>
+    <div class="prompt-body"><button class="copy" type="button">Copy</button><pre class="code" data-prompt="GUARD"></pre></div>
+  </details>
+
+  <div class="phases" id="phases" style="margin-top:18px"></div>
+</section>
+
+<section id="prism">
+  <h2>ERP Prism visual system</h2>
+  <p class="sub">A prism splits one beam into a spectrum. ERP does the same with a person: one profile, three pillars. The UI is calm and anchored on the brand blue, and color is used for pillars, status, data and progress. Each swatch shows the light value on the left and the dark value on the right. I computed every text pair against WCAG.</p>
+
+  <h3>Core tokens</h3>
+  <div class="swatches" id="tokens"></div>
+
+  <h3>Gradients</h3>
+  <p>Use gradients only for brand moments, hero tiles and progress. Never use them for chart series, status or table rows.</p>
+  <div class="grads" id="grads"></div>
+
+  <h3>Chart palette</h3>
+  <p>The palette has eight fixed slots and never cycles. It passed the six-check palette validator in both modes: in light mode the closest adjacent pair under colour-blindness simulation is ΔE 10.2; in dark mode it is ΔE 8.3. Slots 1–3 are the pillars and are distinct from each other in every pairing.</p>
+  <div class="vizwrap"><div>
+    <div class="vizcap"><span></span><span>1 Technical</span><span>2 Behavioral</span><span>3 CEFR</span><span>4</span><span>5</span><span>6</span><span>7 AI</span><span>8</span></div>
+    <div class="vizrow" id="vizLight"><span>Light</span></div>
+    <div class="vizrow dark" id="vizDark"><span>Dark</span></div>
+  </div></div>
+  <ul class="tidy">
+    <li><b>Sequential</b> (heatmaps): the brand tint ladder from <code>#EAF0FF</code> to <code>#061E81</code>. Never a rainbow.</li>
+    <li><b>Diverging</b> (gap against target): orange <code>#EB6834</code> below target, a gray midpoint, and blue <code>#1D5BF0</code> above.</li>
+    <li><b>Status</b> (always shown with an icon and a label): good <code>#15803D</code>, warning <code>#B45309</code>, serious <code>#C2410C</code>, critical <code>#B91C1C</code>.</li>
+  </ul>
+
+  <h3>Type scale</h3>
+  <div class="typescale">
+    <div><small>display 36</small><span style="font:700 36px/1.1 var(--display)">78%</span></div>
+    <div><small>h1 24</small><span style="font:700 24px/1.3 var(--display)">Team readiness</span></div>
+    <div><small>h2 20</small><span style="font:600 20px/1.4 var(--display)">Pillar attainment</span></div>
+    <div><small>title 16</small><span style="font:600 16px/1.5 var(--body)">Senior Engineer track</span></div>
+    <div><small>body 14</small><span style="font:400 14px/1.55 var(--body)">CEFR B2 is the only pending gate for promotion.</span></div>
+    <div><small>caption 12</small><span style="font:500 12px/1.4 var(--body);color:var(--ink-3)">Updated 6 Oct · Q3 appraisal period</span></div>
+    <div><small>overline 11</small><span style="font:600 11px/1.4 var(--body);letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3)">Behavioral · L3 of L5</span></div>
+  </div>
+  <p>Fonts: Inter Variable for the UI, Plus Jakarta Sans for display numbers and titles (it pairs with the Poppins wordmark), and JetBrains Mono for codes. All are self-hosted. Nothing that carries information is smaller than 12px.</p>
+
+  <h3>Signature components</h3>
+  <ul class="tidy">
+    <li><b>Collapsible sidebar</b> with three states: 264px expanded, a 72px icon rail, and an off-canvas drawer below 1024px. Toggle it with Ctrl/⌘+B. Groups can be collapsed and show live counts. The active item has a Prism-gradient rail.</li>
+    <li><b>Linear progress</b>: a 3px Prism bar along the top for any fetch or navigation, inline determinate bars, stepped batch progress such as "12 / 40", and segmented wizard steps.</li>
+    <li><b>KPI tile</b>: label, large number, delta chip, a 7-point sparkline in the pillar color and a 2px pillar edge. No glass and no glow.</li>
+    <li><b>Pillar triad</b>: three ring meters showing level against target, with a one-sentence readiness summary.</li>
+    <li><b>Chart frame</b>: title, filters, legend, a "view as table" option, export, and loading, empty and error states.</li>
+    <li><b>Role dashboards</b>: executive (funnel, heatmap, YoY), manager (team matrix, approvals queue, gap radar), engineer (my path, checklist) and admin (setup completeness, data quality).</li>
+    <li><b>Command palette</b> (⌘K) and a one-time <b>promotion-ready</b> moment. Both respect reduced motion.</li>
+  </ul>
+
+  <details class="prompt">
+    <summary>Drop-in token CSS <span class="k">tokens.css</span></summary>
+    <div class="prompt-body"><button class="copy" type="button">Copy</button><pre class="code">/* src/styles/tokens.css: ERP Prism */
+:root, [data-theme=&quot;light&quot;] {
+  color-scheme: light;
+  --bg:#F6F8FC; --surface:#FFFFFF; --surface-2:#F1F4FA; --surface-3:#E4E9F2;
+  --border:#D5DCE8; --border-strong:#7A879E;
+  --text-1:#0B1630; --text-2:#3D4A63; --text-3:#5A6780;
+  --primary:#1D46F3; --primary-hover:#0A2DC1; --primary-text:#0A2DC1; --primary-soft:#EAF0FF; --primary-fg:#FFFFFF;
+  --focus:#1D46F3; --brand-electric:#0060FF;
+  --secondary:#6D28D9; --tertiary:#0F766E;
+  --success:#15803D; --success-soft:#DCFCE7; --warning:#B45309; --warning-soft:#FEF3C7;
+  --danger:#B91C1C;  --danger-soft:#FEE2E2;  --info:#0369A1;    --info-soft:#E0F2FE;
+  --pillar-technical:#1D5BF0; --pillar-behavioral:#EB6834; --pillar-cefr:#0F9F8F;
+  --viz-1:#1D5BF0; --viz-2:#EB6834; --viz-3:#0F9F8F; --viz-4:#EDA100;
+  --viz-5:#D6458C; --viz-6:#2F8F2F; --viz-7:#7A4FD6; --viz-8:#E34948;
+  --grid:#E4E9F2; --axis:#7A879E;
+  --grad-prism: linear-gradient(135deg,#0060FF 0%,#1D46F3 45%,#6D28D9 100%);
+  --grad-technical: linear-gradient(135deg,#0060FF,#1D5BF0);
+  --grad-cefr: linear-gradient(135deg,#0F9F8F,#14B8A6);
+  --grad-behavioral: linear-gradient(135deg,#EB6834,#F59E0B);
+  --grad-success: linear-gradient(135deg,#15803D,#0F9F8F);
+  --shadow-1: 0 1px 2px #0B16300D, 0 1px 3px #0B16301A;
+  --shadow-2: 0 8px 24px -6px #0B163026;
+  --shadow-3: 0 24px 48px -12px #0B163040;
+}
+[data-theme=&quot;dark&quot;] {
+  color-scheme: dark;
+  --bg:#0A0F1E; --surface:#111827; --surface-2:#1A2234; --surface-3:#243049;
+  --border:#2A3550; --border-strong:#6E7B96;
+  --text-1:#F3F6FC; --text-2:#C5CEDF; --text-3:#98A3B8;
+  --primary:#2F5BFF; --primary-hover:#4D7BFF; --primary-text:#7AA2FF; --primary-soft:#14204A; --primary-fg:#FFFFFF;
+  --focus:#7AA2FF; --brand-electric:#0060FF;
+  --secondary:#A78BFA; --tertiary:#2DD4BF;
+  --success:#4ADE80; --success-soft:#052E16; --warning:#FBBF24; --warning-soft:#451A03;
+  --danger:#F87171;  --danger-soft:#450A0A;  --info:#38BDF8;    --info-soft:#0C2A43;
+  --pillar-technical:#3D7BFF; --pillar-behavioral:#D95926; --pillar-cefr:#13A08F;
+  --viz-1:#3D7BFF; --viz-2:#D95926; --viz-3:#13A08F; --viz-4:#C98500;
+  --viz-5:#D55181; --viz-6:#2E9A2E; --viz-7:#9085E9; --viz-8:#E05A59;
+  --grid:#243049; --axis:#6E7B96;
+  --grad-prism: linear-gradient(135deg,#2F5BFF 0%,#4D7BFF 40%,#A78BFA 100%);
+  --shadow-1: inset 0 1px 0 #FFFFFF14; --shadow-2: 0 8px 24px -6px #00000080; --shadow-3: 0 24px 48px -12px #000000A0;
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration:.01ms !important; animation-iteration-count:1 !important;
+    transition-duration:.01ms !important; scroll-behavior:auto !important; }
+}
+</pre></div>
+  </details>
+  <details class="prompt">
+    <summary>Pre-paint theme script for Light, Dark and System <span class="k">index.html</span></summary>
+    <div class="prompt-body"><button class="copy" type="button">Copy</button><pre class="code">&lt;!-- index.html pre-paint resolver: replaces the &#x27;devops-theme&#x27; script --&gt;
+&lt;script&gt;
+  (function () {
+    try {
+      var k = &#x27;erp-theme&#x27;, v = localStorage.getItem(k) || localStorage.getItem(&#x27;devops-theme&#x27;) || &#x27;system&#x27;;
+      if (v === &#x27;midnight&#x27;) v = &#x27;dark&#x27;;
+      var dark = v === &#x27;dark&#x27; || (v === &#x27;system&#x27; &amp;&amp; matchMedia(&#x27;(prefers-color-scheme: dark)&#x27;).matches);
+      document.documentElement.dataset.theme = dark ? &#x27;dark&#x27; : &#x27;light&#x27;;
+      document.documentElement.dataset.themePref = v;
+    } catch (e) { document.documentElement.dataset.theme = &#x27;light&#x27;; }
+  })();
+&lt;/script&gt;
+</pre></div>
+  </details>
+</section>
+
+<section id="strengths">
+  <h2>Strengths to keep</h2>
+  <ul class="tidy">
+    <li><b>Auth design:</b> the access token is held in memory, the refresh token is an httpOnly SameSite=strict cookie hashed at rest, and refresh is single-flight.</li>
+    <li><b>Validation:</b> the environment is validated with zod, including secret lengths, and almost every write route validates its input with zod. Helmet and single-origin CORS are in place.</li>
+    <li><b>Code safety:</b> there is a CSV formula-injection guard, and no <code>dangerouslySetInnerHTML</code>, <code>@ts-ignore</code> or <code>console.log</code>.</li>
+    <li><b>Testing and governance:</b> 2,872 passing tests, gitleaks in CI and pre-commit, a SonarQube gate, and unusually thorough standards docs and commit messages.</li>
+    <li><b>Design foundations:</b>
+      <ul class="tidy">
+        <li>Tokens with documented contrast reasoning.</li>
+        <li>A colour-blind-safe chart palette in <code>chartColors.ts</code>.</li>
+        <li>Pillar colors kept separate from status colors.</li>
+        <li>Ordinal meters for CEFR and L1–L5.</li>
+        <li>Clear destructive-action wording.</li>
+        <li>Restrained micro-interactions.</li>
+        <li>A complete v2 brand kit.</li>
+      </ul>
+    </li>
+  </ul>
+</section>
+
+<section id="gaps">
+  <h2>Evidence gaps</h2>
+  <ul class="tidy">
+    <li><b>No live environment.</b> I did not test deployed headers or cookies, or whether the hash leak and the behavioral access gap can be reached on staging or production. Verify both with a line-manager account and an engineer account, then rotate passwords.</li>
+    <li><b>Production logs.</b> I could not see them. Assume tokens are already stored in them.</li>
+    <li><b>Running app.</b> The UI review is static: code, tokens and computed contrast. Do a screenshot review after UI-1 using the token and component galleries.</li>
+    <li><b>OpenAI.</b> I could not verify the data-processing agreement or what data leaves the system in production.</li>
+    <li><b>Gap-report script.</b> The Python script lives outside both repos and was not reviewed.</li>
+    <li><b>Database.</b> No database was available, so I did not check query plans or index use.</li>
+  </ul>
+  <footer>Full markdown version: <code>erp-audit-2026-10-06.md</code>. Prepared on 6 October 2026 from <code>master</code> of both repositories.</footer>
+</section>
+</main>
+</div>
+
+<script>
+const DATA = {"findings": [{"id": "BE-SEC-01", "sev": "Critical", "area": "Security", "title": "Password hashes returned by the API and saved in audit logs", "ev": "config.service.ts:1210 includes the full manager_user row in GET /config/employees (open to managers via employees.view); listUsers/createUser/updateUser L1020-1079; department and line-manager assignment lists L490-497, L575-582; audit log JSON L481, L493-558; no global Prisma omit.", "fix": "Shared safeUserSelect + Prisma extension stripping secret columns; scrub access_audit_logs; rotate exposed passwords; regression test.", "repo": "erp-be"}, {"id": "BE-SEC-02", "sev": "High", "area": "Security", "title": "Behavioral assessments have no row-level (IDOR) checks", "ev": "behavioral.controller.ts:47-148 never calls canAccessEmployee; GET history open to ENGINEER (behavioral.router.ts:45-49); GET /behav/config registered before authenticate (L11-14).", "fix": "Resolve subject and call canAccessEmployee on every read and write; RBAC tests.", "repo": "erp-be"}, {"id": "BE-SEC-06", "sev": "High", "area": "Security", "title": "Access JWT and refresh cookie written to logs on every request", "ev": "app.ts:27 pinoHttp({ logger }) with no redact.", "fix": "Redact authorization, cookie, set-cookie; add request IDs; purge logs and rotate JWT secrets.", "repo": "erp-be"}, {"id": "BE-SEC-04", "sev": "High", "area": "Security", "title": "Deactivated roles and permissions are silently reactivated", "ev": "config.service.ts:259-296 upsert update:{is_active:true}; called at boot and inside GET handlers (listRoles, listUsers…).", "fix": "Create-only upserts (update:{}); never write on GET; seed via migrations.", "repo": "erp-be"}, {"id": "BE-SEC-05", "sev": "High", "area": "Security", "title": "Privilege escalation through users.manage / roles.manage", "ev": "config.schema.ts:5-11 accepts role ADMIN; config.service.ts:1029-1079 applies it without checking the actor.", "fix": "Only ADMIN can assign ADMIN or grant manage permissions; audit user changes; revoke tokens on password/role change.", "repo": "erp-be"}, {"id": "BE-SEC-03", "sev": "High", "area": "Security", "title": "Gap-report download is unscoped and leaks env to Python", "ev": "reports.router.ts:34 any authenticated user; reports.controller.ts:80-100 passes full process.env, no timeout, one shared output file; script not in image.", "fix": "Rewrite in Node (exceljs) with report scoping and reports.view permission.", "repo": "erp-be"}, {"id": "BE-SEC-12", "sev": "High", "area": "Security", "title": "Seed resets six real users (incl. ADMIN) to password123", "ev": "prisma/seed/seed.ts:871-922; no production guard; hard-deletes users.", "fix": "Refuse in production; admin password from env; never overwrite password_hash on update; fixture names.", "repo": "erp-be"}, {"id": "BE-DATA-01", "sev": "High", "area": "Data", "title": "Assessment write and score recompute are not atomic", "ev": "assessment.service.ts:20-23 swallowErrors, 206-238, 450-470.", "fix": "One $transaction per write; pass tx into recalculation; stop swallowing errors.", "repo": "erp-be"}, {"id": "BE-OPS-01", "sev": "High", "area": "Operations", "title": "Container runs as root on an unpinned curl-pipe-bash image", "ev": "Dockerfile:9,20,32-53 ubuntu:24.04 + NodeSource script, no USER.", "fix": "node:24-bookworm-slim@sha256, USER node, prune dev deps, read-only rootfs.", "repo": "erp-be"}, {"id": "BE-SEC-07", "sev": "Medium", "area": "Security", "title": "JWT and refresh-token handling weaknesses", "ev": "authenticate.ts:37 no algorithms/iss/aud; auth.service.ts:150,179,215 no rotation, fixed 7d expiry; no /refresh limiter; cookie path \"/\".", "fix": "Pin HS256 + iss/aud; rotation with reuse detection; revoke on password change; cookie path /api/v1/auth.", "repo": "erp-be"}, {"id": "BE-SEC-08", "sev": "Medium", "area": "Security", "title": "Username enumeration, lockout DoS, weak password policy", "ev": "auth.service.ts:87-110 distinct messages and timing; 5 attempts lock any account; min(8) passwords.", "fix": "Uniform error + dummy bcrypt; sliding throttle; 12-char policy with strength check.", "repo": "erp-be"}, {"id": "BE-SEC-09", "sev": "Medium", "area": "Security", "title": "validate() merges query over body; IDs not validated", "ev": "validate.ts:13-17; 45 parseInt(req.params.id) with 2 NaN checks.", "fix": "Separate body/params/query schemas; z.coerce ids.", "repo": "erp-be"}, {"id": "BE-SEC-10", "sev": "Medium", "area": "Security", "title": "Error responses leak internals", "ev": "errorHandler.ts:21-36 returns error.message on 500; requireRole echoes roles; /health shows NODE_ENV.", "fix": "Generic 5xx message + request ID.", "repo": "erp-be"}, {"id": "BE-SEC-11", "sev": "Medium", "area": "Security", "title": "Employee PII sent to OpenAI without timeout or limits", "ev": "ai.service.ts:330-338, 423, 733; up to 4 sequential model calls, no limiter: an org-wide denial-of-wallet vector.", "fix": "Pseudonymize, 15s timeout, per-user limit, cache, document sub-processor.", "repo": "erp-be"}, {"id": "BE-SEC-16", "sev": "Medium", "area": "Security", "title": "proxy-addr < 2.0.8 (IP spoofing advisory)", "ev": "npm audit: GHSA-jqcg-44mw-7w3h; becomes relevant once trust proxy is set.", "fix": "Update express / proxy-addr.", "repo": "erp-be"}, {"id": "BE-ARC-01", "sev": "Medium", "area": "Architecture", "title": "Two RBAC sources of truth", "ev": "schema.prisma:384-391 role enum + role_id; mixed requireRole/requirePermission; scopeGuard dead code.", "fix": "Permissions only; derive role from role_ref; delete scopeGuard.", "repo": "erp-be"}, {"id": "BE-ARC-02", "sev": "Medium", "area": "Architecture", "title": "Multi-tenancy exists in the schema only", "ev": "No query filters by organization_id; access-scope.service.ts:54-60.", "fix": "Declare single-tenant or enforce via Prisma extension / RLS.", "repo": "erp-be"}, {"id": "BE-ARC-03", "sev": "Medium", "area": "Architecture", "title": "God files and loose typing", "ev": "config.service.ts 1,739 LOC; controllers query DB directly; 40 any.", "fix": "Split per resource; typescript-eslint type-checked rules.", "repo": "erp-be"}, {"id": "BE-DATA-02", "sev": "Medium", "area": "Data", "title": "Engineers can hard-delete approved assessments", "ev": "assessment.router.ts:52-56; assessment.service.ts:621-631 (no period-window check); engineers edit under the manager grace window (L296); allow_self_submission never read.", "fix": "Drafts only; soft delete + audit; enforce period window and self-submission flag.", "repo": "erp-be"}, {"id": "BE-DATA-03", "sev": "Medium", "area": "Data", "title": "Weak referential integrity and free-string statuses", "ev": "schema.prisma:676, 765-779; CEFR status defaults to approved.", "fix": "FKs, enums/CHECKs, default draft; drop redundant indexes.", "repo": "erp-be"}, {"id": "BE-DATA-04", "sev": "Medium", "area": "Data", "title": "Migrations applied by hand; drift", "ev": "PENDING_CONFIGURATION.md; no migrate deploy step.", "fix": "Gated prisma migrate deploy + migrate status in CI.", "repo": "erp-be"}, {"id": "BE-PERF-01", "sev": "Medium", "area": "Performance", "title": "N+1 queries in score recomputation", "ev": "score-recalculation.service.ts:101-200 (~4 queries per competency, per PATCH).", "fix": "Batch-load, compute in memory, bulk upsert.", "repo": "erp-be"}, {"id": "BE-PERF-02", "sev": "Medium", "area": "Performance", "title": "Per-request DB overhead and writes on GET", "ev": "authenticate.ts:47, authorize.ts:52; ensure* on GETs; AI runs 3 full reports.", "fix": "Cache permissions per request; share scope result.", "repo": "erp-be"}, {"id": "BE-PERF-03", "sev": "Medium", "area": "Performance", "title": "Unbounded lists and limits", "ev": "Only 3 take: clauses; reports.controller.ts:131-132 accepts any limit.", "fix": "Zod pagination (max 100), cursor-based.", "repo": "erp-be"}, {"id": "BE-QA-01", "sev": "Medium", "area": "Quality", "title": "Mock-only tests; routers excluded from coverage", "ev": "No supertest tests; sonar excludes *.router.ts; no coverage threshold.", "fix": "RBAC matrix tests on Testcontainers Postgres; thresholds.", "repo": "erp-be"}, {"id": "BE-QA-02", "sev": "Medium", "area": "Quality", "title": "Error logging loses details", "ev": "138 logger.error({ error }) calls log {} (pino serializes err only).", "fix": "Use { err } everywhere + lint rule.", "repo": "erp-be"}, {"id": "BE-OPS-02", "sev": "Medium", "area": "Operations", "title": "Two CI systems pushing to a personal registry", "ev": "bitbucket-pipelines.yml + .github/workflows/docker.yml; latest images; BuildKit off; no SCA or image scan.", "fix": "One pipeline, org registry, Trivy, npm audit, SHA tags.", "repo": "erp-be"}, {"id": "BE-OPS-03", "sev": "Medium", "area": "Operations", "title": "Shutdown races and liveness-only health", "ev": "config/database.ts:31-39 vs server.ts:24-37; /health has no DB check.", "fix": "Single drain path, /ready with SELECT 1, metrics and tracing.", "repo": "erp-be"}, {"id": "BE-SEC-13", "sev": "Low", "area": "Security", "title": "No global rate limit; trust proxy unset", "ev": "auth.router.ts:11-17 is the only limiter.", "fix": "trust proxy + global, /auth and /ai limiters.", "repo": "erp-be"}, {"id": "BE-SEC-14", "sev": "Low", "area": "Security", "title": "Production DB host disclosed in repo docs", "ev": "PENDING_CONFIGURATION.md:185,198.", "fix": "Remove infrastructure details.", "repo": "erp-be"}, {"id": "BE-SEC-15", "sev": "Low", "area": "Security", "title": "Unused Swagger packages in production deps", "ev": "swagger-jsdoc, swagger-ui-express, openapi-types unused.", "fix": "Remove or mount behind auth in non-prod.", "repo": "erp-be"}, {"id": "BE-OPS-04", "sev": "Low", "area": "Operations", "title": "Dependencies behind", "ev": "Express 4, Prisma 5, pino 8, zod 3, eslint 8, jest 29; @types/node 20 on Node 24.", "fix": "Prisma 6 then Express 5; enable Renovate.", "repo": "erp-be"}, {"id": "BE-OPS-05", "sev": "Low", "area": "Operations", "title": "Expired refresh tokens never purged", "ev": "refresh_tokens table grows without cleanup.", "fix": "Scheduled purge job.", "repo": "erp-be"}, {"id": "FE-SEC-01", "sev": "High", "area": "Security", "title": "Demo admin credentials ship in the production bundle", "ev": "login/DemoAccounts.tsx:3-11 (password123 + admin code 1363); present in built index-*.js.", "fix": "DEV-only dynamic import; remove real codes; build check for the string.", "repo": "erp-fe"}, {"id": "FE-SEC-02", "sev": "High", "area": "Security", "title": "No CSP or security headers", "ev": "nginx.conf:1-70 has no CSP, HSTS, X-Frame-Options, nosniff, Referrer-Policy.", "fix": "Add headers in server and every add_header location; server_tokens off.", "repo": "erp-fe"}, {"id": "FE-OPS-01", "sev": "High", "area": "Operations", "title": "main also deploys production and is 226 commits behind", "ev": "bitbucket-pipelines.yml:112-122; rev-list origin/main...origin/master = 0 226.", "fix": "One protected production branch.", "repo": "erp-fe"}, {"id": "FE-OPS-02", "sev": "High", "area": "Operations", "title": "GitHub workflow cannot build a valid image", "ev": "docker.yml:723-783 never builds dist; Dockerfile:11 copies dist; branch \"stagging\".", "fix": "Retire one CI; multi-stage Dockerfile.", "repo": "erp-fe"}, {"id": "FE-ARC-01", "sev": "High", "area": "Performance", "title": "No code splitting: 994 kB main chunk", "ev": "0 lazy(); DashboardPage.tsx:9-39 imports everything; vite.config.ts:55 bundles tailwindcss.", "fix": "React.lazy per route; < 200 kB gz initial JS.", "repo": "erp-fe"}, {"id": "FE-ARC-02", "sev": "High", "area": "Architecture", "title": "No error boundaries", "ev": "0 ErrorBoundary/errorElement; crash documented in playwright.config.ts:7-10.", "fix": "Route errorElement + per tab/report/modal boundaries.", "repo": "erp-fe"}, {"id": "FE-SEC-03", "sev": "Medium", "area": "Security", "title": "HTML injection in print/PDF view", "ev": "pdfGenerator.ts:155,168-170 unescaped values written into a same-origin window (L218-224).", "fix": "esc() everything or a React print route; noopener.", "repo": "erp-fe"}, {"id": "FE-SEC-05", "sev": "Medium", "area": "Security", "title": "Role checks duplicated in three places", "ev": "NAV, inline guards and a hard-coded array in DashboardPage.tsx:474-533.", "fix": "Single canAccess(user, route).", "repo": "erp-fe"}, {"id": "FE-SEC-06", "sev": "Medium", "area": "Security", "title": "Gap-report download bypasses the API client", "ev": "GapAnalysisTab.tsx:63-78 raw fetch, no refresh or res.ok check.", "fix": "apiClient with blob response.", "repo": "erp-fe"}, {"id": "FE-SEC-11", "sev": "Medium", "area": "Security", "title": "axios 1.19.0 has 12 advisories", "ev": "npm audit; fixed in 1.20.", "fix": "Upgrade axios.", "repo": "erp-fe"}, {"id": "FE-ARC-03", "sev": "Medium", "area": "Architecture", "title": "Pseudo-router inside DashboardPage", "ev": "Tab useState (L62-65), manual ?report= and #hash, full reload on logout.", "fix": "Nested routes.", "repo": "erp-fe"}, {"id": "FE-ARC-04", "sev": "Medium", "area": "Architecture", "title": "Circular import api → routes → pages → api", "ev": "lib/api.ts:3 imports router.", "fix": "onUnauthorized callback.", "repo": "erp-fe"}, {"id": "FE-ARC-05", "sev": "Medium", "area": "Architecture", "title": "Fetching outside react-query; silent failures", "ev": "YoYGrowthTab.tsx:24-39 turns errors into empty data; 5 direct fetchers.", "fix": "Hooks with a query-key factory.", "repo": "erp-fe"}, {"id": "FE-ARC-06", "sev": "Medium", "area": "Architecture", "title": "Inconsistent loading states", "ev": "Skeleton, Spinner, animate-pulse and bare \"Loading...\" mixed.", "fix": "QueryState primitive.", "repo": "erp-fe"}, {"id": "FE-QA-01", "sev": "Medium", "area": "Quality", "title": "E2E tests thin and not in CI", "ev": "5 specs / ~12 tests on an empty stubbed API.", "fix": "Playwright job with per-role fixtures.", "repo": "erp-fe"}, {"id": "FE-QA-02", "sev": "Medium", "area": "Quality", "title": "Tests run without a DOM; no coverage threshold", "ev": "vite.config.ts:15 environment node; react-test-renderer.", "fix": "jsdom + Testing Library; thresholds.", "repo": "erp-fe"}, {"id": "FE-QA-03", "sev": "Medium", "area": "Quality", "title": "Type-safety leaks", "ev": "63 no-explicit-any and 15 exhaustive-deps warnings.", "fix": "Make both rules errors.", "repo": "erp-fe"}, {"id": "FE-QA-04", "sev": "Medium", "area": "Quality", "title": "25 files over 400 LOC", "ev": "useConfig.ts 1,622; BulkAssessmentTable 1,616; AIInsightsTab 1,613.", "fix": "Split by sub-view and entity.", "repo": "erp-fe"}, {"id": "FE-OPS-04", "sev": "Medium", "area": "Operations", "title": "nginx image unpinned and root", "ev": "Dockerfile:5 nginx:alpine; dev image uses curl-pipe-bash.", "fix": "nginx-unprivileged pinned, port 8080.", "repo": "erp-fe"}, {"id": "FE-DX-01", "sev": "Medium", "area": "Quality", "title": "EOL toolchain", "ev": "vite 4.5, vitest 0.34, eslint 8.", "fix": "Vite 6 + Vitest 3, then ESLint 9, then React 19.", "repo": "erp-fe"}, {"id": "FE-DX-02", "sev": "Medium", "area": "Quality", "title": "8 unused dependencies", "ev": "d3, Radix select, react-table, RHF, zod, CVA… with 0 imports.", "fix": "Remove; knip in CI.", "repo": "erp-fe"}, {"id": "FE-SEC-07", "sev": "Low", "area": "Security", "title": "Google Fonts leak user IPs", "ev": "index.html:8-10.", "fix": "Self-host fonts.", "repo": "erp-fe"}, {"id": "FE-SEC-08", "sev": "Low", "area": "Security", "title": "6.6 MB brand zip publicly served", "ev": "public/CalibrN.zip.", "fix": "Move out of public/.", "repo": "erp-fe"}, {"id": "FE-SEC-09", "sev": "Low", "area": "Security", "title": "Refresh cookie settings unverified from FE", "ev": "api.ts:24 refresh with cookie, no CSRF token.", "fix": "Confirm SameSite/Secure/path on the backend.", "repo": "erp-fe"}, {"id": "FE-ARC-07", "sev": "Low", "area": "Architecture", "title": "Dead duplicate components", "ev": "dashboard/tabs/cards/*, BehavioralScoreCard.tsx unreferenced.", "fix": "Delete.", "repo": "erp-fe"}, {"id": "FE-ARC-08", "sev": "Low", "area": "Architecture", "title": "Query-key sprawl", "ev": "123 inline keys in useConfig.ts.", "fix": "Key factory.", "repo": "erp-fe"}, {"id": "FE-QA-06", "sev": "Low", "area": "Quality", "title": "No i18n or RTL", "ev": "0 i18n usage; toLocaleString without locale.", "fix": "react-i18next + Intl formatters.", "repo": "erp-fe"}, {"id": "FE-QA-07", "sev": "Low", "area": "Quality", "title": "Accessibility not linted", "ev": ".eslintrc.json has no jsx-a11y.", "fix": "Add eslint-plugin-jsx-a11y.", "repo": "erp-fe"}, {"id": "FE-OPS-05", "sev": "Low", "area": "Operations", "title": "CI credential typos and copy-paste", "ev": "DOCKER_TOCKEN variants; 4 duplicated steps.", "fix": "One variable pair; YAML anchor.", "repo": "erp-fe"}, {"id": "FE-OPS-06", "sev": "Low", "area": "Operations", "title": "public/assets collides with hashed /assets cache rule", "ev": "nginx.conf:29-32 gives unhashed files 1-year immutable caching.", "fix": "Rename to public/static.", "repo": "erp-fe"}, {"id": "FE-DX-03", "sev": "Low", "area": "Quality", "title": "Dead scripts with another laptop's path", "ev": "fix_badges.py, fix_jsx.py, update_domain.js.", "fix": "Delete.", "repo": "erp-fe"}, {"id": "FE-DX-04", "sev": "Low", "area": "Quality", "title": "Stale \"erp\" naming", "ev": "package.json, devops-theme key, PDF footer.", "fix": "Rename to ERP.", "repo": "erp-fe"}, {"id": "UX-01", "sev": "High", "area": "UX", "title": "Sections are not routable", "ev": "routes.tsx has /login and /dashboard only; DashboardPage.tsx:62.", "fix": "Nested routes and NavLink.", "repo": "erp-fe"}, {"id": "UX-02", "sev": "High", "area": "UX", "title": "Sidebar squeezes content to ~55px on phones", "ev": "DashboardPage.tsx:250,282,344; 68px rail always visible.", "fix": "Off-canvas drawer below 1024px.", "repo": "erp-fe"}, {"id": "UX-03", "sev": "High", "area": "UX", "title": "Errors render as grey \"no data\" text", "ev": "reports/shared.tsx:36; 8 \"Failed to load…\" uses.", "fix": "ErrorState with retry.", "repo": "erp-fe"}, {"id": "UX-04", "sev": "Medium", "area": "UX", "title": "Fake notification bell with permanent pulse", "ev": "DashboardPage.tsx:219-229 has no onClick.", "fix": "Wire to approvals count or remove.", "repo": "erp-fe"}, {"id": "UX-05", "sev": "Medium", "area": "UX", "title": "No global progress indicator", "ev": "0 useIsFetching; centered spinner on boot.", "fix": "3px top linear progress bar.", "repo": "erp-fe"}, {"id": "UX-06", "sev": "Medium", "area": "UX", "title": "No breadcrumbs, page titles or shared h1", "ev": "document.title never set.", "fix": "PageHeader component.", "repo": "erp-fe"}, {"id": "UX-07", "sev": "Medium", "area": "UX", "title": "Bare empty states", "ev": "Grey <p> with varying copy.", "fix": "EmptyState with hint and CTA.", "repo": "erp-fe"}, {"id": "UX-10", "sev": "Medium", "area": "UX", "title": "Expert roles land on an empty sidebar", "ev": "COMMUNICATION_EXPERT, LANGUAGE_EXPERT have no NAV entry.", "fix": "Role landing pages.", "repo": "erp-fe"}, {"id": "UX-08", "sev": "Low", "area": "UX", "title": "Hard-coded \"CY2026 Active Period\" chip", "ev": "ReportsSection.tsx:125-128.", "fix": "Bind to active period.", "repo": "erp-fe"}, {"id": "UX-09", "sev": "Low", "area": "UX", "title": "Toasts do not pause on hover", "ev": "ToastContainer.tsx:166 (WCAG 2.2.1).", "fix": "Pause on hover and focus.", "repo": "erp-fe"}, {"id": "A11Y-01", "sev": "Critical", "area": "Accessibility", "title": "Enter on \"Cancel\" confirms destructive actions", "ev": "ConfirmDialog.tsx:43 global Enter → onConfirm while Cancel is autoFocus (L95); 19 call sites.", "fix": "Remove the global handler; alertdialog semantics and focus trap; add .btn-warning.", "repo": "erp-fe"}, {"id": "A11Y-02", "sev": "High", "area": "Accessibility", "title": "Focus indicators fail 3:1", "ev": ".btn ring 1.85 (light) / 2.49 (dark); .field ~1.86; 20 outline-none sites.", "fix": "--focus token ≥ 3:1; global :focus-visible.", "repo": "erp-fe"}, {"id": "A11Y-03", "sev": "High", "area": "Accessibility", "title": "Modals and menus not keyboard-safe", "ev": "Modal has no trap/name; menus lack ARIA, arrows, Escape.", "fix": "Radix Dialog, DropdownMenu, Popover.", "repo": "erp-fe"}, {"id": "A11Y-04", "sev": "High", "area": "Accessibility", "title": "Text contrast failures", "ev": "Info 4.10; dark accent 4.18; Midnight tab 2.43; amber-500 2.15; login hero word 2.25.", "fix": "--info token; accent-fg everywhere; lint raw palette classes.", "repo": "erp-fe"}, {"id": "A11Y-05", "sev": "High", "area": "Accessibility", "title": "Unlabelled form controls", "ev": "LoginForm.tsx:17,30; ReportFilterBar.tsx:107-135.", "fix": "htmlFor/id or aria-label; describedby for errors.", "repo": "erp-fe"}, {"id": "A11Y-06", "sev": "Medium", "area": "Accessibility", "title": "No reduced-motion handling", "ev": "Infinite logo glow, pulses, shimmer.", "fix": "prefers-reduced-motion block; remove ambient loops.", "repo": "erp-fe"}, {"id": "A11Y-07", "sev": "Medium", "area": "Accessibility", "title": "Charts invisible to assistive tech", "ev": "16 of 17 Recharts files have no role or summary.", "fix": "accessibilityLayer, aria summary, table view.", "repo": "erp-fe"}, {"id": "A11Y-08", "sev": "Medium", "area": "Accessibility", "title": "InfoTip not dismissible or hoverable", "ev": "InfoTip.tsx (WCAG 1.4.13).", "fix": "Radix Tooltip.", "repo": "erp-fe"}, {"id": "A11Y-09", "sev": "Medium", "area": "Accessibility", "title": "Password toggle unreachable by keyboard", "ev": "PasswordInput.tsx:26 tabIndex=-1.", "fix": "Focusable button with aria-pressed.", "repo": "erp-fe"}, {"id": "A11Y-10", "sev": "Medium", "area": "Accessibility", "title": "Clickable div", "ev": "PriorityGapMatrix.tsx:127.", "fix": "Use <button>.", "repo": "erp-fe"}, {"id": "A11Y-11", "sev": "Medium", "area": "Accessibility", "title": "Micro type down to 7px", "ev": "text-[10px]×183, [11px]×175, [9px]×37.", "fix": "12px floor for information.", "repo": "erp-fe"}, {"id": "A11Y-12", "sev": "Low", "area": "Accessibility", "title": "Each skeleton is its own live region", "ev": "Skeleton.tsx role=\"status\" per item.", "fix": "One aria-busy per container.", "repo": "erp-fe"}, {"id": "A11Y-13", "sev": "Low", "area": "Accessibility", "title": "Low-contrast dark toast icons", "ev": "White on green-400/amber-400 ≈ 1.7:1.", "fix": "Use status foreground tokens.", "repo": "erp-fe"}, {"id": "A11Y-14", "sev": "Low", "area": "Accessibility", "title": "No skip link; unlabelled nav", "ev": "DashboardPage.tsx landmarks.", "fix": "Skip link; nav aria-label.", "repo": "erp-fe"}, {"id": "VIS-01", "sev": "High", "area": "Visual", "title": "Brand split: blue logo, violet UI", "ev": "Logo #0060FF/#061E81 vs accent #6D28D9, indigo hero, cyan Midnight.", "fix": "Re-anchor UI on brand blue (ERP Prism).", "repo": "erp-fe"}, {"id": "VIS-02", "sev": "High", "area": "Visual", "title": "Wordmark renders in a fallback font", "ev": "Poppins <text> inside SVGs loaded via <img>.", "fix": "Outline text to paths.", "repo": "erp-fe"}, {"id": "VIS-03", "sev": "Medium", "area": "Visual", "title": "Effects overload", "ev": "Glass, blur, glow blobs and gradients on most surfaces.", "fix": "One elevation language; gradients for brand moments only.", "repo": "erp-fe"}, {"id": "VIS-04", "sev": "Medium", "area": "Visual", "title": "Typographic shouting", "ev": "font-black×114, uppercase×187, 424 arbitrary sizes.", "fix": "7-step type scale; uppercase only for overlines.", "repo": "erp-fe"}, {"id": "VIS-05", "sev": "Medium", "area": "Visual", "title": "Icon chaos", "ev": "12 icon sizes plus emoji and Unicode glyphs.", "fix": "Lucide only at 16/20/24.", "repo": "erp-fe"}, {"id": "VIS-06", "sev": "Medium", "area": "Visual", "title": "\"Technical\" has no single color", "ev": "Violet in tokens, blue in StandardRadarChart.tsx:23-27.", "fix": "Fixed pillar colors everywhere.", "repo": "erp-fe"}, {"id": "VIS-09", "sev": "Medium", "area": "Visual", "title": "No delight where it matters", "ev": "Ambient pulses, no celebration on milestones.", "fix": "Event-driven motion; promotion-ready moment.", "repo": "erp-fe"}, {"id": "VIS-07", "sev": "Low", "area": "Visual", "title": "Light-theme logo glow contradicts brand guide", "ev": "globals.css:780.", "fix": "Static logo in light mode.", "repo": "erp-fe"}, {"id": "VIS-08", "sev": "Low", "area": "Visual", "title": "Public asset hygiene", "ev": "Stray JPEG in svg/, public zip, no manifest.", "fix": "Clean up; add manifest and touch icon.", "repo": "erp-fe"}, {"id": "DS-01", "sev": "High", "area": "Design system", "title": "Two competing chart palettes", "ev": "chartColors.ts vs useChartTheme.ts; violet/violet CVD collision.", "fix": "One validated palette module from CSS vars.", "repo": "erp-fe"}, {"id": "DS-02", "sev": "High", "area": "Design system", "title": "Hard-coding against own standards", "ev": "415 raw palette classes, 297 hex, 94 rgb(), 1,649 inline styles.", "fix": "Lint rules; CVA variants; ratchet.", "repo": "erp-fe"}, {"id": "DS-03", "sev": "High", "area": "Design system", "title": "Classes referenced but missing", "ev": "btn-warning; animate-in/zoom-in-95; focus:outline-hidden (v4 syntax).", "fix": "Add classes; CI dead-class check.", "repo": "erp-fe"}, {"id": "DS-04", "sev": "Medium", "area": "Design system", "title": "No type, radius or elevation scale", "ev": "spacing[\"6\"] override silently changes p-6/gap-6.", "fix": "Scale tokens; remove override.", "repo": "erp-fe"}, {"id": "DS-05", "sev": "Medium", "area": "Design system", "title": "Duplicate primitives", "ev": "3 overlays, 4 spinners, 2 tables, 3 KPI cards.", "fix": "Consolidate to one each.", "repo": "erp-fe"}, {"id": "DS-06", "sev": "Medium", "area": "Design system", "title": "No System theme", "ev": "0 prefers-color-scheme; default light.", "fix": "light / dark / system preference.", "repo": "erp-fe"}, {"id": "DS-07", "sev": "Low", "area": "Design system", "title": "Docs drift", "ev": "STANDARDS token table stale; UI_UX_DESIGN_STANDARDS.md missing.", "fix": "Regenerate docs from tokens.", "repo": "erp-fe"}, {"id": "DS-08", "sev": "Low", "area": "Design system", "title": "Dead weight", "ev": "d3, unused CSS classes, legacy HSL tokens, Inter loaded twice.", "fix": "Remove.", "repo": "erp-fe"}, {"id": "BE-ARC-04", "sev": "Critical", "area": "Architecture", "title": "Appraisal history overwritten across periods", "ev": "schema.prisma:580 unique(employee_id, technology_id), :611 CompetencyScore has no period; assessment.service.ts:201-229 upsert overwrites appraisal_period_id (verified).", "fix": "Period in assessment and score keys; copy forward at rollover; immutable snapshot on LOCK; reject writes to locked periods.", "repo": "erp-be"}, {"id": "BE-ARC-05", "sev": "High", "area": "Architecture", "title": "Appraisal period lifecycle unguarded", "ev": "config.service.ts:1641-1657 any status, hard delete; no unique active period; onDelete SetNull orphans assessments (schema.prisma:574,683).", "fix": "DRAFT>OPEN>LOCKED>ARCHIVED state machine; partial unique on is_active; onDelete Restrict.", "repo": "erp-be"}, {"id": "BE-ARC-06", "sev": "High", "area": "Architecture", "title": "Scoring config edits neither versioned nor recomputed", "ev": "config.service.ts:939-1016, 1152, 1412; stored scores mix old and new weights until a manual backfill.", "fix": "Versioned config per period, config_version_id on scores, recompute job, reject edits to locked periods.", "repo": "erp-be"}, {"id": "BE-ARC-07", "sev": "High", "area": "Architecture", "title": "YoY report uses a second scoring formula and current weights", "ev": "reports.service.ts:928-960 sums raw scores and clamps, unlike computeCompetencyScore.", "fix": "Compute YoY from period snapshots produced by the single scoring engine.", "repo": "erp-be"}, {"id": "BE-ARC-08", "sev": "High", "area": "Architecture", "title": "Behavioral aggregate detached from Employee, Period and Grade", "ev": "schema.prisma:765-772 string subject, no FK or period; behavioral.service.ts:99-127 stores unresolved subjects, client-chosen grade.", "fix": "employee_id and period FKs; reject unknown subjects; derive grade server-side.", "repo": "erp-be"}, {"id": "BE-ARC-09", "sev": "Medium", "area": "Architecture", "title": "Three assessor identity conventions; approver overwrites submitter", "ev": "schema.prisma:569,677,770; assessment.service.ts:381 overwrites assessed_by on approve.", "fix": "submitted_by and approved_by as user_id FKs on all pillars.", "repo": "erp-be"}, {"id": "BE-ARC-10", "sev": "Medium", "area": "Architecture", "title": "Taxonomy hard delete cascades into appraisal evidence", "ev": "schema.prisma:578 Technology→SkillAssessment Cascade; config.service.ts:1346,1599 hard deletes.", "fix": "Soft delete taxonomy; onDelete Restrict on evidence tables.", "repo": "erp-be"}, {"id": "BE-ARC-11", "sev": "Medium", "area": "Architecture", "title": "Four error envelopes; domain errors become 500", "ev": "errorHandler.ts:31, app.ts:101, success:false bodies; plain Error at behavioral.service.ts:113; only P2002 mapped.", "fix": "RFC 7807 problem+json, ApiError hierarchy, central Prisma error mapper.", "repo": "erp-be"}, {"id": "BE-ARC-12", "sev": "Low", "area": "Architecture", "title": "Dead materialized and legacy tables", "ev": "schema.prisma:618 DomainScore never written; :802 CefrExpected unused.", "fix": "Drop via migration or implement as projections.", "repo": "erp-be"}, {"id": "BE-ARC-13", "sev": "Medium", "area": "Architecture", "title": "Scope expands to full employee ID lists; 2+ auth queries per request", "ev": "access-scope.service.ts:53-60; authenticate.ts:47; authorize.ts:52.", "fix": "Prisma where-predicate scope; cache permissions per token.", "repo": "erp-be"}, {"id": "BE-ARC-14", "sev": "Medium", "area": "Architecture", "title": "Key invariants exist only in raw SQL", "ev": "migrations/20260610000500…/migration.sql:23 partial unique invisible to schema.prisma.", "fix": "prisma migrate diff drift check in CI; document in schema and an ADR.", "repo": "erp-be"}, {"id": "FE-ARC-09", "sev": "Medium", "area": "Architecture", "title": "Phantom roles in the FE RBAC contract (7 vs 5)", "ev": "src/types/rbac.ts:1-9 declares COMMUNICATION_EXPERT and LANGUAGE_EXPERT absent from the backend enum.", "fix": "Generate types from OpenAPI; remove dead role branches.", "repo": "erp-fe"}, {"id": "FE-ARC-10", "sev": "Medium", "area": "Architecture", "title": "Scoring engine duplicated client-side", "ev": "src/lib/scoringPreview.ts:6-25 hard-codes weights mirroring scoring.engine.ts.", "fix": "Backend /scoring/preview endpoint.", "repo": "erp-fe"}, {"id": "FE-ARC-11", "sev": "Medium", "area": "Architecture", "title": "Cross-pillar cache incoherence", "ev": "useBehavioral.ts:80-87, useCommunication.ts:170-225 never invalidate reports or AI; staleTime 5 min.", "fix": "Query-key factory and a mutation-to-invalidation map.", "repo": "erp-fe"}, {"id": "FE-ARC-12", "sev": "Low", "area": "Architecture", "title": "lib layer imports hooks and ui (cycles)", "ev": "lib/pillarAttainment.ts:1, lib/reportGroups.ts:1, lib/cefrDefinitions.ts:2-3.", "fix": "Move domain types to src/types; eslint-plugin-boundaries.", "repo": "erp-fe"}, {"id": "BE-SEC-17", "sev": "High", "area": "Security", "title": "CEFR approve/rewrite has no row-level scope check (BOLA)", "ev": "communication.controller.ts:216-256 updateAssessmentStatus never calls canAccessEmployee (every other CEFR handler does); service rewrites ratings (verified).", "fix": "canAccessEmployee(user, target.employee_id, {forAssessment:true}) + regression test.", "repo": "erp-be"}, {"id": "FE-SEC-12", "sev": "High", "area": "Security", "title": "Logout never revokes the server session", "ev": "DashboardPage.tsx:153-157 only clears local state; no call to /auth/logout anywhere in src; refresh cookie valid 7 days (verified).", "fix": "await apiClient.post(\"/auth/logout\") before clearing state; cookie-only logout on the backend.", "repo": "erp-fe"}, {"id": "BE-SEC-18", "sev": "Medium", "area": "Security", "title": "Top management and admin can self-approve", "ev": "assessment.controller.ts:18-21 guard covers LM/MGR only (verified); CEFR create defaults to approved; behavioral.controller.ts:48-51.", "fix": "Block self-approval and self-rating for every role; designated approver for senior staff.", "repo": "erp-be"}, {"id": "BE-SEC-19", "sev": "Medium", "area": "Security", "title": "GET /config/employees unscoped for employees.view holders", "ev": "config.router.ts:108; config.controller.ts:379 listEmployees() without user context; the delivery path for BE-SEC-01.", "fix": "Filter by getAccessibleEmployeeIds unless employees.manage; slim DTO.", "repo": "erp-be"}, {"id": "BE-SEC-20", "sev": "Medium", "area": "Security", "title": "Password change and employee archive keep sessions alive", "ev": "auth.service.ts:246-251, config.service.ts:1071,1326 no token revoke; authenticate.ts:52 ignores employee.deleted_at.", "fix": "Revoke all refresh tokens; check archive in authenticate; cascade to user and assignments.", "repo": "erp-be"}, {"id": "BE-SEC-21", "sev": "Medium", "area": "Security", "title": "No audit trail for approvals, user changes, config edits or logins", "ev": "createAccessAuditLog used only for access admin; config.service.ts:899-915 silently promotes ENGINEER to LINE_MANAGER.", "fix": "Append-only audit events (actor, target, before/after diff, IP, request ID).", "repo": "erp-be"}, {"id": "BE-SEC-22", "sev": "Medium", "area": "Security", "title": "Managers can lower promotion thresholds that apply to themselves", "ev": "config.router.ts:135-139; access-scope.service.ts:24-37 includes own department.", "fix": "Exclude own department and grade, or require a second approver; version per period; audit.", "repo": "erp-be"}, {"id": "BE-SEC-27", "sev": "Medium", "area": "Security", "title": "No retention or erasure for HR PII; audit logs keep full snapshots forever", "ev": "config.service.ts:518-524 newValue = full object; :1326 soft delete only (GDPR Art. 5(1)(e), 17).", "fix": "Retention policy, erasure and anonymization workflow, diff-only audit payloads.", "repo": "erp-be"}, {"id": "BE-SEC-23", "sev": "Low", "area": "Security", "title": "Reciprocal line-manager assignments allow mutual approval", "ev": "config.service.ts:849-872 only rejects self-assignment.", "fix": "Reject direct and transitive cycles.", "repo": "erp-be"}, {"id": "BE-SEC-24", "sev": "Low", "area": "Security", "title": "Query-param type confusion injects Prisma operators", "ev": "assessment.controller.ts:228,240 ?department[not]=x reaches the where clause.", "fix": "Zod query schemas or typeof guards.", "repo": "erp-be"}, {"id": "BE-SEC-25", "sev": "Low", "area": "Security", "title": "GET /config/departments leaks weights and employee IDs to engineers", "ev": "config.router.ts:91; config.service.ts:1114-1124.", "fix": "Slim {id,name} DTO for non-admins.", "repo": "erp-be"}, {"id": "BE-SEC-26", "sev": "Low", "area": "Security", "title": "Unused Swagger deps run install-time telemetry in the prod build", "ev": "package.json:35-36; @scarf/scarf hasInstallScript; Dockerfile:12.", "fix": "Remove the packages or use --ignore-scripts.", "repo": "erp-be"}, {"id": "FE-SEC-13", "sev": "Low", "area": "Security", "title": "FE image provenance and nginx hardening gaps", "ev": "Dockerfile:5 floating nginx:alpine; nginx.conf no server_tokens off or limit_req; :57 spoofable X-Forwarded-For chain.", "fix": "Pin by digest; limit_req on /api; XFF=$remote_addr at the edge.", "repo": "erp-fe"}], "phases": [{"id": "P0", "track": "Engineering", "name": "Stop the bleeding", "start": 0, "end": 5, "effort": "5–7 dev-days", "goal": "Close the account-takeover and access-control paths, make logout real, and fix the critical dialog bug.", "ids": ["BE-SEC-01", "BE-SEC-02", "BE-SEC-17", "BE-SEC-18", "BE-SEC-19", "FE-SEC-12", "BE-SEC-06", "BE-SEC-04", "BE-SEC-05", "BE-SEC-12", "BE-SEC-03", "BE-SEC-16", "FE-SEC-01", "FE-SEC-02", "FE-SEC-03", "FE-ARC-02", "FE-SEC-11", "FE-OPS-01", "A11Y-01"], "prompts": ["0-BE", "0-FE", "0-OPS"]}, {"id": "P1", "track": "Engineering", "name": "Production foundations", "start": 5, "end": 20, "effort": "2–3 weeks", "goal": "Auth hardening, real routing, code splitting, hardened images, one CI pipeline and integration tests.", "ids": ["BE-SEC-20", "BE-SEC-21", "BE-SEC-24", "BE-SEC-25", "BE-SEC-26", "FE-SEC-13", "BE-ARC-05", "BE-ARC-11", "BE-SEC-07", "BE-SEC-08", "BE-SEC-09", "BE-SEC-10", "BE-SEC-13", "BE-QA-01", "BE-QA-02", "BE-OPS-01", "BE-OPS-02", "BE-OPS-03", "BE-DATA-04", "FE-ARC-01", "FE-ARC-03", "FE-ARC-04", "FE-ARC-05", "FE-ARC-08", "FE-SEC-05", "FE-SEC-06", "FE-SEC-07", "FE-QA-01", "FE-QA-02", "FE-OPS-02", "FE-OPS-04", "FE-OPS-05", "FE-OPS-06", "UX-01", "UX-10"], "prompts": ["1-BE", "1-FE"]}, {"id": "P2", "track": "Engineering", "name": "Appraisal integrity and architecture", "start": 20, "end": 45, "effort": "4–5 weeks", "goal": "Period-keyed results with snapshots, versioned scoring config, atomic scoring, one RBAC model, retention, and a current toolchain.", "ids": ["BE-ARC-04", "BE-ARC-06", "BE-ARC-07", "BE-ARC-08", "BE-ARC-09", "BE-ARC-10", "BE-ARC-12", "BE-ARC-13", "BE-ARC-14", "BE-SEC-22", "BE-SEC-23", "BE-SEC-27", "FE-ARC-09", "FE-ARC-10", "FE-ARC-11", "FE-ARC-12", "BE-DATA-01", "BE-DATA-02", "BE-DATA-03", "BE-PERF-01", "BE-PERF-02", "BE-PERF-03", "BE-ARC-01", "BE-ARC-02", "BE-ARC-03", "BE-SEC-11", "FE-QA-03", "FE-QA-04", "FE-DX-01", "FE-DX-02", "FE-DX-03", "FE-DX-04", "FE-ARC-07"], "prompts": ["2-BE", "2-FE"]}, {"id": "P3", "track": "Engineering", "name": "Outbox, read models, scale", "start": 45, "end": 60, "effort": "Ongoing (Q2)", "goal": "Transactional outbox and worker, report read models, OpenAPI contract, tracing and SLOs, Prisma 6 and Express 5, i18n and RTL, signed images.", "ids": ["BE-OPS-04", "BE-OPS-05", "BE-SEC-14", "BE-SEC-15", "FE-QA-06", "FE-QA-07", "FE-SEC-08", "FE-SEC-09"], "prompts": ["3-ARC"]}, {"id": "UI-0", "track": "UI/UX", "name": "Stop misleading UI", "start": 0, "end": 1.5, "effort": "1–2 days", "goal": "Remove fake affordances, show real errors, label forms, fix missing classes.", "ids": ["UX-03", "UX-04", "UX-07", "FE-ARC-06", "UX-08", "UX-09", "DS-03", "A11Y-05", "A11Y-09", "A11Y-10", "VIS-07"], "prompts": ["UI-0"]}, {"id": "UI-1", "track": "UI/UX", "name": "Prism tokens + Light/Dark/System", "start": 1.5, "end": 5, "effort": "3–4 days", "goal": "Brand-blue token system, three theme modes, type scale, self-hosted fonts, focus ring, reduced motion.", "ids": ["VIS-01", "DS-04", "DS-06", "A11Y-02", "A11Y-04", "A11Y-06", "DS-02"], "prompts": ["UI-1"]}, {"id": "UI-3", "track": "UI/UX", "name": "Component library", "start": 5, "end": 9.5, "effort": "4–5 days", "goal": "Radix-based overlays and menus, one of each primitive, type and icon sweep, effects diet.", "ids": ["A11Y-03", "A11Y-08", "A11Y-11", "A11Y-12", "A11Y-13", "DS-05", "DS-07", "VIS-03", "VIS-04", "VIS-05"], "prompts": ["UI-3"]}, {"id": "UI-4", "track": "UI/UX", "name": "Chart system", "start": 9.5, "end": 15.5, "effort": "5–7 days", "goal": "One validated palette, ChartFrame with table view and export, accessible charts, new chart types.", "ids": ["DS-01", "VIS-06", "A11Y-07", "DS-08"], "prompts": ["UI-4"]}, {"id": "UI-7", "track": "UI/UX", "name": "Login, brand, onboarding", "start": 15.5, "end": 19, "effort": "3–4 days", "goal": "Outlined wordmark, new login, first-run onboarding, manifest and icons.", "ids": ["VIS-02", "VIS-08"], "prompts": ["UI-7"]}, {"id": "UI-2", "track": "UI/UX", "name": "Shell, sidebar, progress bar", "start": 20, "end": 24.5, "effort": "4–5 days", "goal": "Collapsible sidebar with phone drawer, top linear progress bar, PageHeader, command palette.", "ids": ["UX-02", "UX-05", "UX-06", "A11Y-14"], "prompts": ["UI-2"]}, {"id": "UI-5", "track": "UI/UX", "name": "Dashboards and analytics", "start": 24.5, "end": 30.5, "effort": "5–7 days", "goal": "Role dashboards with KPI tiles, sparklines, heatmaps, funnels and the promotion-ready moment.", "ids": ["VIS-09"], "prompts": ["UI-5"]}, {"id": "UI-6", "track": "UI/UX", "name": "Flows, reports, Setup", "start": 30.5, "end": 36.5, "effort": "5–7 days", "goal": "Assessment wizards with autosave, approvals split view, React print view, mobile tables.", "ids": [], "prompts": ["UI-6"]}, {"id": "UI-8", "track": "UI/UX", "name": "Motion, a11y QA, visual regression", "start": 36.5, "end": 40, "effort": "3–4 days", "goal": "axe in CI, keyboard walkthroughs, screenshot baselines, performance budgets.", "ids": [], "prompts": ["UI-8"]}], "prompts": {"0-BE": "You are hardening the ERP backend (Express + Prisma). Read STANDARDS.md first. Fix these audit findings, each with tests:\n1. BE-SEC-01: No API response or audit-log JSON may contain password_hash, password_reset_token, reset_token_expires, login_attempts or locked_until. Create src/modules/shared/safe-user.ts exporting `safeUserSelect` and use it for every `user`, `manager_user`, `actor_user` and `target_user` include in src/modules/config/config.service.ts (listEmployees ~L1210, listUsers/createUser/updateUser ~L1020-1079, listAccessAuditLogs ~L481, assignment audit writes ~L493-558). Also add a Prisma client extension in src/config/database.ts that deletes those fields from any User result as defence in depth. Write a migration/script `src/scripts/scrub-audit-log-secrets.ts` that removes those keys from access_audit_logs.old_value/new_value. Add a test that serializes every config service response and asserts no key named password_hash exists.\n2. BE-SEC-02: In src/modules/behavioral/behavioral.controller.ts, resolve the subject employee and call accessScopeService.canAccessEmployee(req.user, subjectId, { forAssessment: true }) for create, and canAccessEmployee for getAssessmentById, getLatestSubjectAssessment and getSubjectHistory; return 403 otherwise. Mirror the tests in communication.controller.test.ts.\n3. BE-SEC-06: In src/app.ts configure pinoHttp with redact paths req.headers.authorization, req.headers.cookie, res.headers[\"set-cookie\"] and add genReqId (crypto.randomUUID) that is echoed as X-Request-Id.\n4. BE-SEC-04: ensureRoles/ensurePermissions must never reactivate: change upserts to `update: {}`, and remove every call from request handlers (listRoles, listUsers, createUser, updateUser, etc.). Keep only the boot call (create-if-missing).\n5. BE-SEC-05: In createUser/updateUser and PUT /roles/:id/permissions, only an ADMIN actor may assign role ADMIN or grant roles.manage/users.manage (403 otherwise). Write AccessAuditLog entries for user create/update/delete. On password or role change, revoke all of that user's refresh tokens and reset login_attempts/locked_until.\n6. BE-SEC-12: prisma/seed/seed.ts must throw if NODE_ENV === 'production' unless ALLOW_PROD_SEED=true; read SEED_ADMIN_PASSWORD from env (refuse if absent outside development); never set password_hash in an upsert `update` branch; replace real full names with fixtures.\n7. BE-SEC-03: Remove the python execFile path from reports.controller.ts. Re-implement GET /reports/gap-report/download in Node with exceljs, using the same scoping as the gap report (getEmployeesForManager / accessScopeService), requirePermission('reports.view'), streaming a per-request buffer.\n8. Upgrade express so proxy-addr >= 2.0.8; run `npm audit --omit=dev` and fix all high/critical runtime advisories.\n9. BE-SEC-17: in communication.controller.ts updateAssessmentStatus, resolve target.employee_id and call accessScopeService.canAccessEmployee(req.user, target.employee_id, { forAssessment: true }) before updating; 403 otherwise; add a regression test.\n10. BE-SEC-18: block self-approval / self-rating / create-as-approved when the subject employeeId equals req.user.employeeId for EVERY role (assessment, communication, behavioral controllers); CEFR create default status becomes 'pending'.\n11. BE-SEC-19: GET /config/employees returns only getAccessibleEmployeeIds(req.user) unless the caller holds employees.manage; return a slim DTO.\n12. BE-SEC-02 follow-up: move GET /behav/config behind router.use(authenticate).\n13. BE-SEC-20 (part): changePassword and admin password reset revoke all of the user's refresh tokens.\nRun `npm run type-check && npm run lint && npm test`. Summarize each change against its finding ID in the PR description.\n", "0-FE": "Harden the ERP frontend. Fix with tests:\n1. FE-SEC-01: DemoAccounts must not exist in production bundles. In LoginPage.tsx load it via `import.meta.env.DEV ? lazy(() => import('@/components/login/DemoAccounts')) : null`; remove VITE_SHOW_DEMO_ACCOUNTS; remove hard-coded real employee codes (read demo users from an untracked .env.local in dev). After `npm run build`, grep dist for 'password123' and fail the build (add scripts/check-bundle-secrets.mjs, wired into the build script).\n2. A11Y-01 (critical): ConfirmDialog.tsx: delete the global Enter→onConfirm handler; keep Escape→onCancel; add role=\"alertdialog\", aria-modal=\"true\", aria-labelledby/aria-describedby, a focus trap and focus restore. Add the missing `.btn-warning` class in globals.css. Test: pressing Enter while Cancel is focused calls onCancel, not onConfirm.\n3. FE-SEC-03: pdfGenerator.ts: pass every interpolated value through esc() (commLevel, commExpected, combinedStatusText included), type the input (remove `any`), and open the print window with 'noopener'.\n4. FE-SEC-02: nginx.conf: add server_tokens off and these headers (repeat them inside every location that uses add_header): Content-Security-Policy \"default-src 'self'; script-src 'self' 'sha256-<hash of the inline theme script>'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'\", Strict-Transport-Security \"max-age=31536000; includeSubDomains\", X-Content-Type-Options nosniff, Referrer-Policy strict-origin-when-cross-origin, Permissions-Policy \"camera=(), microphone=(), geolocation=()\". Compute the sha256 of the inline script in index.html.\n5. FE-ARC-02: add an ErrorBoundary component (with reset + \"Try again\" + \"Copy error id\"), use it as the router errorElement and wrap every dashboard tab, report tab and modal body.\n6. Move public/CalibrN.zip out of public/ (to design/ at the repo root, git-lfs or removed). Delete fix_badges.py, fix_jsx.py, update_domain.js.\n7. Bump axios to ^1.20.\n8. FE-SEC-12: handleLogout in DashboardPage.tsx must `await apiClient.post('/auth/logout')` (best effort, with a short timeout) before clearing state and navigating; add a test asserting the call.\nRun type-check, lint, vitest. PR description maps changes to finding IDs.\n", "0-OPS": "In bitbucket-pipelines.yml remove the `main` branch production trigger so only `master` builds :production (FE-OPS-01). Document in README that `master` is the production branch and recommend setting it as the Bitbucket default branch (I will do the repo setting manually). Delete the duplicate 4x docker script with a YAML anchor, use one documented credential pair (DOCKERHUB_USERNAME / DOCKERHUB_TOKEN), and pin gitleaks and sonar-scanner images to explicit versions. Keep -Dsonar.qualitygate.wait=true. Do not modify GitHub workflow yet except to disable its docker push job with `if: false` and a comment pointing to Phase 1.\n", "1-BE": "[erp-be] Phase 1 hardening, branch feat/phase1-foundations:\n- BE-SEC-07: jwt.verify with { algorithms: ['HS256'], issuer: 'erp-api', audience: 'erp-web' } and sign accordingly; refresh-token rotation with token family + reuse detection (revoke family); DB expiry derived from JWT_REFRESH_EXPIRY via ms(); revoke all on changePassword; rate-limit /auth/refresh; cookie path '/api/v1/auth'; logout works with refresh cookie only; nightly purge of expired refresh tokens (simple setInterval job guarded by env).\n- BE-SEC-08: uniform INVALID_CREDENTIALS for unknown/inactive/locked with a dummy bcrypt compare; replace hard lockout with per-IP+per-username sliding throttle; password policy (min 12, zxcvbn score>=3).\n- BE-SEC-13: app.set('trust proxy', env.TRUST_PROXY_HOPS) + global limiter + stricter /auth and /ai limiters.\n- BE-SEC-09: validate() takes { body, params, query } schemas separately; never merge; add z.coerce id params everywhere parseInt(req.params.id) is used.\n- BE-SEC-10: errorHandler exposes message only for ApiError status<500; otherwise 'Internal error' + requestId; remove role echo in requireRole; /health hides NODE_ENV.\n- BE-QA-02: replace logger.error({ error }) with { err: error } across src (138 sites) and add an ESLint no-restricted-syntax rule.\n- BE-OPS-01: Dockerfile → multi-stage on node:24-bookworm-slim pinned by digest, npm ci, prisma generate, build, npm prune --omit=dev, USER node, NODE_ENV=production, HEALTHCHECK on /ready.\n- BE-OPS-03: single graceful shutdown (server.close → drain with 10s timeout → prisma.$disconnect → exit); remove the handlers in config/database.ts; add /ready that runs SELECT 1.\n- BE-DATA-04: add a pipeline step `prisma migrate status` and a manual-trigger `prisma migrate deploy` step for production.\n- BE-QA-01: add supertest RBAC matrix tests: for each route x role (ADMIN, TOP_MANAGEMENT, MANAGER, LINE_MANAGER, ENGINEER) assert expected status, using Testcontainers Postgres (docker required in CI); include routers in coverage; add jest coverageThreshold 70% global.\n- CI: add `npm audit --omit=dev --audit-level=high` and a Trivy image scan; tag images with commit SHA in addition to environment tags.\n- BE-SEC-20: revoke all refresh tokens on deactivation and employee archive; authenticate rejects users whose employee.deleted_at is set; archive cascades to user.is_active=false and ends assignments.\n- BE-SEC-21: add an append-only audit_events table (actor_user_id, action, target_type, target_id, before, after (diff only, no secrets), ip, request_id, created_at) and write events for login success/failure, user/role/permission changes, assessment approve/update/delete, CEFR status changes and every config/threshold write. No UPDATE/DELETE grants for the app role on this table.\n- BE-SEC-24/25/26: zod schemas for every query string; slim {id,name,code} DTO for GET /config/departments to non-admins; remove unused swagger-jsdoc/swagger-ui-express.\n- BE-ARC-05: appraisal period state machine DRAFT→OPEN→LOCKED→ARCHIVED (reject other transitions), partial unique index allowing one active period, onDelete Restrict from assessments to periods.\n- BE-ARC-11: one RFC 7807 problem+json error model, an ApiError hierarchy and a central Prisma error mapper (P2002→409, P2003→409, P2025→404).\n", "1-FE": "[erp-fe] Phase 1, branch feat/phase1-foundations:\n- FE-ARC-03/UX-01: replace tab useState with nested routes: /app/overview, /app/approvals, /app/team, /app/assessments, /app/communication, /app/ai, /app/skill-targets, /app/reports/:reportId, /app/setup/:section, /app/admin. Keep the old ?report= and #hash URLs working via redirects. Sidebar items become NavLink. Each route has `handle: { title, roles, permission }`; a single canAccess(user, handle) drives both the sidebar and a RequireAccess guard (FE-SEC-05). Give COMMUNICATION_EXPERT and LANGUAGE_EXPERT a landing route.\n- FE-ARC-01: React.lazy every route element; remove 'tailwindcss' from manualChunks in vite.config.ts; add rollup-plugin-visualizer (npm run analyze). Target initial JS < 200 kB gz; print before/after sizes in the PR.\n- FE-ARC-04: break api→routes cycle: api.ts exposes setOnUnauthorized(cb); App registers navigate('/login').\n- FE-ARC-05/08: create src/lib/queryKeys.ts factory; move ExecutiveSummaryTab, ExecutiveLeaderboardTab, YoYGrowthTab, RolesSection and GapAnalysisTab fetches into hooks; YoY errors must surface as errors.\n- FE-QA-02: vitest environment jsdom, @testing-library/react for new tests, coverage thresholds 80% lines/branches.\n- FE-QA-01: run Playwright smoke in CI with per-role fixture data (non-empty).\n- FE-OPS-04: Dockerfile → multi-stage (node:24-alpine build → nginxinc/nginx-unprivileged:1.27-alpine pinned by digest, listen 8080); nginx upstream via envsubst template; rename public/assets → public/static to stop immutable caching of unhashed files.\n- Self-host fonts with @fontsource-variable/inter and remove Google Fonts (FE-SEC-07); tighten CSP accordingly.\n- FE-SEC-13: nginx `server_tokens off`, `limit_req` zones for /api/ and /api/v1/auth/login, `proxy_set_header X-Forwarded-For $remote_addr` at the edge; pin the nginx image by digest.\n", "2-BE": "[erp-be] branch feat/phase2-correctness:\n- BE-DATA-01 + BE-PERF-01: every assessment write (skill, CEFR, behavioral) and its score recompute run inside one prisma.$transaction(async tx => ...); createScoreRecalculationService(tx) batch-loads competencies, technologies and assessments for the employee once and bulk-upserts; remove swallowErrors. Add a concurrency test (two parallel PATCHes for one employee yield consistent competency_scores).\n- BE-DATA-02: engineers may delete only DRAFT assessments; switch to soft delete (deleted_at) + audit entry.\n- BE-DATA-03: migrations adding FK subject_id/assessor_id on behav_assessments (backfill + validate), enums or CHECK constraints for assessment statuses, CEFR default status 'pending'; drop redundant indexes on users(username), users(employee_id).\n- BE-PERF-03: shared pagination schema (limit<=100, cursor) applied to every list endpoint; FE contract documented.\n- BE-ARC-01: move all routes to requirePermission; derive role enum from role_ref (keep enum read-only for one release); delete scopeGuard.\n- BE-ARC-02: decide and document tenancy. If multi-tenant: put organizationId in the JWT and enforce via a Prisma extension that injects where: { organization_id } for tenant-scoped models; add cross-tenant tests.\n- BE-ARC-03: split config module into roles, users, employees, taxonomy, scoring, periods, industries sub-modules; enable @typescript-eslint/recommended-type-checked and no-explicit-any as error.\n- BE-SEC-11: AI: pseudonymize employee identifiers before sending to OpenAI, AbortSignal.timeout(15000), per-user rate limit, 10-minute cache per (user, scope), feature flag AI_ENABLED, document OpenAI as sub-processor in README.\n- BE-ARC-04 (critical, appraisal integrity): add appraisal_period_id to SkillAssessment uniqueness (employee_id, technology_id, appraisal_period_id) and to CompetencyScore; stop overwriting appraisal_period_id on update; at period rollover copy forward the latest approved assessments into the new period; write an immutable period_results snapshot when a period is LOCKED and reject writes to locked periods (DB trigger, following the CEFR scale-lock trigger pattern). Include a data migration that assigns existing rows to their recorded period and a test that re-assessing in period 2 leaves period 1 untouched.\n- BE-ARC-06/07: version scoring configuration per period (config_version_id on scores), enqueue a recompute on change, reject edits for locked periods; compute the YoY report from period snapshots using the single scoring engine.\n- BE-ARC-08/09: behavioral assessments get employee_id and appraisal_period_id FKs, reject unknown subjects, derive grade server-side; standardize submitted_by / approved_by as user_id FKs on all three pillars.\n- BE-ARC-10/12/13/14: soft-delete taxonomy with onDelete Restrict on evidence; drop DomainScore and CefrExpected; return a Prisma where-predicate for scope instead of ID lists and cache permissions per token; add a `prisma migrate diff` drift check in CI.\n- BE-SEC-22/23/27: threshold changes exclude the caller's own department+grade or need a second approver; reject cyclic line-manager assignments; implement a retention policy and an employee erasure/anonymization workflow.\n", "2-FE": "[erp-fe] branch refactor/phase2-structure:\n- FE-QA-04: split files > 800 LOC (useConfig.ts per entity; BulkAssessmentTable, AIInsightsTab, BehavioralAssessmentView, DepartmentSkillMapSection into container + presentational parts + hooks). No behaviour change; snapshot/visual tests must match.\n- FE-DX-01: upgrade vite 6 + vitest 3 + @vitejs/plugin-react 4.x; then eslint 9 flat config with typescript-eslint strict, react-hooks 5, jsx-a11y; make no-explicit-any and exhaustive-deps errors and fix them.\n- FE-DX-02: remove d3, @types/d3, @tanstack/react-table, react-hook-form, @hookform/resolvers (or adopt RHF+zod for forms deliberately), class-variance-authority (unless adopted in UI-3); add knip to CI.\n- FE-ARC-07: delete dashboard/tabs/cards/* and behavioral/BehavioralScoreCard.tsx after confirming no imports.\n- Rename package and storage keys from erp/devops-theme to erp (with migration of the localStorage key).\n- FE-ARC-09..12: generate API types (incl. RBAC roles) from the backend OpenAPI spec; replace lib/scoringPreview.ts with the backend /scoring/preview endpoint; add a mutation→invalidation map so CEFR and behavioral writes invalidate reports and AI; move domain types to src/types and enforce layers with eslint-plugin-boundaries.\n", "3-ARC": "[erp-be] branch feat/phase3-outbox-read-models. Implement ADRs 5, 6 and 9 from §6A.8:\n- Transactional outbox: an outbox table written in the same transaction as every assessment write; a separate worker process (pg-boss on Postgres, `npm run worker`, own Dockerfile CMD) relays events and recomputes scores idempotently with retries and a dead-letter table. Dual-run against the synchronous recompute for one period and log differences; then remove the synchronous path.\n- Read models: worker-maintained employee_readiness and period_competency_snapshot projections; promotion readiness, competency scores, gap matrix and the AI dashboard read projections with cursor pagination.\n- OpenAPI: generate the spec from zod schemas (zod-to-openapi), serve it at /api/v1/openapi.json for non-production, and publish it as a CI artifact for the frontend client generator; add contract tests.\n- Observability: OpenTelemetry traces (HTTP, Prisma, worker jobs), prom-client metrics, SLOs (reports p95 < 400 ms, recompute lag < 30 s).\n", "GUARD": "Context: ERP is an enterprise capability/appraisal platform (Technical, CEFR Communication and Behavioral pillars). Read erp-audit-2026-10-06.md §7, §8 and §10 (in the parent folder) before starting; §10 \"ERP Prism\" is the source of truth for colors, gradients, type, motion and components. Rules: never hard-code hex/rgb or raw Tailwind palette classes in components (tokens only); every interactive element is keyboard-operable with a visible --focus ring; every text pair meets WCAG 2.2 AA; respect prefers-reduced-motion; test in light, dark and system modes at 375, 768, 1280 and 1600 px; add/adjust unit tests; keep `npm run type-check && npm run lint && npm test && npm run build` green. Start the dev server and screenshot each changed screen in light and dark mode for the PR.\n", "UI-0": "Branch ui/phase0. Fix:\n- UX-04: remove the fake notification bell, or wire it to the pending-approvals count (badge shows the number; no pulse; button with aria-label \"Notifications, 7 pending\").\n- UX-03 + UX-07: create src/components/ui/states/{EmptyState,ErrorState,LoadingState}.tsx. ErrorState: danger-soft background, AlertTriangle icon, message, Retry button calling refetch, collapsible technical detail. Replace every `<Empty msg=\"Failed to load …\">` (8 sites) with ErrorState.\n- UX-08: bind the \"Active Period\" chip to the active evaluation period from the API.\n- DS-03: add missing classes (.btn-warning), remove animate-in/zoom-in usages or add tailwindcss-animate, replace focus:outline-hidden with focus-visible ring.\n- A11Y-05: associate login and report-filter labels (htmlFor/id or aria-label), link errors via aria-describedby.\n- A11Y-09: make PasswordInput toggle focusable with aria-label/aria-pressed.\n- A11Y-10: convert clickable divs (PriorityGapMatrix.tsx:127 and any others found by grep) to buttons.\n- UX-09: pause toast timers on hover/focus; keep the live region mounted.\n- VIS-07: stop the infinite logo pulse in the header.\n", "UI-1": "Branch ui/phase1-prism-tokens. Implement §10.1–§10.5 and §10.7:\n- Create src/styles/tokens.css with the exact ERP Prism tokens from §10.7; import it from globals.css. Map existing tokens (--accent → --primary, --text-3, --surface-*, status) to the new names, keeping old names as aliases for one release so nothing breaks.\n- Theme: themeStore holds preference 'light' | 'dark' | 'system' (default 'system') persisted under 'erp-theme' with one-time migration from 'devops-theme' ('midnight' → 'dark'). ThemeProvider resolves system via matchMedia and listens for changes; sets <html data-theme> and data-theme-pref. Replace the index.html pre-paint script with the one in §10.7. Tailwind: darkMode: ['selector', '[data-theme=\"dark\"]']. ThemeSwitcher becomes a 3-option segmented control (Sun / Moon / Monitor icons, role=\"radiogroup\", arrow-key navigation). Optional: keep a \"High-contrast dark\" preset only if trivial; drop the \"DevOps terminal\" label.\n- Tailwind config: expose colors (primary, secondary, tertiary, success, warning, danger, info, pillar.*, viz.1-8, surface.*, text.*), backgroundImage (prism, technical, cefr, behavioral, success, aurora), boxShadow e1-e3, borderRadius sm/md/lg/xl, fontSize scale (caption, overline, body-sm, body, title, h2, h1, display), transitionTimingFunction and durations from §10.5. Remove the spacing['6'] override (DS-04) and fix any layout that relied on it.\n- Fonts: self-host Inter Variable, Plus Jakarta Sans (600/700) and JetBrains Mono via @fontsource; remove Google Fonts links and the duplicate @import.\n- Global :focus-visible ring (2px var(--focus), offset 2px) and the prefers-reduced-motion block.\n- Add an `--info` token and replace sky-600 usages.\n- Add an ESLint rule (no-restricted-syntax) + extend scripts/audit to fail on new hex literals and raw palette classes (text-zinc-*, bg-amber-* …) in src/components; baseline the existing count and make it ratchet down.\n- Add a /dev/tokens route (DEV only) rendering every token swatch with its contrast ratio in both themes.\nAcceptance: no visual regressions beyond the palette shift; all contrast pairs in §10.2 verified by a unit test that computes WCAG ratios from tokens.css.\n", "UI-2": "Branch ui/phase2-shell (after engineering Phase 1 routes are merged). Implement §10.6 items 1, 2 and 7:\n- AppShell layout: header 56px (logo, breadcrumb, ⌘K search trigger, approvals inbox, theme control, user menu) + Sidebar + main with skip link (\"Skip to content\") and landmarks (nav aria-label=\"Primary\").\n- Sidebar: three states — expanded 264px, rail 72px (icon + tooltip on hover/focus), and mobile drawer (< 1024px) over a scrim with focus trap, Escape to close and close-on-navigate. Toggle via chevron button (aria-expanded, aria-controls) and Ctrl/⌘+B. Persist preference. Group sections (Workspace, Assess, Insights, Admin) as collapsible groups (disclosure buttons). Active item: 3px var(--grad-prism) left rail + primary-soft fill + aria-current=\"page\". Count badges (Pending Approvals) from react-query. Smooth width transition 200ms (disabled under reduced motion). Remove the static footer profile duplicate; footer shows compact user card.\n- Global linear progress: src/components/ui/TopProgressBar.tsx — 3px fixed top bar with var(--grad-prism) fill, appears after 150ms when useIsFetching()+useIsMutating()>0 or a route transition is pending, trickles to 90%, completes to 100% and fades; role=\"progressbar\" aria-label=\"Loading\" aria-busy on main. Indeterminate variant for unknown duration.\n- PageHeader component: breadcrumb (from route handles), h1 (h1 type token), description, actions slot, and sets document.title = `${title} · ERP`. Use it on every route.\n- Command palette (⌘K) using a headless combobox: search routes, reports, setup sections, and people (debounced API). Fully keyboard accessible.\n- Modal/SidePanel use dvh units.\nTests: sidebar state machine, keyboard shortcuts, drawer focus trap, progress bar timing (fake timers), document.title per route. Playwright: mobile viewport navigation via drawer.\n", "UI-3": "Branch ui/phase3-components:\n- Adopt Radix primitives (Dialog, AlertDialog, DropdownMenu, Popover, Tooltip, Select, Tabs, Switch, Toast optional) wrapped in src/components/ui with CVA variants (class-variance-authority + tailwind-merge cn()). Replace Modal, ConfirmDialog (→ AlertDialog), ChangePasswordModal, ThemeSwitcher menu, UserProfileMenu, SearchableSelect/MultiSelect (→ Popover + cmdk combobox), InfoTip (→ Tooltip with Escape + hoverable) — fixes A11Y-03, A11Y-08, DS-05.\n- Button variants: primary (solid --primary), gradient (var(--grad-prism), for 1 hero CTA per screen max), secondary, ghost, danger, warning; sizes sm/md/lg; loading state with inline spinner + aria-busy.\n- One Spinner, one Skeleton (container-level aria-busy, no per-item live regions — A11Y-12), one ProgressBar (determinate/indeterminate/segmented/stepped with \"12 / 40\" and cancel), one Table (sticky header, sticky first column, zebra optional, density toggle, mobile card layout < 640px, overflow wrapper), one KpiTile (replaces DashboardKpiCard, MetricKpiCard, ReadinessKpiBar — spec §10.6 item 3), Badge (soft/solid/outline × status/pillar), Avatar (initials on --primary with --primary-fg; no low-contrast gradients — A11Y-13).\n- Typography sweep (VIS-04, A11Y-11): replace every text-[Npx] with the scale tokens; no information below 12px; uppercase only via the `overline` style; font-black → font-semibold/bold.\n- Icon sweep (VIS-05): replace all emoji and Unicode glyphs (✓★✗▾🔴🔵🟢🚨✅👋📈📉🏢🧭🔧⚡👥) with Lucide icons; sizes only 16/20/24 via an <Icon size=\"sm|md|lg\"> wrapper; stroke 1.75.\n- Effects diet (VIS-03): remove backdrop-blur from cards, glow blobs and gradient fills on avatars/toasts/progress (except Prism progress); elevation e1–e3 only.\n- Write src/components/COMPONENT_CATALOG.md + a DEV-only /dev/components gallery showing every component in all states and both themes. Create the missing UI_UX_DESIGN_STANDARDS.md from §10 and fix STANDARDS.md §2 (DS-07).\n", "UI-4": "Branch ui/phase4-charts. Implement §10.4 and §10.6 item 5:\n- Create src/lib/viz/palette.ts that reads --viz-1..8, --pillar-*, --grid, --axis, sequential and diverging ramps from CSS variables (re-read on theme change) and exports usePalette(). Delete the categorical domains in hooks/useChartTheme.ts and lib/chartColors.ts, migrate all ~25 chart files (DS-01). Pillar colors are fixed: Technical=viz-1, Behavioral=viz-2, CEFR=viz-3 everywhere, including StandardRadarChart (VIS-06) and dashboard ring cards.\n- ChartFrame component: title, subtitle, filter row, chart body, legend (always for ≥2 series; direct labels when ≤4), \"View as table\" toggle rendering an accessible <table>, export PNG/CSV, loading skeleton, EmptyState, ErrorState. role=\"img\" with a generated aria-label summary (e.g. \"Pillar attainment: Technical 78% of target, CEFR 64%, Behavioral 81%\").\n- Recharts upgrade to latest 2.x with accessibilityLayer; consistent tooltip (surface, hairline border, radius 10, e2 shadow, 12px text, values in text tokens, color swatch carries identity); 2px lines, ≥8px markers, 4px rounded bar ends, 2px surface gap between stacked segments; gridlines --grid, axis --axis; never dual axes.\n- Replace 2-slice donuts with stat tiles or ring meters showing level vs target tick (STANDARDS §8 rule).\n- New reusable charts: Sparkline, RingMeter (level vs target), Heatmap (sequential blue ramp; competency matrix), DivergingBar (gap vs target: orange below / blue above / neutral midpoint), Funnel (readiness), SlopeChart (YoY).\n- Unit test: palette module returns identical hues for an entity regardless of filter (color follows entity, not rank).\n", "UI-5": "Branch ui/phase5-dashboards. Implement §10.6 items 3, 4 and 6 per role:\n- Executive (TOP_MANAGEMENT): KPI row (Promotion-ready %, Avg technical attainment, CEFR certified %, Behavioral at/above target) with sparklines and delta chips; readiness funnel; pillar-attainment by department (grouped bars, pillar colors); department × pillar heatmap; top movers list; YoY slope chart. Global filters in one row: period, department, grade (persisted in URL query).\n- Manager/Line manager: team matrix heatmap (people × skill domains), approvals queue card with \"Approve all\" stepped progress, gap radar for selected person, at-risk list (below target on ≥2 pillars), quick actions.\n- Engineer: \"My path\" header (current → target grade timeline), pillar triad card with one-sentence readiness summary, next-level checklist with progress bars, recent assessments and feedback.\n- Admin: setup completeness progress (departments, grades, targets, CEFR config mapped), data-quality alerts (employees without line manager, departments without targets), recent audit feed.\n- AI Insights: restyle with secondary (violet) accent, clear \"AI-generated\" labelling, sources/explanations per insight, skeleton streaming state.\n- Every dashboard: responsive 12-col grid (1 col < 640, 2 cols < 1024, 3–4 cols ≥ 1280), PageHeader, ChartFrame everywhere, empty/error/loading states, print-friendly CSS.\n- Celebration moment (§10.6 item 8): when readiness flips to \"Promotion ready\", show the success-gradient card with a one-time shine sweep + toast (reduced-motion: static).\n", "UI-6": "Branch ui/phase6-flows:\n- Assessment forms (skill, CEFR, behavioral): convert to stepper wizards with segmented progress, autosave drafts (toast \"Saved\"), inline validation (react-hook-form + zod), sticky footer actions, unsaved-changes guard, review step summarising scores before submit. Bulk assessment table: sticky header/first column, keyboard grid navigation, row-level status chips.\n- Approvals: list/detail split view, bulk select with stepped progress, reject-with-reason dialog.\n- Reports: left report navigator becomes route-driven tabs/list; consistent ReportHeader (title, period, filters, export); Employee Result Sheet print view rebuilt as a React print route using tokens (replaces pdfGenerator HTML strings) with a brand header and pillar colors.\n- Setup hub: grouped navigation with completion indicators, searchable tables with density toggle, side-panel editing, inline help (HelpButton) and destructive confirmations via AlertDialog.\n- Mobile: every table has a card layout < 640px; filters collapse into a sheet.\n", "UI-7": "Branch ui/phase7-brand:\n- VIS-02: outline the Poppins wordmark to paths in every lockup SVG (public/assets_v2/svg); CalibrLogo picks the light/dark lockup by resolved theme; no glow in light mode.\n- Login: split layout — left: Aurora mesh backdrop on brand navy (#061E81 → #0A0F1E) with outlined lockup, tagline \"Capability, calibrated.\" in Plus Jakarta Sans (white, ≥ 4.5:1; no low-contrast gradient text — A11Y-04), three pillar chips (blue/teal/orange) and a subtle animated prism line (reduced-motion: static); right: card form with labelled fields, show-password toggle, caps-lock warning, error summary, Prism gradient primary button with loading state.\n- First-run onboarding: 3-step coach marks per role (dismissible, stored per user) and an empty-workspace state with illustrations in the Prism palette.\n- Asset hygiene (VIS-08): remove the stray JPEG, add site.webmanifest, apple-touch-icon, theme-color meta for light/dark, favicons from the brand kit.\n", "UI-8": "Branch ui/phase8-qa:\n- Motion pass: durations/easing tokens only; event-driven motion (enter/exit 200ms, list stagger 30ms max 6 items, number count-up on KPI first render), no ambient loops; verify reduced-motion.\n- Accessibility: add @axe-core/playwright to e2e and assert zero serious/critical violations on every route in light and dark; keyboard-only Playwright walkthroughs (login → assessment submit → approval → report export); screen-reader labels for charts; target-size ≥ 24px (WCAG 2.5.8); focus-not-obscured by sticky header (2.4.11).\n- Visual regression: Playwright toHaveScreenshot for each route × {light, dark} × {375, 1280}; store baselines; run in CI.\n- Performance budget in CI: initial JS < 200 kB gz, LCP < 2.5s on the dashboard (Lighthouse CI), CLS < 0.05.\n- Update UI_UX_DESIGN_STANDARDS.md and COMPONENT_CATALOG.md with final tokens, components and do/don't examples.\n"}};
+(function () {
+  const SEV = [
+    { k:'Critical', c:'var(--crit)', bg:'var(--crit-bg)' },
+    { k:'High',     c:'var(--high)', bg:'var(--high-bg)' },
+    { k:'Medium',   c:'var(--med)',  bg:'var(--med-bg)' },
+    { k:'Low',      c:'var(--low)',  bg:'var(--low-bg)' },
+  ];
+  const sevOf = k => SEV.find(s => s.k === k);
+  const el = (tag, attrs = {}, ...kids) => {
+    const n = document.createElement(tag);
+    for (const [a, v] of Object.entries(attrs)) {
+      if (a === 'style') n.style.cssText = v;
+      else if (a === 'text') n.textContent = v;
+      else if (a.startsWith('on')) n.addEventListener(a.slice(2), v);
+      else n.setAttribute(a, v);
+    }
+    kids.flat().forEach(k => k != null && n.append(k));
+    return n;
+  };
+  const F = DATA.findings, PH = DATA.phases;
+  const phaseOf = {};
+  PH.forEach(p => p.ids.forEach(id => { phaseOf[id] = p; }));
+
+  // severity tiles
+  const tiles = document.getElementById('sevTiles');
+  SEV.forEach(s => {
+    const n = F.filter(f => f.sev === s.k).length;
+    tiles.append(el('button', { class:'sev-tile', type:'button', style:`--c:${s.c}`, onclick:() => { state.sev = new Set([s.k]); syncChips(); render(); document.getElementById('findings').scrollIntoView(); } },
+      el('div', { class:'n', text:String(n) }), el('div', { class:'l', text:`${s.k} · show these` })));
+  });
+  tiles.append(el('div', { class:'sev-total', text:`${F.length} findings in total across both repositories and the UI layer.` }));
+
+  // scorecard
+  const SC = [
+    ['Architecture (backend)', 2.0, 'Clean modules; god files, two RBAC sources'],
+    ['Architecture (frontend)', 2.5, 'Good data layer; pseudo-router, no splitting'],
+    ['Security', 1.0, '7 of 10 OWASP categories fail'],
+    ['Data integrity', 1.5, 'Appraisal history overwritten; unversioned config'],
+    ['Performance', 2.5, 'N+1 recompute, 424 kB gz initial JS'],
+    ['Testing', 3.0, 'Many tests; no HTTP or RBAC tests'],
+    ['Operations / CI-CD', 2.0, 'Root containers, two CI systems'],
+    ['UI/UX usability', 2.5, 'Rich features; no deep links, weak states'],
+    ['Accessibility', 1.5, 'Critical dialog bug, failing focus and contrast'],
+    ['Visual design', 2.5, 'Strong tokens; brand split, visual noise'],
+  ];
+  const score = document.getElementById('score');
+  SC.forEach(([name, v, why]) => {
+    const c = v < 2 ? 'var(--crit)' : v < 3 ? 'var(--med)' : 'var(--accent)';
+    score.append(el('div', { class:'score-row' },
+      el('div', { class:'name' }, name, el('span', { class:'why', text:why })),
+      el('div', { class:'bar', role:'img', 'aria-label':`${name}: ${v} out of 5` }, el('span', { style:`width:${v / 5 * 100}%;--c:${c}` })),
+      el('div', { class:'v', text:v.toFixed(1) })));
+  });
+
+  const AS = [
+    ['Modularity', 2, 'config owns 66% of routes; shared tables'],
+    ['Coupling', 3, 'Acyclic imports; heavy data coupling'],
+    ['Domain integrity', 1, 'Period not in identity; invariants unenforced'],
+    ['Data consistency', 1, 'Non-atomic recompute; mutable history'],
+    ['Scalability', 2, 'Compute-on-read reports; no worker tier'],
+    ['Observability', 1, 'No error objects, request IDs or metrics'],
+    ['Testability', 3, '172 test files; pure engines'],
+    ['Deployability', 2, 'Two CIs; mutable tags; no migration step'],
+    ['API design', 2, 'Four envelopes; mixed IDs; no OpenAPI'],
+    ['Evolvability', 2, 'No ADRs; FE duplicates BE contracts'],
+  ];
+  const archScore = document.getElementById('archScore');
+  AS.forEach(([name, v, why]) => {
+    const c = v < 2 ? 'var(--crit)' : v < 3 ? 'var(--med)' : 'var(--accent)';
+    archScore.append(el('div', { class:'score-row' },
+      el('div', { class:'name' }, name, el('span', { class:'why', text:why })),
+      el('div', { class:'bar', role:'img', 'aria-label':`${name}: ${v} out of 5` }, el('span', { style:`width:${v / 5 * 100}%;--c:${c}` })),
+      el('div', { class:'v', text:v.toFixed(1) })));
+  });
+
+  // findings explorer
+  const state = { sev:new Set(SEV.map(s => s.k)), area:'', repo:'', q:'' };
+  const chipsBox = document.getElementById('sevChips');
+  const chips = SEV.map(s => {
+    const b = el('button', { class:'chip', type:'button', 'aria-pressed':'true', style:`--c:${s.c};--c-bg:${s.bg}`,
+      onclick:() => { state.sev.has(s.k) ? state.sev.delete(s.k) : state.sev.add(s.k); if (!state.sev.size) state.sev.add(s.k); syncChips(); render(); } },
+      el('span', { class:'dot', 'aria-hidden':'true' }), s.k);
+    b.dataset.k = s.k; chipsBox.append(b); return b;
+  });
+  function syncChips() { chips.forEach(b => b.setAttribute('aria-pressed', state.sev.has(b.dataset.k) ? 'true' : 'false')); }
+  const areaSel = document.getElementById('fArea');
+  [...new Set(F.map(f => f.area))].sort().forEach(a => areaSel.append(el('option', { value:a, text:a })));
+  areaSel.addEventListener('change', e => { state.area = e.target.value; render(); });
+  document.getElementById('fRepo').addEventListener('change', e => { state.repo = e.target.value; render(); });
+  const search = document.getElementById('fSearch');
+  search.addEventListener('input', e => { state.q = e.target.value.trim().toLowerCase(); render(); });
+  const order = { Critical:0, High:1, Medium:2, Low:3 };
+  function render() {
+    const list = document.getElementById('fList');
+    const rows = F.filter(f => state.sev.has(f.sev) && (!state.area || f.area === state.area) && (!state.repo || f.repo === state.repo) &&
+      (!state.q || [f.id, f.title, f.ev, f.fix, f.area].join(' ').toLowerCase().includes(state.q)))
+      .sort((a, b) => order[a.sev] - order[b.sev]);
+    list.replaceChildren(...(rows.length ? rows.map(f => {
+      const s = sevOf(f.sev), p = phaseOf[f.id];
+      return el('article', { class:'f', style:`--c:${s.c};--c-bg:${s.bg}` },
+        el('div', { class:'f-head' },
+          el('span', { class:'f-id', text:f.id }), el('span', { class:'f-title', text:f.title }),
+          el('span', { class:'pill', text:f.sev }), el('span', { class:'pill area', text:f.area }), el('span', { class:'pill area', text:f.repo })),
+        el('div', { class:'f-body' }, el('div', {}, el('b', { text:'Evidence' }), f.ev), el('div', {}, el('b', { text:'Fix' }), f.fix)),
+        p ? el('div', { class:'f-phase' }, 'Fixed in ', el('a', { href:'#ph-' + p.id, text:`${p.id} · ${p.name}` })) : null);
+    }) : [el('div', { class:'empty', text:'No findings match these filters. Clear the search or turn a severity back on.' })]));
+    document.getElementById('fCount').textContent = `Showing ${rows.length} of ${F.length} findings`;
+  }
+  render();
+
+  // gantt (60 working days = 12 weeks)
+  const g = document.getElementById('gantt');
+  const weeks = el('div', { class:'g-weeks' }, el('div'), el('div', {}, ...Array.from({ length:12 }, (_, i) => el('span', { text:'W' + (i + 1) }))));
+  g.append(weeks);
+  [['Engineering', 'var(--eng)'], ['UI/UX', 'var(--ui)']].forEach(([track, c]) => {
+    g.append(el('div', { class:'g-group', style:`--c:${c}` }, el('i'), track + ' track'));
+    PH.filter(p => p.track === track).forEach(p => {
+      const left = p.start / 60 * 100, width = (p.end - p.start) / 60 * 100;
+      g.append(el('div', { class:'g-row' },
+        el('div', { class:'g-label', title:p.name }, el('b', { text:p.id }), p.name),
+        el('div', { class:'g-track' }, el('a', { class:'g-bar' + (p.id === 'P3' ? ' ongoing' : ''), href:'#ph-' + p.id, style:`left:${left}%;width:${width}%;--c:${c}`, text:p.effort, title:`${p.id} ${p.name}: ${p.effort}` }))));
+    });
+  });
+
+  // phase cards
+  const wk = d => Math.floor(d / 5) + 1;
+  const repoFor = { 'BE':'erp-be', 'FE':'erp-fe', 'OPS':'both repos', 'ARC':'erp-be' };
+  const phases = document.getElementById('phases');
+  PH.forEach(p => {
+    const c = p.track === 'Engineering' ? 'var(--eng)' : 'var(--ui)';
+    const when = p.id === 'P3' ? 'Week 10 onward' : (wk(p.start) === wk(p.end - 0.01) ? `Week ${wk(p.start)}` : `Weeks ${wk(p.start)}–${wk(p.end - 0.01)}`);
+    const card = el('article', { class:'phase', id:'ph-' + p.id, style:`--c:${c}` },
+      el('div', { class:'phase-head' }, el('span', { class:'pid', text:p.id }), el('h3', { text:p.name }), el('span', { class:'when', text:`${p.track} · ${when} · ${p.effort}` })),
+      el('p', { text:p.goal, style:'margin:0' }));
+    if (p.ids.length) {
+      card.append(el('div', { class:'ids', 'aria-label':'Findings fixed in this phase' }, ...p.ids.map(id => el('button', { type:'button', text:id, title:'Show this finding',
+        onclick:() => { state.sev = new Set(SEV.map(s => s.k)); state.area = ''; state.repo = ''; areaSel.value = ''; document.getElementById('fRepo').value = ''; state.q = id.toLowerCase(); search.value = id; syncChips(); render(); document.getElementById('findings').scrollIntoView(); } }))));
+    } else {
+      card.append(el('p', { class:'f-phase', style:'margin:8px 0 0', text:'Builds on earlier fixes. No findings are closed here alone.' }));
+    }
+    p.prompts.forEach(k => {
+      const scope = k.split('-')[1];
+      const label = k.startsWith('UI') ? `Claude Code prompt · run in erp-fe` : `Claude Code prompt · run in ${repoFor[scope]}`;
+      card.append(el('details', { class:'prompt' }, el('summary', {}, label, el('span', { class:'k', text:k })),
+        el('div', { class:'prompt-body' }, el('button', { class:'copy', type:'button', text:'Copy' }), el('pre', { class:'code', 'data-prompt':k }))));
+    });
+    if (!p.prompts.length) card.append(el('p', { class:'f-phase', style:'margin:8px 0 0', text:'Planned work, listed in the markdown report §11. No single prompt; scope each item separately.' }));
+    phases.append(card);
+  });
+  document.querySelectorAll('pre[data-prompt]').forEach(pre => { pre.textContent = DATA.prompts[pre.dataset.prompt].trim(); });
+
+  // copy buttons
+  document.addEventListener('click', e => {
+    const b = e.target.closest('.copy'); if (!b) return;
+    const pre = b.parentElement.querySelector('pre');
+    const done = t => { b.textContent = t; setTimeout(() => { b.textContent = 'Copy'; }, 1600); };
+    const fallback = () => { const r = document.createRange(); r.selectNodeContents(pre); const s = getSelection(); s.removeAllRanges(); s.addRange(r); done('Selected, press ⌘C'); };
+    try { navigator.clipboard.writeText(pre.textContent).then(() => done('Copied'), fallback); } catch (err) { fallback(); }
+  });
+
+  // visual system swatches
+  const TOK = [
+    ['--bg', '#F6F8FC', '#0A0F1E', 'App plane'], ['--surface', '#FFFFFF', '#111827', 'Cards, panels'], ['--surface-2', '#F1F4FA', '#1A2234', 'Inset, hover'],
+    ['--border-strong', '#7A879E', '#6E7B96', 'Input borders · 3.6 / 4.2'], ['--text-1', '#0B1630', '#F3F6FC', 'Ink · 17.9 / 16.4'], ['--text-3', '#5A6780', '#98A3B8', 'Muted · 5.7 / 7.0'],
+    ['--primary', '#1D46F3', '#2F5BFF', 'Buttons · white 6.5 / 5.2'], ['--primary-text', '#0A2DC1', '#7AA2FF', 'Links · 9.7 / 7.1'], ['--focus', '#1D46F3', '#7AA2FF', 'Focus ring · 6.5 / 7.7'],
+    ['--secondary', '#6D28D9', '#A78BFA', 'AI accent · 7.1 / 6.5'], ['--tertiary', '#0F766E', '#2DD4BF', 'CEFR text'], ['--brand-electric', '#0060FF', '#0060FF', 'Logo, gradients'],
+    ['--success', '#15803D', '#4ADE80', '5.0 / 10.2'], ['--warning', '#B45309', '#FBBF24', '5.0 / 10.6'], ['--danger', '#B91C1C', '#F87171', '6.5 / 6.4'], ['--info', '#0369A1', '#38BDF8', 'New token · 5.9 / 8.3'],
+  ];
+  const tokBox = document.getElementById('tokens');
+  TOK.forEach(([n, l, d, note]) => tokBox.append(el('div', { class:'sw' },
+    el('div', { class:'chips', role:'img', 'aria-label':`${n}: light ${l}, dark ${d}` }, el('span', { style:`background:${l}` }), el('span', { style:`background:${d}` })),
+    el('div', { class:'lbl' }, el('b', { text:n }), el('small', { text:`${l} · ${d}` }), el('div', { style:'color:var(--ink-3);font-size:12px', text:note })))));
+  const GR = [
+    ['Prism', 'linear-gradient(135deg,#0060FF 0%,#1D46F3 45%,#6D28D9 100%)', 'Hero CTA, active nav rail, progress'],
+    ['Prism dark', 'linear-gradient(135deg,#2F5BFF 0%,#4D7BFF 40%,#A78BFA 100%)', 'Same roles in dark mode'],
+    ['Technical', 'linear-gradient(135deg,#0060FF,#1D5BF0)', 'Pillar strip, KPI edge'],
+    ['Communication', 'linear-gradient(135deg,#0F9F8F,#14B8A6)', 'CEFR pillar'],
+    ['Behavioral', 'linear-gradient(135deg,#EB6834,#F59E0B)', 'Behavioral pillar'],
+    ['Success', 'linear-gradient(135deg,#15803D,#0F9F8F)', 'Promotion-ready moment'],
+    ['Aurora mesh', 'radial-gradient(60% 50% at 15% 10%,#0060FF55,transparent),radial-gradient(50% 40% at 85% 20%,#6D28D955,transparent),radial-gradient(50% 50% at 50% 100%,#0F9F8F40,transparent),#0A0F1E', 'Login and empty-state backdrop'],
+  ];
+  const gBox = document.getElementById('grads');
+  GR.forEach(([n, css, use]) => gBox.append(el('div', { class:'grad' }, el('div', { style:`background:${css}`, role:'img', 'aria-label':`${n} gradient` }), el('p', {}, el('b', { text:n }), ' · ' + use))));
+  const VL = ['#1D5BF0', '#EB6834', '#0F9F8F', '#EDA100', '#D6458C', '#2F8F2F', '#7A4FD6', '#E34948'];
+  const VD = ['#3D7BFF', '#D95926', '#13A08F', '#C98500', '#D55181', '#2E9A2E', '#9085E9', '#E05A59'];
+  VL.forEach((h, i) => document.getElementById('vizLight').append(el('span', { class:'c', style:`background:${h}`, title:h, role:'img', 'aria-label':`Slot ${i + 1} light ${h}` })));
+  VD.forEach((h, i) => document.getElementById('vizDark').append(el('span', { class:'c', style:`background:${h}`, title:h, role:'img', 'aria-label':`Slot ${i + 1} dark ${h}` })));
+  const cap = el('div', { class:'vizcap', style:'margin-top:2px' }, el('span'), ...VL.map((h, i) => el('span', { text:`${h}\n${VD[i]}` })));
+  document.getElementById('vizDark').after(cap);
+})();
+</script>

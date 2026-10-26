@@ -17,10 +17,10 @@ import {
   PurchaseHeaderForm,
   PurchaseLineEntry,
   PurchaseLineTable,
-  PurchaseMessageBanner,
   PurchaseSummaryFooter,
   PurchaseToolbar,
 } from './components';
+import { DocumentMessage, DocumentPage, LineShortcutHint, LinesPanel, useLineEntryKeyboard } from '@/components/documents';
 import { usePurchaseLineEditor } from './hooks/usePurchaseLineEditor';
 import { usePurchaseSupportOptions } from './hooks/usePurchaseSupportOptions';
 import { usePurchaseTotals } from './hooks/usePurchaseTotals';
@@ -37,7 +37,7 @@ export default function PurchaseVoucherPage() {
   const createAndPost = useCreateAndPostPurchase();
   const invalidatePurchaseQueries = useInvalidatePurchaseQueries();
 
-  const [viewMode, setViewMode] = useState<'posted' | 'entry' | 'analytics'>('posted');
+  const [viewMode, setViewMode] = useState<'posted' | 'entry' | 'analytics'>('analytics');
   const [purchaseDate, setPurchaseDate] = useState(today());
   const [supplierId, setSupplierId] = useState('');
   const [paymentType, setPaymentType] = useState<PaymentType>('Cash');
@@ -53,7 +53,6 @@ export default function PurchaseVoucherPage() {
 
   const saving = createDraft.isPending || createAndPost.isPending;
   const postingDateGuard = usePostingDateGuard(purchaseDate, 'Purchase Date');
-  const dateValidation = postingDateGuard.dateValidation;
   const isPurchaseDateValid = postingDateGuard.dateIsValid;
   const money = useMemo(() => (value: number) => formatMoney(value, generalSettings), [generalSettings]);
 
@@ -235,6 +234,14 @@ export default function PurchaseVoucherPage() {
   }
 
   const actionDisabled = saving || supportQuery.isLoading || supportQuery.isError || postingDateGuard.disabled;
+  const lineKeyboard = useLineEntryKeyboard({
+    enabled: viewMode === 'entry',
+    onSave: () => savePurchase(false),
+    saveDisabled: actionDisabled,
+    onCommitLine: addItemLine,
+    commitDisabled: supportQuery.isLoading || supportQuery.isError,
+    onNewLine: cancelLineEdit,
+  });
 
   if (viewMode === 'posted') {
     return (
@@ -267,7 +274,7 @@ export default function PurchaseVoucherPage() {
   }
 
   return (
-    <main style={{ height: '100%', minHeight: 0, boxSizing: 'border-box', padding: 10, display: 'flex', flexDirection: 'column', gap: 8, overflow: 'hidden' }}>
+    <DocumentPage>
       <PurchaseToolbar
         actionDisabled={actionDisabled}
         saving={saving}
@@ -295,43 +302,47 @@ export default function PurchaseVoucherPage() {
         onCancel={() => setProcessConfirmOpen(false)}
       />
 
-      {message && <PurchaseMessageBanner message={message} />}
+      <DocumentMessage message={message} onDismiss={() => setMessage(null)} />
 
-      <section className="workspace-card" style={{ padding: 10, flex: 1, minHeight: 0, display: 'grid', gridTemplateRows: 'auto auto auto 1fr auto', gap: 7, overflow: 'hidden' }}>
-        <PurchaseHeaderForm
-          purchaseDate={purchaseDate}
-          paymentType={paymentType}
-          supplierInvoiceDate={supplierInvoiceDate}
-          supplierInvoiceNumber={supplierInvoiceNumber}
-          supplierId={supplierId}
-          warehouseId={warehouseId}
-          locationId={locationId}
-          showLocation={Boolean(selectedWarehouse?.useLocations)}
-          referenceNumber={referenceNumber}
-          dueDate={dueDate}
-          generatedVoucherDetails={generatedVoucherDetails}
-          dateStatusMessage={dateStatusMessage}
-          suppliers={suppliers}
-          warehouses={warehouses}
-          locations={warehouseLocations}
-          loadingSupportData={supportQuery.isLoading}
-          supportDataHasError={supportQuery.isError}
-          money={money}
-          onPurchaseDateChange={setPurchaseDate}
-          onPaymentTypeChange={setPaymentType}
-          onSupplierInvoiceDateChange={setSupplierInvoiceDate}
-          onSupplierInvoiceNumberChange={setSupplierInvoiceNumber}
-          onSupplierChange={setSupplierId}
-          onWarehouseChange={value => {
-            setWarehouseId(value);
-            setLocationId('');
-          }}
-          onLocationChange={setLocationId}
-          onReferenceNumberChange={setReferenceNumber}
-          onDueDateChange={setDueDate}
-        />
+      <PurchaseHeaderForm
+        purchaseDate={purchaseDate}
+        paymentType={paymentType}
+        supplierInvoiceDate={supplierInvoiceDate}
+        supplierInvoiceNumber={supplierInvoiceNumber}
+        supplierId={supplierId}
+        warehouseId={warehouseId}
+        locationId={locationId}
+        showLocation={Boolean(selectedWarehouse?.useLocations)}
+        referenceNumber={referenceNumber}
+        dueDate={dueDate}
+        generatedVoucherDetails={generatedVoucherDetails}
+        dateStatusMessage={dateStatusMessage}
+        suppliers={suppliers}
+        warehouses={warehouses}
+        locations={warehouseLocations}
+        loadingSupportData={supportQuery.isLoading}
+        supportDataHasError={supportQuery.isError}
+        money={money}
+        onPurchaseDateChange={setPurchaseDate}
+        onPaymentTypeChange={setPaymentType}
+        onSupplierInvoiceDateChange={setSupplierInvoiceDate}
+        onSupplierInvoiceNumberChange={setSupplierInvoiceNumber}
+        onSupplierChange={setSupplierId}
+        onWarehouseChange={value => {
+          setWarehouseId(value);
+          setLocationId('');
+        }}
+        onLocationChange={setLocationId}
+        onReferenceNumberChange={setReferenceNumber}
+        onDueDateChange={setDueDate}
+      />
 
-        <div style={{ minHeight: 0, display: 'grid', gridTemplateRows: 'auto 1fr', overflow: 'visible' }}>
+      <LinesPanel
+        title="Lines"
+        hint={<LineShortcutHint mode="entry" />}
+        linesRef={lineKeyboard.linesRef}
+        onKeyDown={lineKeyboard.onLinesKeyDown}
+        entry={(
           <PurchaseLineEntry
             lineDraft={lineDraft}
             selectedItem={selectedItem}
@@ -345,30 +356,32 @@ export default function PurchaseVoucherPage() {
             onAddOrUpdate={addItemLine}
             onCancelEdit={cancelLineEdit}
           />
-
-          <PurchaseLineTable
-            lines={lines}
+        )}
+        summary={(
+          <PurchaseSummaryFooter
+            totalItems={lines.length}
+            grossAmount={totals.grossAmount}
+            discountAmount={totals.discountAmount}
+            taxAmount={totals.taxAmount}
+            freightAmount={freightAmount}
+            netAmount={totals.netAmount}
+            balanceDue={totals.balanceDue}
             generalSettings={generalSettings}
             money={money}
-            onMoveLine={moveLine}
-            onEditLine={editLine}
-            onRemoveLine={removeLine}
+            onFreightAmountChange={setFreightAmount}
           />
-        </div>
-
-        <PurchaseSummaryFooter
-          totalItems={lines.length}
-          grossAmount={totals.grossAmount}
-          discountAmount={totals.discountAmount}
-          taxAmount={totals.taxAmount}
-          freightAmount={freightAmount}
-          netAmount={totals.netAmount}
-          balanceDue={totals.balanceDue}
+        )}
+      >
+        <PurchaseLineTable
+          lines={lines}
+          editingLineId={editingLineId}
           generalSettings={generalSettings}
           money={money}
-          onFreightAmountChange={setFreightAmount}
+          onMoveLine={moveLine}
+          onEditLine={editLine}
+          onRemoveLine={removeLine}
         />
-      </section>
-    </main>
+      </LinesPanel>
+    </DocumentPage>
   );
 }

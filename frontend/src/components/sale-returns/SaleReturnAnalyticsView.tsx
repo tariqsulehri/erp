@@ -32,10 +32,12 @@ export function SaleReturnAnalyticsView({ settings, onNewReturn, onPostedReturns
     <TransactionAnalyticsView
       title="Sale Return Analysis"
       documentLabel="Sale Returns"
+      partyLabel="Customer"
       postedListLabel="Posted Returns"
       rows={rows}
       totalRecords={query.data?.total ?? 0}
       loading={query.isLoading}
+      fetching={query.isFetching}
       error={query.error}
       settings={settings}
       onNew={onNewReturn}

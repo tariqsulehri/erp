@@ -47,6 +47,11 @@ interface StockAdjustmentSettingsRow {
   adjustment_loss_account_id: string;
 }
 
+export interface YearEndClosingSettingsRow {
+  id: string;
+  retained_earnings_account_id: string;
+}
+
 export interface UpdatePostingAccountSettingsInput {
   purchase?: Partial<{
     default_cash_account_id: string;
@@ -68,6 +73,9 @@ export interface UpdatePostingAccountSettingsInput {
     default_inventory_account_id: string;
     adjustment_gain_account_id: string;
     adjustment_loss_account_id: string;
+  }>;
+  year_end?: Partial<{
+    retained_earnings_account_id: string;
   }>;
 }
 
@@ -168,6 +176,14 @@ const defaultAccounts = {
     normal_balance: 'Debit',
     sort_order: 523001,
   },
+  retainedEarnings: {
+    code: '0302100101',
+    name: 'Retained Earnings — Prior Years',
+    description: 'Default equity account that receives each closed fiscal year profit or loss.',
+    account_type: 'Equity',
+    normal_balance: 'Credit',
+    sort_order: 321001,
+  },
 } as const satisfies Record<string, AccountSpec>;
 
 function businessError(message: string, statusCode = 400) {
@@ -200,6 +216,7 @@ const postingAccountCodeCategories = {
   purchaseExpense: ['050210'],
   salesDiscount: ['050220'],
   adjustmentLoss: ['050230'],
+  retainedEarnings: ['0302'],
 } as const;
 
 export class PostingAccountSettingsService {
@@ -210,21 +227,38 @@ export class PostingAccountSettingsService {
       await this.ensurePurchaseSettings(transaction);
       await this.ensureSaleSettings(transaction);
       await this.ensureStockAdjustmentSettings(transaction);
+      await this.ensureYearEndClosingSettings(transaction);
       return this.getSettingsSnapshot(transaction);
     });
   }
 
   async update(input: UpdatePostingAccountSettingsInput) {
     return prisma.$transaction(async transaction => {
-      const [purchase, sale, stockAdjustment] = await Promise.all([
-        this.ensurePurchaseSettings(transaction),
-        this.ensureSaleSettings(transaction),
-        this.ensureStockAdjustmentSettings(transaction),
-      ]);
+      const purchase = await this.ensurePurchaseSettings(transaction);
+      const sale = await this.ensureSaleSettings(transaction);
+      const stockAdjustment = await this.ensureStockAdjustmentSettings(transaction);
+      const yearEnd = await this.ensureYearEndClosingSettings(transaction);
 
       if (input.purchase) await this.updatePurchaseSettings(transaction, purchase, input.purchase);
       if (input.sale) await this.updateSaleSettings(transaction, sale, input.sale);
       if (input.stock_adjustment) await this.updateStockAdjustmentSettings(transaction, stockAdjustment, input.stock_adjustment);
+      if (input.year_end) {
+        const retainedEarningsAccountId = await this.resolveRequiredAccount(
+          transaction,
+          input.year_end.retained_earnings_account_id,
+          yearEnd.retained_earnings_account_id,
+          'Retained Earnings Account',
+          ['Equity'],
+          postingAccountCodeCategories.retainedEarnings,
+        );
+        await transaction.$executeRaw`
+          UPDATE year_end_closing_settings
+          SET retained_earnings_account_id = CAST(${retainedEarningsAccountId} AS uuid),
+              is_active = true,
+              updated_at = now()
+          WHERE company_id = CAST(${this.companyId} AS uuid)
+        `;
+      }
 
       return this.getSettingsSnapshot(transaction);
     });
@@ -372,7 +406,36 @@ export class PostingAccountSettingsService {
     return rows[0];
   }
 
-  private async ensureStockAdjustmentSettings(transaction: TransactionClient): Promise<StockAdjustmentSettingsRow> {
+  /** Returns the Year-End Closing setting, creating the default Retained Earnings link only when none exists. */
+  async ensureYearEndClosingSettings(transaction: TransactionClient): Promise<YearEndClosingSettingsRow> {
+    const existing = await transaction.$queryRaw<YearEndClosingSettingsRow[]>`
+      SELECT *
+      FROM year_end_closing_settings
+      WHERE company_id = CAST(${this.companyId} AS uuid)
+      LIMIT 1
+    `;
+    if (existing[0]) return existing[0];
+
+    const retainedEarnings = await this.ensureAccount(transaction, defaultAccounts.retainedEarnings);
+    const rows = await transaction.$queryRaw<YearEndClosingSettingsRow[]>`
+      INSERT INTO year_end_closing_settings (company_id, retained_earnings_account_id, is_active, updated_at)
+      VALUES (CAST(${this.companyId} AS uuid), CAST(${retainedEarnings.id} AS uuid), true, now())
+      ON CONFLICT (company_id) DO NOTHING
+      RETURNING *
+    `;
+    if (rows[0]) return rows[0];
+
+    const saved = await transaction.$queryRaw<YearEndClosingSettingsRow[]>`
+      SELECT *
+      FROM year_end_closing_settings
+      WHERE company_id = CAST(${this.companyId} AS uuid)
+      LIMIT 1
+    `;
+    return saved[0];
+  }
+
+  /** Returns the Stock Adjustment accounts, creating defaults only when the company has none yet. */
+  async ensureStockAdjustmentSettings(transaction: TransactionClient): Promise<StockAdjustmentSettingsRow> {
     const existing = await transaction.$queryRaw<StockAdjustmentSettingsRow[]>`
       SELECT *
       FROM stock_adjustment_settings
@@ -538,7 +601,7 @@ export class PostingAccountSettingsService {
   }
 
   private async getSettingsSnapshot(transaction: TransactionClient) {
-    const [purchaseRows, saleRows, stockAdjustmentRows] = await Promise.all([
+    const [purchaseRows, saleRows, stockAdjustmentRows, yearEndRows] = await Promise.all([
       transaction.$queryRaw`
         SELECT
           ps.*,
@@ -605,12 +668,23 @@ export class PostingAccountSettingsService {
         WHERE sas.company_id = CAST(${this.companyId} AS uuid)
         LIMIT 1
       `,
+      transaction.$queryRaw`
+        SELECT
+          yes.*,
+          retained.code AS retained_earnings_account_code,
+          retained.name AS retained_earnings_account_name
+        FROM year_end_closing_settings yes
+        JOIN accounts retained ON retained.id = yes.retained_earnings_account_id
+        WHERE yes.company_id = CAST(${this.companyId} AS uuid)
+        LIMIT 1
+      `,
     ]);
 
     return {
       purchase: Array.isArray(purchaseRows) ? purchaseRows[0] ?? null : null,
       sale: Array.isArray(saleRows) ? saleRows[0] ?? null : null,
       stock_adjustment: Array.isArray(stockAdjustmentRows) ? stockAdjustmentRows[0] ?? null : null,
+      year_end: Array.isArray(yearEndRows) ? yearEndRows[0] ?? null : null,
     };
   }
 }

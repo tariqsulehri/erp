@@ -11,6 +11,8 @@
 import { Fragment, useEffect, useMemo, useState, type Dispatch, type SetStateAction } from 'react';
 import { IconChevronDown, IconChevronRight, IconFoldDown, IconFoldUp } from '@tabler/icons-react';
 import { useAccountsHierarchy, type AccountTreeNode } from '@/lib/api/accounts';
+import { useGeneralSettings } from '@/lib/api/settings';
+import { formatCount } from '@/lib/app-settings';
 import { getAccountLevel, getAccountLevelLabel } from '@/modules/accounts/account-code';
 import { ACCOUNT_CATEGORY_META, accountTypeBadge } from '@/lib/ui/account-category-colors';
 import { friendlyErrorMessage } from '@/lib/erp-utils';
@@ -233,6 +235,7 @@ export function AccountTreeView({
   postingFilter = 'all',
 }: AccountTreeViewProps) {
   const { data, isLoading, error } = useAccountsHierarchy();
+  const { data: settings } = useGeneralSettings();
   const [search, setSearch] = useState('');
   const [openCodes, setOpenCodes] = useState<Set<string>>(new Set());
 
@@ -281,7 +284,7 @@ export function AccountTreeView({
           Collapse All
         </Button>
         <div className="filter-bar-end" style={{ fontVariantNumeric: 'tabular-nums' }}>
-          {isLoading ? 'Loading…' : `${allVisible.length.toLocaleString()} Visible · ${countHeaders(tree).toLocaleString()} Headers · ${countPosting(tree).toLocaleString()} Posting`}
+          {isLoading ? 'Loading…' : `${formatCount(allVisible.length, settings)} Visible · ${formatCount(countHeaders(tree), settings)} Headers · ${formatCount(countPosting(tree), settings)} Posting`}
         </div>
       </div>
 
@@ -329,7 +332,7 @@ export function AccountTreeView({
                   <dt style={{ fontVariantNumeric: 'tabular-nums' }}>{item.code}</dt>
                   <dd>{item.name}</dd>
                   <dd style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums', fontWeight: 600, color: 'var(--color-heading)' }}>
-                    {item.count.toLocaleString()}
+                    {formatCount(item.count, settings)}
                   </dd>
                 </div>
               ))}

@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { requirePermission } from '../http/access-context.js';
 import { resolveCompanyId } from '../http/company-context.js';
 import { CityService } from '../modules/cities/city.service.js';
 import { createCitySchema, idParams, listCitiesQuery, updateCitySchema } from '../modules/cities/city.schema.js';
@@ -15,7 +16,7 @@ citiesRouter.get('/', async (req, res, next) => {
   }
 });
 
-citiesRouter.post('/', async (req, res, next) => {
+citiesRouter.post('/', requirePermission('locations.manage'), async (req, res, next) => {
   try {
     const service = new CityService(resolveCompanyId(req));
     const body = createCitySchema.parse(req.body);
@@ -41,7 +42,7 @@ citiesRouter.get('/:id', async (req, res, next) => {
   }
 });
 
-citiesRouter.patch('/:id', async (req, res, next) => {
+citiesRouter.patch('/:id', requirePermission('locations.manage'), async (req, res, next) => {
   try {
     const service = new CityService(resolveCompanyId(req));
     const { id } = idParams.parse(req.params);

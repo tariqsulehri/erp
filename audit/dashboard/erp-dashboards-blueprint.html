@@ -1,0 +1,780 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ERP Dashboards Blueprint</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@600;700;800&family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap">
+<style>
+/* Layout: a working blueprint. Live widget previews first, then the catalog, data plan and phased build.
+   Colors are the ERP Prism tokens, so every preview is the proposed look. */
+:root {
+  --bg:#F3F6FB; --surface:#FFFFFF; --surface-2:#EEF2F9; --surface-3:#E4E9F2; --line:#D5DCE8; --line-strong:#B9C3D4;
+  --ink:#0B1630; --ink-2:#3D4A63; --ink-3:#5A6780;
+  --accent:#1D46F3; --accent-ink:#0A2DC1; --accent-soft:#EAF0FF;
+  --pill-bg:#FFFFFF; --pill-ink:#0B1630;
+  --ok:#15803D; --ok-soft:#DCFCE7; --warn:#B45309; --warn-soft:#FEF3C7; --serious:#C2410C; --crit:#B91C1C; --crit-soft:#FEE2E2;
+  --v1:#1D5BF0; --v2:#EB6834; --v3:#0F9F8F; --v7:#7A4FD6;
+  --div-lo:#EB6834; --div-mid:#E4E9F2; --div-hi:#1D5BF0;
+  --g1:#B4CCF8; --g2:#86A8F5; --g3:#4D7BFF; --g4:#1D46F3; --g5:#0A2DC1; --g6:#061E81;
+  --tile-technical:linear-gradient(135deg,#1D46F3,#0A2DC1); --tile-cefr:linear-gradient(135deg,#0F766E,#115E59);
+  --tile-behavioral:linear-gradient(135deg,#C2410C,#9A3412); --tile-ai:linear-gradient(135deg,#6D28D9,#5B21B6);
+  --tile-success:linear-gradient(135deg,#15803D,#166534); --tile-neutral:linear-gradient(135deg,#1E293B,#0B1630);
+  --hero-greeting:linear-gradient(120deg,#061E81 0%,#1D46F3 60%,#6D28D9 100%);
+  --hero-period:linear-gradient(120deg,#0A2DC1 0%,#1D46F3 55%,#0F766E 100%);
+  --code-bg:#0B1630; --code-ink:#E4E9F2;
+  --display:"Plus Jakarta Sans","Segoe UI",system-ui,sans-serif;
+  --body:"IBM Plex Sans","Segoe UI",system-ui,sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,"SF Mono",Menlo,monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg:#0A0F1E; --surface:#111827; --surface-2:#1A2234; --surface-3:#243049; --line:#2A3550; --line-strong:#3A4766;
+  --ink:#F3F6FC; --ink-2:#C5CEDF; --ink-3:#98A3B8;
+  --accent:#2F5BFF; --accent-ink:#7AA2FF; --accent-soft:#14204A; --pill-bg:#0A0F1E; --pill-ink:#F3F6FC;
+  --ok:#4ADE80; --ok-soft:#052E16; --warn:#FBBF24; --warn-soft:#451A03; --serious:#FB923C; --crit:#F87171; --crit-soft:#450A0A;
+  --v1:#3D7BFF; --v2:#D95926; --v3:#13A08F; --v7:#9085E9; --div-lo:#D95926; --div-mid:#243049; --div-hi:#3D7BFF;
+  --g1:#14204A; --g2:#1D3A8F; --g3:#2F5BFF; --g4:#4D7BFF; --g5:#7AA2FF; --g6:#B4CCF8;
+  --code-bg:#060A15; color-scheme:dark; } }
+:root[data-theme="dark"] {
+  --bg:#0A0F1E; --surface:#111827; --surface-2:#1A2234; --surface-3:#243049; --line:#2A3550; --line-strong:#3A4766;
+  --ink:#F3F6FC; --ink-2:#C5CEDF; --ink-3:#98A3B8;
+  --accent:#2F5BFF; --accent-ink:#7AA2FF; --accent-soft:#14204A; --pill-bg:#0A0F1E; --pill-ink:#F3F6FC;
+  --ok:#4ADE80; --ok-soft:#052E16; --warn:#FBBF24; --warn-soft:#451A03; --serious:#FB923C; --crit:#F87171; --crit-soft:#450A0A;
+  --v1:#3D7BFF; --v2:#D95926; --v3:#13A08F; --v7:#9085E9; --div-lo:#D95926; --div-mid:#243049; --div-hi:#3D7BFF;
+  --g1:#14204A; --g2:#1D3A8F; --g3:#2F5BFF; --g4:#4D7BFF; --g5:#7AA2FF; --g6:#B4CCF8;
+  --code-bg:#060A15; color-scheme:dark; }
+
+* { box-sizing:border-box; }
+html { scroll-behavior:smooth; }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior:auto; } * { transition:none !important; } }
+body { background:var(--bg); color:var(--ink); font:15px/1.6 var(--body); padding-inline:16px; padding-block:0 64px; }
+.wrap { max-width:1180px; margin:0 auto; }
+a { color:var(--accent-ink); }
+a:focus-visible, button:focus-visible, summary:focus-visible, select:focus-visible, [tabindex]:focus-visible { outline:2px solid var(--accent-ink); outline-offset:2px; }
+nav.top { position:sticky; top:env(safe-area-inset-top,0px); z-index:10; background:var(--bg); display:flex; gap:6px; overflow-x:auto; padding:12px 0; border-bottom:1px solid var(--line); }
+nav.top a { white-space:nowrap; font-size:13px; text-decoration:none; color:var(--ink-2); padding:5px 11px; border:1px solid var(--line); border-radius:999px; background:var(--surface); }
+nav.top a:hover { color:var(--ink); border-color:var(--line-strong); }
+header.page { padding-block:36px 8px; }
+h1, h2, h3 { font-family:var(--display); letter-spacing:-.015em; margin:0; text-wrap:balance; }
+h1 { font-size:clamp(28px,4.2vw,42px); line-height:1.1; font-weight:800; }
+h2 { font-size:23px; font-weight:700; }
+h3 { font-size:16px; font-weight:700; }
+p { margin:0 0 12px; color:var(--ink-2); max-width:74ch; }
+.eyebrow { font:600 12px var(--body); letter-spacing:.08em; text-transform:uppercase; color:var(--accent-ink); margin-bottom:12px; }
+.lead { font-size:17px; margin-top:12px; }
+.meta { display:flex; flex-wrap:wrap; gap:6px 20px; font-size:13.5px; color:var(--ink-3); margin-top:14px; }
+.meta b { color:var(--ink); font-weight:600; }
+code { font-family:var(--mono); font-size:.86em; background:var(--surface-2); padding:1px 5px; border-radius:4px; color:var(--ink); }
+section { padding-block:36px 4px; scroll-margin-top:60px; }
+.sec-head { display:flex; align-items:center; gap:10px; margin-bottom:6px; }
+.sec-head::before { content:""; width:4px; height:20px; border-radius:2px; background:var(--accent); flex:0 0 auto; }
+.sub { color:var(--ink-3); margin-bottom:18px; }
+.example { display:inline-flex; gap:6px; align-items:center; font:600 11.5px var(--body); color:var(--warn); background:var(--warn-soft); border-radius:999px; padding:3px 10px; margin-bottom:14px; }
+.chapter { font:700 14px var(--display); display:flex; align-items:center; gap:8px; margin:22px 0 10px; color:var(--ink); }
+.chapter::before { content:""; width:3px; height:14px; border-radius:2px; background:var(--accent); }
+
+/* hero + chips */
+.hero { border-radius:14px; padding:22px 24px; color:#FFFFFF; display:flex; flex-wrap:wrap; gap:16px 24px; justify-content:space-between; align-items:flex-end; }
+.hero h3 { font-size:24px; color:#FFFFFF; }
+.hero p { color:#E4E9FF; margin:4px 0 0; font-size:14px; }
+.hero .chips { display:flex; flex-wrap:wrap; gap:6px; margin-top:12px; }
+.hero .chips a { color:#FFFFFF; text-decoration:none; font-size:12.5px; border:1px solid #FFFFFF66; border-radius:999px; padding:3px 10px; background:#FFFFFF1A; }
+.hero .chips a:hover { background:#FFFFFF33; }
+.hero .big { text-align:right; }
+.hero .big b { display:block; font:600 30px/1 var(--mono); }
+.hero .big span { font-size:12.5px; color:#E4E9FF; }
+.scope { display:inline-flex; gap:2px; background:var(--surface-2); border:1px solid var(--line); border-radius:10px; padding:3px; margin:14px 0 4px; }
+.scope button { font:600 13px var(--body); border:0; background:transparent; color:var(--ink-2); padding:6px 14px; border-radius:8px; cursor:pointer; }
+.scope button[aria-checked="true"] { background:var(--accent); color:#FFFFFF; }
+
+/* KPI tiles */
+.tiles { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px; }
+@media (max-width: 960px) { .tiles { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+@media (max-width: 520px) { .tiles { grid-template-columns:minmax(0,1fr); } }
+.tile { border-radius:12px; padding:16px; color:#FFFFFF; position:relative; min-height:136px; display:flex; flex-direction:column; gap:2px; }
+.tile .lbl { font-weight:600; font-size:13.5px; padding-right:44px; }
+.tile .ico { position:absolute; top:14px; right:14px; width:32px; height:32px; border-radius:8px; background:#FFFFFF2E; display:grid; place-items:center; }
+.tile .ico svg { width:17px; height:17px; stroke:#FFFFFF; fill:none; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
+.tile .val { font:600 30px/1.15 var(--mono); font-variant-numeric:tabular-nums; margin-top:6px; }
+.tile .cap { font-size:12.5px; color:#FFFFFFD9; }
+.tile .chip { align-self:flex-start; background:#FFFFFF; color:#9A3412; font:600 11.5px var(--body); border-radius:999px; padding:2px 9px; margin:4px 0 2px; }
+.tile svg.spark { margin-top:auto; width:100%; height:30px; }
+.tile .delta { font:600 11.5px var(--mono); background:#00000033; border-radius:6px; padding:1px 6px; align-self:flex-start; margin-top:4px; }
+
+/* cards */
+.cards { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:14px; }
+.cards.three { grid-template-columns:repeat(3,minmax(0,1fr)); }
+@media (max-width: 960px) { .cards.three { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+@media (max-width: 760px) { .cards, .cards.three { grid-template-columns:minmax(0,1fr); } }
+.card { background:var(--surface); border:1px solid var(--line); border-radius:12px; padding:18px 20px; min-width:0; box-shadow:0 1px 2px #0B16300D; }
+.card.wide { grid-column:1/-1; }
+.card h3 { font-size:15.5px; }
+.card .def { font-size:13px; color:var(--ink-3); margin:2px 0 14px; }
+.card .foot { display:flex; justify-content:space-between; gap:10px; flex-wrap:wrap; margin-top:12px; font-size:13px; }
+.card .foot button { font:600 13px var(--body); color:var(--accent-ink); background:none; border:0; padding:0; cursor:pointer; }
+.card .tag { font:500 11.5px var(--mono); color:var(--ink-3); }
+.card table.data { margin-top:10px; }
+svg text { font-family:var(--mono); }
+
+/* bar list + bullet */
+.barlist { display:grid; gap:9px; }
+.br { display:grid; grid-template-columns:minmax(0,150px) minmax(0,1fr) 54px; gap:12px; align-items:center; font-size:13.5px; }
+.br .n { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--ink); }
+.br .t { height:9px; background:var(--surface-3); border-radius:999px; position:relative; }
+.br .t span { position:absolute; inset:0 auto 0 0; border-radius:999px; background:var(--accent); }
+.br .t span.risk { background:var(--serious); }
+.br .t i { position:absolute; top:-5px; width:2px; height:19px; background:var(--ink); border-radius:1px; }
+.br .v { font:600 13px var(--mono); text-align:right; font-variant-numeric:tabular-nums; }
+.br .n small { color:var(--ink-3); }
+
+/* capsules */
+.caps { display:grid; gap:10px; align-items:end; }
+.cap { display:grid; gap:6px; justify-items:center; min-width:0; }
+.cap .cnt { font:500 11.5px var(--mono); color:var(--ink-3); white-space:nowrap; }
+.cap .trk { width:100%; max-width:64px; height:150px; background:var(--surface-3); border-radius:10px; position:relative; overflow:hidden; }
+.cap .fill { position:absolute; left:0; right:0; bottom:0; border-radius:10px; }
+.cap .over { position:absolute; left:0; right:0; bottom:0; background:repeating-linear-gradient(135deg,#FFFFFF66 0 4px,transparent 4px 8px); border-radius:0 0 10px 10px; }
+.cap .pct { position:absolute; left:50%; transform:translateX(-50%); font:600 10.5px var(--mono); background:var(--pill-bg); color:var(--pill-ink); padding:1px 6px; border-radius:999px; box-shadow:0 1px 2px #0B163026; white-space:nowrap; }
+.cap .lb { font:600 12.5px var(--body); }
+.ends { display:flex; justify-content:space-between; font-size:12px; color:var(--ink-3); margin-top:8px; }
+.avgpill { display:block; width:max-content; margin:0 auto 8px; font:600 12px var(--mono); background:var(--surface-3); border-radius:999px; padding:2px 10px; }
+
+/* segmented + unit */
+.seg { display:flex; gap:2px; height:12px; border-radius:999px; overflow:hidden; }
+.seg span { display:block; }
+.seglegend { display:grid; grid-template-columns:repeat(auto-fill,minmax(110px,1fr)); gap:10px 14px; margin-top:12px; }
+.seglegend div b { display:block; font:600 22px var(--mono); }
+.seglegend div span { font-size:12.5px; color:var(--ink-2); display:inline-flex; gap:6px; align-items:center; }
+.dot { width:9px; height:9px; border-radius:50%; display:inline-block; }
+.units { display:flex; flex-wrap:wrap; gap:5px; margin-top:4px; }
+.units i { width:14px; height:14px; border-radius:3px; display:inline-block; }
+.u-ap { background:var(--ok); } .u-pe { background:linear-gradient(90deg,var(--warn) 50%,var(--surface-3) 50%); } .u-dr { border:2px solid var(--accent); } .u-ns { border:2px dotted var(--line-strong); }
+.unitkey { display:flex; flex-wrap:wrap; gap:6px 16px; font-size:12.5px; color:var(--ink-2); margin-top:12px; }
+.unitkey span { display:inline-flex; gap:6px; align-items:center; }
+.unitkey i { width:12px; height:12px; border-radius:3px; display:inline-block; }
+.bigstat { font:600 30px var(--mono); }
+.bigstat small { font:500 13px var(--body); color:var(--ink-3); margin-left:6px; }
+
+/* status grid */
+.gridwrap { overflow-x:auto; }
+table.sg { border-collapse:separate; border-spacing:4px; font-size:13px; min-width:560px; }
+table.sg th { font:600 11px var(--body); letter-spacing:.04em; text-transform:uppercase; color:var(--ink-3); text-align:center; padding:2px; }
+table.sg th:first-child, table.sg td:first-child { text-align:left; position:sticky; left:0; background:var(--surface); padding-right:10px; white-space:nowrap; }
+table.sg td.c { width:44px; height:28px; border-radius:6px; text-align:center; font:600 11.5px var(--mono); }
+.sgkey { display:flex; flex-wrap:wrap; gap:6px 16px; font-size:12.5px; color:var(--ink-2); margin-top:10px; }
+.sgkey span { display:inline-flex; align-items:center; gap:6px; }
+.sgkey i { width:16px; height:12px; border-radius:3px; display:inline-block; }
+
+/* org chart */
+.org { overflow-x:auto; padding-bottom:4px; }
+.org-inner { min-width:680px; display:grid; justify-items:center; }
+.ocard { background:var(--surface); border:1px solid var(--line-strong); border-radius:12px; padding:12px 14px; text-align:center; width:200px; }
+.ocard.root { border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-soft); }
+.av { width:40px; height:40px; border-radius:50%; display:grid; place-items:center; font:600 13px var(--body); margin:0 auto 6px; }
+.ocard b { display:block; font-size:13.5px; } .ocard small { display:block; font-size:12px; color:var(--ink-3); }
+.gpill { display:inline-block; font:600 11px var(--mono); padding:1px 8px; border-radius:999px; margin:6px 0 2px; }
+.orow { display:flex; justify-content:center; gap:16px; position:relative; padding-top:22px; }
+.orow::before { content:""; position:absolute; top:0; left:16%; right:16%; height:22px; border:1.5px solid var(--line-strong); border-bottom:0; border-radius:6px 6px 0 0; }
+.ostem { width:1.5px; height:16px; background:var(--line-strong); }
+.mini { display:flex; justify-content:center; gap:6px; margin-top:6px; font:500 11px var(--mono); color:var(--ink-3); align-items:center; }
+.pend { font:600 11px var(--body); color:var(--warn); background:var(--warn-soft); border-radius:999px; padding:1px 7px; }
+
+/* calendar */
+.cal { display:grid; grid-template-columns:repeat(7,minmax(0,1fr)); gap:5px; }
+.cal .dh { font:600 11.5px var(--body); color:var(--ink-3); text-align:center; }
+.cal .d { min-height:66px; border-radius:8px; background:var(--surface-2); padding:5px 6px; font-size:11.5px; min-width:0; }
+.cal .d.we { background:transparent; border:1px dashed var(--line); }
+.cal .d.today { outline:2px solid var(--accent-ink); outline-offset:-2px; }
+.cal .d b { font:600 11.5px var(--mono); display:block; margin-bottom:2px; }
+.cal .ev { display:block; border-radius:4px; padding:1px 4px; margin-top:2px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:11px; }
+.ev.ms { background:var(--accent-soft); color:var(--accent-ink); font-weight:600; }
+.ev.ap { border:1px solid var(--ok); color:var(--ink-2); }
+.ev.pe { border:1px dashed var(--warn); color:var(--ink-2); }
+
+/* tables */
+.tablewrap { overflow-x:auto; border:1px solid var(--line); border-radius:12px; background:var(--surface); margin:10px 0 18px; }
+table { border-collapse:collapse; width:100%; font-size:13.5px; }
+th, td { text-align:left; padding:9px 12px; border-bottom:1px solid var(--line); vertical-align:top; }
+th { font-size:11.5px; letter-spacing:.05em; text-transform:uppercase; color:var(--ink-3); background:var(--surface-2); font-weight:600; }
+tr:last-child td { border-bottom:0; }
+td.num { text-align:right; font-family:var(--mono); font-variant-numeric:tabular-nums; }
+.st { display:inline-flex; align-items:center; gap:6px; font-weight:600; font-size:12.5px; }
+.st.ok { color:var(--ok); } .st.bad { color:var(--serious); }
+.av-s { width:22px; height:22px; font-size:10px; display:inline-grid; margin:0 6px 0 0; vertical-align:middle; }
+
+/* catalog filters */
+.filters { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-bottom:10px; }
+.filters button { font:500 13px var(--body); border:1px solid var(--line); background:var(--surface); color:var(--ink-2); border-radius:999px; padding:5px 12px; cursor:pointer; }
+.filters button[aria-pressed="true"] { background:var(--accent-soft); color:var(--accent-ink); border-color:var(--accent); }
+.avail { font:600 12px var(--body); white-space:nowrap; }
+.avail.y { color:var(--ok); } .avail.n { color:var(--crit); } .avail.p { color:var(--warn); }
+.ph { font:600 12px var(--mono); color:var(--accent-ink); background:var(--accent-soft); border-radius:6px; padding:1px 7px; white-space:nowrap; }
+
+/* swatches */
+.sw { display:grid; grid-template-columns:repeat(auto-fill,minmax(170px,1fr)); gap:10px; margin:10px 0 18px; }
+.sw div { border-radius:10px; overflow:hidden; border:1px solid var(--line); background:var(--surface); }
+.sw div span { display:flex; align-items:flex-end; height:62px; padding:8px 10px; color:#FFFFFF; font:600 13px var(--body); }
+.sw div p { margin:0; padding:7px 10px; font-size:12px; color:var(--ink-3); font-family:var(--mono); }
+.ramp { display:grid; grid-template-columns:repeat(6,minmax(0,1fr)); gap:4px; margin:10px 0 18px; }
+.ramp span { height:44px; border-radius:6px; display:flex; align-items:flex-end; justify-content:center; padding-bottom:4px; font:600 11px var(--mono); }
+
+/* layouts */
+.layouts { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:14px; }
+@media (max-width: 760px) { .layouts { grid-template-columns:minmax(0,1fr); } }
+.wire { background:var(--surface); border:1px solid var(--line); border-radius:12px; padding:16px; }
+.wire ol { margin:8px 0 0; padding-left:20px; color:var(--ink-2); font-size:13.5px; display:grid; gap:4px; }
+.wire .who { font-size:12.5px; color:var(--ink-3); }
+
+/* roadmap */
+.gantt { overflow-x:auto; background:var(--surface); border:1px solid var(--line); border-radius:12px; margin:12px 0 18px; }
+.gi { min-width:700px; padding:14px 16px; }
+.gr { display:grid; grid-template-columns:230px minmax(0,1fr); align-items:center; min-height:34px; }
+.gl { font-size:13px; color:var(--ink-2); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; padding-right:10px; }
+.gl b { font:600 12px var(--mono); color:var(--accent-ink); margin-right:6px; }
+.gt { position:relative; height:34px; background:repeating-linear-gradient(90deg,transparent 0 calc(10% - 1px),var(--line) calc(10% - 1px) 10%); }
+.gb { position:absolute; top:7px; height:20px; border-radius:5px; color:#FFFFFF; font:600 11.5px/20px var(--body); padding:0 8px; white-space:nowrap; overflow:hidden; text-decoration:none; }
+.gw { display:grid; grid-template-columns:230px minmax(0,1fr); font-size:11.5px; color:var(--ink-3); margin-bottom:4px; }
+.gw div:nth-child(2) { display:grid; grid-template-columns:repeat(10,1fr); }
+.phases { display:grid; gap:12px; }
+.phase { background:var(--surface); border:1px solid var(--line); border-radius:12px; padding:16px 18px; border-left:4px solid var(--c); scroll-margin-top:64px; }
+.phase-h { display:flex; flex-wrap:wrap; gap:4px 12px; align-items:baseline; }
+.phase-h .id { font:600 13px var(--mono); color:var(--c); }
+.phase-h h3 { flex:1 1 220px; }
+.phase-h .when { font-size:13px; color:var(--ink-3); }
+.phase p { margin:6px 0 0; font-size:14px; }
+.deps { font-size:12.5px; color:var(--ink-3); margin-top:6px; }
+details.prompt { margin-top:10px; border:1px solid var(--line); border-radius:8px; background:var(--surface-2); }
+details.prompt summary { cursor:pointer; padding:9px 14px; font-weight:600; font-size:13.5px; list-style:none; display:flex; gap:8px; }
+details.prompt summary::-webkit-details-marker { display:none; }
+details.prompt summary::before { content:"›"; color:var(--ink-3); transition:transform .15s; display:inline-block; }
+details.prompt[open] summary::before { transform:rotate(90deg); }
+.pb { position:relative; padding:0 14px 14px; }
+pre.code { margin:0; background:var(--code-bg); color:var(--code-ink); padding:16px; border-radius:8px; font:12.5px/1.55 var(--mono); white-space:pre-wrap; overflow-wrap:anywhere; max-height:520px; overflow:auto; }
+.copy { position:absolute; right:22px; top:8px; font:600 12px var(--body); border:1px solid #3A4766; background:#1A2234; color:#E4E9F2; border-radius:6px; padding:5px 10px; cursor:pointer; }
+ul.tidy { margin:6px 0 14px; padding-left:20px; color:var(--ink-2); max-width:80ch; }
+ul.tidy li { margin-bottom:6px; } ul.tidy b { color:var(--ink); }
+.keep { display:grid; grid-template-columns:repeat(auto-fill,minmax(260px,1fr)); gap:10px; }
+.keep div { background:var(--surface); border:1px solid var(--line); border-radius:10px; padding:12px 14px; font-size:13.5px; color:var(--ink-2); }
+.keep div b { display:block; color:var(--ink); font-family:var(--display); margin-bottom:2px; }
+.keep div.change { border-color:var(--warn); background:var(--warn-soft); }
+footer { margin-top:36px; padding-top:14px; border-top:1px solid var(--line); font-size:13px; color:var(--ink-3); }
+</style>
+</head>
+<body>
+<div class="wrap">
+<nav class="top" aria-label="Sections">
+  <a href="#preview">Live preview</a><a href="#keep">What to keep</a><a href="#catalog">Pattern catalog</a><a href="#data">Data and API</a><a href="#spec">Visual spec</a><a href="#layouts">Page layouts</a><a href="#roadmap">Roadmap</a><a href="#decisions">Decisions</a>
+</nav>
+
+<header class="page">
+  <div class="eyebrow">ERP · dashboards and analytics plan · 8 October 2026</div>
+  <h1>ERP dashboards blueprint</h1>
+  <p class="lead">This page plans how to bring the charts and dashboards from the department and line-management reference tool into ERP. Each widget is mapped to ERP's appraisal data and restyled in the ERP Prism system, then broken into phases D0–D6 with ready-to-run Claude Code prompts.</p>
+  <div class="meta"><span>Reference <b>9 screenshots</b>, structure and style only</span><span>Builds on <b>UI-4, UI-5 (replaced), P2, P3</b></span><span>Effort <b>~29–36 dev-days</b></span></div>
+</header>
+
+<section id="preview">
+  <div class="sec-head"><h2>Live preview</h2></div>
+  <p class="sub">These are the proposed ERP widgets, drawn with Prism tokens in light and dark. Every name and number here is invented sample data. None of it comes from the reference screenshots.</p>
+  <span class="example">Example data</span>
+
+  <div class="hero" style="background:var(--hero-greeting)">
+    <div>
+      <h3>Good evening, Sara</h3>
+      <p>Thursday, 8 October 2026 · CY2026 annual review · submission window closes in 12 days</p>
+      <div class="chips"><a href="#roadmap">7 approvals waiting</a><a href="#roadmap">28 / 42 assessed</a><a href="#roadmap">3 CEFR-gated</a><a href="#roadmap">5 below target</a></div>
+    </div>
+    <div class="big"><b>31%</b><span>promotion-ready in scope</span></div>
+  </div>
+  <div class="scope" role="radiogroup" aria-label="Scope" id="scope">
+    <button type="button" role="radio" aria-checked="true">Department</button><button type="button" role="radio" aria-checked="false">My team</button><button type="button" role="radio" aria-checked="false">Me</button>
+  </div>
+
+  <div class="chapter">At a glance</div>
+  <div class="tiles" id="tiles"></div>
+
+  <div class="chapter">Appraisal progress</div>
+  <div class="hero" style="background:var(--hero-period);margin-bottom:14px">
+    <div><h3>CY2026 annual review</h3><p>Submission window 1 Sep – 20 Oct · grace period to 31 Oct · locks 1 Nov. Pending items stay hollow until a manager decides them on Approvals.</p></div>
+    <div class="big"><b>18</b><span>days left in the window</span></div>
+  </div>
+  <div class="cards">
+    <article class="card">
+      <h3>This period's assessments</h3>
+      <div class="def">One square per person in scope, by their latest technical assessment this period.</div>
+      <div class="bigstat">28 of 42<small>have an approved assessment</small></div>
+      <div class="units" id="units" role="img" aria-label="28 approved, 6 pending, 3 draft, 5 not started"></div>
+      <div class="unitkey"><span><i class="u-ap"></i>Approved 28</span><span><i class="u-pe"></i>Pending 6</span><span><i class="u-dr"></i>Draft 3</span><span><i class="u-ns"></i>Not started 5</span></div>
+      <div class="foot"><button type="button" data-table="units">View as table</button><span class="tag">D2 · catalog 14</span></div>
+    </article>
+    <article class="card">
+      <h3>Assessment status mix</h3>
+      <div class="def">All assessment records this period across the three pillars, by status.</div>
+      <div class="seg" id="seg" role="img" aria-label="Assessment status mix"></div>
+      <div class="seglegend" id="seglegend"></div>
+      <div class="foot"><button type="button" data-table="seg">View as table</button><span class="tag">D2 · catalog 15</span></div>
+    </article>
+  </div>
+
+  <div class="chapter">Attainment</div>
+  <div class="cards">
+    <article class="card">
+      <h3>Attainment distribution</h3>
+      <div class="def">People in each band of technical attainment (competency score ÷ grade target, approved assessments only).</div>
+      <span class="avgpill" id="avgpill"></span>
+      <div class="caps" id="bands" style="grid-template-columns:repeat(5,minmax(0,1fr))"></div>
+      <div class="ends"><span>Further from target</span><span>At or above target</span></div>
+      <div class="foot"><button type="button" data-table="bands">View as table</button><span class="tag">D2 · catalog 18</span></div>
+    </article>
+    <article class="card">
+      <h3>Teams against target</h3>
+      <div class="def">Average technical attainment per line manager's team. The tick marks the 75% department target.</div>
+      <div class="barlist" id="bullets"></div>
+      <div class="foot"><button type="button" data-table="bullets">View as table</button><span class="tag">D2 · catalog 17</span></div>
+    </article>
+    <article class="card wide">
+      <h3>Everyone's technical attainment this period</h3>
+      <div class="def">One dot per person in scope. The dashed line is the 75% target and the shaded zone is below it.</div>
+      <div id="strip" style="overflow-x:auto"></div>
+      <div id="stats" style="display:flex;flex-wrap:wrap;gap:6px 18px;font:500 12.5px var(--mono);color:var(--ink-2);margin-top:8px"></div>
+      <div class="foot"><button type="button" data-table="strip">View as table</button><span class="tag">D2 · catalog 23</span></div>
+    </article>
+  </div>
+
+  <div class="chapter">Teams</div>
+  <article class="card">
+    <h3>Per line manager</h3>
+    <div class="def">Each line manager's team this period. "Against target" compares team attainment to the 75% target.</div>
+    <div class="tablewrap" style="margin:0"><table id="mgr"></table></div>
+    <div class="foot"><span></span><span class="tag">D2 · catalog 24</span></div>
+  </article>
+
+  <div class="chapter">Structure and progression</div>
+  <div class="cards">
+    <article class="card wide">
+      <h3>Team structure</h3>
+      <div class="def">Line-manager hierarchy. Each card shows grade, team size, three-pillar readiness and approvals waiting.</div>
+      <div class="org"><div class="org-inner" id="org"></div></div>
+      <div class="foot"><span class="tag" style="color:var(--warn)">Job titles need data from D0</span><span class="tag">D3 · catalog 1</span></div>
+    </article>
+    <article class="card">
+      <h3>Headcount by grade</h3>
+      <div class="def">The seniority shape of the department. The hatched part of each column is promotion-ready.</div>
+      <div class="caps" id="grades" style="grid-template-columns:repeat(6,minmax(0,1fr))"></div>
+      <div class="ends"><span>Junior</span><span>Senior</span></div>
+      <div class="foot"><button type="button" data-table="grades">View as table</button><span class="tag">D2 · catalog 7</span></div>
+    </article>
+    <article class="card">
+      <h3>Time at current grade</h3>
+      <div class="def">Months since the last grade change. "Never promoted" means still at joining grade; past 24 months is flagged.</div>
+      <div class="barlist" id="tag"></div>
+      <div class="foot"><button type="button" data-table="tag">View as table</button><span class="tag" style="color:var(--warn)">Needs grade history (D0) · D3</span></div>
+    </article>
+  </div>
+
+  <div class="chapter">Skills and schedule</div>
+  <div class="cards">
+    <article class="card wide">
+      <h3>Skills matrix</h3>
+      <div class="def">People × skill domains. The letter is the assessed level and the color is attainment against the grade target.</div>
+      <div class="gridwrap"><table class="sg" id="sg"></table></div>
+      <div class="sgkey"><span><i style="background:var(--div-hi)"></i>At or above target</span><span><i style="background:color-mix(in srgb,var(--div-hi) 40%,var(--surface))"></i>Near target</span><span><i style="background:color-mix(in srgb,var(--div-lo) 45%,var(--surface))"></i>Below</span><span><i style="background:var(--div-lo)"></i>Far below</span><span><i style="border:2px dashed var(--warn)"></i>Pending</span><span style="font-family:var(--mono)">E Expert · A Advanced · P Proficient · F Foundational · B Beginner · U Unset</span></div>
+      <div class="foot"><button type="button" data-table="sg">View as table</button><span class="tag">D4 · catalog 20</span></div>
+    </article>
+    <article class="card">
+      <h3>Trend against target</h3>
+      <div class="def">Average technical attainment per locked period. Future periods stay empty until they close.</div>
+      <div id="trend"></div>
+      <div class="foot"><button type="button" data-table="trend">View as table</button><span class="tag" style="color:var(--warn)">Needs period snapshots (BE-ARC-04) · D5</span></div>
+    </article>
+    <article class="card">
+      <h3>Appraisal calendar · October 2026</h3>
+      <div class="def">Window milestones, plus assessments submitted (dashed) and approved (solid) per day.</div>
+      <div class="cal" id="cal"></div>
+      <div class="foot"><span class="tag" style="color:var(--warn)">Approvals need approved_at (D0)</span><span class="tag">D4 · catalog 10</span></div>
+    </article>
+  </div>
+</section>
+
+<section id="keep">
+  <div class="sec-head"><h2>What to keep from the reference, and what to change</h2></div>
+  <p class="sub">These are the habits that make the reference tool readable at a glance. Each one is carried into ERP.</p>
+  <div class="keep">
+    <div><b>A definition under every title</b>One plain line explains the metric. ERP's scores are formula-driven, so this matters most here.</div>
+    <div><b>"View as table" everywhere</b>Every chart has an accessible data alternative. This is built into the ChartCard.</div>
+    <div><b>Answer first</b>A greeting with status chips, then KPI tiles, then detail charts, then tables.</div>
+    <div><b>Named chapters</b>Short accent-bar section headers group a long scroll into chapters.</div>
+    <div><b>Targets in the chart</b>A dashed target line, a tick on the bar, a shaded below-target zone, and on/below-target labels.</div>
+    <div><b>A consistent data voice</b>Mono numerals, counts above columns, % pills inside them, and end labels on ordinal axes.</div>
+    <div><b>Shape and letter, not color alone</b>Letter-coded cells and hollow pending markers.</div>
+    <div><b>Statistics with distributions</b>Mean, median, P25, P75, P90, standard deviation and N under the strip plot.</div>
+    <div><b>A scope switcher</b>Department / My team / Me, driven by role and access scope.</div>
+    <div class="change"><b>Change: grades use one ordered ramp</b>Grades are ordinal, so one blue goes light to dark. Unrelated hues per grade read as unrelated categories.</div>
+    <div class="change"><b>Change: no two-slice donuts</b>Use a stat tile or a 100% bar, per ERP STANDARDS §8. Donuts are only for 3–5 part outcomes.</div>
+    <div class="change"><b>Change: darker solid tiles</b>White text needs at least 4.5:1, so tiles use the darker Prism fills shown in the visual spec.</div>
+  </div>
+</section>
+
+<section id="catalog">
+  <div class="sec-head"><h2>Pattern catalog</h2></div>
+  <p class="sub">The 24 reference widgets and their ERP equivalents. Filter by build phase or by whether the data exists today.</p>
+  <div class="filters" id="catFilters"></div>
+  <div class="tablewrap"><table id="catalogT"></table></div>
+</section>
+
+<section id="data">
+  <div class="sec-head"><h2>Data gaps and the analytics API</h2></div>
+  <p class="sub">I checked these against <code>erp-be/prisma/schema.prisma</code> on <code>master</code>. Line-manager links, grades, periods and assessment timestamps exist today. The items below do not.</p>
+  <div class="tablewrap"><table>
+    <tr><th>Gap</th><th>Needed for</th><th>Change (Phase D0)</th></tr>
+    <tr><td>No joining date</td><td>Tenure distribution, "under 1 year"</td><td><code>employees.joined_at</code>. Show "Unknown" where it is null; never guess it from <code>created_at</code>.</td></tr>
+    <tr><td>No grade history</td><td>Time at grade, never promoted, stalled, ready-but-not-promoted</td><td>A new <code>employee_grade_history</code> table, written on every grade change, backfilled as "since unknown"</td></tr>
+    <tr><td>No job title</td><td>Org chart cards</td><td><code>employees.designation</code></td></tr>
+    <tr><td>No approval timestamp or approver</td><td>Calendar approvals, review velocity, approval outcomes</td><td><code>approved_at</code>, <code>approved_by</code> and a <code>returned</code> status on all three pillars (BE-ARC-09)</td></tr>
+    <tr><td>No per-period history</td><td>Sparklines, deltas, trends, top improvers</td><td>BE-ARC-04 period keys and snapshot on LOCK, which must land before D5</td></tr>
+  </table></div>
+  <h3 style="margin-top:6px">Analytics endpoints: <code>src/modules/analytics</code></h3>
+  <div class="tablewrap"><table>
+    <tr><th>Endpoint</th><th>Returns</th></tr>
+    <tr><td><code>GET /api/v1/analytics/overview?scope=&amp;periodId=</code></td><td>KPI tiles, hero numbers, status chips</td></tr>
+    <tr><td><code>/analytics/appraisal-progress</code></td><td>Status mix, unit-matrix rows, weekly velocity</td></tr>
+    <tr><td><code>/analytics/attainment</code></td><td>Bands, strip values and the statistics row (computed on the server)</td></tr>
+    <tr><td><code>/analytics/teams</code></td><td>Per-manager comparison and bullet data</td></tr>
+    <tr><td><code>/analytics/structure</code></td><td>Org tree, span of control, headcount by grade, tenure bands</td></tr>
+    <tr><td><code>/analytics/progression</code></td><td>Time at grade, ready but not promoted</td></tr>
+    <tr><td><code>/analytics/matrix?pillar=</code></td><td>People × domain cells</td></tr>
+    <tr><td><code>/analytics/calendar?month=</code></td><td>Period milestones and per-day submitted and approved</td></tr>
+    <tr><td><code>/analytics/trends</code> (D5)</td><td>Per-period series from locked snapshots only</td></tr>
+  </table></div>
+  <ul class="tidy">
+    <li><b>Every endpoint</b> is scoped server-side through <code>accessScopeService</code>, validated with zod, cached for 60 seconds per (user, scope, period), and covered by the RBAC matrix test.</li>
+    <li><b>Privacy:</b> any group aggregate below 3 people returns "Fewer than 3 people". Engineers only get <code>scope=me</code>. No individual values are ever returned outside the caller's access scope.</li>
+  </ul>
+</section>
+
+<section id="spec">
+  <div class="sec-head"><h2>Visual spec</h2></div>
+  <p class="sub">These are additions to the ERP Prism tokens in audit §10.7. Each tile shows its fill and the contrast of white text at the lightest stop.</p>
+  <div class="sw" id="tileSw"></div>
+  <h3>Grade ramp (ordinal, one hue)</h3>
+  <div class="ramp" id="ramp"></div>
+  <div class="tablewrap"><table>
+    <tr><th>Component</th><th>Key rules</th></tr>
+    <tr><td>ChartCard</td><td>Title 16/600, a plain-language definition line, then the chart, then a footer with "View as table" and Export. Radius 12, 20 px padding.</td></tr>
+    <tr><td>KpiTile</td><td>Solid tile fill, icon chip top-right, value in JetBrains Mono 600 32 px tabular, caption at 85% white, optional status chip, sparkline and delta. The delta uses an arrow and text, never color alone.</td></tr>
+    <tr><td>CapsuleColumns</td><td>Full-height track, fill from the bottom, count above, % pill inside the fill, ordinal end labels</td></tr>
+    <tr><td>BarList / BulletBar</td><td>Truncated label, 8–9 px track, value right-aligned in mono. Risky rows use the serious color plus ⚠. Bullets have a 2 px target tick.</td></tr>
+    <tr><td>StripPlot</td><td>8 px dots stacked when values collide, dashed target, shaded below-target zone, statistics row computed by a tested pure function</td></tr>
+    <tr><td>StatusGrid</td><td>Letter-coded cells, hollow when pending, sticky first column, roving-tabindex keyboard navigation</td></tr>
+    <tr><td>UnitMatrix / SegmentedBar</td><td>Four shape-distinct states, 2 px gaps between segments, counts as big mono numbers</td></tr>
+    <tr><td>OrgChart</td><td>Cards with initials avatar, grade pill on the ramp, "N reports", mini pillar ring and pending badge. Collapse and search. Scrolls inside its own container.</td></tr>
+    <tr><td>CalendarMonth</td><td>Today ringed, weekends muted, milestones solid, pending dashed, "+N more" popover, Calendar/List toggle</td></tr>
+    <tr><td>Avatar</td><td>A deterministic light tint per department with dark text at 4.5:1 or better. Never white on mid-tones.</td></tr>
+  </table></div>
+</section>
+
+<section id="layouts">
+  <div class="sec-head"><h2>Page layouts</h2></div>
+  <p class="sub">Four pages carry the new widgets. Each section follows the answer-first order.</p>
+  <div class="layouts">
+    <div class="wire"><h3>Home</h3><div class="who">Everyone · replaces today's Overview · D2</div><ol><li>Greeting hero with status chips (each chip links to its screen)</li><li>Scope switcher: Department, My team, Me</li><li>At a glance: 8 KPI tiles (4 / 2 / 1 columns)</li><li>Appraisal progress: period hero, unit matrix, status mix, review velocity</li><li>Attainment: distribution, strip plot, largest gaps</li><li>Teams: teams against target, per-manager table</li><li>Me: pillar triad, readiness checklist, my assessments</li></ol></div>
+    <div class="wire"><h3>Workforce</h3><div class="who">Leaders, Admin · new route <code>/app/workforce</code> · D3</div><ol><li>Structure: org chart, span of control, people-managers stat</li><li>Headcount by grade with readiness overlay</li><li>Tenure distribution ("Unknown" kept as its own column)</li><li>Progression: time at current grade, ready but not promoted</li></ol></div>
+    <div class="wire"><h3>Skills matrix</h3><div class="who">Line managers, Leaders · upgrade of the competency matrix report · D4</div><ol><li>Filters: department, grade, pillar</li><li>People × domains status grid, or people × pillars</li><li>View as table and CSV export</li></ol></div>
+    <div class="wire"><h3>Schedule</h3><div class="who">Line managers, Leaders · D4</div><ol><li>Appraisal calendar with a Calendar/List toggle</li><li>Review velocity: submitted vs approved per week</li><li>Approval outcomes (approved, pending, returned), linked to Approvals</li></ol></div>
+  </div>
+</section>
+
+<section id="roadmap">
+  <div class="sec-head"><h2>Roadmap</h2></div>
+  <p class="sub">The D-phases slot into the master plan:</p>
+  <ul class="tidy">
+    <li><b>D0</b> runs inside engineering P2.</li>
+    <li><b>D1</b> follows the chart system (UI-4).</li>
+    <li><b>D2–D4</b> replace UI-5.</li>
+    <li><b>D5</b> waits for the appraisal-history fix.</li>
+    <li><b>D6</b> merges into UI-8.</li>
+  </ul>
+  <p class="sub">The timeline below is in working weeks for one backend and one frontend developer.</p>
+  <div class="gantt"><div class="gi" id="gantt"></div></div>
+  <div class="phases" id="phases"></div>
+</section>
+
+<section id="decisions">
+  <div class="sec-head"><h2>Decisions needed</h2></div>
+  <ul class="tidy">
+    <li><b>Smallest group size for aggregates.</b> The default is 3. Below that, a chart shows "Fewer than 3 people" instead of a figure.</li>
+    <li><b>Joining dates and grade history.</b> Collect them now, either by HR import or manual entry? Until then, backfilled history shows "since unknown" and tenure shows "Unknown".</li>
+    <li><b>Home for engineers.</b> Should the Me view also show anonymized department context, such as "your attainment vs the department median"? Only allowed if groups stay at or above the minimum size.</li>
+  </ul>
+  <footer>The source plan is <code>erp-dashboards-roadmap.md</code>, linked from <code>erp-master-prompt.md</code>. The visual system is defined in <code>erp-audit-2026-10-06.md</code> §10. All sample data on this page is invented.</footer>
+</section>
+</div>
+
+<script>
+const DATA = {"catalog": [{"n": 1, "ref": "Org chart: manager cards, grade pill, report counts", "cal": "Team structure tree with mini three-pillar readiness ring and pending badge", "who": "Leaders, Admin", "avail": "Partial", "availNote": "Hierarchy ✓ · job title ✗", "phase": "D3"}, {"n": 2, "ref": "Span of control bar list", "cal": "Span of control plus review load per line manager", "who": "Dept manager, Top mgmt, Admin", "avail": "Available", "availNote": "Available", "phase": "D3"}, {"n": 3, "ref": "\"Who leads people\" two-slice donut", "cal": "Stat tile: people managers vs individual contributors", "who": "Admin, Top mgmt", "avail": "Available", "availNote": "Available", "phase": "D3"}, {"n": 4, "ref": "Time at current grade, banded, warning colors", "cal": "Time at current grade with flagged bands", "who": "Leaders", "avail": "Missing", "availNote": "Needs grade history", "phase": "D3"}, {"n": 5, "ref": "Longest without a grade move table", "cal": "Ready but not promoted, then longest at grade", "who": "Leaders", "avail": "Partial", "availNote": "Readiness ✓ · history ✗", "phase": "D3"}, {"n": 6, "ref": "At a glance: 8 solid KPI tiles", "cal": "Headcount, promotion-ready %, assessed n/N, waiting on you, CEFR certified %, behavioral at target %, stale, avg attainment", "who": "All (scoped)", "avail": "Available", "availNote": "Available", "phase": "D2"}, {"n": 7, "ref": "Headcount by grade capsule columns", "cal": "Headcount by grade with promotion-ready overlay", "who": "Leaders", "avail": "Available", "availNote": "Available", "phase": "D2"}, {"n": 8, "ref": "Tenure distribution capsule columns", "cal": "Tenure distribution with an \"Unknown\" column", "who": "Leaders", "avail": "Missing", "availNote": "Needs joining date", "phase": "D3"}, {"n": 9, "ref": "Gradient hero banner with a big stat", "cal": "Appraisal period hero: days left, % assessed", "who": "All", "avail": "Available", "availNote": "Available", "phase": "D2"}, {"n": 10, "ref": "Month calendar with avatar chips", "cal": "Appraisal calendar: milestones, submitted and approved per day", "who": "Line managers, Leaders", "avail": "Partial", "availNote": "Submitted ✓ · approved_at ✗", "phase": "D4"}, {"n": 11, "ref": "Greeting hero with status chips", "cal": "Home greeting with linked chips: approvals, assessed, CEFR-gated, below target", "who": "All", "avail": "Available", "availNote": "Available", "phase": "D2"}, {"n": 12, "ref": "Scope tabs: Department / Workforce / You", "cal": "Scope switcher: Department / My team / Me", "who": "All", "avail": "Available", "availNote": "Available", "phase": "D2"}, {"n": 13, "ref": "KPI tile with sparkline and delta", "cal": "Attainment and readiness tiles with per-period sparkline and delta", "who": "Leaders, Me", "avail": "Missing", "availNote": "Needs period snapshots", "phase": "D5"}, {"n": 14, "ref": "Unit (dot) matrix", "cal": "This period's assessments, one square per person, 4 states", "who": "Line managers, Leaders", "avail": "Available", "availNote": "Available", "phase": "D2"}, {"n": 15, "ref": "Segmented status bar with counts", "cal": "Assessment status mix across pillars", "who": "Line managers, Leaders", "avail": "Available", "availNote": "Available", "phase": "D2"}, {"n": 16, "ref": "Trend line with dashed target", "cal": "Attainment and CEFR-certified % by period vs target", "who": "Leaders, Me", "avail": "Missing", "availNote": "Needs period snapshots", "phase": "D5"}, {"n": 17, "ref": "Teams against target bullet bars", "cal": "Team attainment or % promotion-ready per line manager vs target", "who": "Dept manager, Top mgmt", "avail": "Available", "availNote": "Available", "phase": "D2"}, {"n": 18, "ref": "Distribution capsules with average pill", "cal": "Attainment distribution bands with average", "who": "Leaders", "avail": "Available", "availNote": "Available", "phase": "D2"}, {"n": 19, "ref": "Weekly bar chart", "cal": "Review velocity: submitted vs approved per week", "who": "Line managers, Leaders", "avail": "Partial", "availNote": "Approved needs D0", "phase": "D4"}, {"n": 20, "ref": "People × day status grid with letter codes", "cal": "Skills matrix: people × domains, level letter, attainment color, hollow pending", "who": "Line managers, Leaders", "avail": "Available", "availNote": "Available", "phase": "D4"}, {"n": 21, "ref": "Top-N bar lists", "cal": "Largest gaps to target, most-assessed skills, top improvers", "who": "Leaders", "avail": "Partial", "availNote": "Gaps ✓ · improvers need snapshots", "phase": "D2 / D5"}, {"n": 22, "ref": "Outcome donut (3 parts)", "cal": "Approval outcomes: approved / pending / returned", "who": "Leaders", "avail": "Partial", "availNote": "Needs \"returned\" status", "phase": "D4"}, {"n": 23, "ref": "Strip plot with target and statistics row", "cal": "Everyone's technical attainment with mean, median, P25, P75, P90, std dev, N", "who": "Leaders", "avail": "Available", "availNote": "Available", "phase": "D2"}, {"n": 24, "ref": "Per-manager comparison table", "cal": "Per line manager: team, attainment, against target, ready, pending, CEFR-gated", "who": "Dept manager, Top mgmt, Admin", "avail": "Available", "availNote": "Available", "phase": "D2"}], "phases": [{"id": "D0", "name": "Analytics data foundations", "repo": "erp-be", "branch": "feat/d0-analytics-data", "start": 0, "end": 6, "effort": "5–7 days", "c": "#0F766E", "deps": "P1; runs inside P2", "scope": "Joining date, job title, grade history with backfill, approved_at / approved_by / returned on all pillars, and the scoped analytics module with small-group suppression and RBAC tests."}, {"id": "D1", "name": "Dashboard component kit", "repo": "erp-fe", "branch": "ui/d1-dashboard-kit", "start": 0, "end": 5.5, "effort": "5–6 days", "c": "#1D46F3", "deps": "UI-1, UI-3, UI-4", "scope": "ChartCard, SectionHeader, KpiTile, heroes, ScopeSwitcher, CapsuleColumns, BarList, BulletBar, StripPlot, StatusGrid, UnitMatrix, SegmentedBar, Donut, TrendLine, OrgChart, CalendarMonth and Avatar, each with a table view and keyboard support."}, {"id": "D2", "name": "Home and Department dashboards", "repo": "erp-fe", "branch": "ui/d2-home-dashboard", "start": 6, "end": 11.5, "effort": "5–6 days", "c": "#1D46F3", "deps": "D0, D1, UI-2", "scope": "Greeting hero, scope switcher, 8 KPI tiles, appraisal progress, attainment distribution and strip plot, teams against target and the per-manager table."}, {"id": "D3", "name": "Workforce: structure and progression", "repo": "erp-fe", "branch": "ui/d3-workforce", "start": 11.5, "end": 16, "effort": "4–5 days", "c": "#1D46F3", "deps": "D0, D1", "scope": "Org chart, span of control, headcount by grade with readiness overlay, tenure, time at grade, and ready but not promoted. Adds joined_at and designation fields to the employee editor."}, {"id": "D4", "name": "Skills matrix and schedule", "repo": "erp-fe", "branch": "ui/d4-matrix-schedule", "start": 16, "end": 20.5, "effort": "4–5 days", "c": "#1D46F3", "deps": "D0, D1", "scope": "People × domains status grid with level letters, appraisal calendar, review velocity and approval outcomes."}, {"id": "D5", "name": "Trends and period-over-period", "repo": "erp-be → erp-fe", "branch": "feat/d5-trends", "start": 36, "end": 39.5, "effort": "3–4 days", "c": "#6D28D9", "deps": "BE-ARC-04 period snapshots (P2), ideally P3 read models", "scope": "Trends endpoint from locked snapshots only, KPI sparklines and deltas, trend lines with target, top improvers and the YoY slope chart."}, {"id": "D6", "name": "Dashboard QA", "repo": "erp-fe", "branch": "ui/phase8-qa", "start": 39.5, "end": 42, "effort": "2–3 days", "c": "#6D28D9", "deps": "D2–D5; merges into UI-8", "scope": "axe in light and dark for every role, keyboard walkthroughs, screenshot baselines, the performance budget, and a test that engineers never receive others' values."}], "prompts": {"D0": "Read erp-dashboards-roadmap.md §3 and erp-audit-2026-10-06.md §6A. Implement:\n1. Prisma migration: employees.joined_at DATE NULL, employees.designation VARCHAR(120) NULL; new model EmployeeGradeHistory (id, employee_id FK, grade_id FK, effective_from DATE NULL, effective_to DATE NULL, since_unknown BOOLEAN default false, changed_by user FK NULL, reason TEXT NULL, created_at) with index (employee_id, effective_to). Backfill: one open row per active employee at current_grade_id with since_unknown=true. From now on every change to employees.current_grade_id (config.service updateEmployee and any bulk path) closes the open row and opens a new one in the same transaction.\n2. Add approved_at TIMESTAMPTZ NULL, approved_by INT NULL (FK users) to skill, CEFR and behavioral assessments; set them on approve; add 'returned' as an allowed status where a manager sends an assessment back (with reason). Keep existing statuses working.\n3. New module src/modules/analytics (router, controller, service, schema, tests) with the endpoints in §3. Every endpoint: authenticate, zod-validated query (scope enum, periodId, month), scope resolved through accessScopeService (engineers may only use scope=me; return 403 otherwise), aggregates computed in SQL/Prisma groupBy (no N+1, no full raw-row responses), groups below 3 people return {suppressed:true}, 60-second in-memory cache keyed by (userId, scope, periodId, endpoint) invalidated on assessment writes. Strip-plot values for people outside the caller's scope must never be returned.\n4. Tests: supertest per endpoint × role (ADMIN, TOP_MANAGEMENT, MANAGER, LINE_MANAGER, ENGINEER) for scope; suppression; grade-history open/close on change; approved_at set on approve. Fixtures use fake names only.\n5. Document the endpoints (zod → OpenAPI if Phase 3 is done; otherwise a markdown table in docs/analytics-api.md).\nStop at the end with a summary and the list of contract additions for the frontend.", "D1": "Read erp-dashboards-roadmap.md §1 and §4 and erp-audit-2026-10-06.md §10. Add the §4 tokens to src/styles/tokens.css (light and dark). Build these components with TypeScript props, no hard-coded colors, light/dark support, and a DEV gallery entry each: ChartCard (title, definition, actions, \"View as table\" toggle rendering an accessible <table>, export CSV), SectionHeader, KpiTile (variants technical|cefr|behavioral|ai|success|neutral; icon, label, value, caption, status chip, optional sparkline + delta), HeroBanner, GreetingHero (status chips as links), ScopeSwitcher (radiogroup, arrow keys), CapsuleColumns (counts above, % pill, end labels), BarList, BulletBar (target tick), StripPlot (collision stacking, target line, shaded below-target band, stats row computed by a pure tested function: mean, median, P25, P75, P90, std dev, N), StatusGrid (letter-coded cells, hollow pending, sticky first column, roving-tabindex keyboard navigation), UnitMatrix (four shape-distinct states), SegmentedBar, Donut (3–5 parts only; throws in dev for 2), TrendLine (Recharts; target reference line; crosshair tooltip; empty future periods), OrgChart (collapsible tree, search highlight, horizontal scroll container, cards and compact rows), CalendarMonth (+N more popover, Calendar/List toggle), Avatar (deterministic light tint with dark text). Every chart: role=\"img\" with a generated summary, legend for ≥2 series, values in tabular mono, colors from tokens only. Unit tests for the pure helpers (stats, banding, stacking, avatar tint contrast ≥ 4.5:1), and render tests for keyboard behaviour.", "D2": "Build the Home dashboard from erp-dashboards-roadmap.md §5.1 using the D1 kit and the D0 endpoints (react-query hooks via a key factory, invalidated by assessment mutations). Sections in order: GreetingHero with status chips (each links to its screen), ScopeSwitcher (department / team / me, options from role and scope, persisted in the URL query), At a glance (8 KpiTiles from catalog row 6), Appraisal progress (period HeroBanner, UnitMatrix, SegmentedBar), Attainment (CapsuleColumns bands with average pill, StripPlot with stats row and target, BarList of largest gaps), Teams (BulletBar teams vs target, per-manager comparison table with On target / Below target status icon+text), Me (pillar triad, readiness checklist, my assessments). Every chart inside a ChartCard with a one-line definition of the metric written in plain language (e.g. \"Average technical attainment = mean of competency scores ÷ grade target, approved assessments only\"). Loading skeletons per card, EmptyState and ErrorState with retry, suppressed groups shown as \"Fewer than 3 people\". Responsive 4/2/1 columns. Playwright: each role sees only its allowed scopes; axe clean in light and dark; screenshots at 375 and 1280.", "D3": "Add route /app/workforce (Leaders, Admin) per erp-dashboards-roadmap.md §5.2: Structure — OrgChart from /analytics/structure (manager cards with grade pill on the grade ramp, N reports, mini three-pillar ring, pending badge; collapse/expand; search), BarList span of control and review load, people-managers stat tile, CapsuleColumns headcount by grade with readiness overlay and Junior…Senior end labels, CapsuleColumns tenure distribution (unknown joining dates shown as their own \"Unknown\" column, never guessed). Progression — BarList time at current grade with serious-status fill and ⚠ icon on the >24-month and never-promoted bands, table \"Ready but not promoted\" (person, grade pill, ready since, at grade since; \"since unknown\" where backfilled). Admin form fields for joined_at and designation in the employee editor. Tests and screenshots as in D2.", "D4": "Per erp-dashboards-roadmap.md §5.3–5.4: (1) Replace the competency matrix report view with StatusGrid: rows people, columns skill domains (or pillars via a toggle), cell letter = level code (E/A/P/F/B/W/U) or pillar status (M/G/P), cell color = attainment vs target on the diverging ramp, hollow ring = pending; filters department/grade/pillar; sticky first column; keyboard grid; View as table; CSV export. (2) Schedule page: CalendarMonth of the active period (window start, submission end, grace end, lock milestones; per-day submitted and approved avatar chips, pending hollow), Calendar/List toggle, review-velocity weekly bars (submitted vs approved), approval-outcomes Donut (approved/pending/returned) with a link to Approvals. Tests and screenshots as in D2.", "D5": "Precondition: BE-ARC-04 period keys and LOCK snapshots are merged (verify; stop and tell me if not). Backend: GET /analytics/trends returning per-period series from period snapshots only (never recomputed with current weights) for attainment, promotion-ready %, CEFR certified %, behavioral at/above target %, scoped and suppressed like D0. Frontend: sparkline + delta (\"▲ +1.8 pts vs CY2025\", arrow + text) on KpiTiles; TrendLine per metric with dashed target and empty future periods; BarList \"Top improvers\" (delta between the last two locked periods, in scope only); YoY slope chart for department scope. Tests: trend values for a locked period stay identical after a scoring-config change.", "D6": "Add @axe-core/playwright checks (0 serious/critical) for Home, Workforce, Skills matrix and Schedule in light and dark for every role fixture; keyboard-only walkthrough (scope switch → open a chart's table view → navigate the status grid → open a calendar day popover); toHaveScreenshot baselines at 375 and 1280; Lighthouse CI budget (dashboard LCP < 2.5 s, CLS < 0.05); a test that an ENGINEER session never receives another person's values from any /analytics endpoint."}};
+(function () {
+  const $ = id => document.getElementById(id);
+  const el = (tag, attrs = {}, ...kids) => { const n = document.createElement(tag);
+    for (const [k, v] of Object.entries(attrs)) { if (k === 'style') n.style.cssText = v; else if (k === 'text') n.textContent = v; else if (k.startsWith('on')) n.addEventListener(k.slice(2), v); else n.setAttribute(k, v); }
+    kids.flat().forEach(c => c != null && n.append(c)); return n; };
+  const svgNS = 'http://www.w3.org/2000/svg';
+  const S = (tag, attrs = {}) => { const n = document.createElementNS(svgNS, tag); for (const [k, v] of Object.entries(attrs)) n.setAttribute(k, v); return n; };
+
+  // scope switcher (visual demo)
+  const sc = $('scope');
+  sc.addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; sc.querySelectorAll('button').forEach(x => x.setAttribute('aria-checked', x === b ? 'true' : 'false')); });
+  sc.addEventListener('keydown', e => { const bs = [...sc.querySelectorAll('button')]; const i = bs.indexOf(document.activeElement); if (i < 0) return;
+    if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') { const n = bs[(i + (e.key === 'ArrowRight' ? 1 : bs.length - 1)) % bs.length]; n.focus(); n.click(); e.preventDefault(); } });
+
+  // KPI tiles
+  const ICON = {
+    users:'<path d="M16 19v-1a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v1"/><circle cx="9" cy="7" r="3.5"/><path d="M22 19v-1a4 4 0 0 0-3-3.8M16 3.2a3.5 3.5 0 0 1 0 7"/>',
+    target:'<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/>',
+    check:'<circle cx="12" cy="12" r="9"/><path d="m8 12 3 3 5-6"/>',
+    clock:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+    chat:'<path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/>',
+    heart:'<path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"/>',
+    alert:'<path d="M12 3 2 20h20L12 3z"/><path d="M12 10v4M12 17h.01"/>',
+    trend:'<path d="m3 17 6-6 4 4 8-8"/><path d="M14 7h7v7"/>',
+  };
+  const TILES = [
+    ['neutral','users','Headcount in scope','42','Whole department'],
+    ['success','target','Promotion-ready','31%','13 of 42 meet all three pillars'],
+    ['technical','check','Assessed this period','28 / 42','Approved technical assessments'],
+    ['ai','clock','Waiting on you','7','Approvals to decide'],
+    ['cefr','chat','CEFR certified','64%','At or above target-grade level'],
+    ['behavioral','heart','Behavioral at target','72%','L-level at or above expectation'],
+    ['neutral','alert','Stale profiles','5','No assessment update in 6 months', 'Needs update'],
+    ['technical','trend','Avg technical attainment','78.4%','target 75% · CY2025 76.6%', null, [70.2, 73.5, 76.6, 78.4], '▲ +1.8 pts vs CY2025'],
+  ];
+  const tiles = $('tiles');
+  TILES.forEach(([v, ic, lbl, val, cap, chip, spark, delta]) => {
+    const t = el('div', { class:'tile', style:`background:var(--tile-${v})` },
+      el('div', { class:'lbl', text:lbl }), el('div', { class:'val', text:val }));
+    const ico = el('div', { class:'ico', 'aria-hidden':'true' }); ico.innerHTML = `<svg viewBox="0 0 24 24">${ICON[ic]}</svg>`; t.prepend(ico);
+    if (chip) t.append(el('span', { class:'chip', text:chip }));
+    if (delta) t.append(el('span', { class:'delta', text:delta }));
+    t.append(el('div', { class:'cap', text:cap }));
+    if (spark) {
+      const w = 200, h = 30, mn = Math.min(...spark) - 2, mx = Math.max(...spark) + 1;
+      const pts = spark.map((y, i) => [i / (spark.length - 1) * (w - 6) + 3, h - 3 - (y - mn) / (mx - mn) * (h - 8)]);
+      const sv = S('svg', { class:'spark', viewBox:`0 0 ${w} ${h}`, preserveAspectRatio:'none', role:'img', 'aria-label':'Attainment by period: ' + spark.join(', ') });
+      sv.append(S('path', { d:`M${pts.map(p => p.join(',')).join('L')}L${w - 3},${h}L3,${h}Z`, fill:'#FFFFFF33' }));
+      sv.append(S('path', { d:`M${pts.map(p => p.join(',')).join('L')}`, fill:'none', stroke:'#FFFFFF', 'stroke-width':2, 'vector-effect':'non-scaling-stroke' }));
+      const last = pts[pts.length - 1]; sv.append(S('circle', { cx:last[0], cy:last[1], r:3.5, fill:'#FFFFFF' }));
+      t.append(sv);
+    }
+    tiles.append(t);
+  });
+
+  // unit matrix
+  const U = [['u-ap', 28], ['u-pe', 6], ['u-dr', 3], ['u-ns', 5]];
+  U.forEach(([c, n]) => { for (let i = 0; i < n; i++) $('units').append(el('i', { class:c })); });
+
+  // segmented
+  const SEG = [['Approved', 61, 'var(--ok)'], ['Pending', 14, 'var(--warn)'], ['Draft', 9, 'var(--accent)'], ['Returned', 2, 'var(--crit)'], ['Not started', 12, 'var(--line-strong)']];
+  const tot = SEG.reduce((a, s) => a + s[1], 0);
+  SEG.forEach(([l, n, c]) => { $('seg').append(el('span', { style:`flex:${n};background:${c}`, title:`${l} ${n}` }));
+    $('seglegend').append(el('div', {}, el('b', { text:String(n) }), el('span', {}, el('i', { class:'dot', style:`background:${c}` }), l))); });
+
+  // capsule columns
+  function caps(box, rows, opts = {}) {
+    const max = opts.max || Math.max(...rows.map(r => r.n));
+    const total = rows.reduce((a, r) => a + r.n, 0);
+    rows.forEach(r => {
+      const h = r.n / max * 100, pct = Math.round(r.n / total * 100);
+      const trk = el('div', { class:'trk' }, el('div', { class:'fill', style:`height:${h}%;background:${r.c}` }));
+      if (r.ready) trk.append(el('div', { class:'over', style:`height:${r.ready / max * 100}%` }));
+      trk.append(el('span', { class:'pct', style:`bottom:calc(${h}% - 22px)`, text:pct + '%' }));
+      $(box).append(el('div', { class:'cap', role:'img', 'aria-label':`${r.l}: ${r.n} people, ${pct}%${r.ready ? ', ' + r.ready + ' promotion-ready' : ''}` },
+        el('span', { class:'cnt', text:`${r.n} ${r.n === 1 ? 'person' : 'people'}` }), trk, el('span', { class:'lb', text:r.l })));
+    });
+  }
+  const BANDS = [{ l:'<60%', n:4, c:'var(--div-lo)' }, { l:'60–70', n:6, c:'color-mix(in srgb,var(--div-lo) 55%,var(--surface))' }, { l:'70–80', n:11, c:'color-mix(in srgb,var(--div-hi) 45%,var(--surface))' }, { l:'80–90', n:13, c:'var(--div-hi)' }, { l:'90–100', n:8, c:'var(--div-hi)' }];
+  caps('bands', BANDS);
+  const GRADES = [{ l:'G13', n:3, c:'var(--g1)', ready:1 }, { l:'G14', n:12, c:'var(--g2)', ready:4 }, { l:'G15', n:14, c:'var(--g3)', ready:5 }, { l:'G16', n:7, c:'var(--g4)', ready:2 }, { l:'G17', n:4, c:'var(--g5)', ready:1 }, { l:'G18', n:2, c:'var(--g6)', ready:0 }];
+  caps('grades', GRADES);
+
+  // strip plot data (deterministic example)
+  const vals = [41, 48, 55, 58, 61, 63, 66, 67, 69, 70, 71, 72, 73, 74, 74, 75, 76, 77, 78, 79, 80, 80, 81, 82, 83, 84, 85, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96, 98, 100, 100];
+  const sorted = [...vals].sort((a, b) => a - b);
+  const q = p => { const i = (sorted.length - 1) * p, lo = Math.floor(i), hi = Math.ceil(i); return sorted[lo] + (sorted[hi] - sorted[lo]) * (i - lo); };
+  const mean = vals.reduce((a, b) => a + b, 0) / vals.length;
+  const sd = Math.sqrt(vals.reduce((a, b) => a + (b - mean) ** 2, 0) / vals.length);
+  $('avgpill').textContent = `Avg ${mean.toFixed(1)}%`;
+  [['Mean', mean], ['Median', q(.5)], ['P25', q(.25)], ['P75', q(.75)], ['P90', q(.9)], ['Std dev', sd, ' pts'], ['People', vals.length, '']].forEach(([k, v, u]) =>
+    $('stats').append(el('span', {}, k + ' ', el('b', { style:'color:var(--ink)', text:(Number.isInteger(v) ? v : v.toFixed(1)) + (u ?? '%') }))));
+  (function strip() {
+    const W = 760, H = 120, L = 14, R = 14, base = 96, x = v => L + v / 100 * (W - L - R);
+    const sv = S('svg', { viewBox:`0 0 ${W} ${H}`, width:'100%', style:'min-width:520px;display:block', role:'img', 'aria-label':`Strip plot of ${vals.length} people; mean ${mean.toFixed(1)}%, target 75%` });
+    sv.append(S('rect', { x:x(0), y:8, width:x(75) - x(0), height:base - 8, style:'fill:var(--crit-soft)', opacity:.6 }));
+    sv.append(S('line', { x1:L, x2:W - R, y1:base, y2:base, style:'stroke:var(--line-strong)' }));
+    [0, 20, 40, 60, 80, 100].forEach(t => { sv.append(S('line', { x1:x(t), x2:x(t), y1:base, y2:base + 4, style:'stroke:var(--line-strong)' }));
+      const tx = S('text', { x:x(t), y:base + 17, 'text-anchor':t === 0 ? 'start' : t === 100 ? 'end' : 'middle', 'font-size':11, style:'fill:var(--ink-3)' }); tx.textContent = t + '%'; sv.append(tx); });
+    sv.append(S('line', { x1:x(75), x2:x(75), y1:8, y2:base, style:'stroke:var(--ink)', 'stroke-dasharray':'4 3' }));
+    const tl = S('text', { x:x(75) - 4, y:18, 'text-anchor':'end', 'font-size':11, style:'fill:var(--ink-2)' }); tl.textContent = 'Target 75%'; sv.append(tl);
+    const stacks = {};
+    vals.forEach(v => { const k = Math.round(v / 2); const lvl = stacks[k] = (stacks[k] || 0) + 1;
+      const c = S('circle', { cx:x(v), cy:base - 6 - (lvl - 1) * 10, r:4.5, style:`fill:${v < 75 ? 'var(--div-lo)' : 'var(--v1)'};stroke:var(--surface);stroke-width:1.5` });
+      const t = S('title'); t.textContent = `${v}%`; c.append(t); sv.append(c); });
+    $('strip').append(sv);
+  })();
+
+  // bullets
+  const TEAMS = [['Line manager A', 6, 84.1], ['Line manager B', 7, 79.6], ['Line manager C', 5, 76.2], ['Line manager D', 6, 71.3]];
+  TEAMS.forEach(([n, size, v]) => $('bullets').append(el('div', { class:'br', role:'img', 'aria-label':`${n}, team of ${size}: ${v}% against 75% target` },
+    el('span', { class:'n' }, n, el('small', { text:` · ${size}` })),
+    el('span', { class:'t' }, el('span', { class:v < 75 ? 'risk' : '', style:`width:${v}%` }), el('i', { style:'left:75%' })),
+    el('span', { class:'v', text:v.toFixed(1) + '%' }))));
+
+  // manager table
+  const mgr = $('mgr');
+  mgr.append(el('tr', {}, ...['Line manager', 'Team', 'Attainment', 'Against target', 'Promotion-ready', 'Pending approvals', 'CEFR-gated'].map((h, i) => el('th', { style:i ? 'text-align:right' : '', text:h }))));
+  const MR = [['Line manager A', 6, 84.1, 3, 1, 0], ['Line manager B', 7, 79.6, 2, 3, 1], ['Line manager C', 5, 76.2, 1, 0, 1], ['Line manager D', 6, 71.3, 0, 3, 1]];
+  MR.forEach(([n, t, a, r, p, g]) => mgr.append(el('tr', {}, el('td', { text:n }), el('td', { class:'num', text:t }), el('td', { class:'num', text:a.toFixed(1) + '%' }),
+    el('td', { style:'text-align:right' }, el('span', { class:'st ' + (a >= 75 ? 'ok' : 'bad'), text:a >= 75 ? '▲ On target' : '▼ Below target' })),
+    el('td', { class:'num', text:r }), el('td', { class:'num', text:p }), el('td', { class:'num', text:g }))));
+
+  // org chart
+  const AVT = ['#DBEAFE', '#CCFBF1', '#FFEDD5', '#EDE9FE', '#DCFCE7', '#FCE7F3'];
+  const av = (ini, i, cls = 'av') => el('div', { class:cls, style:`background:${AVT[i % AVT.length]};color:#0B1630`, text:ini });
+  const gp = g => { const idx = { G13:1, G14:2, G15:3, G16:4, G17:5, G18:6 }[g]; return el('span', { class:'gpill', style:`background:var(--g${idx});color:${idx >= 3 ? '#FFFFFF' : '#0B1630'}`, text:g }); };
+  const ring = () => { const d = el('span', { class:'mini' }); d.innerHTML = '<svg width="34" height="12" viewBox="0 0 34 12" aria-hidden="true"><circle cx="6" cy="6" r="5" fill="var(--v1)"/><circle cx="17" cy="6" r="5" fill="var(--v3)"/><circle cx="28" cy="6" r="5" fill="none" stroke="var(--v2)" stroke-width="2"/></svg>'; return d; };
+  const root = el('div', { class:'ocard root' }, av('SK', 0), el('b', { text:'Sara Khan (you)' }), el('small', { text:'Head of Engineering' }), gp('G18'), el('small', { text:'4 line managers · 24 people' }));
+  const mgrs = [['AL', 'Line manager A', 'Engineering Lead', 'G17', 6, 0], ['BM', 'Line manager B', 'Principal Engineer', 'G16', 7, 3], ['CN', 'Line manager C', 'Engineering Lead', 'G17', 5, 0], ['DO', 'Line manager D', 'Principal Engineer', 'G16', 6, 3]];
+  const row = el('div', { class:'orow' });
+  mgrs.forEach(([ini, n, t, g, r, p], i) => {
+    const m = el('div', { class:'mini' }, el('span', { text:`${r} reports` })); if (p) m.append(el('span', { class:'pend', text:`${p} pending` }));
+    const c = el('div', { class:'ocard', style:'width:150px' }, av(ini, i + 1), el('b', { text:n }), el('small', { text:t }), gp(g), m, ring());
+    row.append(c);
+  });
+  $('org').append(root, el('div', { class:'ostem' }), row);
+
+  // time at grade
+  const TAG = [['Never promoted', 15, true], ['0–6 months', 2], ['6–12 months', 6], ['12–24 months', 12], ['24+ months', 7, true]];
+  TAG.forEach(([l, n, risk]) => $('tag').append(el('div', { class:'br', role:'img', 'aria-label':`${l}: ${n} people${risk ? ', flagged' : ''}` },
+    el('span', { class:'n', text:(risk ? '⚠ ' : '') + l }), el('span', { class:'t' }, el('span', { class:risk ? 'risk' : '', style:`width:${n / 15 * 100}%` })), el('span', { class:'v', text:n }))));
+
+  // skills matrix
+  const DOM = ['Cloud', 'CI/CD', 'Containers', 'IaC', 'Observability', 'Security'];
+  const PEOPLE = [['Person 01', 'AAPEFP'], ['Person 02', 'EAAAPF'], ['Person 03', 'PPFBFU'], ['Person 04', 'AEPAAP'], ['Person 05', 'FPpFBP'], ['Person 06', 'AAAPPF'], ['Person 07', 'PFBBUF'], ['Person 08', 'EEAAAP']];
+  const lvl = { E:1, A:.85, P:.7, F:.5, B:.3, U:0 };
+  const tgt = .7;
+  const sg = $('sg');
+  sg.append(el('tr', {}, el('th', { text:'Person' }), ...DOM.map(d => el('th', { text:d }))));
+  PEOPLE.forEach(([n, s]) => {
+    const tr = el('tr', {}, el('td', {}, av(n.slice(-2), parseInt(n.slice(-2)), 'av av-s'), n));
+    [...s].forEach((ch, j) => {
+      const pending = ch === ch.toLowerCase() && ch !== ch.toUpperCase(); const L = ch.toUpperCase(); const v = lvl[L];
+      const r = v / tgt; let bg, fg = 'var(--ink)';
+      if (L === 'U') { bg = 'var(--surface-3)'; }
+      else if (r >= 1) { bg = 'var(--div-hi)'; fg = '#FFFFFF'; }
+      else if (r >= .85) { bg = 'color-mix(in srgb,var(--div-hi) 40%,var(--surface))'; }
+      else if (r >= .6) { bg = 'color-mix(in srgb,var(--div-lo) 45%,var(--surface))'; }
+      else { bg = 'var(--div-lo)'; fg = '#FFFFFF'; }
+      const td = el('td', { class:'c', tabindex:'-1', title:`${n} · ${DOM[j]}: ${L}${pending ? ' (pending)' : ''}`, style:pending ? 'background:transparent;border:2px dashed var(--warn)' : `background:${bg};color:${fg}`, text:L });
+      tr.append(td);
+    });
+    sg.append(tr);
+  });
+  // roving keyboard nav in grid
+  const cells = [...sg.querySelectorAll('td.c')]; if (cells[0]) cells[0].tabIndex = 0;
+  sg.addEventListener('keydown', e => { const i = cells.indexOf(document.activeElement); if (i < 0) return; const cols = DOM.length;
+    const m = { ArrowRight:1, ArrowLeft:-1, ArrowDown:cols, ArrowUp:-cols }[e.key]; if (!m) return; const n = cells[i + m]; if (n) { cells[i].tabIndex = -1; n.tabIndex = 0; n.focus(); e.preventDefault(); } });
+
+  // trend line
+  (function trend() {
+    const P = ['CY2022', 'CY2023', 'CY2024', 'CY2025', 'CY2026', 'CY2027'], V = [70.2, 73.5, 76.6, 78.4, null, null];
+    const W = 520, H = 220, L = 40, R = 12, T = 14, B = 30, x = i => L + i / (P.length - 1) * (W - L - R), y = v => T + (1 - (v - 50) / 50) * (H - T - B);
+    const sv = S('svg', { viewBox:`0 0 ${W} ${H}`, width:'100%', role:'img', 'aria-label':'Average technical attainment by period: ' + P.map((p, i) => `${p} ${V[i] ?? 'not yet'}`).join(', ') + '; target 75%' });
+    [50, 60, 70, 80, 90, 100].forEach(t => { sv.append(S('line', { x1:L, x2:W - R, y1:y(t), y2:y(t), style:'stroke:var(--line)' }));
+      const tx = S('text', { x:L - 6, y:y(t) + 4, 'text-anchor':'end', 'font-size':11, style:'fill:var(--ink-3)' }); tx.textContent = t + '%'; sv.append(tx); });
+    P.forEach((p, i) => { const tx = S('text', { x:x(i), y:H - 10, 'text-anchor':'middle', 'font-size':11, style:`fill:${V[i] == null ? 'var(--line-strong)' : 'var(--ink-3)'}` }); tx.textContent = p; sv.append(tx); });
+    sv.append(S('line', { x1:L, x2:W - R, y1:y(75), y2:y(75), style:'stroke:var(--ink-2)', 'stroke-dasharray':'5 4' }));
+    const tl = S('text', { x:W - R, y:y(75) - 6, 'text-anchor':'end', 'font-size':11, style:'fill:var(--ink-2)' }); tl.textContent = 'Target 75%'; sv.append(tl);
+    const pts = V.map((v, i) => v == null ? null : [x(i), y(v)]).filter(Boolean);
+    const gid = 'tg' + Math.random().toString(36).slice(2, 7);
+    const defs = S('defs'); const lg = S('linearGradient', { id:gid, x1:0, y1:0, x2:0, y2:1 });
+    lg.append(S('stop', { offset:'0%', style:'stop-color:var(--v1);stop-opacity:.28' }), S('stop', { offset:'100%', style:'stop-color:var(--v1);stop-opacity:0' })); defs.append(lg); sv.append(defs);
+    sv.append(S('path', { d:`M${pts.map(p => p.join(',')).join('L')}L${pts[pts.length - 1][0]},${y(50)}L${pts[0][0]},${y(50)}Z`, fill:`url(#${gid})` }));
+    sv.append(S('path', { d:`M${pts.map(p => p.join(',')).join('L')}`, fill:'none', style:'stroke:var(--v1)', 'stroke-width':2 }));
+    pts.forEach((p, i) => { const c = S('circle', { cx:p[0], cy:p[1], r:i === pts.length - 1 ? 5 : 3.5, style:`fill:${i === pts.length - 1 ? 'var(--surface)' : 'var(--v1)'};stroke:var(--v1);stroke-width:2` }); const t = S('title'); t.textContent = `${P[i]}: ${V[i]}%`; c.append(t); sv.append(c); });
+    const lp = pts[pts.length - 1]; const lb = S('text', { x:lp[0] + 8, y:lp[1] - 8, 'font-size':12, 'font-weight':600, style:'fill:var(--ink)' }); lb.textContent = '78.4%'; sv.append(lb);
+    $('trend').append(sv);
+  })();
+
+  // calendar (October 2026 starts Thursday)
+  const cal = $('cal');
+  ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'].forEach(d => cal.append(el('div', { class:'dh', text:d })));
+  for (let i = 0; i < 3; i++) cal.append(el('div'));
+  const EV = { 1:[['ap', '3 approved']], 2:[['pe', '2 submitted']], 6:[['ap', '5 approved'], ['pe', '4 submitted']], 7:[['pe', '6 submitted']], 8:[['ap', '2 approved']], 13:[['pe', '3 submitted']], 20:[['ms', 'Window closes']], 31:[['ms', 'Grace ends']] };
+  for (let d = 1; d <= 31; d++) { const wd = (d + 2) % 7; const we = wd === 5 || wd === 6;
+    const c = el('div', { class:'d' + (we ? ' we' : '') + (d === 8 ? ' today' : '') }, el('b', { text:d }));
+    (EV[d] || []).forEach(([k, t]) => c.append(el('span', { class:'ev ' + k, text:t }))); cal.append(c); }
+
+  // "view as table" toggles
+  const TABLES = {
+    units:[['Status', 'People'], ...U.map(([c, n]) => [{ 'u-ap':'Approved', 'u-pe':'Pending', 'u-dr':'Draft', 'u-ns':'Not started' }[c], n])],
+    seg:[['Status', 'Records'], ...SEG.map(s => [s[0], s[1]])],
+    bands:[['Band', 'People'], ...BANDS.map(b => [b.l, b.n])],
+    bullets:[['Team', 'Size', 'Attainment', 'Target'], ...TEAMS.map(t => [t[0], t[1], t[2] + '%', '75%'])],
+    strip:[['Statistic', 'Value'], ['Mean', mean.toFixed(1) + '%'], ['Median', q(.5).toFixed(1) + '%'], ['P25', q(.25).toFixed(1) + '%'], ['P75', q(.75).toFixed(1) + '%'], ['P90', q(.9).toFixed(1) + '%'], ['Std dev', sd.toFixed(1) + ' pts'], ['People', vals.length]],
+    grades:[['Grade', 'People', 'Promotion-ready'], ...GRADES.map(g => [g.l, g.n, g.ready])],
+    tag:[['Time at grade', 'People'], ...TAG.map(t => [t[0], t[1]])],
+    sg:[['Person', ...DOM], ...PEOPLE.map(([n, s]) => [n, ...[...s].map(c => c === c.toLowerCase() && c !== c.toUpperCase() ? c.toUpperCase() + ' (pending)' : c)])],
+    trend:[['Period', 'Attainment'], ['CY2022', '70.2%'], ['CY2023', '73.5%'], ['CY2024', '76.6%'], ['CY2025', '78.4%'], ['CY2026', 'Not yet locked'], ['CY2027', 'Not yet started']],
+  };
+  document.querySelectorAll('[data-table]').forEach(b => b.addEventListener('click', () => {
+    const card = b.closest('.card'); let t = card.querySelector('table.data');
+    if (t) { t.parentElement.remove(); b.textContent = 'View as table'; return; }
+    const rows = TABLES[b.dataset.table];
+    t = el('table', { class:'data' }, el('tr', {}, ...rows[0].map(h => el('th', { text:h }))), ...rows.slice(1).map(r => el('tr', {}, ...r.map((c, i) => el('td', { class:i && typeof c === 'number' ? 'num' : '', text:String(c) })))));
+    b.closest('.foot').before(el('div', { class:'tablewrap' }, t)); b.textContent = 'Hide table';
+  }));
+
+  // catalog
+  const C = DATA.catalog;
+  const ft = $('catFilters'); let fPhase = 'All', fAvail = 'All';
+  const mk = (label, kind) => { const b = el('button', { type:'button', 'aria-pressed':label === 'All' ? 'true' : 'false', text:label, onclick:() => {
+      if (kind === 'phase') fPhase = label; else fAvail = label;
+      ft.querySelectorAll(`button[data-k="${kind}"]`).forEach(x => x.setAttribute('aria-pressed', x.textContent === label ? 'true' : 'false')); renderCat(); } }); b.dataset.k = kind; return b; };
+  ft.append(el('span', { style:'font-size:12.5px;color:var(--ink-3)', text:'Phase' }), ...['All', 'D2', 'D3', 'D4', 'D5'].map(p => mk(p, 'phase')),
+    el('span', { style:'font-size:12.5px;color:var(--ink-3);margin-left:8px', text:'Data today' }), ...['All', 'Available', 'Partial', 'Missing'].map(p => mk(p, 'avail')));
+  function renderCat() {
+    const t = $('catalogT');
+    const rows = C.filter(r => (fPhase === 'All' || r.phase.includes(fPhase)) && (fAvail === 'All' || r.avail === fAvail));
+    t.replaceChildren(el('tr', {}, ...['#', 'Reference widget', 'ERP equivalent', 'Who sees it', 'Data today', 'Phase'].map(h => el('th', { text:h }))),
+      ...rows.map(r => el('tr', {}, el('td', { class:'num', text:r.n }), el('td', { text:r.ref }), el('td', { text:r.cal }), el('td', { text:r.who }),
+        el('td', {}, el('span', { class:'avail ' + { Available:'y', Partial:'p', Missing:'n' }[r.avail], text:r.availNote })), el('td', {}, el('span', { class:'ph', text:r.phase })))));
+  }
+  renderCat();
+
+  // tile swatches and ramp
+  [['Technical', '--tile-technical', '6.5:1'], ['CEFR', '--tile-cefr', '5.5:1'], ['Behavioral', '--tile-behavioral', '5.2:1'], ['AI insights', '--tile-ai', '7.1:1'], ['Success', '--tile-success', '5.0:1'], ['Neutral', '--tile-neutral', '14.6:1'], ['Period hero', '--hero-period', '≥ 5.5:1'], ['Greeting hero', '--hero-greeting', '≥ 6.5:1']]
+    .forEach(([n, v, c]) => $('tileSw').append(el('div', {}, el('span', { style:`background:var(${v})`, text:n }), el('p', { text:`${v} · white ${c}` }))));
+  ['G13', 'G14', 'G15', 'G16', 'G17', 'G18'].forEach((g, i) => $('ramp').append(el('span', { style:`background:var(--g${i + 1});color:${i >= 2 ? '#FFFFFF' : '#0B1630'}`, text:g })));
+
+  // gantt (weeks 1–10, 5 days each)
+  const G = $('gantt');
+  G.append(el('div', { class:'gw' }, el('div'), el('div', {}, ...Array.from({ length:10 }, (_, i) => el('span', { text:'W' + (i + 1) })))));
+  DATA.phases.forEach(p => G.append(el('div', { class:'gr' }, el('div', { class:'gl', title:p.name }, el('b', { text:p.id }), p.name),
+    el('div', { class:'gt' }, el('a', { class:'gb', href:'#ph-' + p.id, style:`left:${p.start / 50 * 100}%;width:${(p.end - p.start) / 50 * 100}%;background:${p.c}`, text:p.effort })))));
+  const PH = $('phases');
+  DATA.phases.forEach(p => {
+    const card = el('article', { class:'phase', id:'ph-' + p.id, style:`--c:${p.c}` },
+      el('div', { class:'phase-h' }, el('span', { class:'id', text:p.id }), el('h3', { text:p.name }), el('span', { class:'when', text:`${p.repo} · ${p.effort}` })),
+      el('p', { text:p.scope }), el('div', { class:'deps', text:'Depends on: ' + p.deps }));
+    card.append(el('details', { class:'prompt' }, el('summary', {}, `Claude Code prompt · branch ${p.branch}`),
+      el('div', { class:'pb' }, el('button', { class:'copy', type:'button', text:'Copy' }), el('pre', { class:'code', text:DATA.prompts[p.id] }))));
+    PH.append(card);
+  });
+  document.addEventListener('click', e => { const b = e.target.closest('.copy'); if (!b) return; const pre = b.parentElement.querySelector('pre');
+    const done = t => { b.textContent = t; setTimeout(() => { b.textContent = 'Copy'; }, 1600); };
+    const fb = () => { const r = document.createRange(); r.selectNodeContents(pre); const s = getSelection(); s.removeAllRanges(); s.addRange(r); done('Selected, press ⌘C'); };
+    try { navigator.clipboard.writeText(pre.textContent).then(() => done('Copied'), fb); } catch (err) { fb(); } });
+})();
+</script>
+</body>
+</html>

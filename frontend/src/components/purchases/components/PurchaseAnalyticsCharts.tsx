@@ -1,203 +1,157 @@
 'use client';
 
-import type { CSSProperties } from 'react';
-import { formatNumber } from '@/lib/app-settings';
-import { ChartMetricBadge, ChartTitle, ChartTooltipBox, ChartValueLegend, DonutLayout, chartPanelStyle } from '@/components/analytics/AnalyticsWidgets';
-import { chartAxisTick, chartLegendStyle, useChartTheme } from '@/components/analytics/chart-palette';
-import {
-  Area,
-  Bar,
-  BarChart,
-  CartesianGrid,
-  Cell,
-  ComposedChart,
-  Legend,
-  Line,
-  Pie,
-  PieChart,
-  ReferenceLine,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from 'recharts';
+import { formatCount, formatNumber, type AppFormatSettingsSource } from '@/lib/app-settings';
+import { BridgeChart, ChartCard, MonthlyColumnChart, RankedBars, StackedMonthlyChart, type MonthPoint } from '@/components/analytics/ProCharts';
+import { useChartTheme } from '@/components/analytics/chart-palette';
+import type { usePurchaseAnalyticsModel } from '../hooks/usePurchaseAnalyticsModel';
 
-type GeneralSettings = Parameters<typeof formatNumber>[1];
-
-interface PurchaseAnalyticsChartsProps {
-  monthlyChartData: any[];
-  supplierChartData: any[];
-  warehouseChartData: any[];
-  totalNetAmount: number;
-  averageMonthlyPurchase: number;
-  creditShare: number;
-  taxFreightTotal: number;
-  topSupplier?: { amount: number };
-  generalSettings: GeneralSettings;
-  money: (value: number) => string;
-  moneyAxis: (value: number) => string;
-}
+type PurchaseAnalyticsModel = ReturnType<typeof usePurchaseAnalyticsModel>;
 
 export function PurchaseAnalyticsCharts({
-  monthlyChartData,
-  supplierChartData,
-  warehouseChartData,
-  totalNetAmount,
-  averageMonthlyPurchase,
-  creditShare,
-  taxFreightTotal,
-  topSupplier,
-  generalSettings,
+  model,
+  settings,
   money,
-  moneyAxis,
-}: PurchaseAnalyticsChartsProps) {
+}: {
+  model: PurchaseAnalyticsModel;
+  settings: AppFormatSettingsSource | null | undefined;
+  money: (value: number) => string;
+}) {
   const theme = useChartTheme();
-  const { series } = theme;
-  const tick = chartAxisTick(theme);
-
-  const chartTooltip = ({ active, payload, label }: any) => {
-    if (!active || !payload?.length) return null;
-    return (
-      <ChartTooltipBox
-        label={label}
-        entries={payload.map((entry: any) => ({
-          key: `${entry.dataKey}-${entry.name}`,
-          name: entry.name,
-          color: entry.color ?? entry.payload?.fill,
-          value: entry.dataKey === 'purchases' ? formatNumber(Number(entry.value), generalSettings) : money(Number(entry.value)),
-        }))}
-      />
-    );
-  };
+  const { months, totals, axis } = model;
+  const count = (value: number) => formatCount(value, settings);
+  const share = (value: number, total: number) => `${(total > 0 ? value / total * 100 : 0).toFixed(1)}%`;
+  const monthTitle = (point: MonthPoint) => String(point.longLabel ?? point.label);
 
   return (
     <>
-      <div style={analyticsMainGridStyle}>
-        <div style={chartPanelStyle}>
-          <ChartTitle
-            title="Month Wise Purchase Trend"
-            subtitle="Gross purchase, net purchase, and average invoice value"
-            right={<ChartMetricBadge label="Monthly Average" value={money(averageMonthlyPurchase)} />}
+      <h2 className="analytics-section-title">Trends</h2>
+      <div className="analytics-row-main">
+        <ChartCard
+          title="Net Purchases By Month"
+          subtitle="Posted purchase value each month; the dashed line is the monthly average"
+          metric={{ label: 'Monthly Average', value: money(model.averageMonthly) }}
+          table={{
+            columns: [
+              { key: 'month', label: 'Month' },
+              { key: 'count', label: 'Invoices', numeric: true },
+              { key: 'gross', label: 'Gross', numeric: true },
+              { key: 'net', label: 'Net', numeric: true },
+              { key: 'average', label: 'Average Invoice', numeric: true },
+            ],
+            rows: months.map(month => ({
+              month: month.longLabel,
+              count: count(month.purchases),
+              gross: money(month.grossAmount),
+              net: money(month.netAmount),
+              average: money(month.averageInvoice),
+            })),
+          }}
+        >
+          <MonthlyColumnChart
+            data={months}
+            dataKey="netAmount"
+            seriesName="Net Purchases"
+            average={model.averageMonthly}
+            format={money}
+            axis={axis}
+            tooltipTitle={monthTitle}
           />
-          <ResponsiveContainer width="100%" height={230}>
-            <ComposedChart data={monthlyChartData} margin={{ top: 6, right: 14, left: 0, bottom: 0 }}>
-              <CartesianGrid stroke={theme.grid} vertical={false} />
-              <XAxis dataKey="month" tick={tick} axisLine={false} tickLine={false} />
-              <YAxis tickFormatter={moneyAxis} tick={tick} axisLine={false} tickLine={false} />
-              <Tooltip content={chartTooltip} cursor={{ fill: theme.grid }} />
-              <Legend wrapperStyle={chartLegendStyle} iconType="square" iconSize={10} />
-              <ReferenceLine y={averageMonthlyPurchase} stroke={series.slate} strokeDasharray="4 4" ifOverflow="extendDomain" />
-              <Bar dataKey="grossAmount" name="Gross Amount" fill={series.blueSoft} radius={[3, 3, 0, 0]} maxBarSize={28} />
-              <Area type="monotone" dataKey="netAmount" name="Net Amount" stroke={series.blue} strokeWidth={2} fill={series.blue} fillOpacity={0.08} />
-              <Line type="monotone" dataKey="averageInvoice" name="Average Invoice" stroke={series.amber} strokeWidth={2} dot={{ r: 3, fill: theme.surface, strokeWidth: 2 }} activeDot={{ r: 4 }} />
-            </ComposedChart>
-          </ResponsiveContainer>
-        </div>
+        </ChartCard>
 
-        <div style={chartPanelStyle}>
-          <ChartTitle
-            title="Cash Vs Credit Purchases"
-            subtitle="Monthly payment-type mix and purchase count"
-            right={<ChartMetricBadge label="Credit Share" value={`${formatNumber(creditShare, generalSettings)}%`} />}
+        <ChartCard
+          title="Gross To Net"
+          subtitle="How discount, tax, and freight move gross value to the net amount"
+          legend={[
+            { name: 'Total', color: theme.series.blue },
+            { name: 'Reduces', color: theme.series.teal },
+            { name: 'Adds', color: theme.series.amber },
+          ]}
+          table={{
+            columns: [{ key: 'step', label: 'Step' }, { key: 'amount', label: 'Amount', numeric: true }, { key: 'share', label: 'Of Gross', numeric: true }],
+            rows: [
+              { step: 'Gross Amount', amount: money(totals.grossAmount), share: share(totals.grossAmount, totals.grossAmount) },
+              { step: 'Less Discount', amount: money(-totals.discountAmount), share: share(totals.discountAmount, totals.grossAmount) },
+              { step: 'Add Tax', amount: money(totals.taxAmount), share: share(totals.taxAmount, totals.grossAmount) },
+              { step: 'Add Freight', amount: money(totals.freightAmount), share: share(totals.freightAmount, totals.grossAmount) },
+              { step: 'Net Amount', amount: money(totals.netAmount), share: share(totals.netAmount, totals.grossAmount) },
+            ],
+          }}
+        >
+          <BridgeChart
+            format={money}
+            axis={axis}
+            steps={[
+              { name: 'Gross', amount: totals.grossAmount, kind: 'total' },
+              { name: 'Discount', amount: -totals.discountAmount, kind: 'decrease' },
+              { name: 'Tax', amount: totals.taxAmount, kind: 'increase' },
+              { name: 'Freight', amount: totals.freightAmount, kind: 'increase' },
+              { name: 'Net', amount: totals.netAmount, kind: 'total' },
+            ]}
           />
-          <ResponsiveContainer width="100%" height={230}>
-            <ComposedChart data={monthlyChartData} margin={{ top: 6, right: 14, left: 0, bottom: 0 }}>
-              <CartesianGrid stroke={theme.grid} vertical={false} />
-              <XAxis dataKey="month" tick={tick} axisLine={false} tickLine={false} />
-              <YAxis yAxisId="amount" tickFormatter={moneyAxis} tick={tick} axisLine={false} tickLine={false} />
-              <YAxis yAxisId="count" orientation="right" tickFormatter={value => formatNumber(Number(value), generalSettings)} tick={tick} axisLine={false} tickLine={false} />
-              <Tooltip content={chartTooltip} cursor={{ fill: theme.grid }} />
-              <Legend wrapperStyle={chartLegendStyle} iconType="square" iconSize={10} />
-              <Bar yAxisId="amount" dataKey="cashAmount" name="Cash Purchases" stackId="payment" fill={series.teal} maxBarSize={30} />
-              <Bar yAxisId="amount" dataKey="creditAmount" name="Credit Purchases" stackId="payment" fill={series.blue} radius={[3, 3, 0, 0]} maxBarSize={30} />
-              <Line yAxisId="count" type="monotone" dataKey="purchases" name="Purchase Count" stroke={series.slate} strokeWidth={2} dot={{ r: 3, fill: theme.surface, strokeWidth: 2 }} />
-            </ComposedChart>
-          </ResponsiveContainer>
-        </div>
+        </ChartCard>
       </div>
 
-      <div style={analyticsSmallGridStyle}>
-        <div style={chartPanelStyle}>
-          <ChartTitle
-            title="Top Suppliers"
-            subtitle="Highest purchase value and invoice count"
-            right={<ChartMetricBadge label="Top" value={topSupplier ? money(topSupplier.amount) : money(0)} />}
+      <h2 className="analytics-section-title">Breakdown</h2>
+      <div className="analytics-row-three">
+        <ChartCard
+          title="Cash And Credit By Month"
+          subtitle="Net value bought on credit and paid in cash"
+          metric={{ label: 'On Credit', value: `${formatNumber(totals.creditShare, settings)}%` }}
+          legend={[
+            { name: 'Credit', color: theme.series.blue },
+            { name: 'Cash', color: theme.series.teal },
+          ]}
+          table={{
+            columns: [
+              { key: 'month', label: 'Month' },
+              { key: 'credit', label: 'Credit', numeric: true },
+              { key: 'cash', label: 'Cash', numeric: true },
+              { key: 'net', label: 'Net', numeric: true },
+            ],
+            rows: months.map(month => ({
+              month: month.longLabel,
+              credit: money(month.creditAmount),
+              cash: money(month.cashAmount),
+              net: money(month.netAmount),
+            })),
+          }}
+        >
+          <StackedMonthlyChart
+            data={months}
+            series={[
+              { key: 'cashAmount', name: 'Cash', color: theme.series.teal },
+              { key: 'creditAmount', name: 'Credit', color: theme.series.blue },
+            ]}
+            format={money}
+            axis={axis}
+            tooltipTitle={monthTitle}
           />
-          <ResponsiveContainer width="100%" height={185}>
-            <BarChart data={supplierChartData} layout="vertical" margin={{ top: 2, right: 12, left: 12, bottom: 2 }}>
-              <CartesianGrid stroke={theme.grid} horizontal={false} />
-              <XAxis type="number" tickFormatter={moneyAxis} tick={tick} axisLine={false} tickLine={false} />
-              <YAxis type="category" dataKey="name" width={122} tick={tick} axisLine={false} tickLine={false} />
-              <Tooltip content={chartTooltip} cursor={{ fill: theme.grid }} />
-              <Bar dataKey="amount" name="Net Amount" fill={series.blue} radius={[0, 3, 3, 0]} barSize={13} />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
+        </ChartCard>
 
-        <div style={chartPanelStyle}>
-          <ChartTitle
-            title="Warehouse Purchase Share"
-            subtitle="Where purchases are received"
-            right={<ChartMetricBadge label="Warehouses" value={formatNumber(warehouseChartData.length, generalSettings)} />}
-          />
-          <DonutLayout
-            centerLabel="Received"
-            centerValue={money(totalNetAmount)}
-            chart={(
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Tooltip content={chartTooltip} />
-                  <Pie data={warehouseChartData} dataKey="amount" nameKey="name" innerRadius={50} outerRadius={72} paddingAngle={2} stroke={theme.surface} strokeWidth={2}>
-                    {warehouseChartData.map((entry: any, index: number) => (
-                      <Cell key={entry.name} fill={theme.categorical[index % theme.categorical.length]} />
-                    ))}
-                  </Pie>
-                </PieChart>
-              </ResponsiveContainer>
-            )}
-            legend={(
-              <ChartValueLegend
-                items={warehouseChartData.map((entry: any, index: number) => ({
-                  name: String(entry.name),
-                  color: theme.categorical[index % theme.categorical.length],
-                  value: money(Number(entry.amount)),
-                }))}
-              />
-            )}
-          />
-        </div>
+        <ChartCard
+          title="Top Suppliers"
+          subtitle="Net purchase value and share of the total"
+          metric={{ label: 'Suppliers', value: count(model.suppliers.length) }}
+          table={{
+            columns: [{ key: 'name', label: 'Supplier' }, { key: 'count', label: 'Invoices', numeric: true }, { key: 'net', label: 'Net', numeric: true }, { key: 'share', label: 'Share', numeric: true }],
+            rows: model.suppliers.map(row => ({ name: row.name, count: count(row.count), net: money(row.value), share: share(row.value, totals.netAmount) })),
+          }}
+        >
+          <RankedBars items={model.suppliers} total={totals.netAmount} format={money} color={theme.series.blue} countLabel={value => `${count(value)} Invoices`} />
+        </ChartCard>
 
-        <div style={chartPanelStyle}>
-          <ChartTitle
-            title="Tax And Freight Impact"
-            subtitle="Monthly add-on cost view"
-            right={<ChartMetricBadge label="Total" value={money(taxFreightTotal)} />}
-          />
-          <ResponsiveContainer width="100%" height={185}>
-            <BarChart data={monthlyChartData} margin={{ top: 2, right: 12, left: 0, bottom: 2 }}>
-              <CartesianGrid stroke={theme.grid} vertical={false} />
-              <XAxis dataKey="month" tick={tick} axisLine={false} tickLine={false} />
-              <YAxis tickFormatter={moneyAxis} tick={tick} axisLine={false} tickLine={false} />
-              <Tooltip content={chartTooltip} cursor={{ fill: theme.grid }} />
-              <Legend wrapperStyle={chartLegendStyle} iconType="square" iconSize={10} />
-              <Bar dataKey="taxAmount" name="Tax" fill={series.amber} radius={[3, 3, 0, 0]} maxBarSize={20} />
-              <Bar dataKey="freightAmount" name="Freight" fill={series.teal} radius={[3, 3, 0, 0]} maxBarSize={20} />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
+        <ChartCard
+          title="Received By Warehouse"
+          subtitle="Where purchased stock was received"
+          metric={{ label: 'Warehouses', value: count(model.warehouses.length) }}
+          table={{
+            columns: [{ key: 'name', label: 'Warehouse' }, { key: 'count', label: 'Invoices', numeric: true }, { key: 'net', label: 'Net', numeric: true }, { key: 'share', label: 'Share', numeric: true }],
+            rows: model.warehouses.map(row => ({ name: row.name, count: count(row.count), net: money(row.value), share: share(row.value, totals.netAmount) })),
+          }}
+        >
+          <RankedBars items={model.warehouses} total={totals.netAmount} format={money} color={theme.series.blue} countLabel={value => `${count(value)} Invoices`} />
+        </ChartCard>
       </div>
     </>
   );
 }
-
-const analyticsMainGridStyle: CSSProperties = {
-  display: 'grid',
-  gridTemplateColumns: 'minmax(0, 1.35fr) minmax(0, 1fr)',
-  gap: 12,
-};
-
-const analyticsSmallGridStyle: CSSProperties = {
-  display: 'grid',
-  gridTemplateColumns: 'minmax(0, 1.15fr) minmax(0, 0.85fr) minmax(0, 1fr)',
-  gap: 12,
-};

@@ -1,9 +1,11 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import { useSession } from 'next-auth/react';
 import { IconEye, IconRefresh, IconThumbDown, IconThumbUp } from '@tabler/icons-react';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { TextareaField } from '@/components/ui/FormFields';
 import { InlineAlert } from '@/components/ui/InlineAlert';
 import { PageHeader } from '@/components/ui/PageHeader';
@@ -14,6 +16,7 @@ import { TableMessageRow } from '@/components/ui/TableMessageRow';
 import { formatDate, formatMoney } from '@/lib/app-settings';
 import { useGeneralSettings } from '@/lib/api/settings';
 import { useApproveVoucher, useRejectVoucher, useVoucherDetail, useVouchersList } from '@/lib/api/vouchers';
+import { hasPermission } from '@/lib/auth/session-user';
 import { friendlyErrorMessage } from '@/lib/erp-utils';
 
 type VoucherType = 'BRV' | 'BPV' | 'CRV' | 'CPV' | 'JV' | 'CV' | 'DN' | 'CN' | 'PI' | 'PR' | 'SI' | 'SR' | 'SA';
@@ -74,7 +77,10 @@ function voucherTypeLabel(type: string) {
 }
 
 export function ApprovalQueuePage() {
+  const { data: session } = useSession();
+  const userCanApprove = hasPermission(session?.user.role, 'vouchers.approve');
   const { data: generalSettings } = useGeneralSettings();
+  const [approveConfirmOpen, setApproveConfirmOpen] = useState(false);
   const [searchText, setSearchText] = useState('');
   const [search, setSearch] = useState('');
   const [voucherType, setVoucherType] = useState('');
@@ -116,6 +122,7 @@ export function ApprovalQueuePage() {
   }
 
   async function approveSelectedVoucher() {
+    setApproveConfirmOpen(false);
     if (!selectedVoucher?.id) {
       setMessage({ kind: 'error', text: 'Please select a voucher to approve.' });
       return;
@@ -154,6 +161,14 @@ export function ApprovalQueuePage() {
   }
 
   const detail = detailQuery.data;
+  // Maker-checker: the backend refuses approval by the person who created or sent the voucher.
+  const isOwnVoucher = Boolean(session?.user.id && detail
+    && (detail.created_by === session.user.id || detail.approval_requested_by === session.user.id));
+  const approvalBlockedReason = !userCanApprove
+    ? 'Your role cannot approve or reject vouchers.'
+    : isOwnVoucher
+      ? 'You created or sent this voucher for approval, so another approver must approve or reject it.'
+      : null;
   const detailLines = (detail?.lines ?? []) as ApprovalVoucherLine[];
   const approvalStatus = (detail?.approval_status || 'Pending') as ApprovalStatus;
   const isFiltered = Boolean(search || voucherType);
@@ -276,7 +291,7 @@ export function ApprovalQueuePage() {
                   variant="secondary"
                   icon={<IconThumbDown size={16} stroke={1.8} />}
                   onClick={rejectSelectedVoucher}
-                  disabled={approvalBusy || !rejectReason.trim() || !detail}
+                  disabled={approvalBusy || !rejectReason.trim() || !detail || Boolean(approvalBlockedReason)}
                   loading={rejectVoucher.isPending}
                 >
                   Reject Voucher
@@ -284,8 +299,8 @@ export function ApprovalQueuePage() {
                 <Button
                   variant="primary"
                   icon={<IconThumbUp size={16} stroke={1.8} />}
-                  onClick={approveSelectedVoucher}
-                  disabled={approvalBusy || !detail}
+                  onClick={() => setApproveConfirmOpen(true)}
+                  disabled={approvalBusy || !detail || Boolean(approvalBlockedReason)}
                   loading={approveVoucher.isPending}
                 >
                   Approve
@@ -295,6 +310,7 @@ export function ApprovalQueuePage() {
           >
             {detailQuery.isLoading && <p className="form-hint" style={{ margin: 0 }}>Loading Approval Detail…</p>}
             {detailQuery.error && <InlineAlert tone="danger">{friendlyErrorMessage(detailQuery.error, 'Unable to load Approval Detail.')}</InlineAlert>}
+            {detail && approvalBlockedReason && <InlineAlert tone="info">{approvalBlockedReason}</InlineAlert>}
             {detail && (
               <>
                 <dl className="detail-list">
@@ -366,6 +382,17 @@ export function ApprovalQueuePage() {
           </SidePanel>
         )}
       </div>
+      <ConfirmDialog
+        open={approveConfirmOpen}
+        title="Approve Voucher?"
+        message={`Approve ${detail?.voucher_number ?? 'this voucher'} for ${detail ? money(detail.total_debit) : ''}? After approval it can be posted to the ledger.`}
+        confirmLabel="Yes, Approve"
+        cancelLabel="No"
+        variant="primary"
+        loading={approveVoucher.isPending}
+        onConfirm={approveSelectedVoucher}
+        onCancel={() => setApproveConfirmOpen(false)}
+      />
     </main>
   );
 }

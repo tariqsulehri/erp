@@ -1,4 +1,6 @@
+import type { Prisma } from '@prisma/client';
 import { prisma } from '../../db/prisma.js';
+import type { AccessScope } from '../auth/access-rules.js';
 import type {
   CreateCategoryInput,
   CreateProductInput,
@@ -55,7 +57,21 @@ function uomTypeFromCode(code?: string | null) {
 }
 
 export class ProductService {
-  constructor(private readonly companyId: string) {}
+  /** `scope` limits stock figures: Branch users see their Branch's stock, Warehouse users their Warehouse's. */
+  constructor(private readonly companyId: string, private readonly scope?: AccessScope) {}
+
+  /** Adds the user's Branch / Warehouse to `params` and returns the matching stock filter (empty for All Branches). */
+  private visibleStockSql(params: unknown[]) {
+    if (this.scope?.accessLevel === 'BRANCH') {
+      params.push(this.scope.branchId);
+      return `AND branch_id = CAST($${params.length} AS uuid)`;
+    }
+    if (this.scope?.accessLevel === 'WAREHOUSE') {
+      params.push(this.scope.warehouseId);
+      return `AND warehouse_id = CAST($${params.length} AS uuid)`;
+    }
+    return '';
+  }
 
   async suggestSku(prefix = 'PRD') {
     const rows = await prisma.$queryRawUnsafe<Array<{ sku?: string }>>(
@@ -133,6 +149,7 @@ export class ProductService {
     }
 
     const whereSql = where.join('\n          AND ');
+    const stockSql = this.visibleStockSql(params);
     const fromSql = `
       FROM inventory_items i
       LEFT JOIN inventory_categories c ON c.id = i.category_id
@@ -161,7 +178,7 @@ export class ProductService {
           SUM(available_stock) AS available_stock,
           MAX(average_cost) AS average_cost
         FROM inventory_stock_balances
-        WHERE item_id = i.id AND company_id = i.company_id AND is_active = true
+        WHERE item_id = i.id AND company_id = i.company_id AND is_active = true ${stockSql}
       ) ss ON true
       WHERE ${whereSql}
     `;
@@ -248,6 +265,8 @@ export class ProductService {
   }
 
   async getById(id: string) {
+    const params: unknown[] = [this.companyId, id];
+    const stockSql = this.visibleStockSql(params);
     const result = await prisma.$queryRawUnsafe<any[]>(
       `
         SELECT * FROM (
@@ -317,14 +336,13 @@ export class ProductService {
           LEFT JOIN LATERAL (
             SELECT SUM(stock_on_hand) AS stock_on_hand, SUM(reserved_stock) AS reserved_stock, MAX(average_cost) AS average_cost
             FROM inventory_stock_balances
-            WHERE item_id = i.id AND company_id = i.company_id AND is_active = true
+            WHERE item_id = i.id AND company_id = i.company_id AND is_active = true ${stockSql}
           ) ss ON true
           WHERE i.company_id = CAST($1 AS uuid) AND i.id = CAST($2 AS uuid)
           LIMIT 1
         ) item
       `,
-      this.companyId,
-      id,
+      ...params,
     );
     return result[0] ?? null;
   }
@@ -516,17 +534,65 @@ export class ProductService {
     }
     if (fields.parent_id && fields.parent_id === id) throw businessError('A Category cannot be its own parent.');
 
-    return prisma.inventoryCategory.update({
-      where: { id },
-      data: {
-        code: fields.code,
-        name: fields.name,
-        description: fields.description,
-        parentId: fields.parent_id,
-        sortOrder: fields.sort_order,
-        isActive: fields.is_active,
-      },
+    const newParentId = fields.parent_id === undefined ? category.parentId : (fields.parent_id || null);
+    const moving = newParentId !== category.parentId;
+
+    return prisma.$transaction(async transaction => {
+      if (moving) await this.moveCategory(transaction, category, newParentId);
+      return transaction.inventoryCategory.update({
+        where: { id },
+        data: {
+          code: fields.code,
+          name: fields.name,
+          description: fields.description,
+          sortOrder: fields.sort_order,
+          isActive: fields.is_active,
+        },
+      });
     });
+  }
+
+  /**
+   * Moves a category (with its whole sub-tree) under a new parent, or to the top level when parentId is null.
+   * Level and path are recalculated for every moved category, and moving under its own descendant is refused.
+   */
+  private async moveCategory(
+    transaction: Prisma.TransactionClient,
+    category: { id: string; level: number; path: string },
+    parentId: string | null,
+  ) {
+    let parentLevel = -1;
+    let parentPath = '';
+    if (parentId) {
+      const parent = await transaction.inventoryCategory.findFirst({ where: { id: parentId, companyId: this.companyId } });
+      if (!parent) throw businessError('Parent Category not found.');
+      if (parent.path.split('/').includes(category.id)) {
+        throw businessError('A Category cannot be moved under one of its own Sub Categories.');
+      }
+      parentLevel = parent.level;
+      parentPath = parent.path;
+    }
+
+    const descendants = await transaction.inventoryCategory.findMany({
+      where: { companyId: this.companyId, path: { startsWith: `${category.path}/` } },
+      select: { id: true, level: true, path: true },
+    });
+    const newLevel = parentLevel + 1;
+    const levelChange = newLevel - category.level;
+    const deepest = Math.max(category.level, ...descendants.map(row => row.level)) + levelChange;
+    if (deepest > 7) throw businessError('Maximum nesting depth would be exceeded by this move.');
+
+    const newPath = parentPath ? `${parentPath}/${category.id}` : category.id;
+    await transaction.inventoryCategory.update({
+      where: { id: category.id },
+      data: { parentId, level: newLevel, path: newPath },
+    });
+    for (const row of descendants) {
+      await transaction.inventoryCategory.update({
+        where: { id: row.id },
+        data: { level: row.level + levelChange, path: `${newPath}${row.path.slice(category.path.length)}` },
+      });
+    }
   }
 
   async deleteCategory(id: string) {
@@ -536,7 +602,9 @@ export class ProductService {
     ]);
     if (itemCount > 0) throw businessError(`Cannot delete. ${itemCount} product(s) use this Category.`);
     if (childCount > 0) throw businessError(`Cannot delete. This Category has ${childCount} sub-categor${childCount === 1 ? 'y' : 'ies'}.`);
-    await prisma.inventoryCategory.delete({ where: { id } });
+    // Scoped to this company: an id from another company deletes nothing and reports not found.
+    const deleted = await prisma.inventoryCategory.deleteMany({ where: { id, companyId: this.companyId } });
+    if (deleted.count === 0) throw businessError('Category not found.', 404);
   }
 
   async listUom() {
@@ -602,7 +670,8 @@ export class ProductService {
       },
     });
     if (count > 0) throw businessError(`Cannot delete. ${count} product(s) use this UOM.`);
-    await prisma.unitOfMeasure.delete({ where: { id } });
+    const deleted = await prisma.unitOfMeasure.deleteMany({ where: { id, companyId: this.companyId } });
+    if (deleted.count === 0) throw businessError('UOM not found.', 404);
   }
 
   private async validateStockLevels(minimum?: number, maximum?: number) {

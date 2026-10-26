@@ -14,31 +14,31 @@ import {
   PurchaseHeaderForm,
   PurchaseLineEntry,
   PurchaseLineTable,
-  PurchaseMessageBanner,
   PurchaseSummaryFooter,
   PurchaseToolbar,
 } from '@/components/purchases/components';
+import { DocumentMessage, DocumentPage, LineShortcutHint, LinesPanel, useLineEntryKeyboard } from '@/components/documents';
 import { usePurchaseLineEditor } from '@/components/purchases/hooks/usePurchaseLineEditor';
 import { usePurchaseTotals } from '@/components/purchases/hooks/usePurchaseTotals';
 import { today } from '@/components/purchases/PurchaseVoucherHelpers';
+import { useSaleBranch, useSaleBranchOptions } from './hooks/useSaleBranch';
 import { useSaleSupportOptions } from './hooks/useSaleSupportOptions';
 import type { SaleMessageKind, SalePaymentType } from './SaleVoucherTypes';
 
 export default function SaleVoucherPage() {
   const { data: generalSettings } = useGeneralSettings();
-  const supportQuery = useSaleSupportData();
+  const branch = useSaleBranch();
+  const supportQuery = useSaleSupportData(branch.branchId || undefined);
   const createDraft = useCreateSaleDraft();
   const createAndPost = useCreateAndPostSale();
   const invalidateSaleQueries = useInvalidateSaleQueries();
 
-  const [viewMode, setViewMode] = useState<'posted' | 'entry' | 'analytics'>('posted');
+  const [viewMode, setViewMode] = useState<'posted' | 'entry' | 'analytics'>('analytics');
   const [saleDate, setSaleDate] = useState(today());
   const [customerId, setCustomerId] = useState('');
   const [paymentType, setPaymentType] = useState<SalePaymentType>('Cash');
   const [deliveryDate, setDeliveryDate] = useState(today());
   const [dueDate, setDueDate] = useState(today());
-  const [warehouseId, setWarehouseId] = useState('');
-  const [locationId, setLocationId] = useState('');
   const [customerReferenceNumber, setCustomerReferenceNumber] = useState('');
   const [deliveryNoteNumber, setDeliveryNoteNumber] = useState('');
   const [freightAmount, setFreightAmount] = useState('');
@@ -47,13 +47,12 @@ export default function SaleVoucherPage() {
 
   const saving = createDraft.isPending || createAndPost.isPending;
   const postingDateGuard = usePostingDateGuard(saleDate, 'Sale Date');
-  const dateValidation = postingDateGuard.dateValidation;
   const isSaleDateValid = postingDateGuard.dateIsValid;
   const money = useMemo(() => (value: number) => formatMoney(value, generalSettings), [generalSettings]);
-  const { customers, items, warehouses, locations } = useSaleSupportOptions(supportQuery.data);
+  const { customers, items, branches, locations } = useSaleSupportOptions(supportQuery.data);
+  const { selectedBranch, branchLocations, resetBranch } = useSaleBranchOptions(branch, branches, locations);
+  const { branchId, isBranchUser, locationId, setLocationId, changeBranch } = branch;
   const selectedCustomer = customers.find(customer => customer.value === customerId);
-  const selectedWarehouse = warehouses.find(warehouse => warehouse.value === warehouseId);
-  const warehouseLocations = useMemo(() => locations.filter(location => location.warehouseId === warehouseId), [locations, warehouseId]);
 
   const {
     lineDraft,
@@ -70,7 +69,8 @@ export default function SaleVoucherPage() {
     resetLineEditor,
   } = usePurchaseLineEditor({
     items,
-    onDefaultWarehouseChange: setWarehouseId,
+    // Sale items are always taken from the selected Branch, so an item's default Warehouse is ignored.
+    onDefaultWarehouseChange: () => undefined,
     onError: text => setMessage({ kind: 'error', text }),
     onClearMessage: () => setMessage(null),
   });
@@ -80,21 +80,6 @@ export default function SaleVoucherPage() {
   const dateStatusMessage = postingDateGuard.isChecking ? 'Checking Sale Date...' : postingDateGuard.statusMessage;
   const newDisabled = postingDateGuard.disabled;
   const newDisabledReason = dateStatusMessage || 'Sale Date is being checked.';
-
-  useEffect(() => {
-    if (!warehouseId && warehouses.length > 0) {
-      setWarehouseId(warehouses.find(warehouse => warehouse.isDefault)?.value ?? warehouses[0].value);
-    }
-  }, [warehouseId, warehouses]);
-
-  useEffect(() => {
-    if (!warehouseId || !selectedWarehouse?.useLocations) {
-      setLocationId('');
-      return;
-    }
-    if (locationId && warehouseLocations.some(location => location.value === locationId)) return;
-    setLocationId(warehouseLocations.find(location => location.isDefault)?.value ?? '');
-  }, [locationId, selectedWarehouse?.useLocations, warehouseId, warehouseLocations]);
 
   useEffect(() => {
     if (!customerId || !selectedCustomer || paymentType !== 'Credit' || !isSaleDateValid) return;
@@ -116,8 +101,7 @@ export default function SaleVoucherPage() {
     setPaymentType('Cash');
     setDeliveryDate(today());
     setDueDate(today());
-    setWarehouseId(warehouses.find(warehouse => warehouse.isDefault)?.value ?? warehouses[0]?.value ?? '');
-    setLocationId('');
+    resetBranch();
     setCustomerReferenceNumber('');
     setDeliveryNoteNumber('');
     setFreightAmount('');
@@ -132,9 +116,8 @@ export default function SaleVoucherPage() {
       postingDateError: postingDateGuard.isBlocked ? dateStatusMessage : undefined,
       customerId,
       selectedCustomer,
-      warehouseId,
-      locationId,
-      selectedWarehouse,
+      branchId,
+      selectedBranch,
       paymentType,
       dueDate,
       deliveryDate,
@@ -174,7 +157,7 @@ export default function SaleVoucherPage() {
       paymentType,
       dueDate,
       deliveryDate,
-      warehouseId,
+      branchId,
       locationId,
       customerReferenceNumber,
       deliveryNoteNumber,
@@ -217,12 +200,21 @@ export default function SaleVoucherPage() {
   }
 
   const actionDisabled = saving || supportQuery.isLoading || supportQuery.isError || postingDateGuard.disabled;
+  const lineKeyboard = useLineEntryKeyboard({
+    enabled: viewMode === 'entry',
+    onSave: () => saveSale(false),
+    saveDisabled: actionDisabled,
+    onCommitLine: addItemLine,
+    commitDisabled: supportQuery.isLoading || supportQuery.isError,
+    onNewLine: cancelLineEdit,
+  });
 
   if (viewMode === 'posted') {
     return (
       <PostedSalesView
         customers={customers}
-        warehouses={warehouses}
+        branches={branches}
+        showBranchFilter={!isBranchUser}
         money={money}
         generalSettings={generalSettings}
         onNewSale={openNewSale}
@@ -246,7 +238,7 @@ export default function SaleVoucherPage() {
   }
 
   return (
-    <main style={{ height: '100%', minHeight: 0, boxSizing: 'border-box', padding: 10, display: 'flex', flexDirection: 'column', gap: 8, overflow: 'hidden' }}>
+    <DocumentPage>
       <PurchaseToolbar
         title="Sale Voucher"
         documentCode="SI"
@@ -279,91 +271,98 @@ export default function SaleVoucherPage() {
         onCancel={() => setProcessConfirmOpen(false)}
       />
 
-      {message && <PurchaseMessageBanner message={message} />}
+      <DocumentMessage message={message} onDismiss={() => setMessage(null)} />
 
-      <section className="workspace-card" style={{ padding: 10, flex: 1, minHeight: 0, display: 'grid', gridTemplateRows: 'auto auto 1fr auto', gap: 7, overflow: 'hidden' }}>
-        <PurchaseHeaderForm
-          documentNumberLabel="Sale Number"
-          documentDateLabel="Sale Date"
-          supplierDocumentDateLabel="Delivery Date"
-          supplierDocumentNumberLabel="Delivery Note No."
-          supplierDocumentPlaceholder="Delivery Note"
-          partyLabel="Customer"
-          partyPlaceholder="Search Customer"
-          balanceLabel="Received Amount"
-          balanceValue={money(totals.netAmount)}
-          purchaseDate={saleDate}
-          paymentType={paymentType}
-          supplierInvoiceDate={deliveryDate}
-          supplierInvoiceNumber={deliveryNoteNumber}
-          supplierId={customerId}
-          warehouseId={warehouseId}
-          locationId={locationId}
-          showLocation={Boolean(selectedWarehouse?.useLocations)}
-          referenceNumber={customerReferenceNumber}
-          dueDate={dueDate}
-          generatedVoucherDetails={generatedVoucherDetails}
-          dateStatusMessage={dateStatusMessage}
-          suppliers={customers}
-          warehouses={warehouses}
-          locations={warehouseLocations}
-          loadingSupportData={supportQuery.isLoading}
-          supportDataHasError={supportQuery.isError}
-          money={money}
-          onPurchaseDateChange={setSaleDate}
-          onPaymentTypeChange={value => setPaymentType(value as SalePaymentType)}
-          onSupplierInvoiceDateChange={setDeliveryDate}
-          onSupplierInvoiceNumberChange={setDeliveryNoteNumber}
-          onSupplierChange={setCustomerId}
-          onWarehouseChange={value => {
-            setWarehouseId(value);
-            setLocationId('');
-          }}
-          onLocationChange={setLocationId}
-          onReferenceNumberChange={setCustomerReferenceNumber}
-          onDueDateChange={setDueDate}
-        />
+      <PurchaseHeaderForm
+        documentNumberLabel="Sale Number"
+        documentDateLabel="Sale Date"
+        supplierDocumentDateLabel="Delivery Date"
+        supplierDocumentNumberLabel="Delivery Note No."
+        supplierDocumentPlaceholder="Delivery Note"
+        partyLabel="Customer"
+        partyPlaceholder="Search Customer"
+        balanceLabel="Received Amount"
+        balanceValue={money(totals.netAmount)}
+        purchaseDate={saleDate}
+        paymentType={paymentType}
+        supplierInvoiceDate={deliveryDate}
+        supplierInvoiceNumber={deliveryNoteNumber}
+        supplierId={customerId}
+        warehouseId={branchId}
+        holderLabel="Branch"
+        holderReadOnly={isBranchUser}
+        locationId={locationId}
+        showLocation={branchLocations.length > 0}
+        referenceNumber={customerReferenceNumber}
+        dueDate={dueDate}
+        generatedVoucherDetails={generatedVoucherDetails}
+        dateStatusMessage={dateStatusMessage}
+        suppliers={customers}
+        warehouses={branches}
+        locations={branchLocations}
+        loadingSupportData={supportQuery.isLoading}
+        supportDataHasError={supportQuery.isError}
+        money={money}
+        onPurchaseDateChange={setSaleDate}
+        onPaymentTypeChange={value => setPaymentType(value as SalePaymentType)}
+        onSupplierInvoiceDateChange={setDeliveryDate}
+        onSupplierInvoiceNumberChange={setDeliveryNoteNumber}
+        onSupplierChange={setCustomerId}
+        onWarehouseChange={changeBranch}
+        onLocationChange={setLocationId}
+        onReferenceNumberChange={setCustomerReferenceNumber}
+        onDueDateChange={setDueDate}
+      />
 
-        <PurchaseLineEntry
-          priceLabel="Sale Price"
-          lineDraft={lineDraft}
-          selectedItem={selectedItem}
-          items={items}
-          lineTotal={lineDraftTotal.toNumber()}
-          editingLineId={editingLineId}
-          loadingSupportData={supportQuery.isLoading}
-          supportDataHasError={supportQuery.isError}
-          money={money}
-          onChange={updateLineDraft}
-          onAddOrUpdate={addItemLine}
-          onCancelEdit={cancelLineEdit}
-        />
-
+      <LinesPanel
+        title="Lines"
+        hint={<LineShortcutHint mode="entry" />}
+        linesRef={lineKeyboard.linesRef}
+        onKeyDown={lineKeyboard.onLinesKeyDown}
+        entry={(
+          <PurchaseLineEntry
+            priceLabel="Sale Price"
+            lineDraft={lineDraft}
+            selectedItem={selectedItem}
+            items={items}
+            lineTotal={lineDraftTotal.toNumber()}
+            editingLineId={editingLineId}
+            loadingSupportData={supportQuery.isLoading}
+            supportDataHasError={supportQuery.isError}
+            money={money}
+            onChange={updateLineDraft}
+            onAddOrUpdate={addItemLine}
+            onCancelEdit={cancelLineEdit}
+          />
+        )}
+        summary={(
+          <PurchaseSummaryFooter
+            freightLabel="Freight"
+            balanceLabel={paymentType === 'Credit' ? 'Balance Due' : 'Received Amount'}
+            totalItems={lines.length}
+            grossAmount={totals.grossAmount}
+            discountAmount={totals.discountAmount}
+            taxAmount={totals.taxAmount}
+            freightAmount={freightAmount}
+            netAmount={totals.netAmount}
+            balanceDue={paymentType === 'Credit' ? totals.netAmount : 0}
+            generalSettings={generalSettings}
+            money={money}
+            onFreightAmountChange={setFreightAmount}
+          />
+        )}
+      >
         <PurchaseLineTable
           priceColumnLabel="Sale Price"
           lines={lines}
+          editingLineId={editingLineId}
           generalSettings={generalSettings}
           money={money}
           onMoveLine={moveLine}
           onEditLine={editLine}
           onRemoveLine={removeLine}
         />
-
-        <PurchaseSummaryFooter
-          freightLabel="Freight"
-          balanceLabel={paymentType === 'Credit' ? 'Balance Due' : 'Received Amount'}
-          totalItems={lines.length}
-          grossAmount={totals.grossAmount}
-          discountAmount={totals.discountAmount}
-          taxAmount={totals.taxAmount}
-          freightAmount={freightAmount}
-          netAmount={totals.netAmount}
-          balanceDue={paymentType === 'Credit' ? totals.netAmount : 0}
-          generalSettings={generalSettings}
-          money={money}
-          onFreightAmountChange={setFreightAmount}
-        />
-      </section>
-    </main>
+      </LinesPanel>
+    </DocumentPage>
   );
 }

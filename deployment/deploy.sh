@@ -1,52 +1,54 @@
 #!/usr/bin/env bash
-set -e
+# Deploys one release version: backup -> migrate -> start new containers -> health check.
+# Usage: ./deploy.sh <version>        e.g. ./deploy.sh 1.4.0
+# Rollback: ./rollback.sh <previous version>   (see DEPLOYMENT.md)
+set -euo pipefail
 
-# Always run from the directory where the script and docker-compose file live
 cd "$(dirname "$0")"
 
-# Set application image tag from argument or default to 'latest'
-APP_TAG="${1:-latest}"
+APP_TAG="${1:-}"
+if [ -z "$APP_TAG" ] || [ "$APP_TAG" = "latest" ]; then
+  echo "Usage: ./deploy.sh <version>   (a fixed version tag such as 1.4.0, never 'latest')"
+  exit 1
+fi
 export APP_TAG
 
+for file in .env.backend .env.frontend; do
+  [ -f "$file" ] || { echo "Missing $file. Copy ${file}.example and fill it in."; exit 1; }
+done
+
+COMPOSE="docker compose"
+[ -n "${APP_DOMAIN:-}" ] && COMPOSE="docker compose --profile https"
+
 echo "========================================="
-echo " Deploying containers with APP_TAG: ${APP_TAG}"
+echo " Deploying version ${APP_TAG}"
 echo "========================================="
 
-# ── Pre-flight: ensure pgvector extension exists ──────────────
-# Prisma's `db push` issues CREATE EXTENSION, which always requires a
-# superuser -- the app user can never do it. Create it out-of-band here so
-# the backend doesn't crash-loop on a fresh environment. Idempotent.
-echo "==> [1/4] Pre-flight: ensuring 'vector' extension exists..."
-if command -v psql >/dev/null 2>&1 && [ -f .env.backend ]; then
-  DATABASE_URL="$(sed -n 's#^DATABASE_URL=\(.*\)#\1#p' .env.backend | head -1 | tr -d '"')"
-  if [ -n "$DATABASE_URL" ]; then
-    if psql "$DATABASE_URL" -c 'CREATE EXTENSION IF NOT EXISTS vector;' >/dev/null 2>&1; then
-      echo "    OK: 'vector' present"
-    else
-      echo "    WARN: could not ensure 'vector' extension (continuing)."
-      echo "          If the backend crash-loops on CREATE EXTENSION, run manually:"
-      echo "          psql \"\$DATABASE_URL\" -c 'CREATE EXTENSION IF NOT EXISTS vector;'"
-    fi
-  else
-    echo "    SKIP: could not parse DATABASE_URL from .env.backend"
+echo "==> [1/5] Pulling images..."
+$COMPOSE pull migrate backend frontend
+
+echo "==> [2/5] Backing up the database before any change..."
+./backup.sh "before-${APP_TAG}"
+
+echo "==> [3/5] Installing or migrating the database..."
+$COMPOSE run --rm migrate
+
+echo "==> [4/5] Starting new containers (only changed containers are recreated)..."
+$COMPOSE up -d --remove-orphans
+
+echo "==> [5/5] Waiting for health checks..."
+for attempt in $(seq 1 30); do
+  backend_health="$(docker inspect -f '{{.State.Health.Status}}' erp_be 2>/dev/null || echo unknown)"
+  frontend_health="$(docker inspect -f '{{.State.Health.Status}}' erp_fe 2>/dev/null || echo unknown)"
+  if [ "$backend_health" = "healthy" ] && [ "$frontend_health" = "healthy" ]; then
+    echo "${APP_TAG} $(date -u +%Y-%m-%dT%H:%M:%SZ)" >> .deploy-history
+    $COMPOSE ps
+    echo "Deployment of ${APP_TAG} finished."
+    exit 0
   fi
-else
-  echo "    SKIP: psql not available locally, or .env.backend missing"
-fi
+  sleep 5
+done
 
-echo "==> [2/4] Pulling latest images..."
-docker compose pull
-
-echo "==> [3/4] Stopping and removing existing containers..."
-docker compose down
-
-echo "==> [4/4] Starting new containers..."
-docker compose up -d
-
-echo "========================================="
-echo " Container Status:"
-echo "========================================="
-docker compose ps
-echo "========================================="
-echo " Deployment completed successfully! 🎉"
-echo "========================================="
+echo "Containers did not become healthy. Check: docker compose logs --tail=200 backend frontend"
+echo "To go back: ./rollback.sh <previous version>   (previous versions are listed in .deploy-history)"
+exit 1

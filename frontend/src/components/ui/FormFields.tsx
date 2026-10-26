@@ -1,6 +1,6 @@
 'use client';
 
-import type { CSSProperties, InputHTMLAttributes, SelectHTMLAttributes } from 'react';
+import { useId, type CSSProperties, type InputHTMLAttributes, type SelectHTMLAttributes } from 'react';
 import { sanitizeMoneyInput } from '@/lib/erp-utils';
 import { FieldLabel } from './FieldLabel';
 
@@ -16,6 +16,32 @@ interface BaseFieldProps {
   size?: FieldSize;
   /** Short help text shown under the field. */
   hint?: string;
+  /** Problem with the value, shown under the field and announced by screen readers. */
+  error?: string;
+}
+
+/**
+ * Accessibility wiring shared by every field: required state, and hint and error text linked to the
+ * input with aria-describedby so screen readers read them with the field.
+ */
+function useFieldDescription({ required, hint, error }: { required: boolean; hint?: string; error?: string }) {
+  const id = useId();
+  const hintId = hint ? `${id}-hint` : undefined;
+  const errorId = error ? `${id}-error` : undefined;
+  const describedBy = [hintId, errorId].filter(Boolean).join(' ') || undefined;
+  return {
+    inputProps: {
+      'aria-required': required || undefined,
+      'aria-invalid': error ? true : undefined,
+      'aria-describedby': describedBy,
+    },
+    description: (
+      <>
+        {hint && <span id={hintId} className="form-hint" style={{ display: 'block' }}>{hint}</span>}
+        {error && <span id={errorId} className="form-error" role="alert" style={{ display: 'block' }}>{error}</span>}
+      </>
+    ),
+  };
 }
 
 interface TextFieldProps extends BaseFieldProps {
@@ -48,10 +74,13 @@ export function TextField({
   size = 'compact',
   inputProps,
   hint,
+  error,
 }: TextFieldProps) {
+  const a11y = useFieldDescription({ required, hint, error });
   return (
     <FieldLabel label={label} required={required}>
       <input
+        {...a11y.inputProps}
         {...inputProps}
         className="form-input"
         value={value}
@@ -60,7 +89,7 @@ export function TextField({
         onChange={event => onChange?.(event.currentTarget.value)}
         style={{ ...fieldStyle(size), ...style }}
       />
-      {hint && <span className="form-hint" style={{ display: 'block' }}>{hint}</span>}
+      {a11y.description}
     </FieldLabel>
   );
 }
@@ -89,10 +118,13 @@ export function NumericField({
   size = 'compact',
   inputProps,
   hint,
+  error,
 }: NumericFieldProps) {
+  const a11y = useFieldDescription({ required, hint, error });
   return (
     <FieldLabel label={label} required={required}>
       <input
+        {...a11y.inputProps}
         {...inputProps}
         className="form-input"
         inputMode="decimal"
@@ -107,7 +139,7 @@ export function NumericField({
         onChange={event => onChange?.(sanitizeMoneyInput(event.currentTarget.value, decimalPlaces))}
         style={{ ...numericFieldStyle(size), ...style }}
       />
-      {hint && <span className="form-hint" style={{ display: 'block' }}>{hint}</span>}
+      {a11y.description}
     </FieldLabel>
   );
 }
@@ -123,10 +155,14 @@ export function SelectField({
   style,
   size = 'compact',
   selectProps,
+  hint,
+  error,
 }: SelectFieldProps) {
+  const a11y = useFieldDescription({ required, hint, error });
   return (
     <FieldLabel label={label} required={required}>
       <select
+        {...a11y.inputProps}
         {...selectProps}
         className="form-input"
         value={value}
@@ -139,6 +175,7 @@ export function SelectField({
           <option key={option.value} value={option.value} disabled={option.disabled}>{option.label}</option>
         ))}
       </select>
+      {a11y.description}
     </FieldLabel>
   );
 }
@@ -183,10 +220,12 @@ interface TextareaFieldProps extends BaseFieldProps {
   onChange?: (value: string) => void;
 }
 
-export function TextareaField({ label, value, onChange, required = false, disabled = false, placeholder, style, rows = 3, maxLength }: TextareaFieldProps) {
+export function TextareaField({ label, value, onChange, required = false, disabled = false, placeholder, style, rows = 3, maxLength, hint, error }: TextareaFieldProps) {
+  const a11y = useFieldDescription({ required, hint, error });
   return (
     <FieldLabel label={label} required={required}>
       <textarea
+        {...a11y.inputProps}
         className="form-input"
         value={value}
         rows={rows}
@@ -196,6 +235,7 @@ export function TextareaField({ label, value, onChange, required = false, disabl
         onChange={event => onChange?.(event.currentTarget.value)}
         style={style}
       />
+      {a11y.description}
     </FieldLabel>
   );
 }

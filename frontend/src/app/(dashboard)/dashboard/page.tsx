@@ -1,15 +1,24 @@
 'use client';
 
 import type { CSSProperties, ReactNode } from 'react';
+import Link from 'next/link';
+import { useSession } from 'next-auth/react';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-  PieChart, Pie, Cell, Legend,
+  PieChart, Pie, Cell,
 } from 'recharts';
 import { useDashboardSummary } from '@/lib/api/dashboard';
+import { useDashboardKpis } from '@/lib/api/reports';
+import { hasPermission } from '@/lib/auth/session-user';
 import { useGeneralSettings } from '@/lib/api/settings';
-import { formatCount, formatDate, formatMoney, formatNumber } from '@/lib/app-settings';
+import { formatCount, formatDate, formatMoney, formatNumber, type AppFormatSettingsSource } from '@/lib/app-settings';
+import {
+  IconBuildingBank, IconCalendarStats, IconChartBar, IconCircleCheck, IconCoin, IconListTree, IconPackage,
+  IconPencil, IconTrendingUp, IconTruckDelivery, IconUsers,
+} from '@tabler/icons-react';
 import { ChartTooltipBox, ChartValueLegend } from '@/components/analytics/AnalyticsWidgets';
-import { chartAxisTick, chartLegendStyle, useChartTheme, type ChartTheme } from '@/components/analytics/chart-palette';
+import { BarGradientDefs, TileIcon, gradientId, useGradientPrefix, type TileTone } from '@/components/analytics/ProCharts';
+import { chartAxisTick, useChartTheme, type ChartTheme } from '@/components/analytics/chart-palette';
 import { Badge } from '@/components/ui/Badge';
 import { InlineAlert } from '@/components/ui/InlineAlert';
 import { PageHeader } from '@/components/ui/PageHeader';
@@ -52,19 +61,19 @@ function statusColor(theme: ChartTheme, status: string) {
 }
 
 // ── Building blocks ──────────────────────────────────────────────────────────
-function StatCard({ label, value, context }: { label: string; value: ReactNode; context?: string }) {
+function StatCard({ label, value, context, tone, icon }: { label: string; value: ReactNode; context?: string; tone: TileTone; icon: ReactNode }) {
   return (
-    <div className="stat-card">
-      <div className="stat-label">{label}</div>
+    <div className={`stat-card has-tone tone-${tone}`}>
+      <div className="stat-head"><TileIcon>{icon}</TileIcon><div className="stat-label">{label}</div></div>
       <div className="stat-value" style={{ fontVariantNumeric: 'tabular-nums' }}>{value}</div>
-      {context && <div style={{ marginTop: 6, fontSize: 'var(--font-size-xs)', color: 'var(--color-text-muted)' }}>{context}</div>}
+      {context && <div className="stat-foot">{context}</div>}
     </div>
   );
 }
 
 function DashboardPanel({ title, children, bodyStyle }: { title: string; children: ReactNode; bodyStyle?: CSSProperties }) {
   return (
-    <section className="panel">
+    <section className="panel panel-banded">
       <div className="panel-header"><h2 className="panel-title">{title}</h2></div>
       <div className="panel-body" style={bodyStyle}>{children}</div>
     </section>
@@ -104,12 +113,142 @@ function SummaryRow({ label, value, last = false }: { label: ReactNode; value: R
   );
 }
 
+// ── Financial position (money tiles) ─────────────────────────────────────────
+
+/** "▲ 12.5% vs Last Year": the arrow and the words carry the meaning, colour only supports it. */
+function ChangeText({ percent, settings }: { percent: string | null; settings?: AppFormatSettingsSource | null }) {
+  if (percent === null || percent === undefined) return null;
+  const value = Number(percent);
+  const arrow = value > 0 ? '▲' : value < 0 ? '▼' : '■';
+  const word = value > 0 ? 'Up' : value < 0 ? 'Down' : 'No Change';
+  const color = value > 0 ? 'var(--color-success)' : value < 0 ? 'var(--color-negative)' : 'var(--color-text-muted)';
+  return (
+    <span style={{ fontVariantNumeric: 'tabular-nums' }}>
+      <span aria-hidden="true" style={{ color }}>{arrow}</span>{' '}
+      <span className="sr-only">{word} </span>
+      {formatNumber(Math.abs(value), settings)}% vs Same Period Last Year
+    </span>
+  );
+}
+
+function MoneyTile({ label, value, context, href, linkLabel, tone, icon }: {
+  label: string;
+  value: string;
+  context?: ReactNode;
+  href?: string;
+  linkLabel?: string;
+  tone: TileTone;
+  icon: ReactNode;
+}) {
+  const body = (
+    <>
+      <div className="stat-head"><TileIcon>{icon}</TileIcon><div className="stat-label">{label}</div></div>
+      <div className="stat-value" style={{ fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={value}>{value}</div>
+      {context && <div className="stat-foot">{context}</div>}
+      {href && <div className="stat-link">{linkLabel ?? 'View Report'} →</div>}
+    </>
+  );
+  const className = `stat-card has-tone tone-${tone}`;
+  if (!href) return <div className={className}>{body}</div>;
+  return (
+    <Link href={href} className={className} style={{ display: 'block', color: 'inherit', textDecoration: 'none' }} aria-label={`${label}: ${value}. ${linkLabel ?? 'View Report'}`}>
+      {body}
+    </Link>
+  );
+}
+
+function MoneyTileSkeleton({ label }: { label: string }) {
+  return (
+    <div className="stat-card" aria-hidden="true">
+      <div className="stat-label">{label}</div>
+      <div className="skeleton" style={{ height: 24, width: '70%' }} />
+      <div className="skeleton" style={{ height: 10, width: '50%', marginTop: 8 }} />
+    </div>
+  );
+}
+
+const MONEY_TILE_LABELS = ['Revenue', 'Gross Profit', 'Net Profit', 'Receivables', 'Payables', 'Cash And Bank', 'Stock Value'];
+
+function FinancialPosition({ settings }: { settings?: AppFormatSettingsSource | null }) {
+  const { data: session } = useSession();
+  const enabled = hasPermission(session?.user.role, 'reports.financial');
+  const { data, isLoading, error } = useDashboardKpis(enabled);
+
+  if (!enabled) return null;
+
+  const subtitle = data
+    ? `${data.period.fiscal_year ? `Fiscal Year ${data.period.fiscal_year} to date` : 'Year to date'} (${formatDate(data.period.date_from, settings)} to ${formatDate(data.period.date_to, settings)})`
+    : 'Money figures for the current fiscal year.';
+
+  return (
+    // .panel allows shrinking to zero; inside the fixed-height scrolling grid this panel must keep its content height.
+    <section className="panel panel-banded" aria-labelledby="financial-position-title" style={{ overflow: 'visible', minHeight: 'auto', flexShrink: 0 }}>
+      <div className="panel-header" style={{ display: 'flex', alignItems: 'baseline', gap: 12, flexWrap: 'wrap' }}>
+        <h2 className="panel-title" id="financial-position-title">Financial Position</h2>
+        <span style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-muted)' }}>{subtitle}</span>
+      </div>
+      <div className="panel-body">
+        {error ? (
+          <InlineAlert tone="danger">Unable to load the money figures: {error.message}. Refresh the page and try again.</InlineAlert>
+        ) : isLoading || !data ? (
+          <div className="layout-cols-4" aria-busy="true" aria-label="Loading Financial Position">
+            {MONEY_TILE_LABELS.map(label => <MoneyTileSkeleton key={label} label={label} />)}
+          </div>
+        ) : (
+          <div className="layout-cols-4">
+            <MoneyTile
+              label="Revenue" tone="blue" icon={<IconTrendingUp size={18} stroke={1.8} />}
+              value={formatMoney(data.profit.revenue, settings)}
+              context={<ChangeText percent={data.profit.revenue_change_percent} settings={settings} />}
+            />
+            <MoneyTile
+              label="Gross Profit" tone="teal" icon={<IconChartBar size={18} stroke={1.8} />}
+              value={formatMoney(data.profit.gross_profit, settings)}
+              context={data.profit.gross_margin_percent !== null ? `Gross Margin ${formatNumber(data.profit.gross_margin_percent, settings)}%` : 'Gross Margin Not Available'}
+            />
+            <MoneyTile
+              label="Net Profit" tone="violet" icon={<IconCoin size={18} stroke={1.8} />}
+              value={formatMoney(data.profit.net_profit, settings)}
+              context={<ChangeText percent={data.profit.net_profit_change_percent} settings={settings} />}
+            />
+            <MoneyTile
+              label="Receivables" tone="amber" icon={<IconUsers size={18} stroke={1.8} />}
+              value={formatMoney(data.position.receivables, settings)}
+              context="Customers Owe Us"
+              href="/reports?report=receivables-aging"
+              linkLabel="View Receivables Aging"
+            />
+            <MoneyTile
+              label="Payables" tone="rose" icon={<IconTruckDelivery size={18} stroke={1.8} />}
+              value={formatMoney(data.position.payables, settings)}
+              context="We Owe Suppliers"
+              href="/reports?report=payables-aging"
+              linkLabel="View Payables Aging"
+            />
+            <MoneyTile label="Cash And Bank" tone="teal" icon={<IconBuildingBank size={18} stroke={1.8} />} value={formatMoney(data.position.cash_and_bank, settings)} context="Cash In Hand And In Banks" />
+            <MoneyTile
+              label="Stock Value" tone="blue" icon={<IconPackage size={18} stroke={1.8} />}
+              value={formatMoney(data.position.stock_value, settings)}
+              context="Stock On Hand At Cost"
+              href="/reports?report=stock-valuation"
+              linkLabel="View Stock Valuation"
+            />
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}
+
 // ── Main page ─────────────────────────────────────────────────────────────────
 export default function DashboardPage() {
   const { data, isLoading, error } = useDashboardSummary();
   const { data: settings } = useGeneralSettings();
   const theme = useChartTheme();
   const tick = chartAxisTick(theme);
+  const prefix = useGradientPrefix();
+  const fill = (color: string) => `url(#${gradientId(prefix, color)})`;
+  const gradientColors = Object.values(theme.series);
 
   const compact = (n: number) => {
     const absolute = Math.abs(n);
@@ -123,6 +262,7 @@ export default function DashboardPage() {
       <main className="page-shell">
         <PageHeader title="Dashboard" description="Accounts, vouchers, and the current fiscal year at a glance." />
         {error && <InlineAlert tone="danger">Unable to load the Dashboard: {error.message}. Refresh the page and try again.</InlineAlert>}
+        {error && <FinancialPosition settings={settings} />}
         {isLoading && (
           <section className="panel">
             <div className="empty-state" style={{ padding: '40px 16px' }}><div className="empty-title">Loading Dashboard…</div></div>
@@ -163,13 +303,16 @@ export default function DashboardPage() {
       <PageHeader title="Dashboard" description={description} />
 
       <div style={scrollStyle}>
+        {/* Money tiles: only for users who may see financial reports */}
+        <FinancialPosition settings={settings} />
+
         {/* Row 1: summary figures */}
         <div className="layout-cols-4">
-          <StatCard label="Total Accounts" value={formatCount(accounts.total, settings)} context={`${accounts.active} Active · ${accounts.posting} Posting`} />
-          <StatCard label="Posted Vouchers" value={formatCount(vouchers.posted, settings)} context={`Of ${vouchers.total} Total`} />
-          <StatCard label="Draft Vouchers" value={formatCount(vouchers.draft, settings)} context="Waiting To Be Posted" />
+          <StatCard label="Total Accounts" tone="blue" icon={<IconListTree size={18} stroke={1.8} />} value={formatCount(accounts.total, settings)} context={`${accounts.active} Active · ${accounts.posting} Posting`} />
+          <StatCard label="Posted Vouchers" tone="teal" icon={<IconCircleCheck size={18} stroke={1.8} />} value={formatCount(vouchers.posted, settings)} context={`Of ${vouchers.total} Total`} />
+          <StatCard label="Draft Vouchers" tone="amber" icon={<IconPencil size={18} stroke={1.8} />} value={formatCount(vouchers.draft, settings)} context="Waiting To Be Posted" />
           <StatCard
-            label="Fiscal Year"
+            label="Fiscal Year" tone="violet" icon={<IconCalendarStats size={18} stroke={1.8} />}
             value={fiscalYear ? (
               <Badge variant={fiscalYear.status === 'open' ? 'success' : 'neutral'} style={{ fontSize: 'var(--font-size-sm)' }}>{titleCase(fiscalYear.status)}</Badge>
             ) : 'Not Set'}
@@ -179,34 +322,34 @@ export default function DashboardPage() {
 
         {/* Row 2: monthly volume + voucher status */}
         <div className="layout-main-aside">
-          <DashboardPanel title="Monthly Voucher Volume For The Last 6 Months">
+          <DashboardPanel title="Posted Amount By Month For The Last 6 Months">
             {vouchers.monthlyVolume.length === 0 ? (
               <EmptyNote>No posted vouchers in the last 6 months.</EmptyNote>
             ) : (
+              // One value axis: the amount is plotted, the voucher count is shown in the tooltip.
               <ResponsiveContainer width="100%" height={220}>
-                <BarChart data={vouchers.monthlyVolume} margin={{ top: 4, right: 8, left: 8, bottom: 0 }}>
+                <BarChart data={vouchers.monthlyVolume} margin={{ top: 8, right: 8, left: 8, bottom: 0 }} barCategoryGap="30%">
+                  <BarGradientDefs prefix={prefix} colors={gradientColors} />
                   <CartesianGrid stroke={theme.grid} vertical={false} />
-                  <XAxis dataKey="month" tick={tick} axisLine={false} tickLine={false} />
-                  <YAxis yAxisId="left" tick={tick} axisLine={false} tickLine={false} />
-                  <YAxis yAxisId="right" orientation="right" tick={tick} axisLine={false} tickLine={false} tickFormatter={v => compact(Number(v))} />
+                  <XAxis dataKey="month" tick={tick} axisLine={{ stroke: theme.border }} tickLine={false} />
+                  <YAxis tick={tick} axisLine={false} tickLine={false} tickFormatter={v => compact(Number(v))} width={52} />
                   <Tooltip
-                    cursor={{ fill: theme.grid }}
+                    cursor={{ fill: theme.grid, opacity: 0.6 }}
                     content={({ active, payload, label }) => {
                       if (!active || !payload?.length) return null;
+                      const point = payload[0]?.payload as { count: number; total: number };
                       return (
                         <ChartTooltipBox
                           label={label}
                           entries={[
-                            { key: 'count', name: 'Vouchers', color: theme.series.slate, value: formatCount(Number(payload[0]?.value ?? 0), settings) },
-                            { key: 'total', name: 'Amount', color: theme.series.blue, value: formatMoney(Number(payload[1]?.value ?? 0), settings) },
+                            { key: 'total', name: 'Posted Amount', color: theme.series.blue, value: formatMoney(Number(point.total ?? 0), settings) },
+                            { key: 'count', name: 'Vouchers', color: theme.series.slate, value: formatCount(Number(point.count ?? 0), settings) },
                           ]}
                         />
                       );
                     }}
                   />
-                  <Legend wrapperStyle={chartLegendStyle} iconType="square" iconSize={10} />
-                  <Bar yAxisId="left" dataKey="count" fill={theme.series.slate} radius={[3, 3, 0, 0]} name="Vouchers" maxBarSize={28} />
-                  <Bar yAxisId="right" dataKey="total" fill={theme.series.blue} radius={[3, 3, 0, 0]} name="Amount" maxBarSize={28} />
+                  <Bar dataKey="total" fill={fill(theme.series.blue)} radius={[4, 4, 0, 0]} name="Posted Amount" maxBarSize={28} />
                 </BarChart>
               </ResponsiveContainer>
             )}
@@ -219,8 +362,9 @@ export default function DashboardPage() {
               <>
                 <ResponsiveContainer width="100%" height={160}>
                   <PieChart>
+                    <BarGradientDefs prefix={prefix} colors={gradientColors} />
                     <Pie data={statusData} dataKey="value" innerRadius={48} outerRadius={70} paddingAngle={2} stroke={theme.surface} strokeWidth={2}>
-                      {statusData.map(entry => <Cell key={entry.name} fill={statusColor(theme, entry.name)} />)}
+                      {statusData.map(entry => <Cell key={entry.name} fill={fill(statusColor(theme, entry.name))} />)}
                     </Pie>
                     <Tooltip
                       content={({ active, payload }) => {
@@ -232,7 +376,7 @@ export default function DashboardPage() {
                   </PieChart>
                 </ResponsiveContainer>
                 <div style={{ marginTop: 8 }}>
-                  <ChartValueLegend items={statusData.map(d => ({ name: d.name, color: statusColor(theme, d.name), value: d.value.toLocaleString() }))} />
+                  <ChartValueLegend items={statusData.map(d => ({ name: d.name, color: statusColor(theme, d.name), value: formatCount(d.value, settings) }))} />
                 </div>
               </>
             )}
@@ -249,8 +393,9 @@ export default function DashboardPage() {
                 <div style={{ width: '45%', height: 180 }}>
                   <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
+                      <BarGradientDefs prefix={prefix} colors={gradientColors} />
                       <Pie data={accountTypeData} dataKey="value" innerRadius={48} outerRadius={72} paddingAngle={2} stroke={theme.surface} strokeWidth={2}>
-                        {accountTypeData.map(entry => <Cell key={entry.name} fill={accountTypeColor(theme, entry.name)} />)}
+                        {accountTypeData.map(entry => <Cell key={entry.name} fill={fill(accountTypeColor(theme, entry.name))} />)}
                       </Pie>
                       <Tooltip
                         content={({ active, payload }) => {
@@ -281,6 +426,7 @@ export default function DashboardPage() {
             ) : (
               <ResponsiveContainer width="100%" height={180}>
                 <BarChart data={voucherTypeData} layout="vertical" margin={{ left: 16, right: 24, top: 4, bottom: 4 }}>
+                  <BarGradientDefs prefix={prefix} colors={gradientColors} />
                   <CartesianGrid stroke={theme.grid} horizontal={false} />
                   <XAxis type="number" tick={tick} axisLine={false} tickLine={false} tickFormatter={v => compact(Number(v))} />
                   <YAxis type="category" dataKey="name" tick={tick} axisLine={false} tickLine={false} width={80} />
@@ -291,7 +437,7 @@ export default function DashboardPage() {
                       return <ChartTooltipBox label={label} entries={[{ key: 'total', name: 'Posted Amount', color: theme.series.blue, value: formatMoney(Number(payload[0]?.value ?? 0), settings) }]} />;
                     }}
                   />
-                  <Bar dataKey="total" fill={theme.series.blue} radius={[0, 3, 3, 0]} barSize={14} />
+                  <Bar dataKey="total" fill={fill(theme.series.blue)} radius={[0, 4, 4, 0]} barSize={16} />
                 </BarChart>
               </ResponsiveContainer>
             )}
@@ -300,7 +446,7 @@ export default function DashboardPage() {
 
         {/* Row 4: recent vouchers + fiscal year progress */}
         <div className="layout-main-aside">
-          <section className="panel">
+          <section className="panel panel-banded">
             <div className="panel-header"><h2 className="panel-title">Recent Vouchers</h2></div>
             <div className="table-scroll">
               <table className="data-table">
@@ -378,10 +524,10 @@ export default function DashboardPage() {
           </DashboardPanel>
 
           <DashboardPanel title="Voucher Summary">
-            <SummaryRow label="Total Vouchers" value={vouchers.total.toLocaleString()} />
-            <SummaryRow label={<Badge variant="success">Posted</Badge>} value={vouchers.posted.toLocaleString()} />
-            <SummaryRow label={<Badge variant="warning">Draft</Badge>} value={vouchers.draft.toLocaleString()} />
-            <SummaryRow label={<Badge variant="danger">Voided</Badge>} value={vouchers.voided.toLocaleString()} last />
+            <SummaryRow label="Total Vouchers" value={formatCount(vouchers.total, settings)} />
+            <SummaryRow label={<Badge variant="success">Posted</Badge>} value={formatCount(vouchers.posted, settings)} />
+            <SummaryRow label={<Badge variant="warning">Draft</Badge>} value={formatCount(vouchers.draft, settings)} />
+            <SummaryRow label={<Badge variant="danger">Voided</Badge>} value={formatCount(vouchers.voided, settings)} last />
           </DashboardPanel>
 
           <DashboardPanel title="Voucher Type Counts">

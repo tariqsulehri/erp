@@ -1,5 +1,8 @@
 import { Router } from 'express';
+import { requirePermission, resolveAccessScope } from '../http/access-context.js';
 import { resolveCompanyId } from '../http/company-context.js';
+import { warehouseHolder } from '../modules/inventory/stock-holder.js';
+import { assertCanUseHolder } from '../modules/inventory/stock-holder-access.js';
 import { WarehouseService } from '../modules/inventory/warehouse.service.js';
 import {
   createWarehouseLocationSchema,
@@ -24,7 +27,7 @@ warehousesRouter.get('/', async (req, res, next) => {
   }
 });
 
-warehousesRouter.post('/', async (req, res, next) => {
+warehousesRouter.post('/', requirePermission('organization.manage'), async (req, res, next) => {
   try {
     const service = new WarehouseService(resolveCompanyId(req));
     const body = createWarehouseSchema.parse(req.body);
@@ -34,7 +37,7 @@ warehousesRouter.post('/', async (req, res, next) => {
   }
 });
 
-warehousesRouter.patch('/locations/:locationId', async (req, res, next) => {
+warehousesRouter.patch('/locations/:locationId', requirePermission('organization.manage'), async (req, res, next) => {
   try {
     const service = new WarehouseService(resolveCompanyId(req));
     const { locationId } = locationIdParams.parse(req.params);
@@ -61,7 +64,7 @@ warehousesRouter.get('/:id', async (req, res, next) => {
   }
 });
 
-warehousesRouter.patch('/:id', async (req, res, next) => {
+warehousesRouter.patch('/:id', requirePermission('organization.manage'), async (req, res, next) => {
   try {
     const service = new WarehouseService(resolveCompanyId(req));
     const { id } = idParams.parse(req.params);
@@ -82,7 +85,7 @@ warehousesRouter.get('/:id/locations', async (req, res, next) => {
   }
 });
 
-warehousesRouter.post('/:id/locations', async (req, res, next) => {
+warehousesRouter.post('/:id/locations', requirePermission('organization.manage'), async (req, res, next) => {
   try {
     const service = new WarehouseService(resolveCompanyId(req));
     const { id } = idParams.parse(req.params);
@@ -95,8 +98,10 @@ warehousesRouter.post('/:id/locations', async (req, res, next) => {
 
 warehousesRouter.get('/:id/stock-summary', async (req, res, next) => {
   try {
-    const service = new WarehouseService(resolveCompanyId(req));
+    const scope = resolveAccessScope(req);
     const { id } = idParams.parse(req.params);
+    assertCanUseHolder(scope, warehouseHolder(id), 'view stock');
+    const service = new WarehouseService(scope.companyId);
     const query = listWarehouseStockQuery.parse(req.query);
     res.json(await service.stockSummary(id, query));
   } catch (error) {

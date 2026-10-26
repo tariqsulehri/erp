@@ -2,7 +2,30 @@ const backendApiBaseUrl =
   typeof window !== 'undefined'
     ? '/api/v1'
     : (process.env.BACKEND_API_INTERNAL_URL || process.env.NEXT_PUBLIC_BACKEND_API_URL || 'http://localhost:4000/api/v1');
-const defaultCompanyId = process.env.NEXT_PUBLIC_DEFAULT_COMPANY_ID || '00000000-0000-0000-0000-000000000001';
+export function getActiveCompanyId(): string {
+  if (typeof window !== 'undefined') {
+    try {
+      const stored = localStorage.getItem('erp-current-company-id');
+      if (stored && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(stored)) {
+        return stored;
+      }
+    } catch {
+      // localStorage is unavailable
+    }
+  }
+  // Empty means "use the signed-in user's company": the /api/v1 proxy adds it from the session.
+  return process.env.NEXT_PUBLIC_DEFAULT_COMPANY_ID || '';
+}
+
+export function setActiveCompanyId(companyId: string): void {
+  if (typeof window !== 'undefined') {
+    try {
+      localStorage.setItem('erp-current-company-id', companyId);
+    } catch {
+      // localStorage is unavailable
+    }
+  }
+}
 
 interface BackendErrorDetails {
   formErrors?: string[];
@@ -104,18 +127,34 @@ function toTitleCase(value: string) {
     .replace(/\b\w/g, letter => letter.toUpperCase());
 }
 
+let signingOut = false;
+
+// A 401 means the sign-in ended (expired, password reset, or account made Inactive): send the user to Sign In once.
+async function throwBackendError(response: Response): Promise<never> {
+  const message = await readErrorMessage(response);
+  if (response.status === 401 && typeof window !== 'undefined' && !signingOut) {
+    signingOut = true;
+    const { signOut } = await import('next-auth/react');
+    await signOut({ callbackUrl: `/login?reason=${encodeURIComponent(message)}` });
+  }
+  throw new BackendApiError(message, response.status);
+}
+
+function defaultHeaders() {
+  const companyId = getActiveCompanyId();
+  return {
+    Accept: 'application/json',
+    ...(companyId ? { 'x-company-id': companyId } : {}),
+  };
+}
+
 export async function backendGet<TResponse>(path: string): Promise<TResponse> {
   const response = await fetch(`${backendApiBaseUrl}${path}`, {
     method: 'GET',
-    headers: {
-      Accept: 'application/json',
-      ...(defaultCompanyId ? { 'x-company-id': defaultCompanyId } : {}),
-    },
+    headers: defaultHeaders(),
   });
 
-  if (!response.ok) {
-    throw new BackendApiError(await readErrorMessage(response), response.status);
-  }
+  if (!response.ok) await throwBackendError(response);
 
   return response.json() as Promise<TResponse>;
 }
@@ -124,16 +163,13 @@ export async function backendPost<TResponse, TBody>(path: string, body: TBody): 
   const response = await fetch(`${backendApiBaseUrl}${path}`, {
     method: 'POST',
     headers: {
-      Accept: 'application/json',
+      ...defaultHeaders(),
       'Content-Type': 'application/json',
-      ...(defaultCompanyId ? { 'x-company-id': defaultCompanyId } : {}),
     },
     body: JSON.stringify(body),
   });
 
-  if (!response.ok) {
-    throw new BackendApiError(await readErrorMessage(response), response.status);
-  }
+  if (!response.ok) await throwBackendError(response);
 
   return response.json() as Promise<TResponse>;
 }
@@ -142,16 +178,13 @@ export async function backendPatch<TResponse, TBody>(path: string, body: TBody):
   const response = await fetch(`${backendApiBaseUrl}${path}`, {
     method: 'PATCH',
     headers: {
-      Accept: 'application/json',
+      ...defaultHeaders(),
       'Content-Type': 'application/json',
-      ...(defaultCompanyId ? { 'x-company-id': defaultCompanyId } : {}),
     },
     body: JSON.stringify(body),
   });
 
-  if (!response.ok) {
-    throw new BackendApiError(await readErrorMessage(response), response.status);
-  }
+  if (!response.ok) await throwBackendError(response);
 
   return response.json() as Promise<TResponse>;
 }
@@ -159,15 +192,10 @@ export async function backendPatch<TResponse, TBody>(path: string, body: TBody):
 export async function backendDelete<TResponse>(path: string): Promise<TResponse> {
   const response = await fetch(`${backendApiBaseUrl}${path}`, {
     method: 'DELETE',
-    headers: {
-      Accept: 'application/json',
-      ...(defaultCompanyId ? { 'x-company-id': defaultCompanyId } : {}),
-    },
+    headers: defaultHeaders(),
   });
 
-  if (!response.ok) {
-    throw new BackendApiError(await readErrorMessage(response), response.status);
-  }
+  if (!response.ok) await throwBackendError(response);
 
   return response.json() as Promise<TResponse>;
 }

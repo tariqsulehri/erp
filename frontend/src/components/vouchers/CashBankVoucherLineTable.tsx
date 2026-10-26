@@ -2,17 +2,11 @@
 
 import { IconTrash } from '@tabler/icons-react';
 import type { AppFormatSettingsSource } from '@/lib/app-settings';
-import { SearchableSelect, type VoucherSelectOption } from './VoucherControls';
-import {
-  cleanAmount,
-  compactDateInputStyle,
-  compactInputStyle,
-  compactMoneyInputStyle,
-  formatAmountInput,
-  sanitizeAmountInput,
-  tableCellStyle,
-  tableHeadStyle,
-} from './VoucherShared';
+import { Button } from '@/components/ui/Button';
+import { SearchableSelect, type SelectOption } from '@/components/ui/SearchableSelect';
+import { LinesTable } from '@/components/documents';
+import styles from '@/components/documents/documents.module.css';
+import { amountValue, cleanAmount, formatAmountInput, sanitizeAmountInput } from './VoucherShared';
 
 export interface CashBankVoucherLine {
   id: number;
@@ -29,27 +23,8 @@ interface CashBankLineConfig {
   showChequeFields: boolean;
 }
 
-function getCashBankLineColumns(config: CashBankLineConfig) {
-  if (config.showChequeFields) {
-    return [
-      { label: 'No.', width: 44 },
-      { label: config.lineAccountLabel, width: '28%' },
-      { label: 'Description', width: undefined },
-      { label: 'Cheque Details', width: 140 },
-      { label: 'Cheque Date', width: 128 },
-      { label: 'Clearing Date', width: 128 },
-      { label: 'Amount', width: 140, right: true },
-      { label: '', width: 44 },
-    ] as const;
-  }
-
-  return [
-    { label: 'No.', width: 44 },
-    { label: config.lineAccountLabel, width: '45%' },
-    { label: 'Description', width: undefined },
-    { label: 'Amount', width: 150, right: true },
-    { label: '', width: 44 },
-  ] as const;
+function isEmptyLine(line: CashBankVoucherLine) {
+  return !line.accountId && !line.description.trim() && !line.chequeDetails.trim() && !line.chequeDate && !line.clearingDate && amountValue(line.amount) <= 0;
 }
 
 export function CashBankVoucherLineTable({
@@ -64,113 +39,129 @@ export function CashBankVoucherLineTable({
 }: {
   config: CashBankLineConfig;
   lines: CashBankVoucherLine[];
-  accountOptions: VoucherSelectOption[];
+  accountOptions: SelectOption[];
   accountsLoading: boolean;
   accountsError: boolean;
   generalSettings?: AppFormatSettingsSource | null;
   onUpdateLine: (id: number, patch: Partial<CashBankVoucherLine>) => void;
   onRemoveLine: (id: number) => void;
 }) {
-  const lineColumns = getCashBankLineColumns(config);
-
+  const cheque = config.showChequeFields;
   return (
-    <div style={{ minHeight: 0, overflowY: 'auto', overflowX: 'auto', border: '1px solid var(--color-border)', borderRadius: 'var(--radius)' }}>
-      <table style={{ width: '100%', minWidth: 960, borderCollapse: 'collapse', fontSize: 'var(--font-size-sm)', tableLayout: 'fixed' }}>
-        <colgroup>
-          {lineColumns.map(column => (
-            <col key={column.label || 'action'} style={{ width: column.width }} />
-          ))}
-        </colgroup>
-        <thead>
-          <tr>
-            {lineColumns.map(column => (
-              <th key={column.label || 'action'} style={tableHeadStyle('right' in column && Boolean(column.right))}>
-                {column.label}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {lines.map((line, index) => (
-            <tr key={line.id}>
-              <td style={tableCellStyle()}><strong>{index + 1}</strong></td>
-              <td style={tableCellStyle()}>
+    <LinesTable editable>
+      <colgroup>
+        <col style={{ width: 52 }} />
+        <col style={{ width: cheque ? '26%' : '42%' }} />
+        <col />
+        {cheque && (
+          <>
+            <col style={{ width: 112 }} />
+            <col style={{ width: 136 }} />
+            <col style={{ width: 136 }} />
+          </>
+        )}
+        <col style={{ width: cheque ? 124 : 150 }} />
+        <col style={{ width: 48 }} />
+      </colgroup>
+      <thead>
+        <tr>
+          <th className="num">No.</th>
+          <th>{config.lineAccountLabel}<span className="field-required" aria-hidden="true">*</span></th>
+          <th>Description</th>
+          {cheque && (
+            <>
+              <th>Cheque Details</th>
+              <th>Cheque Date</th>
+              <th>Clearing Date</th>
+            </>
+          )}
+          <th className="num">Amount<span className="field-required" aria-hidden="true">*</span></th>
+          <th><span className="sr-only">Actions</span></th>
+        </tr>
+      </thead>
+      <tbody>
+        {lines.map((line, index) => {
+          const lineNo = index + 1;
+          return (
+            <tr key={line.id} data-line-row data-line-empty={isEmptyLine(line) ? 'true' : undefined}>
+              <td className="num cell-muted">{lineNo}</td>
+              <td data-line-first>
                 <SearchableSelect
                   value={line.accountId}
                   options={accountOptions}
                   onChange={value => onUpdateLine(line.id, { accountId: value })}
                   placeholder={accountsLoading ? 'Loading Accounts' : accountsError ? 'Accounts Not Loaded' : 'Search Account'}
                   disabled={accountsLoading || accountsError}
+                  ariaLabel={`${config.lineAccountLabel}, Line ${lineNo}`}
                 />
               </td>
-              <td style={tableCellStyle()}>
+              <td>
                 <input
                   className="form-input"
                   value={line.description}
                   onChange={event => onUpdateLine(line.id, { description: event.currentTarget.value })}
                   placeholder="Description"
-                  style={compactInputStyle}
+                  aria-label={`Description, Line ${lineNo}`}
                 />
               </td>
-              {config.showChequeFields && (
+              {cheque && (
                 <>
-                  <td style={tableCellStyle()}>
+                  <td>
                     <input
                       className="form-input"
                       value={line.chequeDetails}
                       onChange={event => onUpdateLine(line.id, { chequeDetails: event.currentTarget.value })}
                       placeholder="Cheque No."
-                      style={compactInputStyle}
+                      aria-label={`Cheque Details, Line ${lineNo}`}
                     />
                   </td>
-                  <td style={tableCellStyle()}>
+                  <td>
                     <input
                       className="form-input"
                       type="date"
                       value={line.chequeDate}
                       onChange={event => onUpdateLine(line.id, { chequeDate: event.currentTarget.value })}
-                      style={compactDateInputStyle}
+                      aria-label={`Cheque Date, Line ${lineNo}`}
                     />
                   </td>
-                  <td style={tableCellStyle()}>
+                  <td>
                     <input
                       className="form-input"
                       type="date"
                       value={line.clearingDate}
                       onChange={event => onUpdateLine(line.id, { clearingDate: event.currentTarget.value })}
-                      style={compactDateInputStyle}
+                      aria-label={`Clearing Date, Line ${lineNo}`}
                     />
                   </td>
                 </>
               )}
-              <td style={tableCellStyle()}>
+              <td data-line-last>
                 <input
-                  className="form-input"
+                  className={`form-input ${styles.numInput}`}
                   inputMode="decimal"
                   value={line.amount}
                   onChange={event => onUpdateLine(line.id, { amount: sanitizeAmountInput(event.currentTarget.value) })}
                   onFocus={() => onUpdateLine(line.id, { amount: cleanAmount(line.amount) })}
                   onBlur={() => onUpdateLine(line.id, { amount: formatAmountInput(line.amount, generalSettings) })}
                   placeholder="0.00"
-                  style={compactMoneyInputStyle}
+                  aria-label={`Amount, Line ${lineNo}`}
                 />
               </td>
-              <td style={tableCellStyle()}>
-                <button
-                  type="button"
-                  className="btn-ghost"
+              <td className="cell-actions">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  icon={<IconTrash size={16} stroke={1.8} aria-hidden />}
                   onClick={() => onRemoveLine(line.id)}
                   disabled={lines.length === 1}
+                  aria-label={`Remove Line ${lineNo}`}
                   title="Remove Line"
-                  style={{ width: 'var(--control-h)', padding: 0 }}
-                >
-                  <IconTrash size={16} />
-                </button>
+                />
               </td>
             </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+          );
+        })}
+      </tbody>
+    </LinesTable>
   );
 }

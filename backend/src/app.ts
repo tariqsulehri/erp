@@ -1,20 +1,24 @@
 import cors from 'cors';
 import express from 'express';
 import helmet from 'helmet';
-import morgan from 'morgan';
 import { env } from './config/env.js';
+import { authMiddleware } from './middleware/auth.js';
 import { errorHandler } from './middleware/error-handler.js';
+import { requestLog } from './middleware/request-log.js';
 import { healthRouter } from './routes/health.routes.js';
+import { publicAuthRouter } from './routes/auth.routes.js';
 import { apiRouter } from './routes/index.js';
 
 export function createApp() {
   const app = express();
 
   app.disable('x-powered-by');
+  // The API sits behind the Next.js proxy (and possibly one reverse proxy), which set x-forwarded-for.
+  app.set('trust proxy', env.TRUST_PROXY_HOPS);
   app.use(helmet());
   app.use(cors({ origin: env.CORS_ORIGIN, credentials: true }));
   app.use(express.json({ limit: '1mb' }));
-  app.use(morgan(env.NODE_ENV === 'production' ? 'combined' : 'dev'));
+  app.use(requestLog);
 
   app.get('/', (_req, res) => {
     res.json({
@@ -25,7 +29,8 @@ export function createApp() {
   });
 
   app.use('/health', healthRouter);
-  app.use('/api/v1', apiRouter);
+  app.use('/api/v1/auth', publicAuthRouter);
+  app.use('/api/v1', authMiddleware, apiRouter);
   app.use(errorHandler);
 
   return app;

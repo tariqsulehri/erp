@@ -1,6 +1,8 @@
 import { Decimal } from 'decimal.js';
 import { prisma } from '../../db/prisma.js';
+import { branchHolder, holderCondition } from '../inventory/stock-holder.js';
 import { SaleValidationService, type ValidateSaleInvoiceInput } from './sale-validation.service.js';
+import { nextDocumentNumber } from '../numbering/document-number.js';
 
 const saleNumberPrefix = 'SI';
 
@@ -22,23 +24,11 @@ export class SaleDraftService {
   constructor(private readonly companyId: string) {}
 
   private async nextSaleNumber(year: number, transaction: typeof prisma) {
-    const prefix = `${saleNumberPrefix}-${year}-`;
-    const rows = await transaction.$queryRaw<{ sale_number: string }[]>`
-      SELECT sale_number
-      FROM sale_invoices
-      WHERE company_id = CAST(${this.companyId} AS uuid)
-        AND sale_number LIKE ${`${prefix}%`}
-      ORDER BY sale_number DESC
-      LIMIT 1
-    `;
-
-    const last = rows[0]?.sale_number;
-    const next = last ? Number.parseInt(last.split('-').pop() ?? '0', 10) + 1 : 1;
-    return `${prefix}${String(next).padStart(4, '0')}`;
+    return nextDocumentNumber(transaction, { companyId: this.companyId, table: 'sale_invoices', prefix: saleNumberPrefix, year });
   }
 
   private userIdOrNull(userId?: string | null) {
-    return userId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userId)
+    return userId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userId)
       ? userId
       : null;
   }
@@ -54,6 +44,10 @@ export class SaleDraftService {
       Object.assign(error, { statusCode: 400 });
       throw error;
     }
+
+    // Validation has confirmed the Branch is active, so the holder is the Branch (and optional shelf).
+    const branchId = validation.branch_id as string;
+    const holder = branchHolder(branchId, validation.location_id);
 
     return prisma.$transaction(async transaction => {
       const customerRows = await transaction.$queryRaw<CustomerForDraft[]>`
@@ -86,8 +80,7 @@ export class SaleDraftService {
         LEFT JOIN inventory_stock_balances sb
           ON sb.company_id = i.company_id
           AND sb.item_id = i.id
-          AND sb.warehouse_id = CAST(${input.warehouse_id} AS uuid)
-          AND (${validation.location_id}::uuid IS NULL AND sb.location_id IS NULL OR sb.location_id = ${validation.location_id}::uuid)
+          AND ${holderCondition(holder, 'sb')}
         WHERE i.company_id = CAST(${this.companyId} AS uuid)
           AND i.id = ANY(${itemIds}::uuid[])
           AND i.is_active = true
@@ -113,7 +106,7 @@ export class SaleDraftService {
           customer_account_id,
           payment_type,
           due_date,
-          warehouse_id,
+          branch_id,
           location_id,
           customer_reference_number,
           delivery_date,
@@ -138,7 +131,7 @@ export class SaleDraftService {
           CAST(${customer.ar_account_id} AS uuid),
           ${input.payment_type},
           ${input.payment_type === 'Credit' && input.due_date ? input.due_date : null}::date,
-          CAST(${input.warehouse_id} AS uuid),
+          CAST(${branchId} AS uuid),
           ${validation.location_id}::uuid,
           ${input.customer_reference_number || null},
           ${input.delivery_date || null}::date,
@@ -180,7 +173,7 @@ export class SaleDraftService {
             item_name,
             uom_id,
             uom_name,
-            warehouse_id,
+            branch_id,
             quantity,
             sale_price,
             discount_amount,
@@ -200,7 +193,7 @@ export class SaleDraftService {
             ${item.item_name},
             ${item.uom_id}::uuid,
             ${item.uom_name},
-            CAST(${line.warehouse_id || input.warehouse_id} AS uuid),
+            CAST(${branchId} AS uuid),
             CAST(${calculatedLine.quantity} AS numeric),
             CAST(${calculatedLine.sale_price} AS numeric),
             CAST(${calculatedLine.discount_amount} AS numeric),

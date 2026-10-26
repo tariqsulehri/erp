@@ -1,5 +1,6 @@
 import type { Prisma } from '@prisma/client';
 import { prisma } from '../../db/prisma.js';
+import { holderStockSummary } from './stock-summary.service.js';
 import type {
   CreateWarehouseInput,
   CreateWarehouseLocationInput,
@@ -56,7 +57,7 @@ function mapWarehouse(row: {
 
 function mapLocation(row: {
   id: string;
-  warehouseId: string;
+  warehouseId: string | null;
   code: string;
   name: string;
   description: string | null;
@@ -293,62 +294,7 @@ export class WarehouseService {
 
   async stockSummary(warehouseId: string, query: ListWarehouseStockQuery) {
     await this.requireWarehouse(warehouseId);
-    const params: unknown[] = [this.companyId, warehouseId];
-    const where = [
-      'sb.company_id = CAST($1 AS uuid)',
-      'sb.warehouse_id = CAST($2 AS uuid)',
-      'sb.is_active = true',
-    ];
-
-    if (query.search) {
-      params.push(`%${query.search}%`);
-      const p = `$${params.length}`;
-      where.push(`(i.item_code ILIKE ${p} OR COALESCE(i.sku, '') ILIKE ${p} OR i.item_name ILIKE ${p} OR COALESCE(wl.name, '') ILIKE ${p})`);
-    }
-
-    const whereSql = where.join(' AND ');
-    const countRows = await prisma.$queryRawUnsafe<Array<{ total: number }>>(
-      `
-        SELECT COUNT(*)::int AS total
-        FROM inventory_stock_balances sb
-        JOIN inventory_items i ON i.id = sb.item_id
-        LEFT JOIN inventory_warehouse_locations wl ON wl.id = sb.location_id
-        WHERE ${whereSql}
-      `,
-      ...params,
-    );
-
-    params.push(query.limit, (query.page - 1) * query.limit);
-    const rows = await prisma.$queryRawUnsafe<any[]>(
-      `
-        SELECT
-          sb.id,
-          i.item_code,
-          COALESCE(i.sku, i.item_code) AS sku,
-          i.item_name,
-          wl.code AS location_code,
-          wl.name AS location_name,
-          sb.stock_on_hand::text,
-          sb.reserved_stock::text,
-          sb.available_stock::text,
-          sb.average_cost::text,
-          sb.total_stock_value::text
-        FROM inventory_stock_balances sb
-        JOIN inventory_items i ON i.id = sb.item_id
-        LEFT JOIN inventory_warehouse_locations wl ON wl.id = sb.location_id
-        WHERE ${whereSql}
-        ORDER BY i.item_code ASC, wl.code ASC NULLS FIRST
-        LIMIT $${params.length - 1}
-        OFFSET $${params.length}
-      `,
-      ...params,
-    );
-
-    const total = Number(countRows[0]?.total ?? 0);
-    return {
-      data: rows,
-      pagination: { total, page: query.page, limit: query.limit, pages: Math.ceil(total / query.limit) },
-    };
+    return holderStockSummary(this.companyId, { kind: 'WAREHOUSE', id: warehouseId }, query);
   }
 
   private async requireWarehouse(id: string) {
@@ -358,9 +304,10 @@ export class WarehouseService {
   }
 
   private async requireLocation(id: string) {
-    const location = await prisma.warehouseLocation.findFirst({ where: { id, companyId: this.companyId } });
-    if (!location) throw businessError('Warehouse Location not found.', 404);
-    return location;
+    // Branch shelves share this table; these endpoints manage Warehouse Locations only.
+    const location = await prisma.warehouseLocation.findFirst({ where: { id, companyId: this.companyId, warehouseId: { not: null } } });
+    if (!location?.warehouseId) throw businessError('Warehouse Location not found.', 404);
+    return { ...location, warehouseId: location.warehouseId };
   }
 
   private async assertUniqueWarehouseCode(code: string, ignoreId?: string) {

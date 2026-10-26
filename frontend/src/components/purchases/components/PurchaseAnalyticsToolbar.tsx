@@ -2,12 +2,9 @@
 
 import { IconFilePlus, IconListSearch, IconRefresh } from '@tabler/icons-react';
 import { formatDate, formatNumber } from '@/lib/app-settings';
-import {
-  badgeStyle,
-  compactButtonStyle,
-  statusBadgeStyle,
-  toolbarStyle,
-} from '../PurchaseVoucherStyles';
+import { Badge } from '@/components/ui/Badge';
+import { Button } from '@/components/ui/Button';
+import { DocumentHeader } from '@/components/documents';
 
 type GeneralSettings = Parameters<typeof formatNumber>[1];
 
@@ -32,24 +29,23 @@ export function PurchaseAnalyticsToolbar({
   newDisabled = false,
   newDisabledReason,
 }: PurchaseAnalyticsToolbarProps) {
+  const iconProps = { size: 16, stroke: 1.8, 'aria-hidden': true } as const;
   return (
-    <section style={toolbarStyle}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-          <div>
-            <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-              <h1 className="page-head-title">Purchase Analytics</h1>
-              <span style={badgeStyle('var(--color-info-text)', 'var(--color-info-bg)')}>Decision View</span>
-              <span style={statusBadgeStyle}>{dateFrom ? formatDate(dateFrom, generalSettings) : 'Start'} To {dateTo ? formatDate(dateTo, generalSettings) : 'Today'}</span>
-            </div>
-          </div>
-        </div>
-        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-          <button className="btn-secondary" type="button" onClick={onRefresh} style={compactButtonStyle}><IconRefresh size={15} /> Refresh</button>
-          <button className="btn-secondary" type="button" onClick={onPostedPurchases} style={compactButtonStyle}><IconListSearch size={15} /> Posted Purchases</button>
-          <button className="btn-primary" type="button" disabled={newDisabled} title={newDisabledReason} onClick={onNewPurchase} style={compactButtonStyle}><IconFilePlus size={15} /> New Purchase</button>
-        </div>
-      </div>
-    </section>
+    <DocumentHeader
+      title="Purchase Analytics"
+      badges={(
+        <>
+          <Badge variant="info">Decision View</Badge>
+          <Badge variant="neutral">{dateFrom ? formatDate(dateFrom, generalSettings) : 'Start'} To {dateTo ? formatDate(dateTo, generalSettings) : 'Today'}</Badge>
+        </>
+      )}
+      actions={(
+        <>
+          <Button variant="secondary" icon={<IconRefresh {...iconProps} />} onClick={onRefresh}>Refresh</Button>
+          <Button variant="secondary" icon={<IconListSearch {...iconProps} />} onClick={onPostedPurchases}>Posted Purchases</Button>
+          <Button variant="primary" icon={<IconFilePlus {...iconProps} />} disabled={newDisabled} title={newDisabledReason} onClick={onNewPurchase}>New Purchase</Button>
+        </>
+      )}
+    />
   );
 }

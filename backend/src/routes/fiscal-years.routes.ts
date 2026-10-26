@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
+import { currentUserId, requirePermission } from '../http/access-context.js';
 import { resolveCompanyId } from '../http/company-context.js';
 import { FiscalYearService } from '../modules/fiscal-years/fiscal-year.service.js';
 import {
@@ -40,7 +41,7 @@ fiscalYearsRouter.get('/', async (req, res, next) => {
   }
 });
 
-fiscalYearsRouter.post('/', async (req, res, next) => {
+fiscalYearsRouter.post('/', requirePermission('fiscal_years.manage'), async (req, res, next) => {
   try {
     const companyId = resolveCompanyId(req);
     const body = createFiscalYearSchema.parse(req.body);
@@ -85,30 +86,30 @@ fiscalYearsRouter.get('/:id/closing-issues', async (req, res, next) => {
   }
 });
 
-fiscalYearsRouter.patch('/:id/close', async (req, res, next) => {
+fiscalYearsRouter.patch('/:id/close', requirePermission('fiscal_years.manage'), async (req, res, next) => {
   try {
     const companyId = resolveCompanyId(req);
     const { id } = fiscalYearIdParams.parse(req.params);
     const body = closeFiscalYearSchema.parse(req.body);
     const service = new FiscalYearService(companyId);
-    res.json(await service.closeFiscalYear(id, body));
+    res.json(await service.closeFiscalYear(id, body, currentUserId(req)));
   } catch (error) {
     next(error);
   }
 });
 
-fiscalYearsRouter.patch('/:id/lock', async (req, res, next) => {
+fiscalYearsRouter.patch('/:id/lock', requirePermission('fiscal_years.manage'), async (req, res, next) => {
   try {
     const companyId = resolveCompanyId(req);
     const { id } = fiscalYearIdParams.parse(req.params);
     const service = new FiscalYearService(companyId);
-    res.json(await service.lockFiscalYear(id));
+    res.json(await service.lockFiscalYear(id, currentUserId(req)));
   } catch (error) {
     next(error);
   }
 });
 
-fiscalYearsRouter.patch('/:id/unlock', async (req, res, next) => {
+fiscalYearsRouter.patch('/:id/unlock', requirePermission('fiscal_years.manage'), async (req, res, next) => {
   try {
     const companyId = resolveCompanyId(req);
     const { id } = fiscalYearIdParams.parse(req.params);
@@ -119,7 +120,7 @@ fiscalYearsRouter.patch('/:id/unlock', async (req, res, next) => {
   }
 });
 
-fiscalYearsRouter.patch('/periods/:id/lock', async (req, res, next) => {
+fiscalYearsRouter.patch('/periods/:id/lock', requirePermission('fiscal_years.manage'), async (req, res, next) => {
   try {
     const companyId = resolveCompanyId(req);
     const { id } = periodIdParams.parse(req.params);
@@ -130,7 +131,7 @@ fiscalYearsRouter.patch('/periods/:id/lock', async (req, res, next) => {
   }
 });
 
-fiscalYearsRouter.patch('/periods/:id/close', async (req, res, next) => {
+fiscalYearsRouter.patch('/periods/:id/close', requirePermission('fiscal_years.manage'), async (req, res, next) => {
   try {
     const companyId = resolveCompanyId(req);
     const { id } = periodIdParams.parse(req.params);

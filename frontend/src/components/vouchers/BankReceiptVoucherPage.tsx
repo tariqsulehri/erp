@@ -2,21 +2,34 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import {
-  IconCalendarDollar,
-} from '@tabler/icons-react';
 import { formatMoney } from '@/lib/app-settings';
 import { useAccountsList } from '@/lib/api/accounts';
 import { useBankAccountsList } from '@/lib/api/bank-accounts';
 import { usePostingDateGuard } from '@/lib/api/fiscal-years';
 import { useGeneralSettings } from '@/lib/api/settings';
 import { useCreateVoucher, useUpdateVoucher, useVoucherDetail } from '@/lib/api/vouchers';
-import { FieldLabel, SearchableSelect, SummaryRow, type VoucherSelectOption } from './VoucherControls';
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
+import { FieldLabel } from '@/components/ui/FieldLabel';
+import { DateField, NumericField, TextField } from '@/components/ui/FormFields';
+import { SearchableSelect, type SelectOption as VoucherSelectOption } from '@/components/ui/SearchableSelect';
+import {
+  AddLineButton,
+  DocumentActions,
+  DocumentFormPanel,
+  DocumentHeader,
+  DocumentMessage,
+  DocumentPage,
+  DocumentStatusBadges,
+  DocumentSummary,
+  LineShortcutHint,
+  LinesPanel,
+  SummaryAmount,
+  useLineEntryKeyboard,
+} from '@/components/documents';
 import {
   BankReceiptVoucherLineTable,
   type BankReceiptVoucherLine,
 } from './BankReceiptVoucherLineTable';
-import { VoucherActionButtons, VoucherLineSection, VoucherMessageBanner, VoucherPageHeader, VoucherSummaryFooter } from './VoucherLayout';
 import { useDefaultVoucherDate } from './VoucherFiscalDate';
 import { getBankAccountOptions, getVoucherLineAccountOptions } from './VoucherAccountRules';
 import { buildBankReceiptVoucherLines } from './VoucherPayload';
@@ -24,8 +37,6 @@ import { saveVoucherDocument } from './VoucherSaveFlow';
 import { validateBankReceiptVoucher } from './VoucherValidation';
 import {
   amountValue,
-  compactInputStyle,
-  compactNumericInputStyle,
   friendlyErrorMessage,
   today,
   type VoucherMessageKind,
@@ -73,6 +84,7 @@ export default function BankReceiptVoucherPage() {
   const [lines, setLines] = useState<ReceiptLine[]>(initialLines);
   const [nextLineId, setNextLineId] = useState(INITIAL_LINE_COUNT + 1);
   const [message, setMessage] = useState<{ kind: MessageKind; text: string } | null>(null);
+  const [processConfirmOpen, setProcessConfirmOpen] = useState(false);
   const postingDateGuard = usePostingDateGuard(depositDate, 'Deposit Date');
   const dateValidation = postingDateGuard.dateValidation;
   const isDepositDateValid = postingDateGuard.dateIsValid;
@@ -92,8 +104,8 @@ export default function BankReceiptVoucherPage() {
   const updateVoucher = useUpdateVoucher();
   const detailQuery = useVoucherDetail(editingVoucherId ?? undefined);
 
-  const allAccounts = accountsQuery.data?.data ?? [];
-  const activeBankAccounts = bankAccountsQuery.data?.data ?? [];
+  const allAccounts = useMemo(() => accountsQuery.data?.data ?? [], [accountsQuery.data]);
+  const activeBankAccounts = useMemo(() => bankAccountsQuery.data?.data ?? [], [bankAccountsQuery.data]);
   const bankAccountOptions = useMemo(() => getBankAccountOptions(activeBankAccounts), [activeBankAccounts]);
   const lineAccountOptions = useMemo(() => getVoucherLineAccountOptions(allAccounts, activeBankAccounts), [allAccounts, activeBankAccounts]);
   const selectedBankAccount = bankAccountOptions.find(option => option.value === bankAccountId);
@@ -119,6 +131,11 @@ export default function BankReceiptVoucherPage() {
   const accountsLoading = accountsQuery.isLoading || bankAccountsQuery.isLoading;
   const accountsError = accountsQuery.error || bankAccountsQuery.error;
   const actionDisabled = saving || accountsLoading || postingDateGuard.disabled || detailQuery.isLoading;
+  const lineKeyboard = useLineEntryKeyboard({
+    onSave: () => saveVoucher(false),
+    saveDisabled: actionDisabled,
+    onAddLine: addLine,
+  });
   const dateStatusMessage = postingDateGuard.isChecking ? 'Checking Deposit Date...' : postingDateGuard.statusMessage;
 
   useEffect(() => {
@@ -259,6 +276,7 @@ export default function BankReceiptVoucherPage() {
   }
 
   async function saveVoucher(submitForApproval: boolean) {
+    setProcessConfirmOpen(false);
     setMessage(null);
     if (saving) {
       setMessage({ kind: 'error', text: 'Voucher is already being saved. Please wait.' });
@@ -309,14 +327,29 @@ export default function BankReceiptVoucherPage() {
     setMessage(result);
   }
 
+  /** Save For Approval: validate first, then ask for confirmation. */
+  function requestProcessConfirmation() {
+    setMessage(null);
+    if (saving) {
+      setMessage({ kind: 'error', text: 'Voucher is already being saved. Please wait.' });
+      return;
+    }
+    const error = validateForm();
+    if (error) {
+      setMessage({ kind: 'error', text: error });
+      return;
+    }
+    setProcessConfirmOpen(true);
+  }
+
+
   return (
-    <main style={{ height: '100%', minHeight: 0, boxSizing: 'border-box', padding: 10, display: 'flex', flexDirection: 'column', gap: 8, overflow: 'hidden' }}>
-      <VoucherPageHeader
+    <DocumentPage>
+      <DocumentHeader
         title="Bank Receipt Voucher"
-        badgeText="BRV"
-        mode={editingVoucherId ? 'Edit' : 'Add'}
-        actions={
-          <VoucherActionButtons
+        badges={<DocumentStatusBadges code="BRV" mode={editingVoucherId ? 'Edit' : 'Add'} />}
+        actions={(
+          <DocumentActions
             saving={saving}
             actionDisabled={actionDisabled}
             newDisabled={postingDateGuard.disabled}
@@ -327,101 +360,74 @@ export default function BankReceiptVoucherPage() {
             onCancel={() => resetForm()}
             onSaveDraft={() => saveVoucher(false)}
             processLabel="Save For Approval"
-            onProcess={() => saveVoucher(true)}
+            onProcess={requestProcessConfirmation}
           />
-        }
+        )}
       />
 
-      <VoucherMessageBanner message={message} />
+      <DocumentMessage message={message} onDismiss={() => setMessage(null)} />
 
-      <section className="workspace-card" style={{ padding: 10, flex: 1, minHeight: 0, display: 'grid', gridTemplateRows: 'auto auto auto 1fr auto', gap: 8, overflow: 'hidden' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '110px 145px minmax(190px, 1fr) minmax(260px, 1.5fr) 145px', gap: 8, alignItems: 'end' }}>
-            <FieldLabel label="Receipt Number"><input className="form-input" value={detailQuery.data?.voucher_number ?? 'Auto'} disabled style={compactInputStyle} /></FieldLabel>
-            <FieldLabel label="Deposit Date" required>
-              <div style={{ position: 'relative' }}>
-                <IconCalendarDollar size={15} style={{ position: 'absolute', left: 8, top: 7, color: 'var(--color-text-muted)' }} />
-                <input
-                  className="form-input"
-                  type="date"
-                  value={depositDate}
-                  onChange={event => setDepositDate(event.currentTarget.value)}
-                  style={{ ...compactInputStyle, paddingLeft: 28 }}
-                />
-              </div>
-            </FieldLabel>
-            <FieldLabel label="Reference Number">
-              <input
-                className="form-input"
-                value={referenceNumber}
-                onChange={event => setReferenceNumber(event.currentTarget.value)}
-                placeholder="Slip, Cheque, Note"
-                style={compactInputStyle}
-              />
-            </FieldLabel>
-            <FieldLabel label="Bank Account" required>
-              <SearchableSelect
-                value={bankAccountId}
-                options={bankAccountOptions}
-                onChange={setBankAccountId}
-                placeholder={bankAccountsQuery.isLoading ? 'Loading Accounts' : bankAccountsQuery.error ? 'Accounts Not Loaded' : 'Search Bank Account'}
-                disabled={bankAccountsQuery.isLoading || bankAccountsQuery.isError}
-              />
-            </FieldLabel>
-            <FieldLabel label="Current Balance"><input className="form-input" value={money(currentBalance)} disabled style={compactNumericInputStyle} /></FieldLabel>
-          </div>
-
-          <div
-            style={{
-              minHeight: dateStatusMessage ? 16 : 0,
-              display: 'flex',
-              alignItems: 'center',
-              border: 'none',
-              background: 'transparent',
-              color: 'var(--color-danger-text)',
-              fontWeight: 500,
-              fontSize: 'var(--font-size-xs)',
-              lineHeight: 1.2,
-              padding: 0,
-              overflow: 'hidden',
-            }}
-          >
-            {dateStatusMessage}
-          </div>
-
-          <div>
-            <FieldLabel label="Voucher Details">
-              <input
-                className="form-input"
-                value={description}
-                onChange={event => setDescription(event.currentTarget.value)}
-                placeholder="Short Description For This Bank Receipt"
-                style={compactInputStyle}
-              />
-            </FieldLabel>
-          </div>
-
-          <VoucherLineSection title="Receipt Lines" onAddLine={addLine}>
-            <BankReceiptVoucherLineTable
-              lines={lines}
-              accountOptions={lineAccountOptions}
-              depositTypes={depositTypes}
-              accountsLoading={accountsLoading}
-              accountsError={Boolean(accountsError)}
-              generalSettings={generalSettings}
-              onUpdateLine={updateLine}
-              onRemoveLine={removeLine}
+      <DocumentFormPanel columns={6} statusMessage={dateStatusMessage}>
+        <TextField label="Receipt Number" value={detailQuery.data?.voucher_number ?? 'Auto'} disabled />
+        <DateField label="Deposit Date" required value={depositDate} onChange={setDepositDate} />
+        <TextField label="Reference Number" value={referenceNumber} onChange={setReferenceNumber} placeholder="Slip, Cheque, Note" />
+        <div className="span-2">
+          <FieldLabel label="Bank Account" required>
+            <SearchableSelect
+              value={bankAccountId}
+              options={bankAccountOptions}
+              onChange={setBankAccountId}
+              placeholder={bankAccountsQuery.isLoading ? 'Loading Accounts' : bankAccountsQuery.error ? 'Accounts Not Loaded' : 'Search Bank Account'}
+              disabled={bankAccountsQuery.isLoading || bankAccountsQuery.isError}
             />
-          </VoucherLineSection>
+          </FieldLabel>
+        </div>
+        <NumericField label="Current Balance" value={money(currentBalance)} disabled />
+        <div className="span-all">
+          <TextField label="Voucher Details" value={description} onChange={setDescription} placeholder="Short Description For This Bank Receipt" />
+        </div>
+      </DocumentFormPanel>
 
-          <VoucherSummaryFooter activeLines={activeLines.length}>
-            <SummaryRow label="Cash Deposit" value={cashTotal} width={112} formatMoneyValue={money} />
-            <SummaryRow label="Cheque Deposit" value={chequeTotal} width={112} formatMoneyValue={money} />
-            <SummaryRow label="Bank Transfer" value={transferTotal} width={112} formatMoneyValue={money} />
-            <SummaryRow label="Other Deposit" value={otherTotal} width={112} formatMoneyValue={money} />
-            <SummaryRow label="Total Deposit" value={totalAmount} strong width={112} formatMoneyValue={money} />
-            <SummaryRow label="Difference" value={0} width={112} formatMoneyValue={money} />
-          </VoucherSummaryFooter>
-        </section>
-    </main>
+      <LinesPanel
+        title="Receipt Lines"
+        hint={<LineShortcutHint mode="grid" />}
+        actions={<AddLineButton onClick={addLine} />}
+        linesRef={lineKeyboard.linesRef}
+        onKeyDown={lineKeyboard.onLinesKeyDown}
+        summary={(
+          <DocumentSummary countLabel="Active Lines" count={activeLines.length}>
+            <SummaryAmount label="Cash Deposit" value={money(cashTotal)} />
+            <SummaryAmount label="Cheque Deposit" value={money(chequeTotal)} />
+            <SummaryAmount label="Bank Transfer" value={money(transferTotal)} />
+            <SummaryAmount label="Other Deposit" value={money(otherTotal)} />
+            <SummaryAmount label="Total Deposit" value={money(totalAmount)} strong />
+            <SummaryAmount label="Difference" value={money(0)} />
+          </DocumentSummary>
+        )}
+      >
+        <BankReceiptVoucherLineTable
+          lines={lines}
+          accountOptions={lineAccountOptions}
+          depositTypes={depositTypes}
+          accountsLoading={accountsLoading}
+          accountsError={Boolean(accountsError)}
+          generalSettings={generalSettings}
+          onUpdateLine={updateLine}
+          onRemoveLine={removeLine}
+        />
+      </LinesPanel>
+
+      <ConfirmDialog
+        open={processConfirmOpen}
+        title="Save Bank Receipt Voucher For Approval?"
+        message={`This saves the Bank Receipt Voucher (${money(totalAmount)}) and sends it for approval. It is posted after approval.`}
+        confirmLabel="Yes, Save For Approval"
+        cancelLabel="No"
+        variant="warning"
+        loading={saving}
+        onConfirm={() => saveVoucher(true)}
+        onCancel={() => setProcessConfirmOpen(false)}
+      />
+    </DocumentPage>
   );
 }

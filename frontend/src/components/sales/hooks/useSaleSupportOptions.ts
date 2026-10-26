@@ -1,10 +1,10 @@
 import { useMemo } from 'react';
-import type { CustomerOption, LocationOption, SaleItemOption, WarehouseOption } from '../SaleVoucherTypes';
+import type { BranchOption, CustomerOption, LocationOption, SaleItemOption } from '../SaleVoucherTypes';
 
 interface SaleSupportData {
   customers?: any[];
   items?: any[];
-  warehouses?: any[];
+  branches?: any[];
   locations?: any[];
 }
 
@@ -31,18 +31,16 @@ export function useSaleSupportOptions(supportData?: SaleSupportData) {
       purchasePrice: String(item.sale_price ?? '0'),
       taxRate: String(item.tax_rate ?? '0'),
       uomName: item.uom_name,
-      defaultWarehouseId: item.default_warehouse_id,
       stockOnHand: String(item.stock_on_hand ?? '0'),
     }));
   }, [supportData]);
 
-  const warehouses = useMemo<WarehouseOption[]>(() => {
-    return (supportData?.warehouses ?? []).map((warehouse: any) => ({
-      value: warehouse.id,
-      label: `${warehouse.code} - ${warehouse.name}`,
-      searchText: `${warehouse.code} ${warehouse.name}`,
-      isDefault: Boolean(warehouse.is_default),
-      useLocations: Boolean(warehouse.use_locations),
+  const branches = useMemo<BranchOption[]>(() => {
+    return (supportData?.branches ?? []).map((branch: any) => ({
+      value: branch.id,
+      label: branch.city ? `${branch.code} - ${branch.name} (${branch.city})` : `${branch.code} - ${branch.name}`,
+      searchText: `${branch.code} ${branch.name} ${branch.city ?? ''}`,
+      isDefault: Boolean(branch.is_default),
     }));
   }, [supportData]);
 
@@ -51,10 +49,10 @@ export function useSaleSupportOptions(supportData?: SaleSupportData) {
       value: location.id,
       label: `${location.code} - ${location.name}`,
       searchText: `${location.code} ${location.name}`,
-      warehouseId: location.warehouse_id,
+      branchId: location.branch_id,
       isDefault: Boolean(location.is_default),
     }));
   }, [supportData]);
 
-  return { customers, items, warehouses, locations };
+  return { customers, items, branches, locations };
 }

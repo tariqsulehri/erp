@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
+import { requirePermission } from '../http/access-context.js';
 import { resolveCompanyId } from '../http/company-context.js';
 import { CompanyProfileService } from '../modules/settings/company-profile.service.js';
 import { GeneralSettingsService } from '../modules/settings/general-settings.service.js';
@@ -66,6 +67,9 @@ const updatePostingAccountSettingsSchema = z.object({
     adjustment_gain_account_id: z.string().uuid().optional(),
     adjustment_loss_account_id: z.string().uuid().optional(),
   }).optional(),
+  year_end: z.object({
+    retained_earnings_account_id: z.string().uuid().optional(),
+  }).optional(),
 });
 
 settingsRouter.get('/company', async (req, res, next) => {
@@ -78,7 +82,7 @@ settingsRouter.get('/company', async (req, res, next) => {
   }
 });
 
-settingsRouter.patch('/company', async (req, res, next) => {
+settingsRouter.patch('/company', requirePermission('settings.manage'), async (req, res, next) => {
   try {
     const companyId = resolveCompanyId(req);
     const input = updateCompanyProfileSchema.parse(req.body);
@@ -99,7 +103,7 @@ settingsRouter.get('/general', async (req, res, next) => {
   }
 });
 
-settingsRouter.patch('/general', async (req, res, next) => {
+settingsRouter.patch('/general', requirePermission('settings.manage'), async (req, res, next) => {
   try {
     const companyId = resolveCompanyId(req);
     const input = updateGeneralSettingsSchema.parse(req.body);
@@ -120,7 +124,7 @@ settingsRouter.get('/posting-accounts', async (req, res, next) => {
   }
 });
 
-settingsRouter.patch('/posting-accounts', async (req, res, next) => {
+settingsRouter.patch('/posting-accounts', requirePermission('settings.manage'), async (req, res, next) => {
   try {
     const companyId = resolveCompanyId(req);
     const input = updatePostingAccountSettingsSchema.parse(req.body);

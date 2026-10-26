@@ -267,7 +267,8 @@ export function validateJournalVoucher({
   accountsLoading,
   accountsError,
   accountOptions,
-  description,
+  // Optional for a Journal Voucher; kept in the input so callers pass the whole form.
+  description: _description,
   enteredLines,
   allLines,
   totalDebit,

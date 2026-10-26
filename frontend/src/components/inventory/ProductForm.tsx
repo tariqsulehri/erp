@@ -58,7 +58,6 @@ export function ProductForm({ editId, onSaved, onCancel }: {
 
   /* ── Form state ── */
   const [sku,          setSku]          = useState('');
-  const [skuLoading,   setSkuLoading]   = useState(false);
   const [barcode,      setBarcode]      = useState('');
   const [name,         setName]         = useState('');
   const [description,  setDescription]  = useState('');
@@ -110,7 +109,8 @@ export function ProductForm({ editId, onSaved, onCancel }: {
     all.forEach(c => map.set(c.id, { ...c, parent_id: c.parent_id ?? null, children: [] }));
     const roots: CatNode[] = [];
     map.forEach(node => {
-      if (node.parent_id && map.has(node.parent_id)) map.get(node.parent_id)!.children.push(node);
+      const parent = node.parent_id ? map.get(node.parent_id) : undefined;
+      if (parent) parent.children.push(node);
       else roots.push(node);
     });
     roots.sort((a, b) => a.name.localeCompare(b.name));
@@ -279,8 +279,8 @@ export function ProductForm({ editId, onSaved, onCancel }: {
       tags:           tags     || undefined,
     };
 
-    if (isEdit) {
-      updateMut.mutate({ id: editId!, data: payload }, { onSuccess: handleSaved, onError: handleSaveError });
+    if (isEdit && editId) {
+      updateMut.mutate({ id: editId, data: payload }, { onSuccess: handleSaved, onError: handleSaveError });
     } else {
       createMut.mutate(payload, { onSuccess: handleSaved, onError: handleSaveError });
     }

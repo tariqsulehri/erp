@@ -95,6 +95,9 @@ export class BranchService {
 
   async create(input: CreateBranchInput) {
     await this.assertUniqueCode(input.code);
+    if (input.is_default && input.is_active === false) {
+      throw businessError('An Inactive Branch cannot be the default Branch. Make it Active first.');
+    }
 
     return prisma.$transaction(async transaction => {
       const existingCount = await transaction.branch.count({ where: { companyId: this.companyId } });
@@ -131,6 +134,10 @@ export class BranchService {
     }
     if (input.is_active === false) {
       await this.assertBranchCanBeInactive(input.id, existing.isDefault);
+    }
+    const willBeActive = input.is_active ?? existing.isActive;
+    if (input.is_default && !willBeActive) {
+      throw businessError('An Inactive Branch cannot be the default Branch. Make it Active first.');
     }
 
     return prisma.$transaction(async transaction => {
@@ -178,10 +185,10 @@ export class BranchService {
   private async assertBranchCanBeInactive(branchId: string, isDefault: boolean) {
     if (isDefault) throw businessError('Default Branch cannot be made Inactive. Select another default branch first.');
 
-    const activeWarehouse = await prisma.warehouse.findFirst({
-      where: { companyId: this.companyId, branchId, isActive: true },
+    const stock = await prisma.stockBalance.findFirst({
+      where: { companyId: this.companyId, branchId, isActive: true, stockOnHand: { gt: 0 } },
       select: { id: true },
     });
-    if (activeWarehouse) throw businessError('Branch has active Warehouses and cannot be made Inactive.');
+    if (stock) throw businessError('Branch has stock on hand and cannot be made Inactive. Transfer or adjust the stock first.');
   }
 }

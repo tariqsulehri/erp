@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useSession } from 'next-auth/react';
 import {
   IconCheck,
   IconEye,
@@ -16,6 +17,7 @@ import { useGeneralSettings } from '@/lib/api/settings';
 import {
   type AdjustmentType,
   type StockAdjustmentPayload,
+  type StockHolderKind,
   useCreateAndPostStockAdjustment,
   useCreateStockAdjustmentDraft,
   useInvalidateStockAdjustmentQueries,
@@ -34,6 +36,7 @@ import { InlineAlert } from '@/components/ui/InlineAlert';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { TableMessageRow } from '@/components/ui/TableMessageRow';
 import { SearchableSelect } from '@/components/ui/SearchableSelect';
+import { SegmentedControl } from '@/components/ui/SegmentedControl';
 
 interface AdjustmentLine {
   id: number;
@@ -49,12 +52,20 @@ interface AdjustmentLine {
 }
 
 const today = () => new Date().toISOString().slice(0, 10);
+const holderKindOptions: Array<{ value: StockHolderKind; label: string }> = [
+  { value: 'BRANCH', label: 'Branch' },
+  { value: 'WAREHOUSE', label: 'Warehouse' },
+];
 const adjustmentTypeOptions = [
   { value: 'Increase', label: 'Increase' },
   { value: 'Decrease', label: 'Decrease' },
 ];
 
 export default function StockAdjustmentPage() {
+  const { data: session } = useSession();
+  // Branch and Warehouse users can only adjust their own place; All Branches users choose Branch or Warehouse.
+  const accessLevel = session?.user.accessLevel;
+  const lockedKind: StockHolderKind | null = accessLevel === 'BRANCH' ? 'BRANCH' : accessLevel === 'WAREHOUSE' ? 'WAREHOUSE' : null;
   const { data: generalSettings } = useGeneralSettings();
   const supportQuery = useStockAdjustmentSupportData();
   const createDraft = useCreateStockAdjustmentDraft();
@@ -62,6 +73,8 @@ export default function StockAdjustmentPage() {
   const invalidate = useInvalidateStockAdjustmentQueries();
   const [viewMode, setViewMode] = useState<'list' | 'entry'>('list');
   const [adjustmentDate, setAdjustmentDate] = useState(today());
+  const [holderKind, setHolderKind] = useState<StockHolderKind>('WAREHOUSE');
+  const [branchId, setBranchId] = useState('');
   const [warehouseId, setWarehouseId] = useState('');
   const [locationId, setLocationId] = useState('');
   const [referenceNumber, setReferenceNumber] = useState('');
@@ -89,13 +102,27 @@ export default function StockAdjustmentPage() {
 
   const warehouses = useMemo(() => (supportQuery.data?.warehouses ?? []).map((warehouse: any) => ({
     value: warehouse.id,
-    label: `${warehouse.code} - ${warehouse.name}${warehouse.branch_name ? ` (${warehouse.branch_name})` : ''}`,
-    searchText: `${warehouse.code} ${warehouse.name} ${warehouse.branch_name ?? ''}`,
+    label: `${warehouse.code} - ${warehouse.name}`,
+    searchText: `${warehouse.code} ${warehouse.name}`,
     isDefault: warehouse.is_default,
     useLocations: Boolean(warehouse.use_locations),
   })), [supportQuery.data?.warehouses]);
-  const selectedWarehouse = warehouses.find((warehouse: any) => warehouse.value === warehouseId);
-  const locations = useMemo(() => locationOptions(supportQuery.data?.locations ?? [], warehouseId), [supportQuery.data?.locations, warehouseId]);
+  const branches = useMemo(() => (supportQuery.data?.branches ?? []).map((branch: any) => ({
+    value: branch.id,
+    label: branch.city ? `${branch.code} - ${branch.name} (${branch.city})` : `${branch.code} - ${branch.name}`,
+    searchText: `${branch.code} ${branch.name} ${branch.city ?? ''}`,
+    isDefault: branch.is_default,
+  })), [supportQuery.data?.branches]);
+  const kind: StockHolderKind = lockedKind ?? holderKind;
+  const holderId = kind === 'BRANCH' ? branchId : warehouseId;
+  const selectedWarehouse = kind === 'WAREHOUSE' ? warehouses.find((warehouse: any) => warehouse.value === warehouseId) : undefined;
+  const locations = useMemo(
+    () => locationOptions(supportQuery.data?.locations ?? [], kind, holderId),
+    [supportQuery.data?.locations, kind, holderId],
+  );
+  // Warehouses that use Locations need one; Branch shelves are optional when the Branch has any.
+  const locationRequired = Boolean(selectedWarehouse?.useLocations);
+  const locationEnabled = Boolean(holderId) && (locationRequired || (kind === 'BRANCH' && locations.length > 0));
   const items = useMemo(() => (supportQuery.data?.items ?? []).map((item: any) => ({
     value: item.id,
     label: `${item.item_code} - ${item.item_name}`,
@@ -117,13 +144,17 @@ export default function StockAdjustmentPage() {
   }, [warehouseId, warehouses]);
 
   useEffect(() => {
-    if (!selectedWarehouse?.useLocations) {
+    if (!branchId && branches.length > 0) setBranchId(branches.find((branch: any) => branch.isDefault)?.value ?? branches[0].value);
+  }, [branchId, branches]);
+
+  useEffect(() => {
+    if (!locationEnabled) {
       setLocationId('');
       return;
     }
     if (locationId && locations.some((location: any) => location.value === locationId)) return;
-    setLocationId(locations.find((location: any) => location.isDefault)?.value ?? '');
-  }, [locationId, locations, selectedWarehouse?.useLocations]);
+    setLocationId(locationRequired ? locations.find((location: any) => location.isDefault)?.value ?? '' : '');
+  }, [locationEnabled, locationId, locationRequired, locations]);
 
   useEffect(() => {
     if (!selectedItem || editingLineId) return;
@@ -137,6 +168,7 @@ export default function StockAdjustmentPage() {
   function resetForm() {
     setAdjustmentDate(today());
     setWarehouseId(warehouses.find((warehouse: any) => warehouse.isDefault)?.value ?? warehouses[0]?.value ?? '');
+    setBranchId(branches.find((branch: any) => branch.isDefault)?.value ?? branches[0]?.value ?? '');
     setLocationId('');
     setReferenceNumber('');
     setReason('');
@@ -162,8 +194,8 @@ export default function StockAdjustmentPage() {
 
   function validateForm() {
     if (postingDateGuard.disabled) return dateStatusMessage || 'Adjustment Date cannot be used for posting.';
-    if (!warehouseId) return 'Warehouse is required.';
-    if (selectedWarehouse?.useLocations && !locationId) return 'Location is required because Warehouse uses Locations.';
+    if (!holderId) return kind === 'BRANCH' ? 'Branch is required.' : 'Warehouse is required.';
+    if (locationRequired && !locationId) return 'Location is required because Warehouse uses Locations.';
     if (lines.length === 0) return 'Add at least one adjustment item.';
     const invalidLine = lines.find(line => numericValue(line.quantity) <= 0);
     if (invalidLine) return `Quantity must be greater than zero for ${invalidLine.itemCode}.`;
@@ -242,7 +274,7 @@ export default function StockAdjustmentPage() {
   function buildPayload(): StockAdjustmentPayload {
     return {
       adjustment_date: adjustmentDate,
-      warehouse_id: warehouseId,
+      ...(kind === 'BRANCH' ? { branch_id: branchId } : { warehouse_id: warehouseId }),
       location_id: locationId || undefined,
       reference_number: referenceNumber.trim(),
       reason: reason.trim(),
@@ -300,7 +332,7 @@ export default function StockAdjustmentPage() {
                   <tr>
                     <th style={{ width: 160 }}>Adjustment No.</th>
                     <th style={{ width: 110 }}>Date</th>
-                    <th>Warehouse</th>
+                    <th>Branch Or Warehouse</th>
                     <th>Reason</th>
                     <th className="num" style={{ width: 110 }}>Qty In</th>
                     <th className="num" style={{ width: 110 }}>Qty Out</th>
@@ -317,7 +349,7 @@ export default function StockAdjustmentPage() {
                     <tr key={row.id} className={selectedAdjustmentId === row.id ? 'is-selected' : undefined} onClick={() => setSelectedAdjustmentId(row.id)} style={{ cursor: 'pointer' }}>
                       <td className="cell-strong">{row.adjustment_number}</td>
                       <td>{formatDate(row.adjustment_date, generalSettings)}</td>
-                      <td>{row.warehouse_code} - {row.warehouse_name}</td>
+                      <td>{holderText(row)}</td>
                       <td className={row.reason ? undefined : 'cell-muted'}>{row.reason || 'Not Set'}</td>
                       <td className="num">{formatNumber(row.total_quantity_in, generalSettings)}</td>
                       <td className="num">{formatNumber(row.total_quantity_out, generalSettings)}</td>
@@ -368,11 +400,22 @@ export default function StockAdjustmentPage() {
         <div className="panel-body" style={{ overflow: 'visible' }}>
           <div className="form-grid" style={{ ['--form-cols' as string]: 5 }}>
             <DateField label="Adjustment Date" required value={adjustmentDate} onChange={setAdjustmentDate} />
-            <FieldLabel label="Warehouse" required>
-              <SearchableSelect value={warehouseId} options={warehouses} onChange={value => { setWarehouseId(value); setLocationId(''); }} placeholder={supportQuery.isLoading ? 'Loading Warehouses' : 'Search Warehouse'} disabled={supportQuery.isLoading || supportQuery.isError} />
+            <FieldLabel label="Adjust Stock At" required>
+              {lockedKind
+                ? <input className="form-input" value={lockedKind === 'BRANCH' ? 'Branch' : 'Warehouse'} readOnly />
+                : <SegmentedControl label="Adjust Stock At" value={holderKind} options={holderKindOptions} onChange={value => { setHolderKind(value); setLocationId(''); }} />}
             </FieldLabel>
-            <FieldLabel label="Location" required={Boolean(selectedWarehouse?.useLocations)}>
-              <SearchableSelect value={locationId} options={locations} onChange={setLocationId} placeholder={selectedWarehouse?.useLocations ? 'Search Location' : 'Not Used'} disabled={!warehouseId || !selectedWarehouse?.useLocations} />
+            {kind === 'BRANCH' ? (
+              <FieldLabel label="Branch" required>
+                <SearchableSelect value={branchId} options={branches} onChange={value => { setBranchId(value); setLocationId(''); }} placeholder={supportQuery.isLoading ? 'Loading Branches' : 'Search Branch'} disabled={Boolean(lockedKind) || supportQuery.isLoading || supportQuery.isError} />
+              </FieldLabel>
+            ) : (
+              <FieldLabel label="Warehouse" required>
+                <SearchableSelect value={warehouseId} options={warehouses} onChange={value => { setWarehouseId(value); setLocationId(''); }} placeholder={supportQuery.isLoading ? 'Loading Warehouses' : 'Search Warehouse'} disabled={Boolean(lockedKind) || supportQuery.isLoading || supportQuery.isError} />
+              </FieldLabel>
+            )}
+            <FieldLabel label="Location" required={locationRequired}>
+              <SearchableSelect value={locationId} options={locationRequired ? locations : [{ value: '', label: 'No Location', searchText: '' }, ...locations]} onChange={setLocationId} placeholder={locationEnabled ? 'Search Location' : 'Not Used'} disabled={!locationEnabled} />
             </FieldLabel>
             <TextField label="Reference Number" value={referenceNumber} onChange={setReferenceNumber} placeholder="Optional" />
             <TextField label="Reason" value={reason} onChange={setReason} placeholder="Count Difference, Damage, Opening Fix" />
@@ -459,9 +502,9 @@ export default function StockAdjustmentPage() {
   );
 }
 
-function locationOptions(rows: any[], warehouseId: string) {
+function locationOptions(rows: any[], kind: StockHolderKind, holderId: string) {
   return rows
-    .filter(location => location.warehouse_id === warehouseId)
+    .filter(location => (kind === 'BRANCH' ? location.branch_id : location.warehouse_id) === holderId)
     .map(location => ({ value: location.id, label: `${location.code} - ${location.name}`, searchText: `${location.code} ${location.name}`, isDefault: location.is_default }));
 }
 
@@ -482,7 +525,7 @@ function DetailPanel({ detail, loading, settings, onClose }: { detail: any; load
             <dl className="detail-list">
               <InfoRow label="Date" value={formatDate(detail.adjustment_date, settings)} />
               <InfoRow label="Status" value={<Badge variant="success">{detail.status}</Badge>} />
-              <InfoRow label="Warehouse" value={`${detail.warehouse_code} - ${detail.warehouse_name}`} />
+              <InfoRow label={detail.branch_id ? 'Branch' : 'Warehouse'} value={holderText(detail)} />
               <InfoRow label="Location" value={detail.location_code ? `${detail.location_code} - ${detail.location_name}` : 'Not Set'} />
               <InfoRow label="Reason" value={detail.reason || 'Not Set'} />
             </dl>
@@ -505,6 +548,11 @@ function DetailPanel({ detail, loading, settings, onClose }: { detail: any; load
       </div>
     </aside>
   );
+}
+
+/** "Code - Name" of the Branch or Warehouse a list or detail row belongs to. */
+function holderText(row: any) {
+  return row.branch_id ? `${row.branch_code} - ${row.branch_name}` : `${row.warehouse_code} - ${row.warehouse_name}`;
 }
 
 function InfoRow({ label, value }: { label: string; value: ReactNode }) {

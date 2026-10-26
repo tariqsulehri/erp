@@ -5,7 +5,6 @@ import { useState } from 'react';
 import { IconArrowLeft, IconPrinter } from '@tabler/icons-react';
 import { formatDate } from '@/lib/app-settings';
 import { friendlyErrorMessage } from '@/lib/erp-utils';
-import { compactButtonStyle } from '@/components/purchases/PurchaseVoucherStyles';
 import { printPostedVoucherDocument } from './VoucherPrintHtml';
 
 function voucherTypeLabel(type: string) {
@@ -61,10 +60,10 @@ export function PostedVoucherPrintPreview({
           <div style={{ color: 'var(--color-text-muted)', fontSize: '0.72rem' }}>{voucher.voucher_number} | {title}</div>
         </div>
         <div style={{ display: 'flex', gap: 6 }}>
-          <button type="button" className="btn-secondary" onClick={onBack} style={compactButtonStyle}>
+          <button type="button" className="btn-secondary" onClick={onBack}>
             <IconArrowLeft size={15} /> Back To List
           </button>
-          <button type="button" className="btn-primary" onClick={printVoucher} style={compactButtonStyle}>
+          <button type="button" className="btn-primary" onClick={printVoucher}>
             <IconPrinter size={15} /> Print
           </button>
         </div>

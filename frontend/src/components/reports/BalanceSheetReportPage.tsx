@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import { IconRefresh, IconSearch } from '@tabler/icons-react';
 import { Button } from '@/components/ui/Button';
 import { CheckboxField, DateField } from '@/components/ui/FormFields';
@@ -13,6 +14,8 @@ import { useGeneralSettings } from '@/lib/api/settings';
 import { friendlyErrorMessage, isValidDateInput } from '@/lib/erp-utils';
 import { todayInputDate } from './LedgerReportHelpers';
 import { amountStyle, embeddedReportStyle, reportFilterGridStyle, reportGroupRowStyle, reportIndentStyle } from './LedgerReportStyles';
+import { ReportActions } from './ReportActions';
+import type { ReportDocument } from './report-output';
 
 interface BalanceSheetReportPageProps {
   embedded?: boolean;
@@ -32,6 +35,8 @@ type BalanceSheetDisplayRow =
       key: string;
       line: BalanceSheetLine;
     };
+
+const linkStyle = { color: 'var(--color-primary-text)' };
 
 const sections: BalanceSheetLine['section'][] = ['Assets', 'Liabilities', 'Equity'];
 
@@ -167,6 +172,35 @@ export function BalanceSheetReportPage({ embedded = false }: BalanceSheetReportP
     { label: 'Total Liabilities And Equity', value: totals.liabilities_and_equity },
   ] : [];
 
+  function buildReport(): ReportDocument | null {
+    if (!report || !totals) return null;
+    return {
+      title: 'Balance Sheet',
+      subtitle: `As of ${formatDate(report.as_of_date, generalSettings)}`,
+      columns: [
+        { label: 'Account Code' },
+        { label: 'Account Name' },
+        { label: 'Debit Balance', kind: 'money' },
+        { label: 'Credit Balance', kind: 'money' },
+        { label: 'Report Amount', kind: 'money' },
+      ],
+      rows: [
+        ...displayRows.map(row => (row.kind !== 'account'
+          ? { style: 'group' as const, cells: [row.code, row.name, '', '', row.amount] }
+          : { cells: [row.line.account_code, row.line.account_name, row.line.debit_balance, row.line.credit_balance, row.line.amount] })),
+        ...totalRows.map(total => ({ style: 'total' as const, cells: ['', total.label, '', '', total.value] })),
+        { style: 'total' as const, cells: ['', 'Difference', '', '', totals.difference] },
+      ],
+      note: report.fiscal_year
+        ? `Fiscal Year ${report.fiscal_year.fiscal_year}: ${formatDate(report.fiscal_year.start_date, generalSettings)} to ${formatDate(report.fiscal_year.end_date, generalSettings)}`
+        : undefined,
+      fileName: `balance-sheet-${report.as_of_date}`,
+    };
+  }
+
+  const ledgerFrom = report?.fiscal_year?.start_date ?? `${(report?.as_of_date ?? asOfDate).slice(0, 4)}-01-01`;
+  const ledgerHref = (accountId: string) => `/reports?report=ledger&account=${accountId}&from=${ledgerFrom}&to=${report?.as_of_date ?? asOfDate}`;
+
   const Root = embedded ? 'div' : 'main';
 
   return (
@@ -189,6 +223,7 @@ export function BalanceSheetReportPage({ embedded = false }: BalanceSheetReportP
             <CheckboxField label="Show Zero Balances" checked={includeZeroBalances} onChange={updateZeroBalanceFilter} />
             <Button variant="primary" icon={<IconSearch size={16} stroke={1.8} />} onClick={viewReport} loading={reportQuery.isFetching}>View Report</Button>
             <Button icon={<IconRefresh size={16} stroke={1.8} />} onClick={refreshReport} disabled={reportQuery.isFetching}>Refresh</Button>
+            <ReportActions buildReport={buildReport} disabled={!report} onError={setMessage} />
           </div>
           {report?.fiscal_year && (
             <div className="filter-bar-end">
@@ -240,9 +275,15 @@ export function BalanceSheetReportPage({ embedded = false }: BalanceSheetReportP
 
                 return (
                   <tr key={row.key}>
-                    <td className="cell-muted" style={reportIndentStyle(3)}>{row.line.account_code}</td>
+                    <td className="cell-muted" style={reportIndentStyle(3)}>
+                      {row.line.is_system_line
+                        ? row.line.account_code
+                        : <Link href={ledgerHref(row.line.account_id)} style={linkStyle}>{row.line.account_code}</Link>}
+                    </td>
                     <td style={row.line.is_system_line ? { fontWeight: 600, color: 'var(--color-heading)' } : undefined}>
-                      {row.line.account_name}
+                      {row.line.is_system_line
+                        ? row.line.account_name
+                        : <Link href={ledgerHref(row.line.account_id)} style={linkStyle}>{row.line.account_name}</Link>}
                     </td>
                     <td className="num" style={amountStyle(row.line.debit_balance)}>{moneyOrBlank(row.line.debit_balance, generalSettings)}</td>
                     <td className="num" style={amountStyle(row.line.credit_balance)}>{moneyOrBlank(row.line.credit_balance, generalSettings)}</td>

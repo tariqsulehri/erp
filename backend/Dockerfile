@@ -23,19 +23,30 @@ FROM node:22-alpine AS runner
 WORKDIR /app
 
 ENV NODE_ENV=production
+# The same image runs database jobs: `migrate deploy`, the fresh install script and the first Admin seed.
+ENV PRISMA_CMD="node node_modules/prisma/build/index.js"
 
-RUN apk add --no-cache curl
+# psql and pg_dump (version 17 can back up PostgreSQL 17 and older) for the install script and backups.
+RUN apk add --no-cache curl postgresql17-client
 
 COPY package*.json ./
-RUN npm ci --omit=dev
+RUN npm ci --omit=dev && npm cache clean --force
 
+# Prisma CLI and engines (a dev dependency) so migrations can run from this image.
+COPY --from=builder /app/node_modules/prisma ./node_modules/prisma
+COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
 COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 COPY --from=builder /app/prisma ./prisma
 COPY --from=builder /app/dist ./dist
+COPY scripts ./scripts
+
+RUN chown -R node:node /app
+
+USER node
 
 EXPOSE 4000
 
-HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
-  CMD node -e "require('http').get('http://localhost:4000/api/v1/health', (r) => { if (r.statusCode !== 200) process.exit(1); }).on('error', () => process.exit(1));"
+HEALTHCHECK --interval=30s --timeout=10s --start-period=15s --retries=3 \
+  CMD node -e "require('http').get('http://localhost:' + (process.env.PORT || 4000) + '/health', (r) => process.exit(r.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1));"
 
 CMD ["node", "dist/server.js"]

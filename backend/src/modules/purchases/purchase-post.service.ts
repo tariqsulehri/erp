@@ -1,9 +1,16 @@
 import { Decimal } from 'decimal.js';
 import type { Prisma } from '@prisma/client';
 import { prisma } from '../../db/prisma.js';
+import { insertPostedVoucher, type PostingLine } from '../vouchers/voucher-posting.js';
 import { PurchaseSupportService } from './purchase-support.service.js';
 
 type TransactionClient = Prisma.TransactionClient;
+
+function businessError(message: string) {
+  const error = new Error(message);
+  Object.assign(error, { statusCode: 400 });
+  return error;
+}
 
 interface AccountRow {
   id: string;
@@ -49,7 +56,7 @@ export class PurchasePostService {
   constructor(private readonly companyId: string) {}
 
   private userIdOrNull(userId?: string | null) {
-    return userId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userId)
+    return userId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userId)
       ? userId
       : null;
   }
@@ -97,6 +104,7 @@ export class PurchasePostService {
         ON fp.fiscal_year_id = fy.id
         AND fp.start_date <= d.posting_date
         AND (fp.end_date + (fp.posting_cutoff_days * INTERVAL '1 day')) >= d.posting_date
+      ORDER BY (fp.end_date >= d.posting_date) DESC NULLS LAST
       LIMIT 1
     `;
 
@@ -196,54 +204,22 @@ export class PurchasePostService {
       }
 
       const netAmount = this.money(invoice.net_amount);
-      const inventoryAmount = this.money(invoice.gross_amount);
       const discountAmount = this.money(invoice.discount_amount);
       const taxAmount = this.money(invoice.tax_amount);
       const freightAmount = this.money(invoice.freight_amount);
-      if (taxAmount.gt(0) && !taxAccount) throw new Error('Purchase Tax Account is not set.');
-      if (freightAmount.gt(0) && !freightAccount) throw new Error('Freight Account is not set.');
-      if (discountAmount.gt(0) && !discountAccount) throw new Error('Purchase Discount Received Account is not set.');
-      const voucherTotal = inventoryAmount.plus(taxAmount).plus(freightAmount);
+      if (taxAmount.gt(0) && !taxAccount) throw businessError('Purchase Tax Account is not set.');
+      if (freightAmount.gt(0) && !freightAccount) throw businessError('Freight Account is not set.');
+      if (discountAmount.gt(0) && !discountAccount) throw businessError('Purchase Discount Received Account is not set.');
 
       const postedBy = this.userIdOrNull(userId);
-      const voucherRows = await transaction.$queryRaw<{ id: string }[]>`
-        INSERT INTO vouchers (
-          company_id,
-          voucher_number,
-          voucher_type,
-          voucher_date,
-          reference,
-          narration,
-          status,
-          approval_status,
-          total_debit,
-          total_credit,
-          created_by,
-          posted_by,
-          posted_at,
-          updated_at
-        )
-        VALUES (
-          CAST(${this.companyId} AS uuid),
-          ${invoice.purchase_number},
-          'PI',
-          CAST(${purchaseDateText} AS date),
-          ${invoice.reference_number},
-          ${invoice.description || 'Purchase Voucher'},
-          'Posted',
-          'Approved',
-          CAST(${voucherTotal.toFixed(2)} AS numeric),
-          CAST(${voucherTotal.toFixed(2)} AS numeric),
-          ${postedBy}::uuid,
-          ${postedBy}::uuid,
-          now(),
-          now()
-        )
-        RETURNING id
-      `;
-      const voucherId = voucherRows[0].id;
+      // Inventory is debited with the same before-discount line cost written to stock, so the
+      // Inventory account always equals stock value; the discount is credited to its own account.
+      let inventoryAmount = new Decimal(0);
+      for (const line of [...lines].sort((a, b) => a.item_id.localeCompare(b.item_id))) {
+        inventoryAmount = inventoryAmount.plus(await this.postStockLine(transaction, invoice, line, postedBy));
+      }
 
-      const voucherLines = [
+      const voucherLines: PostingLine[] = [
         {
           account: inventoryAccount,
           debit: inventoryAmount,
@@ -278,36 +254,16 @@ export class PurchasePostService {
         },
       ];
 
-      for (const [index, line] of voucherLines.entries()) {
-        await transaction.$queryRaw`
-          INSERT INTO voucher_lines (
-            voucher_id,
-            company_id,
-            account_id,
-            account_code,
-            account_name,
-            dr_amount,
-            cr_amount,
-            narration,
-            line_no
-          )
-          VALUES (
-            CAST(${voucherId} AS uuid),
-            CAST(${this.companyId} AS uuid),
-            CAST(${line.account.id} AS uuid),
-            ${line.account.code},
-            ${line.account.name},
-            CAST(${line.debit.toFixed(2)} AS numeric),
-            CAST(${line.credit.toFixed(2)} AS numeric),
-            ${line.narration},
-            ${index + 1}
-          )
-        `;
-      }
-
-      for (const line of lines) {
-        await this.postStockLine(transaction, invoice, line, postedBy);
-      }
+      const voucherId = await insertPostedVoucher(transaction, {
+        companyId: this.companyId,
+        voucherNumber: invoice.purchase_number,
+        voucherType: 'PI',
+        voucherDate: purchaseDateText,
+        reference: invoice.reference_number,
+        narration: invoice.description || 'Purchase Voucher',
+        userId: postedBy,
+        lines: voucherLines,
+      });
 
       await transaction.$queryRaw`
         UPDATE purchase_invoices
@@ -332,7 +288,7 @@ export class PurchasePostService {
     userId: string | null,
   ) {
     const quantity = this.quantity(line.quantity);
-    const lineCost = this.money(new Decimal(line.quantity).times(line.purchase_price).minus(line.discount_amount));
+    const lineCost = this.money(quantity.times(this.money(line.purchase_price)));
     const unitCost = quantity.gt(0) ? lineCost.div(quantity).toDecimalPlaces(4, Decimal.ROUND_HALF_UP) : new Decimal(0);
 
     const balanceRows = await transaction.$queryRaw<any[]>`
@@ -447,5 +403,7 @@ export class PurchasePostService {
       WHERE company_id = CAST(${this.companyId} AS uuid)
         AND id = CAST(${line.item_id} AS uuid)
     `;
+
+    return lineCost;
   }
 }

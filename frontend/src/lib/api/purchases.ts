@@ -3,6 +3,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { backendGet, backendPost } from './backend-client';
+import type { DocumentListTotals } from './document-totals';
 import type { PaymentType, PurchaseListRow } from '@/components/purchases/PurchaseVoucherTypes';
 
 export interface PurchaseSupportData {
@@ -46,6 +47,8 @@ export interface PurchaseInvoicesListResponse {
   page: number;
   limit: number;
   totalPages: number;
+  /** Sums over every record that matches the filters, not only this page. */
+  totals?: DocumentListTotals;
 }
 
 function buildQueryString<TQuery extends object>(query: TQuery) {
@@ -89,6 +92,8 @@ export function usePurchaseAnalytics(query: PurchaseAnalyticsQuery) {
     queryKey: ['backend', 'purchases', 'analytics', query],
     queryFn: () => backendGet<PurchaseAnalyticsResponse>(`/purchases/analytics?${buildQueryString(query)}`),
     retry: false,
+    // Keep the last charts on screen while a filter change loads.
+    placeholderData: previous => previous,
   });
 }
 

@@ -94,6 +94,15 @@ export function useRejectVoucher() {
   });
 }
 
+export function useReverseVoucher() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, reversal_date, reason }: { id: string; reversal_date: string; reason: string }) =>
+      backendPost<any, { reversal_date: string; reason: string }>(`/vouchers/${id}/reverse`, { reversal_date, reason }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: vouchersQueryKey }),
+  });
+}
+
 export function useVoidVoucher() {
   const queryClient = useQueryClient();
   return useMutation({

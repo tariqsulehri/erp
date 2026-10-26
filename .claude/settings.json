@@ -70,7 +70,19 @@
       "Bash(grep -rniE \"\\(credit|debit\\)[^\\\\n]{0,120}color-\\(success|info|primary\\)|color-\\(success|info|primary\\)[^\\\\n]{0,80}\\(credit|debit\\)\" --include='*.tsx' .)",
       "Bash(grep -n 'async \\\\|^export\\\\|^function\\\\|^const\\\\|TODO\\\\|FOR UPDATE\\\\|INSERT INTO\\\\|UPDATE \\\\|vouchers\\\\|voucher_lines\\\\|$transaction\\\\|Voided\\\\|status\\\\b.*=\\\\|lt\\(\\\\|negative' src/modules/stock-adjustments/stock-adjustment.service.ts)",
       "Bash(grep -n 'async \\\\|INSERT INTO inventory_stock\\\\|UPDATE inventory_stock\\\\|movement_kind\\\\|PURCHASE_RECEIPT\\\\|PURCHASE_RETURN\\\\|SALES_DELIVERY\\\\|SALES_RETURN\\\\|average_cost\\\\|FOR UPDATE\\\\|lt\\(\\\\|Not enough\\\\|$transaction\\\\|INSERT INTO vouchers\\\\|account\\\\b.*code\\\\|'\\\\''0[0-9]\\\\{9\\\\}'\\\\''' src/modules/purchases/purchase-post.service.ts src/modules/purchase-returns/purchase-return-post.service.ts src/modules/sales/sale-post.service.ts src/modules/sale-returns/sale-return-post.service.ts)",
-      "Bash(sort -u -t: -k3)"
+      "Bash(sort -u -t: -k3)",
+      "Bash(npx tsc --noEmit)",
+      "Bash(npx tsc --noEmit *)",
+      "Bash(npx vitest run)",
+      "Bash(npx vitest run *)",
+      "Bash(npx jest *)",
+      "Bash(npm audit)",
+      "Bash(npm audit --json)",
+      "Bash(npx prisma migrate status)",
+      "Bash(npx prisma validate)",
+      "Bash(npm ls)",
+      "Bash(npm ls *)",
+      "Bash(git check-ignore *)"
     ]
   }
 }

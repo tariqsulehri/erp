@@ -1,12 +1,14 @@
 import { Decimal } from 'decimal.js';
+import { Prisma } from '@prisma/client';
 import { z } from 'zod';
 import { prisma } from '../../db/prisma.js';
+import { holderCondition } from '../inventory/stock-holder.js';
+import { validateHolder } from '../inventory/stock-holder-access.js';
 
 const dateInput = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Use YYYY-MM-DD format.');
 
 export const SaleInvoiceLineInput = z.object({
   item_id: z.string().uuid(),
-  warehouse_id: z.string().uuid().optional(),
   quantity: z.number().positive('Quantity must be greater than zero.'),
   sale_price: z.number().positive('Sale Price must be greater than zero.'),
   discount_amount: z.number().min(0).default(0),
@@ -20,7 +22,8 @@ export const ValidateSaleInvoiceInput = z.object({
   payment_type: z.enum(['Cash', 'Credit']),
   due_date: dateInput.optional(),
   delivery_date: dateInput.optional(),
-  warehouse_id: z.string().uuid(),
+  // Sales happen at a Branch. The route replaces this with the user's own Branch for Branch users.
+  branch_id: z.string().uuid().optional(),
   location_id: z.string().uuid().optional().or(z.literal('')),
   customer_reference_number: z.string().max(100).optional(),
   delivery_note_number: z.string().max(100).optional(),
@@ -94,6 +97,7 @@ export class SaleValidationService {
         AND fy.is_deleted = false
         AND fy.start_date <= CAST(${dateText} AS date)
         AND fy.end_date >= CAST(${dateText} AS date)
+      ORDER BY (fp.end_date >= CAST(${dateText} AS date)) DESC NULLS LAST
       LIMIT 1
     `;
 
@@ -157,40 +161,8 @@ export class SaleValidationService {
       this.addError(errors, 'Customer Linked Account is missing. Please update the customer before posting sale.');
     }
 
-    let resolvedLocationId: string | null = null;
-    const warehouseRows = await prisma.$queryRaw<{ id: string; use_locations: boolean }[]>`
-      SELECT id, use_locations
-      FROM inventory_warehouses
-      WHERE company_id = CAST(${this.companyId} AS uuid)
-        AND id = CAST(${input.warehouse_id} AS uuid)
-        AND is_active = true
-      LIMIT 1
-    `;
-    const warehouse = warehouseRows[0];
-    if (!warehouse) {
-      this.addError(errors, 'Warehouse was not found or is inactive.');
-    } else if (warehouse.use_locations) {
-      if (!input.location_id) {
-        this.addError(errors, 'Location is required because the selected Warehouse uses Locations.');
-      } else {
-        const locationRows = await prisma.$queryRaw<{ id: string }[]>`
-          SELECT id
-          FROM inventory_warehouse_locations
-          WHERE company_id = CAST(${this.companyId} AS uuid)
-            AND id = CAST(${input.location_id} AS uuid)
-            AND warehouse_id = CAST(${input.warehouse_id} AS uuid)
-            AND is_active = true
-          LIMIT 1
-        `;
-        if (!locationRows[0]) {
-          this.addError(errors, 'Location was not found, inactive, or does not belong to the selected Warehouse.');
-        } else {
-          resolvedLocationId = locationRows[0].id;
-        }
-      }
-    } else if (input.location_id) {
-      this.addError(errors, 'Location can only be selected when the Warehouse uses Locations.');
-    }
+    const holder = await validateHolder(prisma, this.companyId, { branchId: input.branch_id, locationId: input.location_id || null }, errors);
+    const resolvedLocationId = holder?.locationId ?? null;
 
     if (customer && input.customer_reference_number?.trim()) {
       const duplicateRows = await prisma.$queryRaw<{ sale_number: string }[]>`
@@ -216,8 +188,7 @@ export class SaleValidationService {
             i.item_name,
             i.minimum_sales_price::text,
             COALESCE(SUM(sb.stock_on_hand) FILTER (
-              WHERE sb.warehouse_id = CAST(${input.warehouse_id} AS uuid)
-                AND (${resolvedLocationId}::uuid IS NULL AND sb.location_id IS NULL OR sb.location_id = ${resolvedLocationId}::uuid)
+              WHERE ${holder ? holderCondition(holder, 'sb') : Prisma.sql`FALSE`}
             ), 0)::text AS stock_on_hand
           FROM inventory_items i
           LEFT JOIN inventory_stock_balances sb
@@ -239,10 +210,6 @@ export class SaleValidationService {
 
     const quantityByItem = new Map<string, Decimal>();
     const calculatedLines = input.lines.map((line, index) => {
-      if (line.warehouse_id && line.warehouse_id !== input.warehouse_id) {
-        this.addError(errors, `Line ${index + 1} Warehouse must match the selected Warehouse.`);
-      }
-
       const quantity = this.quantity(line.quantity);
       const salePrice = this.money(line.sale_price);
       const gross = this.money(quantity.times(salePrice));
@@ -304,6 +271,7 @@ export class SaleValidationService {
         net_amount: netAmount.toFixed(2),
       },
       lines: calculatedLines,
+      branch_id: holder?.branchId ?? null,
       location_id: resolvedLocationId,
     };
   }

@@ -25,6 +25,7 @@ import { PageHeader } from '@/components/ui/PageHeader';
 import { SearchField } from '@/components/ui/SearchField';
 import { SidePanel } from '@/components/ui/SidePanel';
 import { TableMessageRow } from '@/components/ui/TableMessageRow';
+import { friendlyErrorMessage } from '@/lib/erp-utils';
 
 /* Types */
 interface CategoryRow {
@@ -104,7 +105,7 @@ export default function CategoriesPage() {
   const queryClient = useQueryClient();
 
   /* Queries / mutations */
-  const { data: rawCats = [], isLoading } = useProductCategories();
+  const { data: rawCats = [], isLoading, error: loadError, refetch } = useProductCategories();
   const refreshCategories = () => queryClient.invalidateQueries({ queryKey: productsQueryKey });
 
   const createMut = useCreateProductCategory();
@@ -239,7 +240,10 @@ export default function CategoriesPage() {
               </thead>
               <tbody>
                 {isLoading && <TableMessageRow colSpan={6} title="Loading Categories…" loading />}
-                {!isLoading && flatRows.length === 0 && (
+                {!isLoading && loadError && (
+                  <TableMessageRow colSpan={6} title="Categories Could Not Be Loaded" description={friendlyErrorMessage(loadError, 'Please check your connection and try again.')} action={<Button onClick={() => refetch()}>Try Again</Button>} />
+                )}
+                {!isLoading && !loadError && flatRows.length === 0 && (
                   isFiltered
                     ? <TableMessageRow colSpan={6} title="No Categories Match" description={`Change or clear the search text${showInactive ? '' : ', or tick Show Inactive,'} to see more Categories.`} />
                     : <TableMessageRow colSpan={6} title="No Categories Yet" description="Add a top level Category first, then add Sub Categories under it." action={<Button variant="primary" icon={<IconPlus size={16} stroke={1.8} />} onClick={() => openNew()}>New Category</Button>} />

@@ -65,41 +65,42 @@ export function usePurchaseLineEditor({
     });
   }
 
-  function addItemLine() {
+  /** Adds or updates the line from the entry row. Returns false when the line is not valid. */
+  function addItemLine(): boolean {
     onClearMessage();
     if (!lineDraft.itemId) {
       onError('Item is required.');
-      return;
+      return false;
     }
     if (!selectedItem) {
       onError('Selected Item was not found. Please select it again.');
-      return;
+      return false;
     }
     if (!validQuantityPattern.test(cleanNumber(lineDraft.quantity)) || numericValue(lineDraft.quantity) <= 0) {
       onError('Quantity must be greater than zero.');
-      return;
+      return false;
     }
     if (!validMoneyPattern.test(cleanNumber(lineDraft.purchasePrice)) || numericValue(lineDraft.purchasePrice) <= 0) {
       onError('Purchase Price must be greater than zero.');
-      return;
+      return false;
     }
     if (lineDraft.discountAmount && !validMoneyPattern.test(cleanNumber(lineDraft.discountAmount))) {
       onError('Discount must be a valid amount.');
-      return;
+      return false;
     }
     if (lineDraft.taxAmount && !validMoneyPattern.test(cleanNumber(lineDraft.taxAmount))) {
       onError('Tax must be a valid amount.');
-      return;
+      return false;
     }
 
     const gross = decimal(lineDraft.quantity).times(decimal(lineDraft.purchasePrice));
     if (decimal(lineDraft.discountAmount).gt(gross)) {
       onError('Discount cannot be greater than item amount.');
-      return;
+      return false;
     }
     if (lineDraftTotal.lte(0)) {
       onError('Line Total must be greater than zero.');
-      return;
+      return false;
     }
 
     const savedLine: PurchaseLine = {
@@ -124,6 +125,7 @@ export function usePurchaseLineEditor({
       setNextLineId(value => value + 1);
     }
     setLineDraft(initialPurchaseLineDraft());
+    return true;
   }
 
   function removeLine(id: number) {

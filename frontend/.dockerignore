@@ -15,3 +15,9 @@ dist
 .vscode
 .idea
 .eslintcache
+
+# Never copy local secrets into the image.
+.env
+.env.*
+!.env.example
+tests

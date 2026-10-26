@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { queryBoolean } from '../../http/query-boolean.js';
 
 export const accountTypeSchema = z.enum(['Asset', 'Liability', 'Equity', 'Revenue', 'Expense']);
 export const normalBalanceSchema = z.enum(['Debit', 'Credit']);
@@ -6,8 +7,8 @@ export const normalBalanceSchema = z.enum(['Debit', 'Credit']);
 export const accountListQuerySchema = z.object({
   search: z.string().trim().optional(),
   type: z.string().trim().optional(),
-  is_active: z.coerce.boolean().optional(),
-  is_posting: z.coerce.boolean().optional(),
+  is_active: queryBoolean.optional(),
+  is_posting: queryBoolean.optional(),
   page: z.coerce.number().int().min(1).default(1),
   limit: z.coerce.number().int().min(1).max(200).default(50),
 });
@@ -50,7 +51,7 @@ export const cloneAccountSchema = z.object({
 
 export const accountNextCodeQuerySchema = z.object({
   parent_code: z.string().regex(/^\d{10}$/),
-  is_posting: z.coerce.boolean().optional().default(false),
+  is_posting: queryBoolean.optional().default(false),
 });
 
 export const accountChildrenQuerySchema = z.object({

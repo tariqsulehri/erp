@@ -32,7 +32,7 @@ export function ProductDetailPanel({ id, onClose, onEdit }: {
   const queryClient = useQueryClient();
   const [showArchiveConfirm, setShowArchiveConfirm] = useState(false);
   const [archiveError, setArchiveError] = useState('');
-  const { data: p, isLoading } = useProductDetail(id);
+  const { data: p, isLoading, error: loadError, refetch } = useProductDetail(id);
   const { data: generalSettings } = useGeneralSettings();
   const archiveMut = useArchiveProduct();
 
@@ -47,6 +47,15 @@ export function ProductDetailPanel({ id, onClose, onEdit }: {
     <>
       {header('Product Detail')}
       <div className="panel-body"><p className="form-hint" style={{ margin: 0 }} role="status">Loading Product…</p></div>
+    </>
+  );
+  if (loadError) return (
+    <>
+      {header('Product Detail')}
+      <div className="panel-body" style={{ display: 'grid', gap: 8 }}>
+        <InlineAlert tone="danger">{friendlyErrorMessage(loadError, 'This Product could not be loaded.')}</InlineAlert>
+        <div><Button onClick={() => refetch()}>Try Again</Button></div>
+      </div>
     </>
   );
   if (!p) return null;

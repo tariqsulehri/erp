@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { requirePermission } from '../http/access-context.js';
 import { resolveCompanyId } from '../http/company-context.js';
 import { AreaService } from '../modules/areas/area.service.js';
 import { createAreaSchema, idParams, listAreasQuery, updateAreaSchema } from '../modules/areas/area.schema.js';
@@ -15,7 +16,7 @@ areasRouter.get('/', async (req, res, next) => {
   }
 });
 
-areasRouter.post('/', async (req, res, next) => {
+areasRouter.post('/', requirePermission('locations.manage'), async (req, res, next) => {
   try {
     const service = new AreaService(resolveCompanyId(req));
     const body = createAreaSchema.parse(req.body);
@@ -41,7 +42,7 @@ areasRouter.get('/:id', async (req, res, next) => {
   }
 });
 
-areasRouter.patch('/:id', async (req, res, next) => {
+areasRouter.patch('/:id', requirePermission('locations.manage'), async (req, res, next) => {
   try {
     const service = new AreaService(resolveCompanyId(req));
     const { id } = idParams.parse(req.params);

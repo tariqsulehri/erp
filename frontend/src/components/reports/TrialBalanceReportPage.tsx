@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import { IconRefresh, IconSearch } from '@tabler/icons-react';
 import { Button } from '@/components/ui/Button';
 import { CheckboxField, DateField } from '@/components/ui/FormFields';
@@ -11,8 +12,10 @@ import { formatDate, formatMoney } from '@/lib/app-settings';
 import { TrialBalanceLine, useTrialBalanceReport } from '@/lib/api/reports';
 import { useGeneralSettings } from '@/lib/api/settings';
 import { friendlyErrorMessage, isValidDateInput } from '@/lib/erp-utils';
-import { firstDayOfCurrentYear, todayInputDate } from './LedgerReportHelpers';
+import { useReportDateRange } from './LedgerReportHelpers';
 import { amountStyle, embeddedReportStyle, reportFilterGridStyle, reportGroupRowStyle, reportIndentStyle } from './LedgerReportStyles';
+import { ReportActions } from './ReportActions';
+import type { ReportDocument } from './report-output';
 
 interface TrialBalanceReportPageProps {
   embedded?: boolean;
@@ -39,6 +42,8 @@ type TrialBalanceDisplayRow =
       key: string;
       line: TrialBalanceLine;
     };
+
+const linkStyle = { color: 'var(--color-primary-text)' };
 
 const amountKeys: AmountKey[] = ['opening_debit', 'opening_credit', 'period_debit', 'period_credit', 'closing_debit', 'closing_credit'];
 
@@ -110,8 +115,7 @@ function buildGroupedRows(lines: TrialBalanceLine[], includeZeroBalances: boolea
 
 export function TrialBalanceReportPage({ embedded = false }: TrialBalanceReportPageProps) {
   const { data: generalSettings } = useGeneralSettings();
-  const [dateFrom, setDateFrom] = useState(firstDayOfCurrentYear());
-  const [dateTo, setDateTo] = useState(todayInputDate());
+  const { dateFrom, setDateFrom, dateTo, setDateTo } = useReportDateRange();
   const [includeZeroBalances, setIncludeZeroBalances] = useState(false);
   const [shouldLoad, setShouldLoad] = useState(false);
   const [message, setMessage] = useState('');
@@ -174,6 +178,38 @@ export function TrialBalanceReportPage({ embedded = false }: TrialBalanceReportP
 
   const accountCount = displayRows.filter(row => row.kind === 'account').length;
 
+  function buildReport(): ReportDocument | null {
+    if (!report) return null;
+    return {
+      title: 'Trial Balance',
+      subtitle: `${formatDate(dateFrom, generalSettings)} to ${formatDate(dateTo, generalSettings)}`,
+      columns: [
+        { label: 'Account Code' },
+        { label: 'Account Name' },
+        { label: 'Account Type' },
+        { label: 'Opening Debit', kind: 'money' },
+        { label: 'Opening Credit', kind: 'money' },
+        { label: 'Period Debit', kind: 'money' },
+        { label: 'Period Credit', kind: 'money' },
+        { label: 'Closing Debit', kind: 'money' },
+        { label: 'Closing Credit', kind: 'money' },
+      ],
+      rows: [
+        ...displayRows.map(row => (row.kind === 'group'
+          ? { style: 'group' as const, cells: [row.code, row.name, '', ...amountKeys.map(key => row.totals[key])] }
+          : { cells: [row.line.account_code, row.line.account_name, row.line.account_type, ...amountKeys.map(key => row.line[key])] })),
+        {
+          style: 'total' as const,
+          cells: ['', `Totals (${accountCount} Accounts)`, '', ...amountKeys.map(key => report.totals[key])],
+        },
+      ],
+      note: difference !== 0 ? `Closing Debit and Closing Credit differ by ${formatMoney(report.totals.difference, generalSettings)}.` : undefined,
+      fileName: `trial-balance-${dateFrom}-to-${dateTo}`,
+    };
+  }
+
+  const ledgerHref = (accountId: string) => `/reports?report=ledger&account=${accountId}&from=${dateFrom}&to=${dateTo}`;
+
   const Root = embedded ? 'div' : 'main';
 
   return (
@@ -200,6 +236,7 @@ export function TrialBalanceReportPage({ embedded = false }: TrialBalanceReportP
             <CheckboxField label="Show Zero Balances" checked={includeZeroBalances} onChange={updateZeroBalanceFilter} />
             <Button variant="primary" icon={<IconSearch size={16} stroke={1.8} />} onClick={viewReport} loading={reportQuery.isFetching}>View Report</Button>
             <Button icon={<IconRefresh size={16} stroke={1.8} />} onClick={refreshReport} disabled={reportQuery.isFetching}>Refresh</Button>
+            <ReportActions buildReport={buildReport} disabled={!report} onError={setMessage} />
           </div>
         </div>
 
@@ -257,8 +294,12 @@ export function TrialBalanceReportPage({ embedded = false }: TrialBalanceReportP
                 const { line } = row;
                 return (
                   <tr key={line.account_id}>
-                    <td className="cell-strong" style={reportIndentStyle(3)}>{line.account_code}</td>
-                    <td>{line.account_name}</td>
+                    <td className="cell-strong" style={reportIndentStyle(3)}>
+                      <Link href={ledgerHref(line.account_id)} style={linkStyle}>{line.account_code}</Link>
+                    </td>
+                    <td>
+                      <Link href={ledgerHref(line.account_id)} style={linkStyle}>{line.account_name}</Link>
+                    </td>
                     <td className="cell-muted">{line.account_type}</td>
                     {amountKeys.map(key => (
                       <td key={key} className="num" style={amountStyle(line[key])}>{moneyOrBlank(line[key], generalSettings)}</td>

@@ -2,7 +2,7 @@
 
 import { useMemo, useState, type FormEvent } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { IconArrowLeft, IconCheck, IconPencil, IconPlus, IconRefresh } from '@tabler/icons-react';
+import { IconArrowLeft, IconCheck, IconPackage, IconPencil, IconPlus, IconRefresh } from '@tabler/icons-react';
 import { type BranchPayload, type BranchRow, branchesQueryKey, useBranchesList, useCreateBranch, useUpdateBranch } from '@/lib/api/branches';
 import { useCitiesList } from '@/lib/api/geography';
 import { friendlyErrorMessage } from '@/lib/erp-utils';
@@ -17,6 +17,7 @@ import { SearchField } from '@/components/ui/SearchField';
 import { SearchableSelect } from '@/components/ui/SearchableSelect';
 import { SegmentedControl } from '@/components/ui/SegmentedControl';
 import { TableMessageRow } from '@/components/ui/TableMessageRow';
+import { BranchStockView } from './BranchStockView';
 
 const EMPTY_FORM = {
   code: '',
@@ -50,6 +51,7 @@ export default function BranchManagementPage() {
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState<StatusFilter>('All');
   const [page, setPage] = useState(1);
+  const [stockBranch, setStockBranch] = useState<BranchRow | null>(null);
 
   const branchesQuery = useBranchesList({ page, limit: 50, search: search.trim() || undefined, status });
   const citiesQuery = useCitiesList({ limit: 200, status: 'Active' });
@@ -156,12 +158,14 @@ export default function BranchManagementPage() {
     else createBranch.mutate(payload, { onSuccess, onError });
   }
 
+  if (stockBranch) return <BranchStockView branch={stockBranch} onBack={() => setStockBranch(null)} />;
+
   if (showForm) {
     return (
       <form className="page-shell" onSubmit={saveBranch} noValidate>
         <PageHeader
           title={editId ? `Edit Branch ${form.code}` : 'New Branch'}
-          description="A Branch is where business happens. Each Branch owns one or more Warehouses."
+          description="A Branch is a shop that holds its own stock and sells. It receives stock from Warehouses by Stock Transfer."
           actions={(
             <>
               <Button variant="secondary" icon={<IconArrowLeft size={16} stroke={1.8} />} onClick={closeForm}>Back To List</Button>
@@ -222,7 +226,7 @@ export default function BranchManagementPage() {
     <main className="page-shell">
       <PageHeader
         title="Branches"
-        description="Business locations. Each Branch owns one or more Warehouses for branch-wise sales and stock."
+        description="Shops in each city. Each Branch holds its own stock, receives stock from Warehouses, and makes sales."
         actions={(
           <>
             <Button variant="secondary" icon={<IconRefresh size={16} stroke={1.8} />} onClick={refresh} loading={branchesQuery.isFetching && !branchesQuery.isLoading}>Refresh</Button>
@@ -259,17 +263,16 @@ export default function BranchManagementPage() {
                 <th>Branch Name</th>
                 <th style={{ width: 170 }}>City</th>
                 <th style={{ width: 180 }}>Manager</th>
-                <th className="num" style={{ width: 120 }}>Warehouses</th>
                 <th style={{ width: 110 }}>Status</th>
-                <th style={{ width: 64 }}><span className="sr-only">Actions</span></th>
+                <th style={{ width: 96 }}><span className="sr-only">Actions</span></th>
               </tr>
             </thead>
             <tbody>
-              {branchesQuery.isLoading && <TableMessageRow colSpan={7} title="Loading Branches…" loading />}
+              {branchesQuery.isLoading && <TableMessageRow colSpan={6} title="Loading Branches…" loading />}
               {!branchesQuery.isLoading && branches.length === 0 && (
                 isFiltered
-                  ? <TableMessageRow colSpan={7} title="No Branches Match" description="Change the search text or the status filter to see more Branches." />
-                  : <TableMessageRow colSpan={7} title="No Branches Yet" description="Add your first Branch, then connect Warehouses to it." action={<Button variant="primary" icon={<IconPlus size={16} stroke={1.8} />} onClick={openNew}>New Branch</Button>} />
+                  ? <TableMessageRow colSpan={6} title="No Branches Match" description="Change the search text or the status filter to see more Branches." />
+                  : <TableMessageRow colSpan={6} title="No Branches Yet" description="Add your first Branch, then send it stock from a Warehouse by Stock Transfer." action={<Button variant="primary" icon={<IconPlus size={16} stroke={1.8} />} onClick={openNew}>New Branch</Button>} />
               )}
               {!branchesQuery.isLoading && branches.map(branch => (
                 <tr key={branch.id} onDoubleClick={() => openEdit(branch)}>
@@ -282,10 +285,12 @@ export default function BranchManagementPage() {
                   </td>
                   <td className={branch.city ? undefined : 'cell-muted'}>{branch.city || 'Not Set'}</td>
                   <td className={branch.manager_name ? undefined : 'cell-muted'}>{branch.manager_name || 'Not Set'}</td>
-                  <td className="num">{branch.active_warehouse_count ?? 0}</td>
                   <td><Badge variant={branch.is_active ? 'success' : 'neutral'}>{branch.is_active ? 'Active' : 'Inactive'}</Badge></td>
                   <td className="cell-actions">
-                    <Button variant="ghost" size="sm" icon={<IconPencil size={16} stroke={1.8} />} onClick={() => openEdit(branch)} aria-label={`Edit Branch ${branch.code}`} title="Edit Branch" />
+                    <span className="row-actions">
+                      <Button variant="ghost" size="sm" icon={<IconPackage size={16} stroke={1.8} />} onClick={() => setStockBranch(branch)} aria-label={`View Stock At ${branch.code}`} title="View Stock" />
+                      <Button variant="ghost" size="sm" icon={<IconPencil size={16} stroke={1.8} />} onClick={() => openEdit(branch)} aria-label={`Edit Branch ${branch.code}`} title="Edit Branch" />
+                    </span>
                   </td>
                 </tr>
               ))}
