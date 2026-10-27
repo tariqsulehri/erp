@@ -76,8 +76,8 @@ export function CashBankVoucherLineTable({
       <LinesTable editable>
         <colgroup>
           <col style={{ width: 44 }} />
-          <col style={{ width: cheque ? '28%' : '42%' }} />
-          <col />
+          <col style={{ width: cheque ? '28%' : '44%' }} />
+          <col style={cheque ? undefined : { width: '38%' }} />
           {cheque && (
             <>
               <col style={{ width: 140 }} />
@@ -85,7 +85,7 @@ export function CashBankVoucherLineTable({
               <col style={{ width: 130 }} />
             </>
           )}
-          <col style={{ width: cheque ? 130 : 160 }} />
+          <col style={{ width: cheque ? 130 : 180 }} />
           <col style={{ width: 44 }} />
         </colgroup>
         <thead>

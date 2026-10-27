@@ -420,12 +420,11 @@ export default function BankReceiptVoucherPage() {
         onKeyDown={lineKeyboard.onLinesKeyDown}
         summary={(
           <DocumentSummary countLabel="Active Lines" count={activeLines.length}>
-            <SummaryAmount label="Cash Deposit" value={money(cashTotal)} />
-            <SummaryAmount label="Cheque Deposit" value={money(chequeTotal)} />
-            <SummaryAmount label="Bank Transfer" value={money(transferTotal)} />
-            <SummaryAmount label="Other Deposit" value={money(otherTotal)} />
+            {cashTotal > 0 && <SummaryAmount label="Cash Deposit" value={money(cashTotal)} />}
+            {chequeTotal > 0 && <SummaryAmount label="Cheque Deposit" value={money(chequeTotal)} />}
+            {transferTotal > 0 && <SummaryAmount label="Bank Transfer" value={money(transferTotal)} />}
+            {otherTotal > 0 && <SummaryAmount label="Other Deposit" value={money(otherTotal)} />}
             <SummaryAmount label="Total Deposit" value={money(totalAmount)} strong />
-            <SummaryAmount label="Difference" value={money(0)} />
           </DocumentSummary>
         )}
       >

@@ -475,10 +475,9 @@ export default function CashBankVoucherPage({ voucherType }: { voucherType: Vouc
           </FieldLabel>
         </div>
         <NumericField label="Current Balance" value={money(currentBalance)} disabled />
-        <div className="span-3">
+        <div className="span-all">
           <TextField label="Voucher Details" required value={description} onChange={setDescription} placeholder={config.detailsPlaceholder} />
         </div>
-        <TextField label="Attachments" value="0 Files" disabled hint="Attachments and approval history will be added here later." />
       </DocumentFormPanel>
 
       <LinesPanel
@@ -490,8 +489,7 @@ export default function CashBankVoucherPage({ voucherType }: { voucherType: Vouc
         summary={(
           <DocumentSummary countLabel="Active Lines" count={enteredLines.length}>
             <SummaryAmount label={config.totalLabel} value={money(totalAmount)} strong={totalAmount > 0} />
-            <SummaryAmount label={`${config.primaryAccountKind} Line`} value={money(totalAmount)} />
-            <SummaryAmount label="Difference" value={money(difference)} danger={difference > 0} />
+            {difference > 0 && <SummaryAmount label="Difference" value={money(difference)} danger />}
           </DocumentSummary>
         )}
       >

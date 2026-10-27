@@ -84,13 +84,10 @@ export function AddLineButton({ onClick, disabled = false }: { onClick: () => vo
 }
 
 /** Small keyboard hint shown next to the lines title. */
-export function LineShortcutHint({ mode }: { mode: 'entry' | 'grid' }) {
-  const save = useSaveShortcutLabel();
+export function LineShortcutHint({ mode = 'grid' }: { mode?: 'entry' | 'grid' }) {
   return (
     <span className={styles.hint}>
-      <kbd>Enter</kbd> {mode === 'entry' ? 'in the last field adds the line' : 'in the last field goes to the next line'}
-      {' · '}<kbd>Alt+N</kbd> New Line
-      {' · '}<kbd>{save}</kbd> Save Draft
+      <kbd>Alt+N</kbd> Add Line
     </span>
   );
 }

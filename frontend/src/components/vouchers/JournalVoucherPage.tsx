@@ -338,10 +338,9 @@ export default function JournalVoucherPage() {
       <DocumentFormPanel columns={6} statusMessage={dateStatusMessage}>
         <TextField label="Voucher Number" value={detailQuery.data?.voucher_number ?? 'Auto'} disabled />
         <DateField label="Voucher Date" required value={voucherDate} onChange={setVoucherDate} />
-        <div className="span-3">
+        <div className="span-4">
           <TextField label="Reference Number" value={referenceNumber} onChange={setReferenceNumber} placeholder="Reference, Note, or Document No." />
         </div>
-        <TextField label="Attachments" value="0 Files" disabled hint="Attachments and approval history will be added here later." />
         <div className="span-all">
           <TextField label="Voucher Details" value={description} onChange={setDescription} placeholder="Optional Description For This Journal Voucher" />
         </div>
@@ -357,7 +356,9 @@ export default function JournalVoucherPage() {
           <DocumentSummary countLabel="Active Lines" count={activeLines.length}>
             <SummaryAmount label="Debit Total" value={money(totalDebit)} strong={isBalanced} />
             <SummaryAmount label="Credit Total" value={money(totalCredit)} strong={isBalanced} />
-            <SummaryAmount label="Difference" value={money(outOfBalance)} danger={!isBalanced && outOfBalance > 0} />
+            {!isBalanced && outOfBalance > 0 && (
+              <SummaryAmount label="Difference" value={money(outOfBalance)} danger />
+            )}
           </DocumentSummary>
         )}
       >
