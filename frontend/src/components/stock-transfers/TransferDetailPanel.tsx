@@ -50,9 +50,9 @@ export function TransferDetailPanel({ detail, loading, settings, actions, onClos
             {actions}
             <dl className="detail-list">
               <InfoRow label="Date" value={formatDate(detail.transfer_date, settings)} />
-              <InfoRow label="Status" value={<StatusChip status={detail.status} label={documentStatusLabel(detail.status)} />} />
-              {detail.status === 'Voided' && <InfoRow label="Cancelled Reason" value={detail.void_reason || 'Not Set'} />}
-              {detail.status === 'Voided' && <InfoRow label="Cancelled At" value={detail.voided_at ? formatDate(detail.voided_at, settings) : 'Not Set'} />}
+              <InfoRow label="Status" value={<StatusChip status={detail.status} label={documentStatusLabel(detail.status, detail.posted_at)} />} />
+              {detail.status === 'Voided' && <InfoRow label={`${documentStatusLabel(detail.status, detail.posted_at)} Reason`} value={detail.void_reason || 'Not Set'} />}
+              {detail.status === 'Voided' && <InfoRow label={`${documentStatusLabel(detail.status, detail.posted_at)} At`} value={detail.voided_at ? formatDate(detail.voided_at, settings) : 'Not Set'} />}
               <InfoRow label="From" value={<PlaceCell kind={detail.from_kind} code={detail.from_code ?? detail.from_warehouse_code} name={detail.from_name ?? detail.from_warehouse_name} location={detail.from_location_name} />} />
               <InfoRow label="To" value={<PlaceCell kind={detail.to_kind} code={detail.to_code ?? detail.to_warehouse_code} name={detail.to_name ?? detail.to_warehouse_name} location={detail.to_location_name} />} />
               <InfoRow label="Reference" value={detail.reference_number || 'Not Set'} />

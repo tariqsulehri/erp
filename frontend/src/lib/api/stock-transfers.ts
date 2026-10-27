@@ -159,6 +159,14 @@ export function usePostStockTransferDraft() {
   });
 }
 
+/** Reverses a posted stock transfer on the Reversal Date. It stays on file as Reversed. */
+export function useReverseStockTransfer() {
+  return useMutation({
+    mutationFn: ({ id, reversalDate, reason }: { id: string; reversalDate: string; reason: string }) =>
+      backendPost<any, { reversal_date: string; reason: string }>(`/stock-transfers/${id}/reverse`, { reversal_date: reversalDate, reason }),
+  });
+}
+
 /** Cancels a Draft stock transfer. It stays on file as Cancelled with the reason. */
 export function useCancelStockTransferDraft() {
   return useMutation({

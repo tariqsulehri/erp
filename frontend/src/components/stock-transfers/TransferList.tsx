@@ -7,6 +7,7 @@ import {
   useCancelStockTransferDraft,
   useInvalidateStockTransferQueries,
   usePostStockTransferDraft,
+  useReverseStockTransfer,
   useStockTransferDetail,
   useStockTransfersList,
 } from '@/lib/api/stock-transfers';
@@ -15,7 +16,7 @@ import { InlineAlert } from '@/components/ui/InlineAlert';
 import { SegmentedControl } from '@/components/ui/SegmentedControl';
 import { StatusChip } from '@/components/ui/StatusChip';
 import { TableMessageRow } from '@/components/ui/TableMessageRow';
-import { DOCUMENT_STATUS_OPTIONS, documentStatusLabel, DraftDocumentActions, type DraftActionMessage } from '@/components/documents';
+import { documentStatusLabel, DraftDocumentActions, ReverseDocumentAction, STOCK_DOCUMENT_STATUS_OPTIONS, type DraftActionMessage } from '@/components/documents';
 import { TransferDetailPanel, PlaceCell } from './TransferDetailPanel';
 import { TRANSFER_DIRECTIONS, type TransferDirection } from './transfer-directions';
 
@@ -32,7 +33,7 @@ const DIRECTION_FILTERS: Array<{ value: DirectionFilter; label: string }> = [
  * Stock Transfer shows every transfer the user can see and, with `onOpenDraft`, a Status filter and the Draft
  * actions; Stock Received passes `incoming` to show only posted stock delivered to the user's own place.
  */
-export function TransferList({ incoming = false, settings, empty, onOpenDraft, canChangeDrafts = false }: {
+export function TransferList({ incoming = false, settings, empty, onOpenDraft, canChangeDrafts = false, canReverse = false }: {
   incoming?: boolean;
   settings?: AppFormatSettingsSource | null;
   /** Shown when there are no transfers at all (no filter applied). */
@@ -41,7 +42,10 @@ export function TransferList({ incoming = false, settings, empty, onOpenDraft, c
   onOpenDraft?: (detail: Record<string, any>) => void;
   /** True for roles that may save Stock Transfers: they see Open Draft, Post and Cancel Draft. */
   canChangeDrafts?: boolean;
+  /** True for roles that may reverse posted transfers: they see Reverse on a posted transfer. */
+  canReverse?: boolean;
 }) {
+  const reverseTransfer = useReverseStockTransfer();
   const postDraft = usePostStockTransferDraft();
   const cancelDraft = useCancelStockTransferDraft();
   const invalidate = useInvalidateStockTransferQueries();
@@ -78,7 +82,7 @@ export function TransferList({ incoming = false, settings, empty, onOpenDraft, c
             <SegmentedControl<StatusFilter>
               label="Status"
               value={status}
-              options={DOCUMENT_STATUS_OPTIONS as Array<{ value: StatusFilter; label: string }>}
+              options={STOCK_DOCUMENT_STATUS_OPTIONS as Array<{ value: StatusFilter; label: string }>}
               onChange={value => { setStatus(value); setSelectedId(null); }}
             />
           )}
@@ -114,7 +118,7 @@ export function TransferList({ incoming = false, settings, empty, onOpenDraft, c
                   <td><PlaceCell kind={row.from_kind} code={row.from_code ?? row.from_warehouse_code} name={row.from_name ?? row.from_warehouse_name} /></td>
                   <td><PlaceCell kind={row.to_kind} code={row.to_code ?? row.to_warehouse_code} name={row.to_name ?? row.to_warehouse_name} /></td>
                   <td className="num">{formatNumber(row.total_quantity, settings)}</td>
-                  <td><StatusChip status={row.status} label={documentStatusLabel(row.status)} /></td>
+                  <td><StatusChip status={row.status} label={documentStatusLabel(row.status, row.posted_at)} /></td>
                   <td className="cell-actions">
                     <Button variant="ghost" size="sm" icon={<IconEye size={16} stroke={1.8} />} onClick={event => { event.stopPropagation(); setSelectedId(row.id); }} aria-label={`View Transfer ${row.transfer_number}`} title="View Transfer" />
                   </td>
@@ -130,7 +134,19 @@ export function TransferList({ incoming = false, settings, empty, onOpenDraft, c
           loading={detailQuery.isFetching}
           settings={settings}
           onClose={() => setSelectedId(null)}
-          actions={detail?.status === 'Draft' && canChangeDrafts && onOpenDraft && (
+          actions={detail?.status === 'Posted' && canReverse && onOpenDraft ? (
+            <ReverseDocumentAction
+              documentName="Stock Transfer"
+              documentNumber={detail.transfer_number}
+              reverseEffect="The items go back from the To place to the From place at the cost they moved at."
+              onReverse={async (reversalDate, reason) => {
+                const result = await reverseTransfer.mutateAsync({ id: detail.id, reversalDate, reason });
+                await invalidate();
+                return result.transfer_number;
+              }}
+              onMessage={setActionMessage}
+            />
+          ) : detail?.status === 'Draft' && canChangeDrafts && onOpenDraft && (
             <DraftDocumentActions
               documentName="Stock Transfer"
               documentNumber={detail.transfer_number}

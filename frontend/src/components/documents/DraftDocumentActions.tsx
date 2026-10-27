@@ -9,9 +9,13 @@ import { FormDialog } from '@/components/ui/FormDialog';
 import { TextField } from '@/components/ui/FormFields';
 import { DetailActions } from './DocumentDetailPanel';
 
-/** A cancelled Draft is stored as Voided; staff see it as Cancelled. */
-export function documentStatusLabel(status: string) {
-  return status === 'Voided' ? 'Cancelled' : status;
+/**
+ * Staff see a Voided document as Cancelled when it was a Draft, and as Reversed when it had been posted
+ * (it then has a posted date).
+ */
+export function documentStatusLabel(status: string, postedAt?: string | null) {
+  if (status !== 'Voided') return status;
+  return postedAt ? 'Reversed' : 'Cancelled';
 }
 
 /** Status filter choices for document lists that hold Posted, Draft and Cancelled documents. */
@@ -19,6 +23,13 @@ export const DOCUMENT_STATUS_OPTIONS = [
   { value: 'Posted', label: 'Posted' },
   { value: 'Draft', label: 'Draft' },
   { value: 'Voided', label: 'Cancelled' },
+];
+
+/** Status filter choices for stock documents, whose posted documents can also be reversed. */
+export const STOCK_DOCUMENT_STATUS_OPTIONS = [
+  { value: 'Posted', label: 'Posted' },
+  { value: 'Draft', label: 'Draft' },
+  { value: 'Voided', label: 'Cancelled Or Reversed' },
 ];
 
 export interface DraftActionMessage {

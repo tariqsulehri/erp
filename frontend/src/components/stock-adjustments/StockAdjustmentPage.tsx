@@ -23,6 +23,7 @@ import {
   useCreateStockAdjustmentDraft,
   useInvalidateStockAdjustmentQueries,
   usePostStockAdjustmentDraft,
+  useReverseStockAdjustment,
   useStockAdjustmentDetail,
   useStockAdjustmentsList,
   useStockAdjustmentSupportData,
@@ -43,7 +44,7 @@ import { TableMessageRow } from '@/components/ui/TableMessageRow';
 import { SearchableSelect } from '@/components/ui/SearchableSelect';
 import { SegmentedControl } from '@/components/ui/SegmentedControl';
 import { StatusChip } from '@/components/ui/StatusChip';
-import { DOCUMENT_STATUS_OPTIONS, documentStatusLabel, DraftDocumentActions, type DraftActionMessage } from '@/components/documents';
+import { documentStatusLabel, DraftDocumentActions, ReverseDocumentAction, STOCK_DOCUMENT_STATUS_OPTIONS, type DraftActionMessage } from '@/components/documents';
 import { adjustmentFormFromDetail } from './adjustment-drafts';
 
 interface AdjustmentLine {
@@ -85,6 +86,8 @@ export default function StockAdjustmentPage() {
   const cancelDraft = useCancelStockAdjustmentDraft();
   const invalidate = useInvalidateStockAdjustmentQueries();
   const canChangeDrafts = hasPermission(session?.user.role, 'stock_adjustments.edit');
+  const canReverse = hasPermission(session?.user.role, 'stock.reverse');
+  const reverseAdjustment = useReverseStockAdjustment();
   /** The saved Draft open in the form, or null for a new adjustment. */
   const [openDraft, setOpenDraft] = useState<{ id: string; adjustmentNumber: string } | null>(null);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('Posted');
@@ -371,7 +374,7 @@ export default function StockAdjustmentPage() {
               <p>This list shows posted stock adjustments. Use an adjustment to fix stock after a count, damage or loss.</p>
               <p>Select a row to see its items. Select New Adjustment to add or remove stock.</p>
               <p>Change the Status to Draft to find saved drafts. A Draft can be opened and changed, posted, or cancelled.</p>
-              <p>A posted adjustment cannot be changed. To correct it, post a new adjustment.</p>
+              <p>A posted adjustment cannot be changed. A Manager can Reverse it: the stock and the ledger entry are undone on the Reversal Date.</p>
             </>
           )}
           description="Stock increases and decreases, with cost and reason."
@@ -390,7 +393,7 @@ export default function StockAdjustmentPage() {
               <SegmentedControl<StatusFilter>
                 label="Status"
                 value={statusFilter}
-                options={DOCUMENT_STATUS_OPTIONS as Array<{ value: StatusFilter; label: string }>}
+                options={STOCK_DOCUMENT_STATUS_OPTIONS as Array<{ value: StatusFilter; label: string }>}
                 onChange={value => { setStatusFilter(value); setSelectedAdjustmentId(null); }}
               />
             </div>
@@ -413,7 +416,7 @@ export default function StockAdjustmentPage() {
                   {!listQuery.isLoading && rows.length === 0 && (
                     statusFilter === 'Posted'
                       ? <TableMessageRow colSpan={8} title="No Posted Stock Adjustments Yet" description="Record a stock count difference, damage, or opening fix with a new adjustment." action={<Button variant="primary" icon={<IconFilePlus size={16} stroke={1.8} />} disabled={newAdjustmentGuard.disabled} onClick={openNewAdjustment}>New Adjustment</Button>} />
-                      : <TableMessageRow colSpan={8} title={`No ${documentStatusLabel(statusFilter)} Stock Adjustments`} description="Choose another Status to see more adjustments." />
+                      : <TableMessageRow colSpan={8} title={statusFilter === 'Draft' ? 'No Draft Stock Adjustments' : 'No Cancelled Or Reversed Stock Adjustments'} description="Choose another Status to see more adjustments." />
                   )}
                   {!listQuery.isLoading && rows.map((row: any) => (
                     <tr key={row.id} className={selectedAdjustmentId === row.id ? 'is-selected' : undefined} onClick={() => setSelectedAdjustmentId(row.id)} style={{ cursor: 'pointer' }}>
@@ -423,7 +426,7 @@ export default function StockAdjustmentPage() {
                       <td className={row.reason ? undefined : 'cell-muted'}>{row.reason || 'Not Set'}</td>
                       <td className="num">{formatNumber(row.total_quantity_in, generalSettings)}</td>
                       <td className="num">{formatNumber(row.total_quantity_out, generalSettings)}</td>
-                      <td><StatusChip status={row.status} label={documentStatusLabel(row.status)} /></td>
+                      <td><StatusChip status={row.status} label={documentStatusLabel(row.status, row.posted_at)} /></td>
                       <td className="cell-actions">
                         <Button variant="ghost" size="sm" icon={<IconEye size={16} stroke={1.8} />} onClick={event => { event.stopPropagation(); setSelectedAdjustmentId(row.id); }} aria-label={`View Adjustment ${row.adjustment_number}`} title="View Adjustment" />
                       </td>
@@ -439,7 +442,19 @@ export default function StockAdjustmentPage() {
               loading={detailQuery.isFetching}
               settings={generalSettings}
               onClose={() => setSelectedAdjustmentId(null)}
-              actions={detailQuery.data?.status === 'Draft' && canChangeDrafts && (
+              actions={detailQuery.data?.status === 'Posted' && canReverse ? (
+                <ReverseDocumentAction
+                  documentName="Stock Adjustment"
+                  documentNumber={detailQuery.data.adjustment_number}
+                  reverseEffect="Increases are taken back out and Decreases put back at the cost they were posted at, and a Reversal Voucher undoes the ledger entry."
+                  onReverse={async (reversalDate, reason) => {
+                    const result = await reverseAdjustment.mutateAsync({ id: detailQuery.data.id, reversalDate, reason });
+                    await invalidate();
+                    return result.adjustment_number;
+                  }}
+                  onMessage={setActionMessage}
+                />
+              ) : detailQuery.data?.status === 'Draft' && canChangeDrafts && (
                 <DraftDocumentActions
                   documentName="Stock Adjustment"
                   documentNumber={detailQuery.data.adjustment_number}
@@ -632,9 +647,9 @@ function DetailPanel({ detail, loading, settings, actions, onClose }: { detail: 
             {actions}
             <dl className="detail-list">
               <InfoRow label="Date" value={formatDate(detail.adjustment_date, settings)} />
-              <InfoRow label="Status" value={<StatusChip status={detail.status} label={documentStatusLabel(detail.status)} />} />
-              {detail.status === 'Voided' && <InfoRow label="Cancelled Reason" value={detail.void_reason || 'Not Set'} />}
-              {detail.status === 'Voided' && <InfoRow label="Cancelled At" value={detail.voided_at ? formatDate(detail.voided_at, settings) : 'Not Set'} />}
+              <InfoRow label="Status" value={<StatusChip status={detail.status} label={documentStatusLabel(detail.status, detail.posted_at)} />} />
+              {detail.status === 'Voided' && <InfoRow label={`${documentStatusLabel(detail.status, detail.posted_at)} Reason`} value={detail.void_reason || 'Not Set'} />}
+              {detail.status === 'Voided' && <InfoRow label={`${documentStatusLabel(detail.status, detail.posted_at)} At`} value={detail.voided_at ? formatDate(detail.voided_at, settings) : 'Not Set'} />}
               <InfoRow label={detail.branch_id ? 'Branch' : 'Warehouse'} value={holderText(detail)} />
               <InfoRow label="Location" value={detail.location_code ? `${detail.location_code} - ${detail.location_name}` : 'Not Set'} />
               <InfoRow label="Reason" value={detail.reason || 'Not Set'} />

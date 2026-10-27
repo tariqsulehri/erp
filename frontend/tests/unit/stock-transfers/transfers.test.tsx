@@ -10,7 +10,9 @@ let listResult: any = { isLoading: false, error: null, data: { data: [] } };
 let detailStatus = 'Posted';
 const postDraft = jest.fn();
 const cancelDraft = jest.fn();
+const reverseTransfer = jest.fn();
 jest.mock('@/lib/api/stock-transfers', () => ({
+  useReverseStockTransfer: () => ({ mutateAsync: reverseTransfer }),
   useStockTransfersList: (query: any) => { listCalls.push(query); return listResult; },
   usePostStockTransferDraft: () => ({ mutateAsync: postDraft }),
   useCancelStockTransferDraft: () => ({ mutateAsync: cancelDraft }),
@@ -23,7 +25,7 @@ const row = (id: string, number: string, fromKind: string, toKind: string) => ({
   from_kind: fromKind, from_code: 'F', from_name: 'From Place', to_kind: toKind, to_code: 'T', to_name: 'To Place',
 });
 
-beforeEach(() => { listCalls.length = 0; listResult = { isLoading: false, error: null, data: { data: [] } }; detailStatus = 'Posted'; postDraft.mockReset(); cancelDraft.mockReset(); });
+beforeEach(() => { listCalls.length = 0; listResult = { isLoading: false, error: null, data: { data: [] } }; detailStatus = 'Posted'; postDraft.mockReset(); cancelDraft.mockReset(); reverseTransfer.mockReset(); });
 
 describe('transfer directions', () => {
   it('lists the four directions, Warehouse → Branch first', () => {
@@ -102,7 +104,7 @@ describe('TransferList', () => {
     expect(lastCall()).toMatchObject({ status: 'Posted' });
     fireEvent.click(screen.getByRole('button', { name: 'Draft' }));
     expect(lastCall()).toMatchObject({ status: 'Draft' });
-    fireEvent.click(screen.getByRole('button', { name: 'Cancelled' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Cancelled Or Reversed' }));
     expect(lastCall()).toMatchObject({ status: 'Voided' });
 
     fireEvent.click(screen.getByRole('button', { name: 'View Transfer ST-2026-0001' }));
@@ -124,5 +126,34 @@ describe('TransferList', () => {
     render(<TransferList empty={empty} onOpenDraft={jest.fn()} canChangeDrafts />);
     fireEvent.click(screen.getByRole('button', { name: 'View Transfer ST-2026-0001' }));
     expect(screen.queryByRole('button', { name: 'Open Draft' })).not.toBeInTheDocument();
+  });
+
+  it('offers Reverse on a posted transfer only to roles that may reverse, and sends the date and reason', async () => {
+    listResult = { isLoading: false, error: null, data: { data: [row('t1', 'ST-2026-0001', 'WAREHOUSE', 'BRANCH')] } };
+    const { unmount } = render(<TransferList empty={empty} onOpenDraft={jest.fn()} canChangeDrafts />);
+    fireEvent.click(screen.getByRole('button', { name: 'View Transfer ST-2026-0001' }));
+    expect(screen.queryByRole('button', { name: 'Reverse' })).not.toBeInTheDocument();
+    unmount();
+
+    reverseTransfer.mockResolvedValue({ transfer_number: 'ST-2026-0001' });
+    render(<TransferList empty={empty} onOpenDraft={jest.fn()} canChangeDrafts canReverse />);
+    fireEvent.click(screen.getByRole('button', { name: 'View Transfer ST-2026-0001' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Reverse' }));
+    fireEvent.change(screen.getByLabelText(/Reversal Date/), { target: { value: '2026-10-05' } });
+    fireEvent.change(screen.getByLabelText(/Reason/), { target: { value: 'Wrong shop' } });
+    const reverseButtons = screen.getAllByRole('button', { name: 'Reverse' });
+    fireEvent.click(reverseButtons[reverseButtons.length - 1]);
+    expect(await screen.findByText(/ST-2026-0001 reversed/)).toBeInTheDocument();
+    expect(reverseTransfer).toHaveBeenCalledWith({ id: 't1', reversalDate: '2026-10-05', reason: 'Wrong shop' });
+  });
+
+  it('shows a reversed transfer as Reversed and a cancelled draft as Cancelled', () => {
+    listResult = { isLoading: false, error: null, data: { data: [
+      { ...row('t1', 'ST-2026-0001', 'WAREHOUSE', 'BRANCH'), status: 'Voided', posted_at: '2026-10-01T10:00:00Z' },
+      { ...row('t2', 'ST-2026-0002', 'WAREHOUSE', 'BRANCH'), status: 'Voided', posted_at: null },
+    ] } };
+    render(<TransferList empty={empty} onOpenDraft={jest.fn()} />);
+    expect(screen.getByText('ST-2026-0001').closest('tr')).toHaveTextContent('Reversed');
+    expect(screen.getByText('ST-2026-0002').closest('tr')).toHaveTextContent('Cancelled');
   });
 });

@@ -386,7 +386,7 @@ export default function StockTransferPage() {
               <p>A Stock Transfer moves stock from one place to another: Warehouse → Branch, Branch → Branch, Warehouse → Warehouse, or Branch → Warehouse.</p>
               <p>Posting takes the stock out of the From place and adds it to the To place at the same cost. Your total stock value does not change.</p>
               <p>Change the Status to Draft to find saved drafts. A Draft can be opened and changed, posted, or cancelled.</p>
-              <p>A posted transfer cannot be changed. To undo it, make a new transfer the other way.</p>
+              <p>A posted transfer cannot be changed. A Manager can Reverse it: the items go back to the From place on the Reversal Date.</p>
             </>
           )}
           actions={<Button variant="primary" icon={<IconFilePlus size={16} stroke={1.8} />} disabled={newTransferGuard.disabled} title={newTransferDisabledReason || 'New Transfer'} onClick={openNewTransfer}>New Transfer</Button>}
@@ -396,6 +396,7 @@ export default function StockTransferPage() {
           settings={generalSettings}
           onOpenDraft={openSavedDraft}
           canChangeDrafts={hasPermission(session?.user.role, 'stock_transfers.edit')}
+          canReverse={hasPermission(session?.user.role, 'stock.reverse')}
           empty={{
             title: 'No Posted Stock Transfers Yet',
             description: 'Move stock from a Warehouse to a Branch, or between any two places.',

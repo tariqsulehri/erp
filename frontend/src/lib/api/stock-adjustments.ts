@@ -120,6 +120,14 @@ export function usePostStockAdjustmentDraft() {
   });
 }
 
+/** Reverses a posted stock adjustment on the Reversal Date. It stays on file as Reversed. */
+export function useReverseStockAdjustment() {
+  return useMutation({
+    mutationFn: ({ id, reversalDate, reason }: { id: string; reversalDate: string; reason: string }) =>
+      backendPost<any, { reversal_date: string; reason: string }>(`/stock-adjustments/${id}/reverse`, { reversal_date: reversalDate, reason }),
+  });
+}
+
 /** Cancels a Draft stock adjustment. It stays on file as Cancelled with the reason. */
 export function useCancelStockAdjustmentDraft() {
   return useMutation({
