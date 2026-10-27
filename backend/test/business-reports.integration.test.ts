@@ -360,7 +360,7 @@ describe.skipIf(!databaseUrl)('Business reports (database)', () => {
       expect(empty.pagination.pages).toBe(1);
 
       await expect(report.getDayBook({ date_from: '2025-08-31', date_to: '2025-08-01', page: 1, limit: 50 }))
-        .rejects.toMatchObject({ statusCode: 400, message: expect.stringMatching(/cannot be earlier/) });
+        .rejects.toMatchObject({ statusCode: 400, message: expect.stringMatching(/Date To cannot be before Date From/) });
     });
   });
 

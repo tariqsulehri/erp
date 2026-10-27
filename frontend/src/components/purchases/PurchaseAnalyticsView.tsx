@@ -101,7 +101,7 @@ export function PurchaseAnalyticsView({
         />
 
         {analyticsQuery.error
-          ? <InlineAlert tone="danger">{friendlyErrorMessage(analyticsQuery.error, 'Unable to load Purchase Analytics.')}</InlineAlert>
+          ? <InlineAlert tone="danger">{friendlyErrorMessage(analyticsQuery.error, 'Could not load Purchase Analytics. Please try again.')}</InlineAlert>
           : <div />}
 
         {/* On a refetch the previous charts stay in place, dimmed, instead of flashing a loader. */}

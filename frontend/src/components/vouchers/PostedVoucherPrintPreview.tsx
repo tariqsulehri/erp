@@ -5,6 +5,7 @@ import { useState } from 'react';
 import { IconArrowLeft, IconPrinter } from '@tabler/icons-react';
 import { formatDate } from '@/lib/app-settings';
 import { friendlyErrorMessage } from '@/lib/erp-utils';
+import { printColor } from '@/lib/print-palette';
 import { printPostedVoucherDocument } from './VoucherPrintHtml';
 
 function voucherTypeLabel(type: string) {
@@ -57,7 +58,7 @@ export function PostedVoucherPrintPreview({
       <section style={toolbarStyle}>
         <div>
           <strong style={{ color: 'var(--color-heading)', fontSize: '0.95rem' }}>Print Preview</strong>
-          <div style={{ color: 'var(--color-text-muted)', fontSize: '0.72rem' }}>{voucher.voucher_number} | {title}</div>
+          <div style={{ color: 'var(--color-text-muted)', fontSize: '0.75rem' }}>{voucher.voucher_number} | {title}</div>
         </div>
         <div style={{ display: 'flex', gap: 6 }}>
           <button type="button" className="btn-secondary" onClick={onBack}>
@@ -77,12 +78,12 @@ export function PostedVoucherPrintPreview({
         <article style={paperStyle}>
           <header style={printHeaderStyle}>
             <div>
-              <h2 style={{ margin: 0, fontSize: 22, color: '#0f172a' }}>{company?.name ?? 'Company Name'}</h2>
+              <h2 style={{ margin: 0, fontSize: 22, color: printColor('print-ink') }}>{company?.name ?? 'Company Name'}</h2>
               <div style={mutedStyle}>{[company?.address, company?.city, company?.country].filter(Boolean).join(', ') || 'Company Address'}</div>
               <div style={mutedStyle}>{[company?.phone, company?.email].filter(Boolean).join(' | ')}</div>
             </div>
             <div style={{ textAlign: 'right' }}>
-              <h1 style={{ margin: '0 0 8px', fontSize: 24, color: '#0f172a' }}>{title}</h1>
+              <h1 style={{ margin: '0 0 8px', fontSize: 24, color: printColor('print-ink') }}>{title}</h1>
               <span style={statusStyle}>{voucher.status}</span>
             </div>
           </header>
@@ -145,7 +146,7 @@ export function PostedVoucherPrintPreview({
             </div>
             <div style={totalsStyle}>
               <div style={totalRowStyle}><span>Total Debit</span><span>{money(voucher.total_debit)}</span></div>
-              <div style={{ ...totalRowStyle, borderBottom: 0, background: '#f8fafc', fontWeight: 800 }}><span>Total Credit</span><span>{money(voucher.total_credit)}</span></div>
+              <div style={{ ...totalRowStyle, borderBottom: 0, background: printColor('print-band'), fontWeight: 800 }}><span>Total Credit</span><span>{money(voucher.total_credit)}</span></div>
             </div>
           </div>
 
@@ -170,7 +171,7 @@ const screenStyle: CSSProperties = {
 
 const errorStyle: CSSProperties = {
   color: 'var(--color-danger-text)',
-  fontSize: '0.74rem',
+  fontSize: '0.75rem',
   fontWeight: 700,
 };
 
@@ -198,11 +199,11 @@ const paperWrapStyle: CSSProperties = {
 const paperStyle: CSSProperties = {
   width: 794,
   minHeight: 1123,
-  background: '#fff',
-  color: '#0f172a',
-  boxShadow: '0 12px 30px rgba(15, 23, 42, 0.14)',
+  background: printColor('print-paper'),
+  color: printColor('print-ink'),
+  boxShadow: 'var(--shadow-elevated)',
   padding: 44,
-  fontSize: 11,
+  fontSize: 12,
   lineHeight: 1.4,
 };
 
@@ -210,18 +211,18 @@ const printHeaderStyle: CSSProperties = {
   display: 'flex',
   justifyContent: 'space-between',
   gap: 18,
-  borderBottom: '2px solid #0f172a',
+  borderBottom: `2px solid ${printColor('print-ink')}`,
   paddingBottom: 12,
 };
 
-const mutedStyle: CSSProperties = { color: '#475569', fontSize: 10 };
+const mutedStyle: CSSProperties = { color: printColor('print-muted'), fontSize: 12 };
 
 const statusStyle: CSSProperties = {
   display: 'inline-block',
   padding: '4px 9px',
-  border: '1px solid #15803d',
-  color: '#14532d',
-  background: '#f0fdf4',
+  border: `1px solid ${printColor('print-accent')}`,
+  color: printColor('print-accent'),
+  background: printColor('print-accent-soft'),
   fontWeight: 700,
   borderRadius: 3,
 };
@@ -234,14 +235,14 @@ const infoGridStyle: CSSProperties = {
 };
 
 const infoBoxStyle: CSSProperties = {
-  border: '1px solid #cbd5e1',
+  border: `1px solid ${printColor('print-rule')}`,
   padding: '7px 8px',
   minHeight: 44,
 };
 
 const labelStyle: CSSProperties = {
-  color: '#64748b',
-  fontSize: 9,
+  color: printColor('print-faint'),
+  fontSize: 12,
   fontWeight: 700,
   marginBottom: 3,
 };
@@ -254,7 +255,7 @@ const valueStyle: CSSProperties = {
 };
 
 const boxStyle: CSSProperties = {
-  border: '1px solid #cbd5e1',
+  border: `1px solid ${printColor('print-rule')}`,
   padding: 10,
   minHeight: 76,
   marginTop: 12,
@@ -262,10 +263,10 @@ const boxStyle: CSSProperties = {
 
 const boxTitleStyle: CSSProperties = {
   marginBottom: 6,
-  fontSize: 10,
+  fontSize: 12,
   textTransform: 'uppercase',
   letterSpacing: 0,
-  color: '#334155',
+  color: printColor('print-muted'),
   fontWeight: 700,
 };
 
@@ -277,19 +278,19 @@ const tableStyle: CSSProperties = {
 
 function thStyle(right = false): CSSProperties {
   return {
-    background: '#102033',
-    color: '#fff',
+    background: printColor('print-head-bg'),
+    color: printColor('print-head-fg'),
     textAlign: right ? 'right' : 'left',
     padding: '7px 6px',
-    border: '1px solid #102033',
-    fontSize: 10,
+    border: `1px solid ${printColor('print-head-bg')}`,
+    fontSize: 12,
   };
 }
 
 function tdStyle(right = false, center = false): CSSProperties {
   return {
     padding: 6,
-    border: '1px solid #cbd5e1',
+    border: `1px solid ${printColor('print-rule')}`,
     verticalAlign: 'top',
     textAlign: center ? 'center' : right ? 'right' : 'left',
     fontVariantNumeric: right ? 'tabular-nums' : undefined,
@@ -306,7 +307,7 @@ const footerGridStyle: CSSProperties = {
 };
 
 const totalsStyle: CSSProperties = {
-  border: '1px solid #cbd5e1',
+  border: `1px solid ${printColor('print-rule')}`,
 };
 
 const totalRowStyle: CSSProperties = {
@@ -314,7 +315,7 @@ const totalRowStyle: CSSProperties = {
   justifyContent: 'space-between',
   gap: 16,
   padding: '7px 9px',
-  borderBottom: '1px solid #e2e8f0',
+  borderBottom: `1px solid ${printColor('print-rule')}`,
 };
 
 const signatureGridStyle: CSSProperties = {
@@ -325,9 +326,9 @@ const signatureGridStyle: CSSProperties = {
 };
 
 const signatureStyle: CSSProperties = {
-  borderTop: '1px solid #334155',
+  borderTop: `1px solid ${printColor('print-rule-strong')}`,
   paddingTop: 6,
   textAlign: 'center',
-  color: '#334155',
+  color: printColor('print-muted'),
   fontWeight: 700,
 };

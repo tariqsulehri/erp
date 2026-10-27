@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useMemo, type ReactNode } from 'react';
 import { IconCalculator, IconCreditCard, IconFileInvoice, IconFilePlus, IconListSearch, IconReceipt2, IconRefresh } from '@tabler/icons-react';
 import { formatCount, formatDate, formatMoney, formatNumber, type AppFormatSettingsSource } from '@/lib/app-settings';
 import { BridgeChart, ChartCard, MonthlyColumnChart, RankedBars, StackedMonthlyChart, type MonthPoint } from '@/components/analytics/ProCharts';
@@ -41,6 +41,8 @@ interface TransactionAnalyticsViewProps {
   onRefresh: () => void;
   newDisabled?: boolean;
   newDisabledReason?: string;
+  /** Plain-words help for the screen. */
+  help?: ReactNode;
 }
 
 export function TransactionAnalyticsView({
@@ -59,6 +61,7 @@ export function TransactionAnalyticsView({
   onRefresh,
   newDisabled = false,
   newDisabledReason,
+  help,
 }: TransactionAnalyticsViewProps) {
   const model = useMemo(() => buildAnalyticsModel(rows, settings), [rows, settings]);
   const theme = useChartTheme();
@@ -90,6 +93,7 @@ export function TransactionAnalyticsView({
     <main className="page-shell">
       <PageHeader
         title={title}
+        help={help}
         description={`${formatCount(totalRecords, settings)} Posted ${documentLabel}`}
         actions={(
           <>
@@ -100,7 +104,7 @@ export function TransactionAnalyticsView({
         )}
       />
 
-      {Boolean(error) && <InlineAlert tone="danger">Unable to load analytics. Refresh the page and try again.</InlineAlert>}
+      {Boolean(error) && <InlineAlert tone="danger">Could not load the charts. Select Refresh and try again.</InlineAlert>}
       {!loading && totalRecords > rows.length && (
         <InlineAlert tone="info">{`Charts use the latest ${count(rows.length)} of ${count(totalRecords)} posted ${documentLabel.toLowerCase()}.`}</InlineAlert>
       )}
@@ -267,7 +271,7 @@ export function TransactionAnalyticsView({
                   rows: model.parties.map(row => ({ name: row.name, count: count(row.count), net: money(row.value), share: share(row.value, totals.net) })),
                 }}
               >
-                <RankedBars items={model.parties} total={totals.net} format={money} color={theme.series.blue} countLabel={value => `${count(value)} Documents`} />
+                <RankedBars items={model.parties} total={totals.net} format={money} countLabel={value => `${count(value)} Documents`} />
               </ChartCard>
 
               <ChartCard

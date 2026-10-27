@@ -31,6 +31,12 @@ export function PurchaseReturnAnalyticsView({ settings, onNewReturn, onPostedRet
   return (
     <TransactionAnalyticsView
       title="Purchase Return Analysis"
+      help={(
+        <>
+          <p>This screen shows charts and totals for posted purchase returns. Draft documents are not counted.</p>
+          <p>See totals by month, cash and credit, and your top Suppliers. Select Posted Returns to see the full list, or New to enter one.</p>
+        </>
+      )}
       documentLabel="Purchase Returns"
       partyLabel="Supplier"
       postedListLabel="Posted Returns"

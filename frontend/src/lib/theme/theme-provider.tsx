@@ -2,72 +2,74 @@
 
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 
+/**
+ * Themes switch by class on <html> (documents/design/DESIGN_STANDARDS.md section 7):
+ *   "erp" (light, default) · "erp dark" · optional "vivid" add-on (soft depth, no colour change).
+ * The root layout applies the saved classes before the first paint; this provider keeps them in sync.
+ */
 export type Theme = 'light' | 'dark';
 
-export interface ThemeConfig {
-  value:   Theme;
-  label:   string;
-  desc:    string;
-  sidebar: string;   /* sidebar bg colour for preview */
-  bg:      string;   /* page bg colour for preview */
-  accent:  string;   /* primary accent colour */
-}
-
-// Preview swatches mirror src/app/design-tokens.css.
-export const THEMES: ThemeConfig[] = [
-  {
-    value:   'light',
-    label:   'Light',
-    desc:    'Bright workspace for daytime use',
-    sidebar: '#182130',
-    bg:      '#f5f6f8',
-    accent:  '#1f56c7',
-  },
-  {
-    value:   'dark',
-    label:   'Dark',
-    desc:    'Low-glare workspace for dim rooms',
-    sidebar: '#0a101b',
-    bg:      '#0d1420',
-    accent:  '#3b6fe0',
-  },
+export const THEMES: Array<{ value: Theme; label: string; desc: string }> = [
+  { value: 'light', label: 'Light', desc: 'Bright workspace for daytime use' },
+  { value: 'dark',  label: 'Dark',  desc: 'Low-glare workspace for dim rooms' },
 ];
 
-const STORAGE_KEY = 'erp-theme';
+const THEME_KEY = 'erp-theme';
+const VIVID_KEY = 'erp-vivid';
 
 interface ThemeContextValue {
   theme:    Theme;
-  setTheme: (t: Theme) => void;
+  setTheme: (theme: Theme) => void;
+  vivid:    boolean;
+  setVivid: (vivid: boolean) => void;
 }
 
-const ThemeContext = createContext<ThemeContextValue>({ theme: 'light', setTheme: () => {} });
+const ThemeContext = createContext<ThemeContextValue>({ theme: 'light', setTheme: () => {}, vivid: false, setVivid: () => {} });
+
+function applyClasses(theme: Theme, vivid: boolean) {
+  const classes = document.documentElement.classList;
+  classes.add('erp');
+  classes.toggle('dark', theme === 'dark');
+  classes.toggle('vivid', vivid);
+}
+
+function save(key: string, value: string) {
+  try { localStorage.setItem(key, value); } catch { /* storage unavailable: the choice lasts for this visit */ }
+}
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const [theme, setThemeState] = useState<Theme>('light');
+  const [vivid, setVividState] = useState(false);
 
   useEffect(() => {
-    const stored = localStorage.getItem(STORAGE_KEY) as Theme | null;
-    if (stored && THEMES.some(t => t.value === stored)) {
-      apply(stored);
-      setThemeState(stored);
-    }
+    let storedTheme: Theme = 'light';
+    let storedVivid = false;
+    try {
+      storedTheme = localStorage.getItem(THEME_KEY) === 'dark' ? 'dark' : 'light';
+      storedVivid = localStorage.getItem(VIVID_KEY) === '1';
+    } catch { /* storage unavailable: keep the defaults */ }
+    setThemeState(storedTheme);
+    setVividState(storedVivid);
+    applyClasses(storedTheme, storedVivid);
   }, []);
 
-  function setTheme(t: Theme) {
-    apply(t);
-    setThemeState(t);
-    localStorage.setItem(STORAGE_KEY, t);
+  function setTheme(next: Theme) {
+    setThemeState(next);
+    applyClasses(next, vivid);
+    save(THEME_KEY, next);
+  }
+
+  function setVivid(next: boolean) {
+    setVividState(next);
+    applyClasses(theme, next);
+    save(VIVID_KEY, next ? '1' : '0');
   }
 
   return (
-    <ThemeContext.Provider value={{ theme, setTheme }}>
+    <ThemeContext.Provider value={{ theme, setTheme, vivid, setVivid }}>
       {children}
     </ThemeContext.Provider>
   );
-}
-
-function apply(t: Theme) {
-  document.documentElement.setAttribute('data-theme', t);
 }
 
 export function useTheme() {

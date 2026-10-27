@@ -89,7 +89,7 @@ export default function SaleReturnPage() {
     if (supportQuery.error) {
       setMessage({
         kind: 'error',
-        text: friendlyErrorMessage(supportQuery.error, 'Unable to load sale return setup. Please refresh and try again.'),
+        text: friendlyErrorMessage(supportQuery.error, 'Could not load the sale return setup. Select Refresh and try again.'),
       });
     }
   }, [supportQuery.error]);
@@ -128,9 +128,9 @@ export default function SaleReturnPage() {
     try {
       const result = await supportQuery.refetch();
       if (result.error) throw result.error;
-      setMessage({ kind: 'success', text: 'Sale return data refreshed successfully.' });
+      setMessage({ kind: 'success', text: 'Sale return data refreshed.' });
     } catch (error) {
-      setMessage({ kind: 'error', text: friendlyErrorMessage(error, 'Unable to refresh sale return data.') });
+      setMessage({ kind: 'error', text: friendlyErrorMessage(error, 'Could not refresh sale return data. Please try again.') });
     }
   }
 
@@ -170,11 +170,11 @@ export default function SaleReturnPage() {
       setMessage({
         kind: 'success',
         text: postNow
-          ? `${saleReturn.sale_return_number} saved and posted successfully.`
+          ? `${saleReturn.sale_return_number} saved and posted.`
           : `${saleReturn.sale_return_number} saved as Draft.`,
       });
     } catch (error) {
-      setMessage({ kind: 'error', text: friendlyErrorMessage(error, 'Unable to save Sale Return.') });
+      setMessage({ kind: 'error', text: friendlyErrorMessage(error, 'Could not save Sale Return. Please try again.') });
     }
   }
 
@@ -252,12 +252,23 @@ export default function SaleReturnPage() {
         onCancel={() => resetForm()}
         onSaveDraft={() => saveSaleReturn(false)}
         onProcess={requestProcessConfirmation}
+        help={(
+          <>
+            <p>Use this screen to take back goods that a Customer returns to a Branch.</p>
+            <ul>
+              <li>Fill in the Customer, dates and Branch, then add one line for each item returned.</li>
+              <li>Save Draft keeps the return so you can finish it later.</li>
+              <li>Process saves and posts it. Stock goes up and the Customer balance is updated.</li>
+            </ul>
+            <p>A posted return cannot be changed.</p>
+          </>
+        )}
       />
 
       <ConfirmDialog
         open={processConfirmOpen}
         title="Process Sale Return?"
-        message="This will save and post the Sale Return. Posted documents cannot be edited directly."
+        message="This saves and posts the Sale Return. You cannot change it after it is posted."
         confirmLabel="Yes, Process"
         cancelLabel="No"
         variant="warning"

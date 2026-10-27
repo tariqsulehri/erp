@@ -156,7 +156,7 @@ export default function CustomersPage() {
   function handleSubmit(event: FormEvent) {
     event.preventDefault();
     if (!form.name.trim()) return setFormError('Enter the Customer Name.');
-    if (form.email?.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) return setFormError('Email is not valid. Use a format like accounts@company.com.');
+    if (form.email?.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) return setFormError('Email is not correct. Use a format like accounts@company.com.');
     setFormError('');
     const payload = {
       ...form,
@@ -178,7 +178,7 @@ export default function CustomersPage() {
         setNotice({ tone: 'success' as const, text: `Customer ${payload.name} saved.` });
         closeForm();
       },
-      onError: (error: Error) => setFormError(friendlyErrorMessage(error, 'Unable to save Customer.')),
+      onError: (error: Error) => setFormError(friendlyErrorMessage(error, 'Could not save Customer. Please try again.')),
     };
     if (editId) updateMut.mutate({ id: editId, ...payload }, callbacks);
     else createMut.mutate(payload, callbacks);
@@ -190,6 +190,13 @@ export default function CustomersPage() {
         <PageHeader
           title={editId ? `Edit Customer ${form.code ?? ''}`.trim() : 'New Customer'}
           description="A Customer buys from us. Each Customer gets one Linked Account in Accounts Receivable."
+          help={(
+            <>
+              <p>Enter the Customer details and click Save. Only Customer Name is required.</p>
+              <p>When you save a new Customer, the system creates its Linked Account in Accounts Receivable for you.</p>
+              <p>Tick Also Works As Supplier if this party also sells to us. Both sides then use the same Linked Account.</p>
+            </>
+          )}
           actions={(
             <>
               <Button variant="secondary" icon={<IconArrowLeft size={16} stroke={1.8} />} onClick={closeForm}>Back To List</Button>
@@ -293,11 +300,21 @@ export default function CustomersPage() {
       <PageHeader
         title="Customers"
         description="People and businesses who buy from us. Each Customer has a Linked Account in Accounts Receivable."
+        help={(
+          <>
+            <p>Use this screen to see and manage your Customers.</p>
+            <ul>
+              <li>New Customer adds a Customer.</li>
+              <li>The pencil, or a double-click on a row, opens a Customer to change it.</li>
+              <li>Delete does not remove the Customer. It marks the Customer Inactive and hides it from new transactions.</li>
+            </ul>
+          </>
+        )}
         actions={<Button variant="primary" icon={<IconPlus size={16} stroke={1.8} />} onClick={openNew}>New Customer</Button>}
       />
 
       {notice && <InlineAlert tone={notice.tone}>{notice.text}</InlineAlert>}
-      {listQuery.error && <InlineAlert tone="danger">{friendlyErrorMessage(listQuery.error, 'Unable to load Customers.')}</InlineAlert>}
+      {listQuery.error && <InlineAlert tone="danger">{friendlyErrorMessage(listQuery.error, 'Could not load Customers. Please try again.')}</InlineAlert>}
 
       <section className="panel panel-fill">
         <div className="filter-bar">
@@ -381,7 +398,7 @@ export default function CustomersPage() {
         confirmLabel="Delete"
         onConfirm={() => deleteTarget && deleteMut.mutate(deleteTarget.id, {
           onSuccess: () => { setNotice({ tone: 'success', text: `Customer ${deleteTarget.name} marked inactive.` }); setDeleteTarget(null); },
-          onError: (error: Error) => { setNotice({ tone: 'danger', text: friendlyErrorMessage(error, 'Unable to delete Customer.') }); setDeleteTarget(null); },
+          onError: (error: Error) => { setNotice({ tone: 'danger', text: friendlyErrorMessage(error, 'Could not delete Customer. Please try again.') }); setDeleteTarget(null); },
         })}
         onCancel={() => setDeleteTarget(null)}
       />

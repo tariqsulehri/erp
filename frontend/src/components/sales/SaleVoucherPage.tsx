@@ -90,7 +90,7 @@ export default function SaleVoucherPage() {
     if (supportQuery.error) {
       setMessage({
         kind: 'error',
-        text: friendlyErrorMessage(supportQuery.error, 'Unable to load sale setup. Please refresh and try again.'),
+        text: friendlyErrorMessage(supportQuery.error, 'Could not load the sale setup. Select Refresh and try again.'),
       });
     }
   }, [supportQuery.error]);
@@ -132,9 +132,9 @@ export default function SaleVoucherPage() {
     try {
       const result = await supportQuery.refetch();
       if (result.error) throw result.error;
-      setMessage({ kind: 'success', text: 'Sale data refreshed successfully.' });
+      setMessage({ kind: 'success', text: 'Sale data refreshed.' });
     } catch (error) {
-      setMessage({ kind: 'error', text: friendlyErrorMessage(error, 'Unable to refresh sale data.') });
+      setMessage({ kind: 'error', text: friendlyErrorMessage(error, 'Could not refresh sale data. Please try again.') });
     }
   }
 
@@ -175,11 +175,11 @@ export default function SaleVoucherPage() {
       setMessage({
         kind: 'success',
         text: postNow
-          ? `${sale.sale_number} saved and posted successfully.`
+          ? `${sale.sale_number} saved and posted.`
           : `${sale.sale_number} saved as Draft.`,
       });
     } catch (error) {
-      setMessage({ kind: 'error', text: friendlyErrorMessage(error, 'Unable to save Sale Voucher.') });
+      setMessage({ kind: 'error', text: friendlyErrorMessage(error, 'Could not save Sale Voucher. Please try again.') });
     }
   }
 
@@ -257,12 +257,23 @@ export default function SaleVoucherPage() {
         onCancel={() => resetForm()}
         onSaveDraft={() => saveSale(false)}
         onProcess={requestProcessConfirmation}
+        help={(
+          <>
+            <p>Use this screen to record goods you sell to a Customer from a Branch.</p>
+            <ul>
+              <li>Fill in the Customer, dates and Branch, then add one line for each item.</li>
+              <li>Save Draft keeps the sale so you can finish it later.</li>
+              <li>Process saves and posts it. Stock and the Customer balance are updated.</li>
+            </ul>
+            <p>A posted sale cannot be changed. Use a Sale Return to correct it.</p>
+          </>
+        )}
       />
 
       <ConfirmDialog
         open={processConfirmOpen}
         title="Process Sale Voucher?"
-        message="This will save and post the Sale Voucher. Posted documents cannot be edited directly."
+        message="This saves and posts the Sale Voucher. You cannot change it after it is posted."
         confirmLabel="Yes, Process"
         cancelLabel="No"
         variant="warning"

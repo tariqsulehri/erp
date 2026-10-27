@@ -1,5 +1,6 @@
 import { formatDate, formatNumber, type AppFormatSettingsSource } from '@/lib/app-settings';
 import { escapeHtml } from '@/lib/erp-utils';
+import { printPaletteCss } from '@/lib/print-palette';
 import type { AccountListItem } from '@/lib/api/accounts';
 import { getAccountLevel, getAccountLevelLabel } from '@/modules/accounts/account-code';
 
@@ -78,42 +79,44 @@ export function buildChartOfAccountsPrintHtml({
   <meta charset="utf-8" />
   <title>Chart of Accounts</title>
   <style>
+    ${printPaletteCss()}
+    /* Printed text is at least 10px: paper is read close up. Colours come from the --print-* tokens. */
     @page { size: A4 landscape; margin: 10mm; }
     * { box-sizing: border-box; }
-    body { margin: 0; color: #0f172a; font-family: Arial, sans-serif; font-size: 10px; background: #fff; }
+    body { margin: 0; color: rgb(var(--print-ink)); font-family: Arial, sans-serif; font-size: 10px; background: rgb(var(--print-paper)); }
     .page { width: 100%; min-height: 100%; }
-    .top { display: flex; justify-content: space-between; gap: 18px; border-bottom: 2px solid #0f172a; padding-bottom: 10px; }
+    .top { display: flex; justify-content: space-between; gap: 18px; border-bottom: 2px solid rgb(var(--print-ink)); padding-bottom: 10px; }
     .company { max-width: 58%; }
     .company h1 { margin: 0 0 4px; font-size: 20px; letter-spacing: 0; }
-    .muted { color: #475569; font-size: 10px; line-height: 1.35; }
+    .muted { color: rgb(var(--print-muted)); font-size: 10px; line-height: 1.35; }
     .doc-title { text-align: right; min-width: 260px; }
     .doc-title h2 { margin: 0 0 6px; font-size: 19px; letter-spacing: 0; }
-    .report-meta { color: #475569; line-height: 1.45; }
+    .report-meta { color: rgb(var(--print-muted)); line-height: 1.45; }
     .summary { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; margin-top: 12px; }
-    .summary-box { border: 1px solid #cbd5e1; padding: 8px 9px; min-height: 42px; }
-    .summary-label { color: #64748b; font-size: 9px; font-weight: 700; margin-bottom: 3px; }
+    .summary-box { border: 1px solid rgb(var(--print-rule)); padding: 8px 9px; min-height: 42px; }
+    .summary-label { color: rgb(var(--print-faint)); font-size: 10px; font-weight: 700; margin-bottom: 3px; }
     .summary-value { font-size: 14px; font-weight: 800; }
-    .note { margin-top: 10px; padding: 8px 10px; border: 1px solid #bfdbfe; background: #eff6ff; color: #1e3a8a; font-size: 10px; }
+    .note { margin-top: 10px; padding: 8px 10px; border: 1px solid rgb(var(--print-accent) / 0.35); background: rgb(var(--print-accent-soft)); color: rgb(var(--print-accent)); font-size: 10px; }
     table { width: 100%; border-collapse: collapse; margin-top: 12px; }
-    th { background: #102033; color: #fff; text-align: left; padding: 6px 5px; border: 1px solid #102033; font-size: 9px; }
-    td { padding: 5px; border: 1px solid #cbd5e1; vertical-align: top; page-break-inside: avoid; }
+    th { background: rgb(var(--print-head-bg)); color: rgb(var(--print-head-fg)); text-align: left; padding: 6px 5px; border: 1px solid rgb(var(--print-head-bg)); font-size: 10px; }
+    td { padding: 5px; border: 1px solid rgb(var(--print-rule)); vertical-align: top; page-break-inside: avoid; }
     tr { page-break-inside: avoid; }
-    .group-row td { background: #dbeafe; color: #1e3a8a; font-size: 11px; font-weight: 800; border-color: #93c5fd; }
-    .header-row td { background: #f8fafc; font-weight: 700; }
-    .level-1 td { background: #e2e8f0; color: #0f172a; }
-    .level-2 td { background: #f1f5f9; }
-    .level-3 td { background: #f8fafc; }
-    .posting-row td { background: #ffffff; }
+    .group-row td { background: rgb(var(--print-accent-soft)); color: rgb(var(--print-accent)); font-size: 11px; font-weight: 800; border-color: rgb(var(--print-accent) / 0.45); }
+    .header-row td { background: rgb(var(--print-band) / 0.5); font-weight: 700; }
+    .level-1 td { background: rgb(var(--print-rule) / 0.55); color: rgb(var(--print-ink)); }
+    .level-2 td { background: rgb(var(--print-band)); }
+    .level-3 td { background: rgb(var(--print-band) / 0.5); }
+    .posting-row td { background: rgb(var(--print-paper)); }
     .account-name { font-weight: 700; line-height: 1.25; }
-    .description { margin-top: 2px; color: #64748b; font-weight: 400; font-size: 9px; line-height: 1.25; }
+    .description { margin-top: 2px; color: rgb(var(--print-faint)); font-weight: 400; font-size: 10px; line-height: 1.25; }
     .code { font-family: "Courier New", monospace; font-weight: 700; white-space: nowrap; }
     .number { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
-    .badge { display: inline-block; min-width: 50px; padding: 2px 6px; border-radius: 999px; font-size: 8px; font-weight: 800; text-align: center; border: 1px solid transparent; }
-    .badge-posting { color: #14532d; background: #dcfce7; border-color: #86efac; }
-    .badge-header { color: #1e3a8a; background: #dbeafe; border-color: #93c5fd; }
-    .badge-active { color: #14532d; background: #dcfce7; border-color: #86efac; }
-    .badge-inactive { color: #7f1d1d; background: #fee2e2; border-color: #fca5a5; }
-    .footer { display: flex; justify-content: space-between; gap: 16px; margin-top: 12px; color: #64748b; font-size: 9px; }
+    .badge { display: inline-block; min-width: 50px; padding: 2px 6px; border-radius: 999px; font-size: 10px; font-weight: 800; text-align: center; border: 1px solid transparent; }
+    .badge-posting { color: rgb(var(--print-ink)); background: rgb(var(--print-band)); border-color: rgb(var(--print-rule-strong)); }
+    .badge-header { color: rgb(var(--print-accent)); background: rgb(var(--print-accent-soft)); border-color: rgb(var(--print-accent) / 0.45); }
+    .badge-active { color: rgb(var(--print-ink)); background: rgb(var(--print-band)); border-color: rgb(var(--print-rule-strong)); }
+    .badge-inactive { color: rgb(var(--print-negative)); background: rgb(var(--print-negative) / 0.08); border-color: rgb(var(--print-negative) / 0.4); }
+    .footer { display: flex; justify-content: space-between; gap: 16px; margin-top: 12px; color: rgb(var(--print-faint)); font-size: 10px; }
   </style>
 </head>
 <body>

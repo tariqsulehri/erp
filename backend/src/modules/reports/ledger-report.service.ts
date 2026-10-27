@@ -31,7 +31,7 @@ export class LedgerReportService {
   async getAccountLedger(query: LedgerReportQuery) {
     const dateFrom = databaseDate(query.date_from);
     const dateTo = databaseDate(query.date_to);
-    if (dateTo < dateFrom) throw businessError('Date To cannot be earlier than Date From.');
+    if (dateTo < dateFrom) throw businessError('Date To cannot be before Date From.');
 
     const account = await prisma.account.findFirst({
       where: {

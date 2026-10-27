@@ -25,16 +25,16 @@ export function friendlyErrorMessage(error: unknown, fallback: string) {
 
   const message = error.message.trim();
   if (message.includes('Failed to fetch') || message.includes('NetworkError')) {
-    return 'Connection failed. Please check the backend service and try again.';
+    return 'Cannot reach the server. Check your connection and try again.';
   }
   if (message.includes('Date does not fall within any active fiscal year')) {
-    return 'Date does not fall within any active fiscal year.';
+    return 'This date is not in an active Fiscal Year. Choose another date.';
   }
   if (message.includes('Company ID not set')) {
-    return 'Company setup is incomplete. Please select or configure the company first.';
+    return 'Company setup is not complete. Select or set up the company first.';
   }
   if (message.toLowerCase().includes('unauthorized')) {
-    return 'Your session is not valid. Please sign in again.';
+    return 'You were signed out. Please sign in again.';
   }
   if (message.includes('Unable to process')) return message;
   return message;

@@ -29,7 +29,7 @@ export function ReportActions({ buildReport, disabled = false, onError }: Report
     try {
       action(report);
     } catch (error) {
-      onError?.(error instanceof Error ? error.message : 'Unable to prepare the report.');
+      onError?.(error instanceof Error ? error.message : 'Could not prepare the report. Please try again.');
     } finally {
       setBusy(false);
     }

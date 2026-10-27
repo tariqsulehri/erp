@@ -81,7 +81,7 @@ export function previewPeriods(startDate: string, endDate: string, count: number
   const months = wholeMonthsBetween(startDate, endDate);
   if (months === 0 || count < 1 || months % count !== 0) {
     const choices = [1, 2, 3, 4, 6, 12].filter(value => months > 0 && months % value === 0).join(', ');
-    return { periods: [], problem: `Number Of Periods must divide the ${months}-month year into equal parts (${choices || 'none'}).` };
+    return { periods: [], problem: `Number Of Periods must split the ${months}-month year into equal parts. You can use: ${choices || 'none'}.` };
   }
   const size = months / count;
   const start = parseDate(startDate);

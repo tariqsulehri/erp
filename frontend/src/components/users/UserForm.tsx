@@ -59,6 +59,13 @@ export function UserForm({ editId, form, setForm, notice, saving, canAssignAdmin
       <PageHeader
         title={isNew ? 'New User' : `Edit User ${form.full_name}`}
         description="Each user works in one Branch or one Warehouse and sees only its data. Admin and Top Management see all Branches."
+        help={(
+          <>
+            <p>Enter the user details and click Save User. The user signs in with the Email and Password.</p>
+            <p>Choose a Role, then the Branch or Warehouse where the user works. The user sees only the data of that place.</p>
+            <p>Clear Active to stop a user from signing in. Use Reset Password to give a user a new password.</p>
+          </>
+        )}
         actions={(
           <>
             <Button variant="secondary" icon={<IconArrowLeft size={16} stroke={1.8} />} onClick={onBack}>Back To List</Button>
@@ -139,7 +146,7 @@ function ResetPasswordSection({ userId }: { userId: string }) {
     }
     resetPassword.mutate({ id: userId, newPassword }, {
       onSuccess: result => { setNotice({ tone: 'success', text: result.message }); setNewPassword(''); },
-      onError: error => setNotice({ tone: 'danger', text: friendlyErrorMessage(error, 'Unable to reset Password.') }),
+      onError: error => setNotice({ tone: 'danger', text: friendlyErrorMessage(error, 'Could not reset Password. Please try again.') }),
     });
   }
 

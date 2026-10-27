@@ -22,7 +22,7 @@ export function resolveCompanyId(req: Request) {
   const result = companyIdSchema.safeParse(companyId);
 
   if (!result.success) {
-    throw requestError('Company is not selected.', 400);
+    throw requestError('Please select a Company.', 400);
   }
 
   // Admin users can open any company; everyone else needs an active access record for it.

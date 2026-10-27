@@ -14,7 +14,7 @@ export class DayBookReportService {
   constructor(private readonly companyId: string) {}
 
   async getDayBook(query: DayBookQuery) {
-    if (query.date_to < query.date_from) throw businessError('Date To cannot be earlier than Date From.');
+    if (query.date_to < query.date_from) throw businessError('Date To cannot be before Date From.');
 
     const where: Prisma.VoucherWhereInput = {
       companyId: this.companyId,

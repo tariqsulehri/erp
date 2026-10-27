@@ -146,7 +146,7 @@ describe.skipIf(!databaseUrl)('Fiscal Years and Posting Dates (database)', () =>
     // A 12-month year can only be split into equal whole-month periods (12, 6, 4, 3, 2 or 1).
     it('rejects a number of periods that does not divide the year evenly', async () => {
       await expect(createYear('FY 2045 Thirteen', 'calendar', '2045-01-01', '2045-12-31', 13))
-        .rejects.toThrow(/Number Of Periods must divide the 12-month year into equal parts/);
+        .rejects.toThrow(/Number Of Periods must split the 12-month year into equal parts/);
     });
 
     it('builds quarterly periods when 4 periods are requested', async () => {
@@ -178,7 +178,7 @@ describe.skipIf(!databaseUrl)('Fiscal Years and Posting Dates (database)', () =>
       const row = await prisma.fiscalPeriod.findUniqueOrThrow({ where: { id: january.id } });
       expect(row).toMatchObject({ isOpen: false, isLocked: true, status: 'closed' });
 
-      await expect(service().lockPeriod(january.id)).rejects.toThrow(/Closed periods cannot be locked again/);
+      await expect(service().lockPeriod(january.id)).rejects.toThrow(/A closed Period cannot be locked again/);
       const check = await postingDate('2030-01-15');
       expect(check.canPost).toBe(false);
       expect(check.reason).toMatch(/Period "January 2030" is closed/);
@@ -206,7 +206,7 @@ describe.skipIf(!databaseUrl)('Fiscal Years and Posting Dates (database)', () =>
         await service().closePeriod(period.id);
       }
       const last = open[open.length - 1];
-      await expect(service().closePeriod(last.id)).rejects.toThrow(/Cannot close the last open period/);
+      await expect(service().closePeriod(last.id)).rejects.toThrow(/You cannot close the last open Period/);
       const row = await prisma.fiscalPeriod.findUniqueOrThrow({ where: { id: last.id } });
       expect(row.isOpen).toBe(true);
       expect((await postingDate(last.start_date)).canPost).toBe(true);
@@ -222,7 +222,7 @@ describe.skipIf(!databaseUrl)('Fiscal Years and Posting Dates (database)', () =>
 
     it('refuses a date outside every fiscal year', async () => {
       const result = await postingDate('2028-03-10');
-      expect(result).toEqual({ canPost: false, reason: 'Date does not fall within any active fiscal year' });
+      expect(result).toEqual({ canPost: false, reason: 'This date is not in any active Fiscal Year.' });
     });
 
     it('refuses a date in a deleted fiscal year', async () => {
@@ -254,8 +254,8 @@ describe.skipIf(!databaseUrl)('Fiscal Years and Posting Dates (database)', () =>
     });
 
     it('is used by vouchers: a voucher dated in a closed or locked period is refused', async () => {
-      await expect(createDraftJournal('2030-01-10')).rejects.toThrow(/Invalid Voucher Date: Period "January 2030" is closed/);
-      await expect(createDraftJournal('2028-01-10')).rejects.toThrow(/Invalid Voucher Date: Date does not fall within any active fiscal year/);
+      await expect(createDraftJournal('2030-01-10')).rejects.toThrow(/Voucher Date cannot be used\. Period "January 2030" is closed/);
+      await expect(createDraftJournal('2028-01-10')).rejects.toThrow(/Voucher Date cannot be used\. This date is not in any active Fiscal Year/);
     });
   });
 
@@ -278,8 +278,8 @@ describe.skipIf(!databaseUrl)('Fiscal Years and Posting Dates (database)', () =>
       expect(rows[0].locked_at).not.toBeNull();
 
       const check = await postingDate('2035-06-15');
-      expect(check).toEqual({ canPost: false, reason: 'Fiscal year is locked. No new transactions allowed.' });
-      await expect(createDraftJournal('2035-06-15')).rejects.toThrow(/Fiscal year is locked/);
+      expect(check).toEqual({ canPost: false, reason: 'This Fiscal Year is locked. You cannot post new entries in it.' });
+      await expect(createDraftJournal('2035-06-15')).rejects.toThrow(/This Fiscal Year is locked/);
     });
 
     it('stores no user when the user id is not a valid id', async () => {
@@ -290,7 +290,7 @@ describe.skipIf(!databaseUrl)('Fiscal Years and Posting Dates (database)', () =>
 
     it('unlocks the year and allows posting in open periods again', async () => {
       const result = await service().unlockFiscalYear(yearId);
-      expect(result.message).toMatch(/unlocked successfully/);
+      expect(result.message).toMatch(/^Fiscal Year unlocked\./);
       const row = await prisma.fiscalYear.findUniqueOrThrow({ where: { id: yearId } });
       expect(row).toMatchObject({ isLocked: false, status: 'open', lockedAt: null });
       expect((await postingDate('2035-06-15')).canPost).toBe(true);
@@ -376,9 +376,9 @@ describe.skipIf(!databaseUrl)('Fiscal Years and Posting Dates (database)', () =>
       const periods = await periodsOf(yearId);
       expect(periods.every(period => period.status === 'closed' && !period.is_open && period.is_locked)).toBe(true);
 
-      await expect(service().unlockFiscalYear(yearId)).rejects.toThrow(/Closed fiscal years cannot be unlocked/);
-      await expect(service().lockPeriod(periods[0].id)).rejects.toThrow(/Closed periods cannot be locked again/);
-      expect((await postingDate('2036-06-01')).reason).toBe('Fiscal year is locked. No new transactions allowed.');
+      await expect(service().unlockFiscalYear(yearId)).rejects.toThrow(/A closed Fiscal Year cannot be unlocked/);
+      await expect(service().lockPeriod(periods[0].id)).rejects.toThrow(/A closed Period cannot be locked again/);
+      expect((await postingDate('2036-06-01')).reason).toBe('This Fiscal Year is locked. You cannot post new entries in it.');
 
       const after = await service().preCloseCheck(yearId);
       expect(after.checks.find(item => item.key === 'fiscal_year_status')?.status).toBe('Failed');

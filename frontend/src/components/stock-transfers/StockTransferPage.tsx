@@ -1,29 +1,23 @@
 'use client';
 
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useSession } from 'next-auth/react';
 import {
   IconCheck,
-  IconEye,
   IconFilePlus,
   IconPencil,
-  IconPrinter,
-  IconRefresh,
   IconTrash,
   IconX,
 } from '@tabler/icons-react';
-import { formatDate, formatNumber } from '@/lib/app-settings';
+import { formatNumber } from '@/lib/app-settings';
 import { useGeneralSettings } from '@/lib/api/settings';
 import {
   placeFields,
   type StockTransferPayload,
   type TransferPlace,
-  type TransferPlaceKind,
   useCreateAndPostStockTransfer,
   useCreateStockTransferDraft,
   useInvalidateStockTransferQueries,
-  useStockTransferDetail,
-  useStockTransfersList,
   useStockTransferSupportData,
   useStockTransferSourceStock,
 } from '@/lib/api/stock-transfers';
@@ -38,8 +32,11 @@ import { InlineAlert } from '@/components/ui/InlineAlert';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { TableMessageRow } from '@/components/ui/TableMessageRow';
 import { SearchableSelect } from '@/components/ui/SearchableSelect';
+import { TransferDirectionPicker } from './TransferDirectionPicker';
+import { TransferList } from './TransferList';
 import { TransferPlacePicker } from './TransferPlacePicker';
-import { emptyPlace, locationOptions, PLACE_KIND_LABELS, placeName, placeOptions, samePlace } from './transfer-places';
+import { directionOf, directionOption, directionsFor, type TransferDirection } from './transfer-directions';
+import { emptyPlace, locationOptions, PLACE_KIND_LABELS, placeOptions, samePlace } from './transfer-places';
 
 interface TransferLine {
   id: number;
@@ -87,7 +84,6 @@ export default function StockTransferPage() {
   const [editingLineId, setEditingLineId] = useState<number | null>(null);
   const [message, setMessage] = useState<{ kind: 'success' | 'error'; text: string } | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
-  const [selectedTransferId, setSelectedTransferId] = useState<string | null>(null);
 
   const supportQuery = useStockTransferSupportData(source.id ? source : null);
   const sourceStockQuery = useStockTransferSourceStock(source.id ? source : null);
@@ -96,10 +92,11 @@ export default function StockTransferPage() {
   const newTransferGuard = usePostingDateGuard(today(), 'Transfer Date');
   const saving = createDraft.isPending || createAndPost.isPending;
   const actionDisabled = saving || postingDateGuard.disabled;
-  const dateStatusMessage = postingDateGuard.isChecking ? 'Checking Transfer Date...' : postingDateGuard.statusMessage;
-  const newTransferDisabledReason = newTransferGuard.isChecking ? 'Checking Transfer Date...' : newTransferGuard.statusMessage;
-  const listQuery = useStockTransfersList({ page: 1, limit: 50, status: 'Posted' });
-  const detailQuery = useStockTransferDetail(selectedTransferId);
+  const dateStatusMessage = postingDateGuard.isChecking ? 'Checking the Transfer Date…' : postingDateGuard.statusMessage;
+  const newTransferDisabledReason = newTransferGuard.isChecking ? 'Checking the Transfer Date…' : newTransferGuard.statusMessage;
+  // The direction (e.g. Warehouse → Branch) sets the kind of place on each side.
+  const directionChoices = directionsFor(lockedSource?.kind);
+  const direction = directionOf(source.kind, to.kind);
 
   const fromPlaces = useMemo(() => placeOptions(supportQuery.data, source.kind), [supportQuery.data, source.kind]);
   const toPlaces = useMemo(() => placeOptions(supportQuery.data, to.kind), [supportQuery.data, to.kind]);
@@ -187,13 +184,20 @@ export default function StockTransferPage() {
   }, [to.locationId, toLocations, selectedTo?.useLocations]);
 
   useEffect(() => {
-    if (supportQuery.error) setMessage({ kind: 'error', text: friendlyErrorMessage(supportQuery.error, 'Unable to load Stock Transfer setup.') });
+    if (supportQuery.error) setMessage({ kind: 'error', text: friendlyErrorMessage(supportQuery.error, 'Could not load the Stock Transfer setup. Refresh the page and try again.') });
   }, [supportQuery.error]);
 
+  function chooseDirection(value: TransferDirection) {
+    const option = directionOption(value);
+    if (!lockedSource) setFrom(emptyPlace(option.from));
+    setTo(emptyPlace(option.to));
+  }
+
   function resetForm() {
+    const start = directionChoices[0];
     setTransferDate(today());
-    setFrom(emptyPlace('WAREHOUSE'));
-    setTo(emptyPlace('BRANCH'));
+    setFrom(emptyPlace(start.from));
+    setTo(emptyPlace(start.to));
     setReferenceNumber('');
     setDescription('');
     setLineItemId('');
@@ -206,7 +210,7 @@ export default function StockTransferPage() {
 
   function openNewTransfer() {
     if (newTransferGuard.disabled) {
-      setMessage({ kind: 'error', text: newTransferDisabledReason || 'Transfer Date cannot be used for posting.' });
+      setMessage({ kind: 'error', text: newTransferDisabledReason || 'You cannot post on this Transfer Date. Choose another date.' });
       return;
     }
     resetForm();
@@ -214,37 +218,37 @@ export default function StockTransferPage() {
   }
 
   function validateForm() {
-    if (postingDateGuard.disabled) return dateStatusMessage || 'Transfer Date cannot be used for posting.';
-    if (!source.id) return `From ${fromLabel} is required.`;
-    if (!to.id) return `To ${toLabel} is required.`;
-    if (selectedFrom?.useLocations && !source.locationId) return 'From Location is required because the From Warehouse uses Locations.';
-    if (selectedTo?.useLocations && !to.locationId) return 'To Location is required because the To Warehouse uses Locations.';
-    if (samePlace(source, to)) return 'From and To cannot be the same place.';
-    if (lines.length === 0) return 'Add at least one transfer item.';
+    if (postingDateGuard.disabled) return dateStatusMessage || 'You cannot post on this Transfer Date. Choose another date.';
+    if (!source.id) return `Select the From ${fromLabel}.`;
+    if (!to.id) return `Select the To ${toLabel}.`;
+    if (selectedFrom?.useLocations && !source.locationId) return 'Select the From Location. This Warehouse keeps stock by Location.';
+    if (selectedTo?.useLocations && !to.locationId) return 'Select the To Location. This Warehouse keeps stock by Location.';
+    if (samePlace(source, to)) return 'From and To must be different places.';
+    if (lines.length === 0) return 'Add at least one item to transfer.';
     const invalidLine = lines.find(line => numericValue(line.quantity) <= 0);
-    if (invalidLine) return `Quantity must be greater than zero for ${invalidLine.itemCode}.`;
+    if (invalidLine) return `Enter a Quantity more than zero for ${invalidLine.itemCode}.`;
     const lineExceedingStock = lines.find(line => numericValue(line.quantity) > numericValue(line.availableStock));
     if (lineExceedingStock) {
-      return `Quantity for ${lineExceedingStock.itemCode} exceeds available stock (${formatNumber(numericValue(lineExceedingStock.availableStock), generalSettings)} ${lineExceedingStock.uomName}) at the source ${fromLabel}.`;
+      return `Not enough stock of ${lineExceedingStock.itemCode} at the From ${fromLabel}. Available: ${formatNumber(numericValue(lineExceedingStock.availableStock), generalSettings)} ${lineExceedingStock.uomName}.`;
     }
     return '';
   }
 
   function addLine() {
     if (!selectedItem) {
-      setMessage({ kind: 'error', text: 'Item is required.' });
+      setMessage({ kind: 'error', text: 'Select an Item.' });
       return;
     }
     const qty = numericValue(lineQuantity);
     if (qty <= 0) {
-      setMessage({ kind: 'error', text: 'Quantity must be greater than zero.' });
+      setMessage({ kind: 'error', text: 'Enter a Quantity more than zero.' });
       return;
     }
     const available = numericValue(selectedItem.availableStock);
     if (qty > available) {
       setMessage({
         kind: 'error',
-        text: `Transfer quantity (${formatNumber(qty, generalSettings)}) exceeds available stock (${formatNumber(available, generalSettings)} ${selectedItem.uomName}) at the source ${fromLabel}.`,
+        text: `Not enough stock. You entered ${formatNumber(qty, generalSettings)}, but only ${formatNumber(available, generalSettings)} ${selectedItem.uomName} is available at the From ${fromLabel}.`,
       });
       return;
     }
@@ -315,67 +319,37 @@ export default function StockTransferPage() {
         : await createDraft.mutateAsync(buildPayload());
       await invalidate();
       resetForm();
-      setMessage({ kind: 'success', text: postNow ? `${result.transfer_number} posted successfully.` : `${result.transfer_number} saved as Draft.` });
+      setMessage({ kind: 'success', text: postNow ? `${result.transfer_number} posted.` : `${result.transfer_number} saved as Draft.` });
       if (postNow) setViewMode('list');
     } catch (error) {
-      setMessage({ kind: 'error', text: friendlyErrorMessage(error, 'Unable to save Stock Transfer.') });
+      setMessage({ kind: 'error', text: friendlyErrorMessage(error, 'Could not save the Stock Transfer. Please try again.') });
     }
   }
 
   if (viewMode === 'list') {
-    const rows = listQuery.data?.data ?? [];
     return (
       <main className="page-shell">
         <PageHeader
           title="Stock Transfers"
-          description="Posted stock movements between Warehouses and Branches."
-          actions={(
+          description="Stock moved between Warehouses and Branches."
+          help={(
             <>
-              <Button variant="secondary" icon={<IconRefresh size={16} stroke={1.8} />} onClick={() => listQuery.refetch()} loading={listQuery.isFetching && !listQuery.isLoading}>Refresh</Button>
-              <Button variant="primary" icon={<IconFilePlus size={16} stroke={1.8} />} disabled={newTransferGuard.disabled} title={newTransferDisabledReason} onClick={openNewTransfer}>New Transfer</Button>
+              <p>A Stock Transfer moves stock from one place to another: Warehouse → Branch, Branch → Branch, Warehouse → Warehouse, or Branch → Warehouse.</p>
+              <p>Posting takes the stock out of the From place and adds it to the To place at the same cost. Your total stock value does not change.</p>
+              <p>A posted transfer cannot be changed. To undo it, make a new transfer the other way.</p>
             </>
           )}
+          actions={<Button variant="primary" icon={<IconFilePlus size={16} stroke={1.8} />} disabled={newTransferGuard.disabled} title={newTransferDisabledReason || 'New Transfer'} onClick={openNewTransfer}>New Transfer</Button>}
         />
         {message && <InlineAlert tone={message.kind === 'success' ? 'success' : 'danger'}>{message.text}</InlineAlert>}
-        <div className={`split-view${selectedTransferId ? ' has-side' : ''}`}>
-          <section className="panel">
-            <div className="table-scroll">
-              <table className="data-table" style={{ tableLayout: 'fixed' }}>
-                <thead>
-                  <tr>
-                    <th style={{ width: 150 }}>Transfer No.</th>
-                    <th style={{ width: 110 }}>Date</th>
-                    <th>From</th>
-                    <th>To</th>
-                    <th className="num" style={{ width: 120 }}>Total Qty</th>
-                    <th style={{ width: 100 }}>Status</th>
-                    <th style={{ width: 56 }}><span className="sr-only">Actions</span></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {listQuery.isLoading && <TableMessageRow colSpan={7} title="Loading Stock Transfers…" loading />}
-                  {!listQuery.isLoading && rows.length === 0 && (
-                    <TableMessageRow colSpan={7} title="No Posted Stock Transfers Yet" description="Move stock from a Warehouse to a Branch, or between Warehouses and Branches." action={<Button variant="primary" icon={<IconFilePlus size={16} stroke={1.8} />} disabled={newTransferGuard.disabled} onClick={openNewTransfer}>New Transfer</Button>} />
-                  )}
-                  {!listQuery.isLoading && rows.map((row: any) => (
-                    <tr key={row.id} className={selectedTransferId === row.id ? 'is-selected' : undefined} onClick={() => setSelectedTransferId(row.id)} style={{ cursor: 'pointer' }}>
-                      <td className="cell-strong">{row.transfer_number}</td>
-                      <td>{formatDate(row.transfer_date, generalSettings)}</td>
-                      <td><PlaceCell kind={row.from_kind} code={row.from_code ?? row.from_warehouse_code} name={row.from_name ?? row.from_warehouse_name} /></td>
-                      <td><PlaceCell kind={row.to_kind} code={row.to_code ?? row.to_warehouse_code} name={row.to_name ?? row.to_warehouse_name} /></td>
-                      <td className="num">{formatNumber(row.total_quantity, generalSettings)}</td>
-                      <td><Badge variant="success">{row.status}</Badge></td>
-                      <td className="cell-actions">
-                        <Button variant="ghost" size="sm" icon={<IconEye size={16} stroke={1.8} />} onClick={event => { event.stopPropagation(); setSelectedTransferId(row.id); }} aria-label={`View Transfer ${row.transfer_number}`} title="View Transfer" />
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </section>
-          {selectedTransferId && <DetailPanel detail={detailQuery.data} loading={detailQuery.isFetching} settings={generalSettings} onClose={() => setSelectedTransferId(null)} />}
-        </div>
+        <TransferList
+          settings={generalSettings}
+          empty={{
+            title: 'No Posted Stock Transfers Yet',
+            description: 'Move stock from a Warehouse to a Branch, or between any two places.',
+            action: <Button variant="primary" icon={<IconFilePlus size={16} stroke={1.8} />} disabled={newTransferGuard.disabled} title="New Transfer" onClick={openNewTransfer}>New Transfer</Button>,
+          }}
+        />
       </main>
     );
   }
@@ -384,7 +358,15 @@ export default function StockTransferPage() {
     <main className="page-shell">
       <PageHeader
         title="New Stock Transfer"
-        description="Move stock from a Warehouse or Branch to another Warehouse or Branch."
+        description="Choose the direction, the two places, and the items to move."
+        help={(
+          <>
+            <p>1. Choose the direction, for example Warehouse → Branch.</p>
+            <p>2. Choose the From place and the To place. Some Warehouses also need a Location (shelf).</p>
+            <p>3. Add each item and its quantity. You cannot move more than the From place has.</p>
+            <p>Save Draft keeps it for later. Process posts it and moves the stock now.</p>
+          </>
+        )}
         actions={(
           <>
             <Button variant="ghost" onClick={() => setViewMode('list')}>Cancel</Button>
@@ -411,6 +393,9 @@ export default function StockTransferPage() {
       <section className="panel" style={{ flexShrink: 0, overflow: 'visible' }}>
         <div className="panel-body" style={{ overflow: 'visible' }}>
           <div className="form-grid" style={{ ['--form-cols' as string]: 6 }}>
+            <div className="span-all">
+              <TransferDirectionPicker value={direction} options={directionChoices} onChange={chooseDirection} />
+            </div>
             <DateField label="Transfer Date" required value={transferDate} onChange={setTransferDate} />
             <TransferPlacePicker
               side="From"
@@ -420,6 +405,7 @@ export default function StockTransferPage() {
               loading={supportQuery.isLoading}
               disabled={supportQuery.isLoading || supportQuery.isError}
               lockedLabel={lockedSourceLabel}
+              kindFixed
               onChange={place => setFrom(place)}
               hint={source.id && sourceStockQuery.isSuccess ? (
                 <span className="form-hint" style={{ display: 'block' }}>
@@ -434,6 +420,7 @@ export default function StockTransferPage() {
               locations={toLocations}
               loading={supportQuery.isLoading}
               disabled={supportQuery.isLoading || supportQuery.isError}
+              kindFixed
               onChange={place => setTo(place)}
             />
             <TextField label="Reference Number" value={referenceNumber} onChange={setReferenceNumber} placeholder="Optional" />
@@ -455,7 +442,7 @@ export default function StockTransferPage() {
               {selectedItem && (
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 4 }}>
                   <span style={{ fontSize: 'var(--font-size-xs)', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                    <span style={{ color: 'var(--color-text-muted)' }}>Source Available:</span>
+                    <span style={{ color: 'var(--color-text-muted)' }}>Available At From Place:</span>
                     <Badge variant={currentAvailableStock > 0 ? 'success' : 'danger'}>
                       {formatNumber(currentAvailableStock, generalSettings)} {selectedItem.uomName}
                     </Badge>
@@ -469,12 +456,12 @@ export default function StockTransferPage() {
                         border: 'none',
                         padding: 0,
                         fontSize: 'var(--font-size-xs)',
-                        color: 'var(--color-primary-600)',
+                        color: 'var(--color-primary-text)',
                         cursor: 'pointer',
                         fontWeight: 500,
                       }}
                     >
-                      Fill Max
+                      Use All Available
                     </button>
                   )}
                 </div>
@@ -484,7 +471,7 @@ export default function StockTransferPage() {
               <NumericField label="Quantity" required value={lineQuantity} onChange={setLineQuantity} decimalPlaces={4} />
               {selectedItem && numericValue(lineQuantity) > currentAvailableStock && (
                 <p className="form-error" style={{ margin: '4px 0 0 0' }}>
-                  Exceeds stock ({formatNumber(currentAvailableStock, generalSettings)})
+                  More than available ({formatNumber(currentAvailableStock, generalSettings)})
                 </p>
               )}
             </div>
@@ -512,7 +499,7 @@ export default function StockTransferPage() {
                 <th>Item</th>
                 <th className="num" style={{ width: 130 }}>Available Stock</th>
                 <th className="num" style={{ width: 130 }}>Quantity</th>
-                <th style={{ width: 90 }}>UOM</th>
+                <th style={{ width: 90 }}>Unit</th>
                 <th>Description</th>
                 <th style={{ width: 84 }}><span className="sr-only">Actions</span></th>
               </tr>
@@ -535,8 +522,8 @@ export default function StockTransferPage() {
                         {formatNumber(line.quantity, generalSettings)}
                       </span>
                       {exceedsStock && (
-                        <span style={{ display: 'block', fontSize: '11px', color: 'var(--color-danger)' }}>
-                          Exceeds Stock
+                        <span style={{ display: 'block', fontSize: 'var(--font-size-xs)', color: 'var(--color-danger)' }}>
+                          More Than Stock
                         </span>
                       )}
                     </td>
@@ -564,7 +551,7 @@ export default function StockTransferPage() {
         open={confirmOpen}
         variant="primary"
         title="Process Stock Transfer?"
-        message="This posts the stock movements and updates the stock of both places. A posted transfer cannot be edited."
+        message="This moves the stock now and updates both places. You cannot change a posted transfer."
         confirmLabel="Process"
         loading={saving}
         onConfirm={() => saveTransfer(true)}
@@ -572,59 +559,4 @@ export default function StockTransferPage() {
       />
     </main>
   );
-}
-
-/** A transfer side with its type, e.g. "MAIN - Main Warehouse" plus a Warehouse badge. */
-function PlaceCell({ kind, code, name, location }: { kind?: TransferPlaceKind; code?: string | null; name?: string | null; location?: string | null }) {
-  const placeKind: TransferPlaceKind = kind === 'BRANCH' ? 'BRANCH' : 'WAREHOUSE';
-  return (
-    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, maxWidth: '100%', flexWrap: 'wrap' }}>
-      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{placeName(code, name)}{location ? ` / ${location}` : ''}</span>
-      <Badge variant={placeKind === 'BRANCH' ? 'info' : 'neutral'}>{PLACE_KIND_LABELS[placeKind]}</Badge>
-    </span>
-  );
-}
-
-function DetailPanel({ detail, loading, settings, onClose }: { detail: any; loading: boolean; settings: any; onClose: () => void }) {
-  return (
-    <aside className="panel side-panel" aria-label="Transfer Detail">
-      <div className="panel-header">
-        <h2 className="panel-title">{detail?.transfer_number ?? 'Transfer Detail'}</h2>
-        <span className="row-actions">
-          {detail && <Button variant="ghost" size="sm" icon={<IconPrinter size={16} stroke={1.8} />} onClick={() => window.print()} aria-label="Print Transfer" title="Print Transfer" />}
-          <Button variant="ghost" size="sm" icon={<IconX size={16} stroke={1.8} />} onClick={onClose} aria-label="Close Detail" title="Close Detail" />
-        </span>
-      </div>
-      <div className="panel-body">
-        {loading && <p className="form-hint">Loading Transfer Detail…</p>}
-        {!loading && detail && (
-          <>
-            <dl className="detail-list">
-              <InfoRow label="Date" value={formatDate(detail.transfer_date, settings)} />
-              <InfoRow label="Status" value={<Badge variant="success">{detail.status}</Badge>} />
-              <InfoRow label="From" value={<PlaceCell kind={detail.from_kind} code={detail.from_code ?? detail.from_warehouse_code} name={detail.from_name ?? detail.from_warehouse_name} location={detail.from_location_name} />} />
-              <InfoRow label="To" value={<PlaceCell kind={detail.to_kind} code={detail.to_code ?? detail.to_warehouse_code} name={detail.to_name ?? detail.to_warehouse_name} location={detail.to_location_name} />} />
-              <InfoRow label="Reference" value={detail.reference_number || 'Not Set'} />
-            </dl>
-            <table className="data-table" style={{ tableLayout: 'fixed' }}>
-              <thead><tr><th className="num" style={{ width: 44 }}>No.</th><th>Item</th><th className="num" style={{ width: 96 }}>Qty</th></tr></thead>
-              <tbody>
-                {(detail.lines ?? []).map((line: any, index: number) => (
-                  <tr key={line.id}>
-                    <td className="num cell-muted">{index + 1}</td>
-                    <td className="cell-strong">{line.item_code} - {line.item_name}</td>
-                    <td className="num">{formatNumber(line.quantity, settings)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </>
-        )}
-      </div>
-    </aside>
-  );
-}
-
-function InfoRow({ label, value }: { label: string; value: ReactNode }) {
-  return <div className="detail-row"><dt>{label}</dt><dd>{value}</dd></div>;
 }

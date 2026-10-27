@@ -116,6 +116,13 @@ export default function UomPage() {
       <PageHeader
         title="Units Of Measure"
         description="Units used to count, weigh, or measure products, such as Piece, Kilogram, or Litre."
+        help={(
+          <>
+            <p>Units Of Measure tell how a product is counted or measured, such as Piece or Kilogram.</p>
+            <p>Click New Unit to add one. Tick Default For This Type to make it the first choice for its Type.</p>
+            <p>You cannot delete a Unit that products use. Make it inactive instead.</p>
+          </>
+        )}
         actions={<Button variant="primary" icon={<IconPlus size={16} stroke={1.8} />} onClick={openNew}>New Unit</Button>}
       />
 
@@ -216,7 +223,7 @@ export default function UomPage() {
 
             <div>
               <CheckboxField label="Active" checked={form.is_active} onChange={value => set('is_active', value)} />
-              <p className="form-hint" style={{ marginTop: 0 }}>Inactive Units cannot be assigned to products.</p>
+              <p className="form-hint" style={{ marginTop: 0 }}>You cannot choose an inactive Unit for a product.</p>
             </div>
 
             <div>
@@ -235,7 +242,7 @@ export default function UomPage() {
         open={!!deleteTarget}
         variant="danger"
         title="Delete Unit Of Measure?"
-        message={`"${deleteTarget?.name}" will be permanently removed. Units assigned to products cannot be deleted.`}
+        message={`"${deleteTarget?.name}" will be deleted for good. You cannot delete a Unit that products use.`}
         confirmLabel="Delete"
         loading={deleteMut.isPending}
         onConfirm={() => deleteTarget && deleteMut.mutate(

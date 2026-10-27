@@ -5,7 +5,7 @@ export function friendlyErrorMessage(error: unknown, fallback: string) {
   if (!(error instanceof Error) || !error.message.trim()) return fallback;
   const message = error.message.trim();
   if (message.includes('Failed to fetch') || message.includes('NetworkError')) {
-    return 'Connection failed. Please check the backend service and try again.';
+    return 'Cannot reach the server. Check your connection and try again.';
   }
   if (message.toLowerCase().includes('unauthorized')) {
     return 'Your session is not valid. Please sign in again.';

@@ -57,7 +57,7 @@ export function withRole(form: UserFormState, role: UserRole | ''): UserFormStat
 export function validateUserForm(form: UserFormState, isNew: boolean) {
   if (!form.full_name.trim()) return 'Enter the Full Name.';
   if (!form.email.trim()) return 'Enter the Email.';
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) return 'Email is not valid. Use a format like name@company.com.';
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) return 'Email is not correct. Use a format like name@company.com.';
   if (isNew && form.password.length < PASSWORD_MIN_LENGTH) return `Password must be at least ${PASSWORD_MIN_LENGTH} characters.`;
   if (!form.role) return 'Select a Role.';
   if (!form.access_level) return 'Select an Access Level.';

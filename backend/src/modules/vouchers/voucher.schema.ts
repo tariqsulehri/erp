@@ -34,7 +34,7 @@ export const createVoucherInputSchema = z.object({
   narration: z.string().trim().max(1000).optional(),
   auto_reverse_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Use YYYY-MM-DD format.').optional(),
   submit_for_approval: z.boolean().optional().default(false),
-  lines: z.array(voucherLineInputSchema).min(2, 'Minimum 2 lines are required.'),
+  lines: z.array(voucherLineInputSchema).min(2, 'Add at least 2 lines.'),
 });
 
 export const listVouchersQuerySchema = z.object({

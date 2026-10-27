@@ -182,13 +182,13 @@ describe.skipIf(!databaseUrl)('Settings (database)', () => {
       const revenue = await prisma.account.findFirstOrThrow({ where: { companyId, code: '0401100101' } });
       await expectBusinessError(
         postingSettings.update({ year_end: { retained_earnings_account_id: revenue.id } }),
-        'Retained Earnings Account must be an Equity account. Selected account is Revenue.',
+        'Retained Earnings Account must be an Equity account. The selected Account is Revenue.',
       );
 
       const capital = await insertAccount(prisma, companyId, '0301100101', 'Owner Capital', 'Equity', 'Credit');
       await expectBusinessError(
         postingSettings.update({ year_end: { retained_earnings_account_id: capital } }),
-        'Retained Earnings Account must use account code category 0302. Selected account code is 0301100101.',
+        'Retained Earnings Account must use an Account Code starting with 0302. The selected Account Code is 0301100101.',
       );
 
       const newRetained = await insertAccount(prisma, companyId, '0302100102', 'Retained Earnings - Current', 'Equity', 'Credit');
@@ -203,12 +203,12 @@ describe.skipIf(!databaseUrl)('Settings (database)', () => {
       const cogs = await prisma.account.findFirstOrThrow({ where: { companyId, code: '0501100101' } });
       await expectBusinessError(
         postingSettings.update({ sale: { sales_revenue_account_id: cogs.id } }),
-        'Sales Revenue Account must be an Revenue account. Selected account is Expense.',
+        'Sales Revenue Account must be an Revenue account. The selected Account is Expense.',
       );
       const freightIncome = await prisma.account.findFirstOrThrow({ where: { companyId, code: '0401200101' } });
       await expectBusinessError(
         postingSettings.update({ sale: { sales_revenue_account_id: freightIncome.id } }),
-        'Sales Revenue Account must use account code category 040110. Selected account code is 0401200101.',
+        'Sales Revenue Account must use an Account Code starting with 040110. The selected Account Code is 0401200101.',
       );
 
       const serviceRevenue = await insertAccount(prisma, companyId, '0401100102', 'Service Revenue', 'Revenue', 'Credit');
@@ -243,12 +243,12 @@ describe.skipIf(!databaseUrl)('Settings (database)', () => {
       const gain = await prisma.account.findFirstOrThrow({ where: { companyId, code: '0401300101' } });
       await expectBusinessError(
         postingSettings.update({ stock_adjustment: { adjustment_loss_account_id: gain.id } }),
-        'Stock Adjustment Loss Account must be an Expense account. Selected account is Revenue.',
+        'Stock Adjustment Loss Account must be an Expense account. The selected Account is Revenue.',
       );
       const salesDiscount = await prisma.account.findFirstOrThrow({ where: { companyId, code: '0502200101' } });
       await expectBusinessError(
         postingSettings.update({ purchase: { freight_account_id: salesDiscount.id } }),
-        'Purchase Freight Account must use account code category 050210. Selected account code is 0502200101.',
+        'Purchase Freight Account must use an Account Code starting with 050210. The selected Account Code is 0502200101.',
       );
     });
 
@@ -270,7 +270,7 @@ describe.skipIf(!databaseUrl)('Settings (database)', () => {
 
       await expectBusinessError(
         postingSettings.update({ sale: { default_cash_account_id: otherCash }, year_end: { retained_earnings_account_id: revenue.id } }),
-        'Retained Earnings Account must be an Equity account. Selected account is Revenue.',
+        'Retained Earnings Account must be an Equity account. The selected Account is Revenue.',
       );
       const after = await postingSettings.get();
       expect(row(after.sale).default_cash_account_id).toBe(row(before.sale).default_cash_account_id);

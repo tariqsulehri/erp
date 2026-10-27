@@ -20,13 +20,20 @@ export function BranchStockView({ branch, onBack }: { branch: BranchRow; onBack:
   const [page, setPage] = useState(1);
   const stockQuery = useBranchStockSummary(branch.id, { page, limit: 100, search: search.trim() || undefined });
   const total = stockQuery.data?.pagination.total ?? 0;
-  const error = stockQuery.error ? friendlyErrorMessage(stockQuery.error, 'Unable to load Branch Stock.') : '';
+  const error = stockQuery.error ? friendlyErrorMessage(stockQuery.error, 'Could not load Branch Stock. Please try again.') : '';
 
   return (
     <main className="page-shell">
       <PageHeader
         title={`Stock At ${branch.name}`}
         description="Items this Branch holds and can sell. Stock arrives by Stock Transfer from a Warehouse or another Branch."
+        help={(
+          <>
+            <p>This screen shows the items this Branch holds now, and how many.</p>
+            <p>Search by item or location. Click Refresh to see the latest numbers.</p>
+            <p>You cannot change stock here. Use a Stock Transfer or a Stock Adjustment.</p>
+          </>
+        )}
         actions={(
           <>
             <Button variant="secondary" icon={<IconArrowLeft size={16} stroke={1.8} />} onClick={onBack}>Back To List</Button>

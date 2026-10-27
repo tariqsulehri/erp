@@ -174,7 +174,7 @@ export class BankAccountService {
         RETURNING *
       `;
 
-      return { success: true, bank_account: rows[0], message: 'Bank Account saved successfully.' };
+      return { success: true, bank_account: rows[0], message: 'Bank Account saved.' };
     });
   }
 
@@ -274,7 +274,7 @@ export class BankAccountService {
         RETURNING *
       `;
 
-      return { success: true, bank_account: rows[0], message: 'Bank Account updated successfully.' };
+      return { success: true, bank_account: rows[0], message: 'Bank Account updated.' };
     });
   }
 
@@ -290,7 +290,7 @@ export class BankAccountService {
         AND account_type = 'Asset'
       LIMIT 1
     `;
-    if (!rows[0]) throw businessError('Linked Account was not found, inactive, or not an Asset posting account.');
+    if (!rows[0]) throw businessError('Linked Account was not found, is Inactive, or is not an Asset posting account.');
   }
 
   private async assertUniqueCode(code: string, excludeId?: string) {

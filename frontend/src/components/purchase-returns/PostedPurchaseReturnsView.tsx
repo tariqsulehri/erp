@@ -121,6 +121,13 @@ export function PostedPurchaseReturnsView({
     <DocumentPage>
       <DocumentHeader
         title="Posted Purchase Returns"
+        help={(
+          <>
+            <p>This list shows all posted purchase returns. Drafts are not shown here.</p>
+            <p>Use the filters to find a return. Select a row to see its lines and totals, or to print it.</p>
+            <p>Posted returns cannot be changed.</p>
+          </>
+        )}
         badges={(
           <>
             <Badge variant="success">Posted Only</Badge>
@@ -189,7 +196,7 @@ export function PostedPurchaseReturnsView({
             <tbody>
               {listQuery.isLoading && <TableMessageRow colSpan={11} title="Loading Posted Purchase Returns…" loading />}
               {listQuery.error && (
-                <TableMessageRow colSpan={11} title="Unable To Load Posted Purchase Returns" description={friendlyErrorMessage(listQuery.error, 'Unable to load Posted Purchase Returns.')} />
+                <TableMessageRow colSpan={11} title="Could Not Load Posted Purchase Returns" description={friendlyErrorMessage(listQuery.error, 'Could not load Posted Purchase Returns. Please try again.')} />
               )}
               {!listQuery.isLoading && !listQuery.error && rows.length === 0 && (
                 <TableMessageRow colSpan={11} title="No Posted Purchase Returns Found" description="Change or clear the filters to see more records." />
@@ -219,7 +226,7 @@ export function PostedPurchaseReturnsView({
             title="Purchase Return Detail"
             loading={detailQuery.isLoading}
             loadingText="Loading Purchase Return Detail…"
-            error={detailQuery.error ? friendlyErrorMessage(detailQuery.error, 'Unable to load Purchase Return Detail.') : undefined}
+            error={detailQuery.error ? friendlyErrorMessage(detailQuery.error, 'Could not load Purchase Return Detail. Please try again.') : undefined}
             onClose={() => setSelectedId(null)}
           >
             {detail && (

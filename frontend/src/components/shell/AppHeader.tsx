@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { signOut } from 'next-auth/react';
-import { IconBuildingStore, IconBuildingWarehouse, IconBuildingSkyscraper, IconCheck, IconChevronDown, IconChevronRight, IconLogout2, IconMenu2, IconMoon, IconSun } from '@tabler/icons-react';
+import { IconBuildingSkyscraper, IconBuildingStore, IconBuildingWarehouse, IconCheck, IconChevronDown, IconChevronRight, IconLogout2, IconMenu2, IconMoon, IconSparkles, IconSun } from '@tabler/icons-react';
 import { THEMES, useTheme } from '@/lib/theme/theme-provider';
 import { Button } from '@/components/ui/Button';
 import type { Session } from 'next-auth';
@@ -52,7 +52,7 @@ function WorkplaceChip({ user }: { user: HeaderUser }) {
 }
 
 function UserMenu({ user }: { user: HeaderUser }) {
-  const { theme, setTheme } = useTheme();
+  const { theme, setTheme, vivid, setVivid } = useTheme();
   const [open, setOpen] = useState(false);
   const wrapRef = useRef<HTMLDivElement | null>(null);
   const displayName = user.name || user.email || 'User';
@@ -97,6 +97,18 @@ function UserMenu({ user }: { user: HeaderUser }) {
               </button>
             );
           })}
+          <button
+            type="button"
+            role="menuitemcheckbox"
+            aria-checked={vivid}
+            className="user-menu-item"
+            title="Soft depth on cards and meters. Colours stay the same."
+            onClick={() => setVivid(!vivid)}
+          >
+            <IconSparkles size={16} stroke={1.8} aria-hidden />
+            Vivid Depth
+            {vivid && <IconCheck size={16} stroke={1.8} className="user-menu-check" aria-hidden />}
+          </button>
           <div className="user-menu-divider" />
           <button type="button" role="menuitem" className="user-menu-item is-danger" onClick={() => signOut({ callbackUrl: '/login' })}>
             <IconLogout2 size={16} stroke={1.8} aria-hidden />

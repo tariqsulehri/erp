@@ -19,7 +19,7 @@ export const errorHandler: ErrorRequestHandler = (error, req, res, _next) => {
     res.status(400).json({
       error: {
         code: 'VALIDATION_ERROR',
-        message: 'Request validation failed',
+        message: 'Some details are not correct. Please check the highlighted fields.',
         details: {
           ...details,
           issues: error.issues.map(issue => ({
@@ -51,7 +51,7 @@ export const errorHandler: ErrorRequestHandler = (error, req, res, _next) => {
     error: {
       code: statusCode === 500 ? 'INTERNAL_SERVER_ERROR' : 'REQUEST_ERROR',
       message: statusCode === 500
-        ? `Unexpected server error. Reference: ${req.requestId ?? 'not available'}`
+        ? `Something went wrong. Please try again. If it happens again, give support this Reference: ${req.requestId ?? 'not available'}`
         : databaseError?.message ?? error.message,
       ...(statusCode === 500 && req.requestId ? { reference: req.requestId } : {}),
     },

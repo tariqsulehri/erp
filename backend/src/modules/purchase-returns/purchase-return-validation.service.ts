@@ -103,19 +103,19 @@ export class PurchaseReturnValidationService {
 
     const fiscalPeriod = rows[0];
     if (!fiscalPeriod) {
-      this.addError(errors, 'Purchase Return Date does not fall within any active fiscal year.');
+      this.addError(errors, 'Purchase Return Date is not in any active Fiscal Year.');
       return null;
     }
     if (fiscalPeriod.fiscal_year_locked) {
-      this.addError(errors, 'Fiscal year is locked. No new transactions allowed.');
+      this.addError(errors, 'This Fiscal Year is locked. You cannot post new entries in it.');
       return fiscalPeriod;
     }
     if (!fiscalPeriod.period_name) {
-      this.addError(errors, 'No open period found for Purchase Return Date.');
+      this.addError(errors, 'There is no open Period for the Purchase Return Date.');
       return fiscalPeriod;
     }
     if (!fiscalPeriod.is_open) {
-      this.addError(errors, `Period "${fiscalPeriod.period_name}" is closed. Cannot post transactions.`);
+      this.addError(errors, `Period "${fiscalPeriod.period_name}" is closed. You cannot post in a closed Period.`);
     }
     return fiscalPeriod;
   }
@@ -220,7 +220,7 @@ export class PurchaseReturnValidationService {
       : [];
     const itemMap = new Map(itemRows.map(item => [item.id, item]));
     if (itemMap.size !== itemIds.length) {
-      this.addError(errors, 'One or more return items were not found, inactive, or not purchasable.');
+      this.addError(errors, 'One or more return items were not found, are Inactive, or cannot be bought.');
     }
 
     const stockRows = itemIds.length > 0
@@ -242,10 +242,10 @@ export class PurchaseReturnValidationService {
       const discount = this.money(line.discount_amount);
       const tax = this.money(line.tax_amount);
       const warehouseId = line.warehouse_id || input.warehouse_id;
-      if (warehouseId !== input.warehouse_id) this.addError(errors, `Line ${index + 1} Warehouse must match the selected Warehouse.`);
+      if (warehouseId !== input.warehouse_id) this.addError(errors, `The Warehouse on line ${index + 1} must match the selected Warehouse.`);
 
       if (discount.gt(gross)) {
-        this.addError(errors, `Discount cannot be greater than item amount on line ${index + 1}.`);
+        this.addError(errors, `Discount cannot be more than the item amount on line ${index + 1}.`);
       }
 
       const lineTotal = this.money(gross.minus(discount).plus(tax));
@@ -272,7 +272,7 @@ export class PurchaseReturnValidationService {
     lineQuantityByItemWarehouse.forEach((requestedQuantity, key) => {
       const availableQuantity = this.quantity(stockMap.get(key) ?? 0);
       if (requestedQuantity.gt(availableQuantity)) {
-        this.addError(errors, 'Purchase Return quantity cannot be greater than Stock On Hand.');
+        this.addError(errors, 'Purchase Return Quantity cannot be more than Stock On Hand.');
       }
     });
 

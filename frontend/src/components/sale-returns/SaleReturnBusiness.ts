@@ -31,7 +31,7 @@ interface SaleReturnPayloadInput {
 }
 
 export function buildSaleReturnDetails(selectedCustomer: CustomerOption | undefined, customerReturnNumber: string, lineCount: number) {
-  if (!selectedCustomer) return 'Sale return details will be generated after selecting Customer.';
+  if (!selectedCustomer) return 'Details appear after you select a Customer.';
   return [
     `Sale return from ${selectedCustomer.label.split(' - ').slice(1).join(' - ') || selectedCustomer.label}`,
     customerReturnNumber ? `Customer Return ${customerReturnNumber}` : '',
@@ -41,18 +41,18 @@ export function buildSaleReturnDetails(selectedCustomer: CustomerOption | undefi
 
 export function validateSaleReturnVoucher(input: SaleReturnValidationInput) {
   if (!input.saleReturnDate) return 'Sale Return Date is required.';
-  if (!input.isSaleReturnDateValid) return 'Sale Return Date is not a valid date.';
+  if (!input.isSaleReturnDateValid) return 'Sale Return Date is not a correct date. Check the date.';
   if (input.postingDateError) return input.postingDateError;
   if (!input.customerId || !input.selectedCustomer) return 'Customer is required.';
-  if (!input.selectedCustomer.accountCode) return 'Selected Customer does not have a Linked Account.';
+  if (!input.selectedCustomer.accountCode) return 'The selected Customer has no Linked Account. Set one up for this Customer first.';
   if (!input.branchId) return 'Branch is required.';
-  if (!input.selectedBranch) return 'Selected Branch was not found or is Inactive. Please select it again.';
+  if (!input.selectedBranch) return 'The selected Branch is no longer available or is Inactive. Select it again.';
   if (input.customerReturnDate && input.customerReturnDate > input.saleReturnDate) {
     return 'Customer Return Date cannot be after Sale Return Date.';
   }
   if (input.lines.length === 0) return 'Add at least one sale return item.';
-  if (!validMoneyPattern.test(input.freightAmount || '0')) return 'Freight must be a valid amount.';
-  if (input.netAmount <= 0) return 'Net Amount must be greater than zero.';
+  if (!validMoneyPattern.test(input.freightAmount || '0')) return 'Freight is not a correct amount. Enter a number.';
+  if (input.netAmount <= 0) return 'Net Amount must be more than zero.';
   return '';
 }
 

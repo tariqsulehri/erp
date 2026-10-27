@@ -35,7 +35,7 @@ interface PurchasePayloadInput {
 }
 
 export function buildPurchaseDetails(selectedSupplier: SupplierOption | undefined, supplierInvoiceNumber: string, lineCount: number) {
-  if (!selectedSupplier) return 'Purchase details will be generated after selecting Supplier.';
+  if (!selectedSupplier) return 'Details appear after you select a Supplier.';
 
   return [
     `Purchase from ${selectedSupplier.label.split(' - ').slice(1).join(' - ') || selectedSupplier.label}`,
@@ -46,19 +46,19 @@ export function buildPurchaseDetails(selectedSupplier: SupplierOption | undefine
 
 export function validatePurchaseVoucher(input: PurchaseValidationInput) {
   if (!input.purchaseDate) return 'Purchase Date is required.';
-  if (!input.isPurchaseDateValid) return 'Purchase Date is not a valid date.';
+  if (!input.isPurchaseDateValid) return 'Purchase Date is not a correct date. Check the date.';
   if (input.postingDateError) return input.postingDateError;
   if (!input.supplierId) return 'Supplier is required.';
-  if (!input.selectedSupplier) return 'Selected Supplier was not found. Please select it again.';
-  if (!input.selectedSupplier.accountCode) return 'Selected Supplier does not have a Linked Account.';
+  if (!input.selectedSupplier) return 'The selected Supplier is no longer available. Select it again.';
+  if (!input.selectedSupplier.accountCode) return 'The selected Supplier has no Linked Account. Set one up for this Supplier first.';
   if (!input.warehouseId) return 'Warehouse is required.';
   if (input.selectedWarehouse?.useLocations && !input.locationId) return 'Location is required for this Warehouse.';
-  if (input.paymentType === 'Credit' && !input.dueDate) return 'Due Date is required for Credit purchase.';
+  if (input.paymentType === 'Credit' && !input.dueDate) return 'Due Date is required for a Credit purchase.';
   if (input.paymentType === 'Credit' && input.dueDate < input.purchaseDate) return 'Due Date cannot be before Purchase Date.';
-  if (input.supplierInvoiceDate && input.supplierInvoiceDate > input.purchaseDate) return 'Supplier Invoice Date cannot be after Purchase Date.';
+  if (input.supplierInvoiceDate && input.supplierInvoiceDate > input.purchaseDate) return 'Bill Date cannot be after Purchase Date.';
   if (input.lines.length === 0) return 'Add at least one purchase item.';
-  if (input.freightAmount && !validMoneyPattern.test(cleanNumber(input.freightAmount))) return 'Freight must be a valid amount.';
-  if (input.netAmount <= 0) return 'Net Amount must be greater than zero.';
+  if (input.freightAmount && !validMoneyPattern.test(cleanNumber(input.freightAmount))) return 'Freight is not a correct amount. Enter a number.';
+  if (input.netAmount <= 0) return 'Net Amount must be more than zero.';
   return null;
 }
 

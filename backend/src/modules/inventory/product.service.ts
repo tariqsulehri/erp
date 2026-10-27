@@ -414,7 +414,7 @@ export class ProductService {
       const duplicate = await prisma.inventoryItem.findFirst({
         where: { companyId: this.companyId, id: { not: id }, OR: [{ itemCode: fields.sku }, { sku: fields.sku }] },
       });
-      if (duplicate) throw businessError(`SKU "${fields.sku}" already in use.`);
+      if (duplicate) throw businessError(`SKU "${fields.sku}" is already used.`);
     }
 
     const brandId = fields.brand !== undefined ? await this.findBrandId(fields.brand) : undefined;
@@ -469,7 +469,7 @@ export class ProductService {
   async delete(id: string) {
     const item = await prisma.inventoryItem.findFirst({ where: { id, companyId: this.companyId } });
     if (!item) throw businessError('Product not found.', 404);
-    if (item.isActive) throw businessError('Only Inactive products may be permanently deleted. Use Archive to mark as Discontinued.');
+    if (item.isActive) throw businessError('Only Inactive products can be deleted for good. Use Archive to mark a product as Discontinued.');
     await prisma.inventoryItem.delete({ where: { id } });
   }
 
@@ -495,14 +495,14 @@ export class ProductService {
 
   async createCategory(input: CreateCategoryInput) {
     const duplicate = await prisma.inventoryCategory.findFirst({ where: { companyId: this.companyId, code: input.code } });
-    if (duplicate) throw businessError(`Category code "${input.code}" already exists.`);
+    if (duplicate) throw businessError(`Category Code "${input.code}" already exists.`);
 
     let parentLevel = -1;
     let parentPath = '';
     if (input.parent_id) {
       const parent = await prisma.inventoryCategory.findFirst({ where: { id: input.parent_id, companyId: this.companyId } });
       if (!parent) throw businessError('Parent Category not found.');
-      if (parent.level >= 7) throw businessError('Maximum nesting depth has been reached in this branch.');
+      if (parent.level >= 7) throw businessError('This Category already has the most levels allowed. You cannot add a level under it.');
       parentLevel = parent.level;
       parentPath = parent.path;
     }
@@ -530,7 +530,7 @@ export class ProductService {
     if (!category) throw businessError('Category not found.', 404);
     if (fields.code && fields.code !== category.code) {
       const duplicate = await prisma.inventoryCategory.findFirst({ where: { companyId: this.companyId, code: fields.code } });
-      if (duplicate) throw businessError(`Code "${fields.code}" is already in use.`);
+      if (duplicate) throw businessError(`Category Code "${fields.code}" is already used.`);
     }
     if (fields.parent_id && fields.parent_id === id) throw businessError('A Category cannot be its own parent.');
 
@@ -580,7 +580,7 @@ export class ProductService {
     const newLevel = parentLevel + 1;
     const levelChange = newLevel - category.level;
     const deepest = Math.max(category.level, ...descendants.map(row => row.level)) + levelChange;
-    if (deepest > 7) throw businessError('Maximum nesting depth would be exceeded by this move.');
+    if (deepest > 7) throw businessError('This move would make too many Category levels. Choose another Parent Category.');
 
     const newPath = parentPath ? `${parentPath}/${category.id}` : category.id;
     await transaction.inventoryCategory.update({
@@ -600,8 +600,8 @@ export class ProductService {
       prisma.inventoryItem.count({ where: { companyId: this.companyId, categoryId: id } }),
       prisma.inventoryCategory.count({ where: { companyId: this.companyId, parentId: id } }),
     ]);
-    if (itemCount > 0) throw businessError(`Cannot delete. ${itemCount} product(s) use this Category.`);
-    if (childCount > 0) throw businessError(`Cannot delete. This Category has ${childCount} sub-categor${childCount === 1 ? 'y' : 'ies'}.`);
+    if (itemCount > 0) throw businessError(`This Category cannot be deleted. ${itemCount} product(s) use it.`);
+    if (childCount > 0) throw businessError(`This Category cannot be deleted. It has ${childCount} Sub Categor${childCount === 1 ? 'y' : 'ies'}.`);
     // Scoped to this company: an id from another company deletes nothing and reports not found.
     const deleted = await prisma.inventoryCategory.deleteMany({ where: { id, companyId: this.companyId } });
     if (deleted.count === 0) throw businessError('Category not found.', 404);
@@ -627,7 +627,7 @@ export class ProductService {
 
   async createUom(input: CreateUomInput) {
     const duplicate = await prisma.unitOfMeasure.findFirst({ where: { companyId: this.companyId, shortName: input.abbreviation } });
-    if (duplicate) throw businessError(`UOM abbreviation "${input.abbreviation}" already exists.`);
+    if (duplicate) throw businessError(`UOM Abbreviation "${input.abbreviation}" already exists.`);
     if (input.is_default) {
       await prisma.unitOfMeasure.updateMany({ where: { companyId: this.companyId, isDefault: true }, data: { isDefault: false } });
     }
@@ -669,7 +669,7 @@ export class ProductService {
         OR: [{ baseUomId: id }, { stockUomId: id }, { purchaseUomId: id }, { salesUomId: id }, { weightUomId: id }],
       },
     });
-    if (count > 0) throw businessError(`Cannot delete. ${count} product(s) use this UOM.`);
+    if (count > 0) throw businessError(`This UOM cannot be deleted. ${count} product(s) use it.`);
     const deleted = await prisma.unitOfMeasure.deleteMany({ where: { id, companyId: this.companyId } });
     if (deleted.count === 0) throw businessError('UOM not found.', 404);
   }

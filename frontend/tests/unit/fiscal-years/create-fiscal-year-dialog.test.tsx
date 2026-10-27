@@ -45,7 +45,7 @@ describe('CreateFiscalYearDialog', () => {
     // The default July basis gives 2026-07-01; ending on 2027-04-30 leaves a 10-month year.
     fireEvent.change(field(/Fiscal Year Name/), { target: { value: '2026' } });
     fireEvent.change(field(/End Date/), { target: { value: '2027-04-30' } });
-    expect(screen.getByText('Number Of Periods must divide the 10-month year into equal parts (1, 2).')).toBeInTheDocument();
+    expect(screen.getByText('Number Of Periods must split the 10-month year into equal parts. You can use: 1, 2.')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Save' }));
     expect(mutate).not.toHaveBeenCalled();
   });
@@ -61,7 +61,7 @@ describe('CreateFiscalYearDialog', () => {
     const { onClose, onCreated } = renderDialog();
     fireEvent.change(field(/Fiscal Year Name/), { target: { value: ' 2026-2027 ' } });
     fireEvent.change(field(/Number Of Periods/), { target: { value: '4' } });
-    fireEvent.change(field(/Posting Cutoff Days/), { target: { value: '7' } });
+    fireEvent.change(field(/Late Entry Days/), { target: { value: '7' } });
     fireEvent.click(screen.getByRole('button', { name: 'Save' }));
 
     expect(mutate).toHaveBeenCalledWith(
@@ -84,7 +84,7 @@ describe('CreateFiscalYearDialog', () => {
 
   it('accepts only digits for the cutoff days', () => {
     renderDialog();
-    fireEvent.change(field(/Posting Cutoff Days/), { target: { value: '9x' } });
-    expect(field(/Posting Cutoff Days/).value).toBe('9');
+    fireEvent.change(field(/Late Entry Days/), { target: { value: '9x' } });
+    expect(field(/Late Entry Days/).value).toBe('9');
   });
 });

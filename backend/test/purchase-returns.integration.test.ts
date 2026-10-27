@@ -270,7 +270,7 @@ describe.skipIf(!databaseUrl)('Purchase Returns (database)', () => {
     const validator = new m.PurchaseReturnValidationService(companyId);
     const tooMuch = await validator.validate(returnInput({ lines: [{ item_id: itemA, quantity: 18, purchase_price: 100, discount_amount: 0, tax_amount: 0 }] }));
     expect(tooMuch.valid).toBe(false);
-    expect(tooMuch.errors).toContain('Purchase Return quantity cannot be greater than Stock On Hand.');
+    expect(tooMuch.errors).toContain('Purchase Return Quantity cannot be more than Stock On Hand.');
 
     // Two lines of the same item are added together before the check.
     const split = await validator.validate(returnInput({
@@ -279,10 +279,10 @@ describe.skipIf(!databaseUrl)('Purchase Returns (database)', () => {
         { item_id: itemA, quantity: 9, purchase_price: 100, discount_amount: 0, tax_amount: 0 },
       ],
     }));
-    expect(split.errors).toContain('Purchase Return quantity cannot be greater than Stock On Hand.');
+    expect(split.errors).toContain('Purchase Return Quantity cannot be more than Stock On Hand.');
 
     const wrongWarehouse = await validator.validate(returnInput({ warehouse_id: otherWarehouseId }));
-    expect(wrongWarehouse.errors).toContain('Purchase Return quantity cannot be greater than Stock On Hand.');
+    expect(wrongWarehouse.errors).toContain('Purchase Return Quantity cannot be more than Stock On Hand.');
 
     await expect(createDraft({ lines: [{ item_id: itemA, quantity: 18, purchase_price: 100, discount_amount: 0, tax_amount: 0 }] }))
       .rejects.toMatchObject({ statusCode: 400 });
@@ -306,7 +306,7 @@ describe.skipIf(!databaseUrl)('Purchase Returns (database)', () => {
     const movementsBefore = await companyCount('inventory_stock_movements');
     const vouchersBefore = await companyCount('vouchers');
 
-    await expect(post(second.id)).rejects.toThrow(/quantity is greater than Stock On Hand/);
+    await expect(post(second.id)).rejects.toThrow(/Quantity is more than Stock On Hand/);
     expect((await returnRow(second.id)).status).toBe('Draft');
     expect(await companyCount('inventory_stock_movements')).toBe(movementsBefore);
     expect(await companyCount('vouchers')).toBe(vouchersBefore);
@@ -316,7 +316,7 @@ describe.skipIf(!databaseUrl)('Purchase Returns (database)', () => {
 
   it('refuses a return price that would take more value than the stock holds', async () => {
     const draft = await createDraft({ purchase_return_date: '2025-08-05', lines: [{ item_id: itemA, quantity: 6, purchase_price: 150, discount_amount: 0, tax_amount: 0 }] });
-    await expect(post(draft.id)).rejects.toThrow(/returned value is greater than the stock value/);
+    await expect(post(draft.id)).rejects.toThrow(/return value is more than the stock value/);
     expect(await balanceOf(itemA)).toEqual({ quantity: '6.0000', value: '600.00', average: '100.0000' });
   });
 
@@ -324,12 +324,12 @@ describe.skipIf(!databaseUrl)('Purchase Returns (database)', () => {
     const validator = new m.PurchaseReturnValidationService(companyId);
     const errorsFor = async (overrides: Partial<ReturnInput>) => (await validator.validate(returnInput(overrides))).errors.join(' | ');
     expect(await errorsFor({ lines: [{ item_id: itemA, quantity: 1, purchase_price: 10, discount_amount: 10.01, tax_amount: 0 }] }))
-      .toMatch(/Discount cannot be greater than item amount on line 1/);
+      .toMatch(/Discount cannot be more than the item amount on line 1/);
     expect(await errorsFor({ lines: [{ item_id: itemA, warehouse_id: otherWarehouseId, quantity: 1, purchase_price: 10, discount_amount: 0, tax_amount: 0 }] }))
-      .toMatch(/Line 1 Warehouse must match the selected Warehouse/);
+      .toMatch(/The Warehouse on line 1 must match the selected Warehouse/);
     expect(await errorsFor({ supplier_return_date: '2025-08-10' })).toMatch(/Supplier Return Date cannot be after Purchase Return Date/);
     expect(await errorsFor({ supplier_return_number: 'rtn-1' })).toMatch(/Supplier Return No\. is already used on PR-2025-0001/);
-    expect(await errorsFor({ purchase_return_date: '2027-01-01' })).toMatch(/does not fall within any active fiscal year/);
+    expect(await errorsFor({ purchase_return_date: '2027-01-01' })).toMatch(/Date is not in any active Fiscal Year/);
 
     expect(m.ValidatePurchaseReturnInput.safeParse({ ...returnInput(), lines: [] }).success).toBe(false);
     expect(m.ValidatePurchaseReturnInput.safeParse({ ...returnInput(), lines: [{ item_id: itemA, quantity: 0, purchase_price: 10 }] }).success).toBe(false);

@@ -43,10 +43,20 @@ export default function FiscalYearPage() {
         icon={<IconCalendarStats size={22} stroke={1.8} />}
         title="Fiscal Years"
         badge={<Badge variant="info">Accounting Calendar</Badge>}
-        description="Accounting years and their periods. A voucher can be posted only into an open period of an open year."
+        description="Accounting years and their periods. You can post a voucher only into an open period of an open year."
+        help={(
+          <>
+            <p>Use this screen to create Fiscal Years and see their Periods.</p>
+            <ul>
+              <li>New Fiscal Year creates a year and its Periods.</li>
+              <li>Year Closing runs checks, then closes all Periods and locks the year.</li>
+            </ul>
+            <p>You can post vouchers only into an open Period of an open year.</p>
+          </>
+        )}
       />
 
-      {error && <InlineAlert tone="danger">{friendlyErrorMessage(error, 'Unable to load Fiscal Years.')}</InlineAlert>}
+      {error && <InlineAlert tone="danger">{friendlyErrorMessage(error, 'Could not load Fiscal Years. Please try again.')}</InlineAlert>}
       {notice && <InlineAlert tone="success" onDismiss={() => setNotice('')}>{notice}</InlineAlert>}
 
       <div className="summary-grid">
@@ -63,7 +73,7 @@ export default function FiscalYearPage() {
           tone="amber"
           icon={<IconCalendarTime size={20} stroke={1.8} />}
           label="Total Fiscal Years"
-          value={`${formatCount(summary.total, settings)} Configured`}
+          value={`${formatCount(summary.total, settings)} Set Up`}
           detail={`${formatCount(summary.open, settings)} open · ${formatCount(summary.locked, settings)} locked · ${formatCount(summary.closed, settings)} closed`}
         />
         <SummaryCard

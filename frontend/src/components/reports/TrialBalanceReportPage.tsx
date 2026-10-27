@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/Button';
 import { CheckboxField, DateField } from '@/components/ui/FormFields';
 import { InlineAlert } from '@/components/ui/InlineAlert';
 import { PageHeader } from '@/components/ui/PageHeader';
+import { reportHelp } from './report-help';
 import { TableMessageRow } from '@/components/ui/TableMessageRow';
 import { formatDate, formatMoney } from '@/lib/app-settings';
 import { TrialBalanceLine, useTrialBalanceReport } from '@/lib/api/reports';
@@ -127,9 +128,9 @@ export function TrialBalanceReportPage({ embedded = false }: TrialBalanceReportP
   }, shouldLoad);
 
   function validateFilters() {
-    if (!isValidDateInput(dateFrom)) return 'Date From is required.';
-    if (!isValidDateInput(dateTo)) return 'Date To is required.';
-    if (dateTo < dateFrom) return 'Date To cannot be earlier than Date From.';
+    if (!isValidDateInput(dateFrom)) return 'Enter the Date From.';
+    if (!isValidDateInput(dateTo)) return 'Enter the Date To.';
+    if (dateTo < dateFrom) return 'Date To must be on or after Date From.';
     return '';
   }
 
@@ -218,6 +219,7 @@ export function TrialBalanceReportPage({ embedded = false }: TrialBalanceReportP
         <PageHeader
           title="Trial Balance"
           description={`Posted balances from ${formatDate(dateFrom, generalSettings)} to ${formatDate(dateTo, generalSettings)}.`}
+          help={reportHelp['trial-balance']}
         />
       )}
 
@@ -272,7 +274,7 @@ export function TrialBalanceReportPage({ embedded = false }: TrialBalanceReportP
                 <TableMessageRow colSpan={9} title="Choose The Dates" description="Select Date From and Date To, then click View Report." />
               )}
               {!reportQuery.isFetching && !errorMessage && report && displayRows.length === 0 && (
-                <TableMessageRow colSpan={9} title="No Balances Found" description="No posted balances in the selected period. Widen the dates or tick Show Zero Balances." />
+                <TableMessageRow colSpan={9} title="No Balances Found" description="No posted balances in the selected period. Choose a wider date range or tick Show Zero Balances." />
               )}
               {!reportQuery.isFetching && displayRows.map(row => {
                 if (row.kind === 'group') {

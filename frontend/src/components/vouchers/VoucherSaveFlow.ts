@@ -41,7 +41,7 @@ export async function saveVoucherDocument<CreateInput>({
     try {
       await invalidateVoucherList();
     } catch (refreshError) {
-      refreshWarning = ` ${friendlyErrorMessage(refreshError, 'The voucher list could not refresh automatically.')}`;
+      refreshWarning = ` ${friendlyErrorMessage(refreshError, 'The voucher list did not refresh. Refresh the page to see it.')}`;
     }
 
     resetForm(false);

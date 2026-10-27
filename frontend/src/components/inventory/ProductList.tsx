@@ -187,7 +187,7 @@ export function ProductList({ selectedId, onSelect, onNew, onEdit, detailOpen }:
 
       {error && (
         <div style={{ padding: '10px 16px 0' }}>
-          <InlineAlert tone="danger">{friendlyErrorMessage(error, 'Unable to load Products.')}</InlineAlert>
+          <InlineAlert tone="danger">{friendlyErrorMessage(error, 'Could not load Products. Please try again.')}</InlineAlert>
         </div>
       )}
 
@@ -202,7 +202,7 @@ export function ProductList({ selectedId, onSelect, onNew, onEdit, detailOpen }:
               <th style={{ width: 130 }}>Type</th>
               {!detailOpen && <th style={{ width: 140 }}>Category</th>}
               {sortHeader('sale_price', 'Sale Rate', { numeric: true, width: 130 })}
-              {!detailOpen && <th className="num" style={{ width: 130 }}>Min Sale Rate</th>}
+              {!detailOpen && <th className="num" style={{ width: 130 }}>Minimum Sale Rate</th>}
               {sortHeader('qty_on_hand', stockColumnLabel, { numeric: true, width: 190 })}
               <th style={{ width: 110 }}>Status</th>
               <th style={{ width: 56 }}><span className="sr-only">Actions</span></th>

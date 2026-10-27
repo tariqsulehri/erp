@@ -77,7 +77,7 @@ export function PeriodsTable({ fyId, fyStatus, settings }: { fyId: string; fySta
                         disabled={busy}
                         onClick={() => setConfirmAction({
                           title: 'Lock Fiscal Period?',
-                          message: `Locking ${p.period_name} will stop new postings in this period. This action should be done only after review.`,
+                          message: `Locking ${p.period_name} stops new posting in this Period. Do this only after review.`,
                           confirmLabel: 'Yes, Lock Period',
                           requiredText: 'LOCK',
                           onConfirm: () => lockPeriodMut.mutate(
@@ -101,7 +101,7 @@ export function PeriodsTable({ fyId, fyStatus, settings }: { fyId: string; fySta
                         disabled={busy}
                         onClick={() => setConfirmAction({
                           title: 'Close Fiscal Period?',
-                          message: `Closing ${p.period_name} will mark the period closed for posting. Continue only after all checks are complete.`,
+                          message: `Closing ${p.period_name} stops all posting in this Period. Continue only after all checks are complete.`,
                           confirmLabel: 'Yes, Close Period',
                           requiredText: 'CLOSE',
                           onConfirm: () => closePeriodMut.mutate(

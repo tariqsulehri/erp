@@ -15,6 +15,7 @@ import { embeddedReportStyle } from './LedgerReportStyles';
 import type { ReportDocument } from './report-output';
 import { InlineAlert } from '@/components/ui/InlineAlert';
 import { PageHeader } from '@/components/ui/PageHeader';
+import { reportHelp } from './report-help';
 
 const BOOK_TITLES: Record<BookAccountKind, { title: string; accountLabel: string; empty: string }> = {
   cash: { title: 'Cash Book', accountLabel: 'Cash Account', empty: 'Search Cash Account' },
@@ -79,10 +80,10 @@ export function LedgerReportPage({ embedded = false, bookKind, initialAccountId,
   const accountsError = bookKind ? bookAccountsQuery.error : accountsQuery.error;
 
   function validateFilters() {
-    if (!accountId) return `${book?.accountLabel ?? 'Account'} is required.`;
-    if (!isValidDateInput(dateFrom)) return 'Date From is required.';
-    if (!isValidDateInput(dateTo)) return 'Date To is required.';
-    if (dateTo < dateFrom) return 'Date To cannot be earlier than Date From.';
+    if (!accountId) return `Select the ${book?.accountLabel ?? 'Account'}.`;
+    if (!isValidDateInput(dateFrom)) return 'Enter the Date From.';
+    if (!isValidDateInput(dateTo)) return 'Enter the Date To.';
+    if (dateTo < dateFrom) return 'Date To must be on or after Date From.';
     return '';
   }
 
@@ -157,13 +158,14 @@ export function LedgerReportPage({ embedded = false, bookKind, initialAccountId,
       {!embedded && (
         <PageHeader
           title={book?.title ?? 'Ledger Report'}
+          help={reportHelp[bookKind ? `${bookKind}-${bookKind === 'cash' || bookKind === 'bank' ? 'book' : 'ledger'}` : 'ledger']}
           description={selectedAccount
             ? `${selectedAccount} · ${formatDate(dateFrom, generalSettings)} to ${formatDate(dateTo, generalSettings)} · Posted transactions only`
             : 'Check an Account balance with its opening and running balance. Posted transactions only.'}
         />
       )}
 
-      {accountsError && <InlineAlert tone="danger">{friendlyErrorMessage(accountsError, 'Unable to load Accounts.')}</InlineAlert>}
+      {accountsError && <InlineAlert tone="danger">{friendlyErrorMessage(accountsError, 'Could not load Accounts. Please try again.')}</InlineAlert>}
 
       <section className="panel panel-fill">
         <LedgerReportFilters

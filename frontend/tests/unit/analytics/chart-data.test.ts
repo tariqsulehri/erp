@@ -1,5 +1,4 @@
 import { compactAxis, fillMonths, lastMonthChange, monthKeysBetween, monthLabeler } from '@/components/analytics/chart-data';
-import { barGradientStops } from '@/components/analytics/chart-palette';
 
 type Month = { monthKey: string; amount: number };
 const empty = (monthKey: string): Month => ({ monthKey, amount: 0 });
@@ -86,16 +85,5 @@ describe('lastMonthChange', () => {
   it('returns null when there is nothing to compare', () => {
     expect(lastMonthChange([100])).toBeNull();
     expect(lastMonthChange([0, 50])).toBeNull();
-  });
-});
-
-describe('barGradientStops', () => {
-  it('runs light to deep and keeps the true colour in the middle', () => {
-    const stops = barGradientStops('#1f56c7');
-    expect(stops.map(stop => stop.offset)).toEqual(['0%', '45%', '100%']);
-    expect(stops[1].color).toBe('#1f56c7');
-    const lightness = (hex: string) => parseInt(hex.slice(1, 3), 16) + parseInt(hex.slice(3, 5), 16) + parseInt(hex.slice(5, 7), 16);
-    expect(lightness(stops[0].color)).toBeGreaterThan(lightness(stops[1].color));
-    expect(lightness(stops[2].color)).toBeLessThan(lightness(stops[1].color));
   });
 });

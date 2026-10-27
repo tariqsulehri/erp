@@ -65,7 +65,7 @@ export function DocumentReviewDialog({
   if (!open) return null;
 
   return (
-    <div className="dialog-backdrop" onMouseDown={event => { if (event.target === event.currentTarget && !saving) onClose(); }}>
+    <div className="dialog-backdrop" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget && !saving) onClose(); }}>
       <div
         ref={dialogRef}
         className="dialog dialog-lg"

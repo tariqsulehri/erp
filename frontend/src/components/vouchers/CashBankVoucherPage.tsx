@@ -200,7 +200,7 @@ export default function CashBankVoucherPage({ voucherType }: { voucherType: Vouc
     if (accountsError) {
       setMessage({
         kind: 'error',
-        text: friendlyErrorMessage(accountsError, 'Unable to load accounts. Please refresh and try again.'),
+        text: friendlyErrorMessage(accountsError, 'Could not load accounts. Refresh the page and try again.'),
       });
     }
   }, [accountsError]);
@@ -209,7 +209,7 @@ export default function CashBankVoucherPage({ voucherType }: { voucherType: Vouc
     if (dateValidation.error) {
       setMessage({
         kind: 'error',
-        text: friendlyErrorMessage(dateValidation.error, `Unable to check ${config.dateLabel}. Please refresh and try again.`),
+        text: friendlyErrorMessage(dateValidation.error, `Could not check ${config.dateLabel}. Refresh the page and try again.`),
       });
     }
   }, [config.dateLabel, dateValidation.error]);
@@ -222,7 +222,7 @@ export default function CashBankVoucherPage({ voucherType }: { voucherType: Vouc
     const voucher = detailQuery.data;
     if (!voucher || !editingVoucherId) return;
     if (voucher.voucher_type !== config.voucherType) {
-      setMessage({ kind: 'error', text: `This is not a ${config.title}. Please open it from the correct voucher screen.` });
+      setMessage({ kind: 'error', text: `This is not a ${config.title}. Open it from the right voucher screen.` });
       return;
     }
     if (voucher.status !== 'Draft') {
@@ -230,7 +230,7 @@ export default function CashBankVoucherPage({ voucherType }: { voucherType: Vouc
       return;
     }
     if (voucher.approval_status === 'Pending' || voucher.approval_status === 'Approved') {
-      setMessage({ kind: 'error', text: 'This voucher is in approval workflow and cannot be edited.' });
+      setMessage({ kind: 'error', text: 'This voucher is waiting for approval or is approved, so it cannot be edited.' });
       return;
     }
 
@@ -294,11 +294,11 @@ export default function CashBankVoucherPage({ voucherType }: { voucherType: Vouc
         const dateResult = await dateValidation.refetch();
         if (dateResult.error) throw dateResult.error;
       }
-      setMessage({ kind: 'success', text: 'Voucher data refreshed successfully.' });
+      setMessage({ kind: 'success', text: 'Voucher data refreshed.' });
     } catch (error) {
       setMessage({
         kind: 'error',
-        text: friendlyErrorMessage(error, 'Unable to refresh voucher data. Please try again.'),
+        text: friendlyErrorMessage(error, 'Could not refresh voucher data. Please try again.'),
       });
     }
   }
@@ -309,7 +309,7 @@ export default function CashBankVoucherPage({ voucherType }: { voucherType: Vouc
     } catch (error) {
       setMessage({
         kind: 'error',
-        text: friendlyErrorMessage(error, `Unable to print ${config.title}.`),
+        text: friendlyErrorMessage(error, `Could not print ${config.title}. Please try again.`),
       });
     }
   }
@@ -345,7 +345,7 @@ export default function CashBankVoucherPage({ voucherType }: { voucherType: Vouc
       return;
     }
     if (!selectedPrimaryAccount) {
-      setMessage({ kind: 'error', text: `${config.primaryAccountKind} Account was not found.` });
+      setMessage({ kind: 'error', text: `${config.primaryAccountKind} Account was not found. Select it again.` });
       return;
     }
 
@@ -379,7 +379,7 @@ export default function CashBankVoucherPage({ voucherType }: { voucherType: Vouc
       },
       submitForApproval,
       resetForm,
-      saveErrorFallback: `Unable to save ${config.title}.`,
+      saveErrorFallback: `Could not save ${config.title}. Please try again.`,
     });
     setMessage(result);
   }
@@ -404,6 +404,27 @@ export default function CashBankVoucherPage({ voucherType }: { voucherType: Vouc
     <DocumentPage>
       <DocumentHeader
         title={config.title}
+        help={config.direction === 'payment' ? (
+          <>
+            <p>Use this screen to record money paid out of a {config.primaryAccountKind} Account.</p>
+            <ul>
+              <li>Choose the {config.primaryAccountKind} Account, then add one line for each account you paid.</li>
+              <li>Save Draft keeps the voucher so you can change it later.</li>
+              <li>Save For Approval sends it to an approver. It is posted after approval.</li>
+            </ul>
+            <p>Posted vouchers cannot be changed. Use Reverse to correct them.</p>
+          </>
+        ) : (
+          <>
+            <p>Use this screen to record money received into a {config.primaryAccountKind} Account.</p>
+            <ul>
+              <li>Choose the {config.primaryAccountKind} Account, then add one line for each account that paid you.</li>
+              <li>Save Draft keeps the voucher so you can change it later.</li>
+              <li>Save For Approval sends it to an approver. It is posted after approval.</li>
+            </ul>
+            <p>Posted vouchers cannot be changed. Use Reverse to correct them.</p>
+          </>
+        )}
         badges={<DocumentStatusBadges code={config.voucherType} mode={editingVoucherId ? 'Edit' : 'Add'} />}
         actions={(
           <DocumentActions
@@ -443,7 +464,7 @@ export default function CashBankVoucherPage({ voucherType }: { voucherType: Vouc
         <div className="span-3">
           <TextField label="Voucher Details" required value={description} onChange={setDescription} placeholder={config.detailsPlaceholder} />
         </div>
-        <TextField label="Attachments" value="0 Files" disabled hint="Attachments and approval history will use the shared transaction workflow area." />
+        <TextField label="Attachments" value="0 Files" disabled hint="Attachments and approval history will be added here later." />
       </DocumentFormPanel>
 
       <LinesPanel

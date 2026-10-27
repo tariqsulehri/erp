@@ -3,6 +3,7 @@ import { prisma } from '../../db/prisma.js';
 import type { AccessLevel, AuthUser, UserRole } from '../auth/access-rules.js';
 import { accessProblem, hasAllBranchAccess } from '../auth/access-rules.js';
 import { hashPassword } from '../auth/password.js';
+import { invalidateAuthUserCache } from '../auth/auth.service.js';
 import type { CreateUserInput, ListUsersQuery, ResetPasswordInput, UpdateUserInput } from './user.schema.js';
 
 function businessError(message: string, statusCode = 400) {
@@ -160,6 +161,7 @@ export class UserService {
       });
     });
 
+    invalidateAuthUserCache(input.id);
     return this.getById(input.id);
   }
 
@@ -175,6 +177,7 @@ export class UserService {
       where: { id },
       data: { passwordHash: await hashPassword(input.new_password), passwordChangedAt: new Date(), updatedById: this.actor.id },
     });
+    invalidateAuthUserCache(id);
     return { message: 'Password reset. The user must sign in again with the new password.' };
   }
 

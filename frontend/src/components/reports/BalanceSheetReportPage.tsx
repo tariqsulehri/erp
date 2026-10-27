@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/Button';
 import { CheckboxField, DateField } from '@/components/ui/FormFields';
 import { InlineAlert } from '@/components/ui/InlineAlert';
 import { PageHeader } from '@/components/ui/PageHeader';
+import { reportHelp } from './report-help';
 import { TableMessageRow } from '@/components/ui/TableMessageRow';
 import { formatDate, formatMoney } from '@/lib/app-settings';
 import { BalanceSheetLine, useBalanceSheetReport } from '@/lib/api/reports';
@@ -116,7 +117,7 @@ export function BalanceSheetReportPage({ embedded = false }: BalanceSheetReportP
   }, shouldLoad);
 
   function validateFilters() {
-    if (!isValidDateInput(asOfDate)) return 'As Of Date is required.';
+    if (!isValidDateInput(asOfDate)) return 'Enter the As Of Date.';
     return '';
   }
 
@@ -206,7 +207,7 @@ export function BalanceSheetReportPage({ embedded = false }: BalanceSheetReportP
   return (
     <Root className={embedded ? undefined : 'page-shell'} style={embedded ? embeddedReportStyle : undefined}>
       {!embedded && (
-        <PageHeader title="Balance Sheet" description={`Assets, liabilities, and equity as of ${formatDate(asOfDate, generalSettings)}.`} />
+        <PageHeader title="Balance Sheet" description={`Assets, liabilities, and equity as of ${formatDate(asOfDate, generalSettings)}.`} help={reportHelp['balance-sheet']} />
       )}
 
       {errorMessage && <InlineAlert tone="danger">{errorMessage}</InlineAlert>}

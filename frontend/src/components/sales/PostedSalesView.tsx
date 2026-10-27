@@ -125,6 +125,13 @@ export function PostedSalesView({
     <DocumentPage>
       <DocumentHeader
         title="Posted Sales"
+        help={(
+          <>
+            <p>This list shows all posted sales. Drafts are not shown here.</p>
+            <p>Use the filters to find a sale. Select a row to see its lines and totals, or to print it.</p>
+            <p>Posted sales cannot be changed. Use a Sale Return to correct one.</p>
+          </>
+        )}
         badges={(
           <>
             <Badge variant="success">Posted Only</Badge>
@@ -195,7 +202,7 @@ export function PostedSalesView({
             <tbody>
               {listQuery.isLoading && <TableMessageRow colSpan={11} title="Loading Posted Sales…" loading />}
               {listQuery.error && (
-                <TableMessageRow colSpan={11} title="Unable To Load Posted Sales" description={friendlyErrorMessage(listQuery.error, 'Unable to load Posted Sales.')} />
+                <TableMessageRow colSpan={11} title="Could Not Load Posted Sales" description={friendlyErrorMessage(listQuery.error, 'Could not load Posted Sales. Please try again.')} />
               )}
               {!listQuery.isLoading && !listQuery.error && rows.length === 0 && (
                 <TableMessageRow colSpan={11} title="No Posted Sales Found" description="Change or clear the filters to see more records." />
@@ -225,7 +232,7 @@ export function PostedSalesView({
             title="Sale Detail"
             loading={detailQuery.isLoading}
             loadingText="Loading Sale Detail…"
-            error={detailQuery.error ? friendlyErrorMessage(detailQuery.error, 'Unable to load Sale Detail.') : undefined}
+            error={detailQuery.error ? friendlyErrorMessage(detailQuery.error, 'Could not load Sale Detail. Please try again.') : undefined}
             onClose={() => setSelectedId(null)}
             actions={detail && <Button variant="ghost" size="sm" icon={<IconPrinter {...iconProps} />} onClick={() => window.print()} aria-label="Print" title="Print" />}
           >

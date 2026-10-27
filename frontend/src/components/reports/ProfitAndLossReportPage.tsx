@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/Button';
 import { CheckboxField, DateField } from '@/components/ui/FormFields';
 import { InlineAlert } from '@/components/ui/InlineAlert';
 import { PageHeader } from '@/components/ui/PageHeader';
+import { reportHelp } from './report-help';
 import { TableMessageRow } from '@/components/ui/TableMessageRow';
 import { formatDate, formatMoney } from '@/lib/app-settings';
 import { ProfitAndLossLine, useProfitAndLossReport } from '@/lib/api/reports';
@@ -115,9 +116,9 @@ export function ProfitAndLossReportPage({ embedded = false }: ProfitAndLossRepor
   }, shouldLoad);
 
   function validateFilters() {
-    if (!isValidDateInput(dateFrom)) return 'Date From is required.';
-    if (!isValidDateInput(dateTo)) return 'Date To is required.';
-    if (dateTo < dateFrom) return 'Date To cannot be earlier than Date From.';
+    if (!isValidDateInput(dateFrom)) return 'Enter the Date From.';
+    if (!isValidDateInput(dateTo)) return 'Enter the Date To.';
+    if (dateTo < dateFrom) return 'Date To must be on or after Date From.';
     return '';
   }
 
@@ -200,6 +201,7 @@ export function ProfitAndLossReportPage({ embedded = false }: ProfitAndLossRepor
         <PageHeader
           title="Profit And Loss"
           description={`Revenue and expenses from ${formatDate(dateFrom, generalSettings)} to ${formatDate(dateTo, generalSettings)}.`}
+          help={reportHelp['profit-and-loss']}
         />
       )}
 
@@ -241,7 +243,7 @@ export function ProfitAndLossReportPage({ embedded = false }: ProfitAndLossRepor
                 <TableMessageRow colSpan={5} title="Choose The Dates" description="Select Date From and Date To, then click View Report." />
               )}
               {!reportQuery.isFetching && !errorMessage && report && displayRows.length === 0 && (
-                <TableMessageRow colSpan={5} title="No Revenue Or Expenses Found" description="No revenue or expense transactions in the selected period. Widen the dates to see more." />
+                <TableMessageRow colSpan={5} title="No Revenue Or Expenses Found" description="No revenue or expense transactions in the selected period. Choose a wider date range to see more." />
               )}
               {!reportQuery.isFetching && displayRows.map(row => {
                 if (row.kind !== 'account') {

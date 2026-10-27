@@ -7,6 +7,7 @@ import { FieldLabel } from '@/components/ui/FieldLabel';
 import { DateField } from '@/components/ui/FormFields';
 import { InlineAlert } from '@/components/ui/InlineAlert';
 import { PageHeader } from '@/components/ui/PageHeader';
+import { reportHelp } from './report-help';
 import { SearchableSelect } from '@/components/ui/SearchableSelect';
 import { TableMessageRow } from '@/components/ui/TableMessageRow';
 import { formatDate, formatMoney, formatNumber, type AppFormatSettingsSource } from '@/lib/app-settings';
@@ -76,12 +77,12 @@ export function StockLedgerReportPage({ embedded = false }: StockLedgerReportPag
   }, shouldLoad && Boolean(itemId));
 
   function validateFilters() {
-    if (!itemId) return 'Please select an Item.';
+    if (!itemId) return 'Select an Item.';
     const placeMessage = place.validate();
     if (placeMessage) return placeMessage;
-    if (!isValidDateInput(dateFrom)) return 'Date From is required.';
-    if (!isValidDateInput(dateTo)) return 'Date To is required.';
-    if (dateTo < dateFrom) return 'Date To cannot be earlier than Date From.';
+    if (!isValidDateInput(dateFrom)) return 'Enter the Date From.';
+    if (!isValidDateInput(dateTo)) return 'Enter the Date To.';
+    if (dateTo < dateFrom) return 'Date To must be on or after Date From.';
     return '';
   }
 
@@ -175,7 +176,7 @@ export function StockLedgerReportPage({ embedded = false }: StockLedgerReportPag
   return (
     <Root className={embedded ? undefined : 'page-shell'} style={embedded ? embeddedReportStyle : undefined}>
       {!embedded && (
-        <PageHeader title="Stock Ledger" description={`Stock in and out for one Item from ${periodText}.`} />
+        <PageHeader title="Stock Ledger" description={`Stock in and out for one Item from ${periodText}.`} help={reportHelp['stock-ledger']} />
       )}
 
       {options.errorMessage && <InlineAlert tone="danger">{options.errorMessage}</InlineAlert>}
@@ -255,7 +256,7 @@ export function StockLedgerReportPage({ embedded = false }: StockLedgerReportPag
                 </tr>
               )}
               {!reportQuery.isFetching && report && lines.length === 0 && (
-                <TableMessageRow colSpan={COLUMN_COUNT} title="No Stock Movements Found" description="This Item has no stock movements in the selected period. Widen the dates or choose All Places." />
+                <TableMessageRow colSpan={COLUMN_COUNT} title="No Stock Movements Found" description="This Item has no stock movements in the selected period. Choose a wider date range or set Place Type to All Places." />
               )}
               {!reportQuery.isFetching && lines.map(line => (
                 <tr key={line.id}>

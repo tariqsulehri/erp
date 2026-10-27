@@ -1,5 +1,6 @@
 'use client';
 
+import type { ReactNode } from 'react';
 import { IconChartBar, IconListSearch } from '@tabler/icons-react';
 import { Button } from '@/components/ui/Button';
 import { DocumentActions, DocumentHeader, DocumentStatusBadges } from '@/components/documents';
@@ -22,6 +23,8 @@ interface PurchaseToolbarProps {
   onCancel: () => void;
   onSaveDraft: () => void;
   onProcess: () => void;
+  /** Plain-words help for the screen. */
+  help?: ReactNode;
 }
 
 /** Page header of the trade documents (Purchase, Sale and their Returns): title, badges and actions. */
@@ -43,10 +46,12 @@ export function PurchaseToolbar({
   onCancel,
   onSaveDraft,
   onProcess,
+  help,
 }: PurchaseToolbarProps) {
   return (
     <DocumentHeader
       title={title}
+      help={help}
       badges={<DocumentStatusBadges code={documentCode} />}
       actions={(
         <DocumentActions

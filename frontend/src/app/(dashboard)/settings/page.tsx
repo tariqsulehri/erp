@@ -277,7 +277,7 @@ const PURCHASE_POSTING_FIELDS: PostingAccountField[] = [
     codeKey: 'purchase_tax_account_code',
     nameKey: 'purchase_tax_account_name',
     label: 'Purchase Tax Account',
-    hint: 'Debited for recoverable purchase tax',
+    hint: 'Debited for purchase tax you can claim back',
     accountTypes: ['Asset'],
     accountCodePrefixes: ['010140'],
   },
@@ -343,7 +343,7 @@ const SALES_POSTING_FIELDS: PostingAccountField[] = [
     codeKey: 'sales_tax_account_code',
     nameKey: 'sales_tax_account_name',
     label: 'Sales Tax Account',
-    hint: 'Credited for payable sales tax',
+    hint: 'Credited for sales tax you must pay',
     accountTypes: ['Liability'],
     accountCodePrefixes: ['020130'],
   },
@@ -525,7 +525,7 @@ function RegionalTab({ settings }: { settings: any }) {
         </select>
       </FormRow>
 
-      <FormRow label="Time Zone" hint="Used for transaction time, reports, and audit dates">
+      <FormRow label="Time Zone" hint="Used for entry times, reports, and change history dates">
         <select className="form-input" aria-label="Time Zone" value={form.time_zone} onChange={e => set('time_zone', e.target.value)}>
           {APP_TIME_ZONE_OPTIONS.map(timeZone => (
             <option key={timeZone.value} value={timeZone.value}>{timeZone.label}</option>
@@ -533,7 +533,7 @@ function RegionalTab({ settings }: { settings: any }) {
         </select>
       </FormRow>
 
-      <FormRow label="Language And Locale" hint="Controls local date, number, and language conventions">
+      <FormRow label="Language And Locale" hint="Sets the local style for dates, numbers, and language">
         <select className="form-input" aria-label="Language And Locale" value={form.locale} onChange={e => set('locale', e.target.value)}>
           {APP_LOCALE_OPTIONS.map(locale => (
             <option key={locale.value} value={locale.value}>{locale.label}</option>
@@ -701,13 +701,13 @@ function CompanyTab({ company }: { company: any }) {
       </div>
 
       <RowGroupTitle first>Company</RowGroupTitle>
-      <FormRow label="Company Name" hint="Legal entity name as registered" required>
+      <FormRow label="Company Name" hint="Company name as it is registered" required>
         <input className="form-input" aria-label="Company Name" value={form.name ?? ''} onChange={set('name')} maxLength={100} aria-invalid={!form.name?.trim() || undefined} />
       </FormRow>
       <FormRow label="Description" hint="Optional short description">
         <textarea className="form-input" aria-label="Description" value={form.description ?? ''} onChange={set('description')} rows={2} style={{ resize: 'vertical' }} maxLength={500} />
       </FormRow>
-      <FormRow label="Registration Number" hint="Company registration or incorporation number">
+      <FormRow label="Registration Number" hint="Number given when the company was registered">
         <input className="form-input" aria-label="Registration Number" value={form.registration_number ?? ''} onChange={set('registration_number')} maxLength={50} />
       </FormRow>
       <FormRow label="Tax ID Or NTN" hint="National Tax Number or VAT registration">
@@ -792,7 +792,7 @@ function AccountingTab({ company }: { company: any }) {
     >
       <div style={{ display: 'grid', gap: 8, marginBottom: 12 }}>
         <InlineAlert tone="warning">
-          Changing the fiscal year or currency after transactions are entered can make reports inconsistent. Make these changes before recording any journal entries.
+          If you change the fiscal year or currency after entering transactions, reports may not match. Make these changes before you enter any vouchers.
         </InlineAlert>
         {error && <InlineAlert tone="danger">{error}</InlineAlert>}
         {saved && <InlineAlert tone="success">Accounting settings saved.</InlineAlert>}
@@ -963,7 +963,7 @@ function PostingAccountsTab() {
         )}
         {accountsQuery.data && accountsQuery.data.pagination.total > accounts.length && (
           <InlineAlert tone="warning">
-            Showing the first {accounts.length} active posting accounts. Narrow the Chart Of Accounts if the account you need is not listed.
+            Only the first {accounts.length} active posting accounts are shown. Some accounts may be missing from the lists.
           </InlineAlert>
         )}
       </div>
@@ -971,7 +971,7 @@ function PostingAccountsTab() {
       {renderSection('Purchase Posting Accounts', 'Default accounts used by purchase invoices and purchase returns.', PURCHASE_POSTING_FIELDS, true)}
       {renderSection('Sales Posting Accounts', 'Default accounts used by sale invoices and sale returns.', SALES_POSTING_FIELDS)}
       {renderSection('Stock Adjustment Posting Accounts', 'Default accounts used when stock value increases or decreases.', STOCK_ADJUSTMENT_POSTING_FIELDS)}
-      {renderSection('Year-End Closing Account', 'Used when a Fiscal Year is closed to move the year profit or loss into equity.', YEAR_END_POSTING_FIELDS)}
+      {renderSection('Year-End Closing Account', 'Used when a Fiscal Year is closed, to move the year\'s profit or loss into Equity.', YEAR_END_POSTING_FIELDS)}
     </SettingsPanel>
   );
 }
@@ -997,7 +997,7 @@ function COATab({ generalSettings }: { generalSettings: any }) {
 
   return (
     <div style={{ display: 'grid', gap: 12 }}>
-      <SettingsPanel title="Chart Of Accounts" description="A read-only summary. Edit accounts in the Chart Of Accounts screen.">
+      <SettingsPanel title="Chart Of Accounts" description="A summary you can only view. Change accounts on the Chart Of Accounts screen.">
         <RowGroupTitle first>Summary</RowGroupTitle>
         <dl className="detail-list" style={{ margin: '8px 0 0' }}>
           {stats.map(stat => (
@@ -1071,11 +1071,11 @@ function COATab({ generalSettings }: { generalSettings: any }) {
 /* ── Security tab ───────────────────────────────────────────────────── */
 function SecurityTab() {
   const items = [
-    { title: 'User Management', desc: 'Add, remove, and manage user accounts and permissions.' },
-    { title: 'Role-Based Access', desc: 'Define roles (Admin, Accountant, Viewer) and assign them to users.' },
-    { title: 'Audit Log', desc: 'A full audit trail of all user actions.' },
-    { title: 'Password Policy', desc: 'Set minimum length, complexity, and rotation rules.' },
-    { title: 'Two-Factor Sign-In', desc: 'Require two-factor authentication for all users or for admins only.' },
+    { title: 'User Management', desc: 'Add and remove users and set what they can do.' },
+    { title: 'Access By Role', desc: 'Set up roles (Admin, Accountant, Viewer) and give them to users.' },
+    { title: 'Audit Log', desc: 'A full record of what each user does.' },
+    { title: 'Password Policy', desc: 'Set the minimum length, required characters, and how often passwords must change.' },
+    { title: 'Two-Factor Sign-In', desc: 'Ask for a second sign-in step for all users, or for admins only.' },
   ];
   return (
     <SettingsPanel title="Security" description="User, role, and sign-in controls. These features are planned.">
@@ -1104,7 +1104,21 @@ export default function SettingsPage() {
 
   return (
     <main className="page-shell">
-      <PageHeader title="Settings" description="Company profile, regional formats, accounting, and posting accounts." />
+      <PageHeader
+        title="Settings"
+        description="Company profile, regional formats, accounting, and posting accounts."
+        help={(
+          <>
+            <p>Use this screen to set up your company. Pick a section on the left, make changes, then select its Save button.</p>
+            <ul>
+              <li>Regional Settings control how dates, numbers, and money appear everywhere.</li>
+              <li>Accounting sets when the fiscal year starts and how many Periods it has.</li>
+              <li>Posting Accounts are the accounts used automatically when documents are posted.</li>
+            </ul>
+            <p>Change the fiscal year or currency only before you enter any vouchers.</p>
+          </>
+        )}
+      />
 
       {error && <InlineAlert tone="danger">{error.message}</InlineAlert>}
       {generalSettingsError && <InlineAlert tone="danger">{generalSettingsError.message}</InlineAlert>}

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { queryBoolean } from '../../http/query-boolean.js';
 
 const dateInput = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Use YYYY-MM-DD format.');
 
@@ -36,6 +37,10 @@ export const ListStockTransfersQuery = z.object({
   to_warehouse_id: z.string().uuid().optional(),
   date_from: dateInput.optional(),
   date_to: dateInput.optional(),
+  /** Which kinds of place the stock moved between. */
+  direction: z.enum(['BRANCH_TO_BRANCH', 'WAREHOUSE_TO_BRANCH', 'WAREHOUSE_TO_WAREHOUSE', 'BRANCH_TO_WAREHOUSE']).optional(),
+  /** Only stock delivered to the user's own Branch or Warehouse (Stock Received). */
+  incoming: queryBoolean.optional(),
 });
 
 export const SupportDataQuery = z.object({

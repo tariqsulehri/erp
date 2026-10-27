@@ -11,7 +11,7 @@ export function DocumentDetailPanel({
   title,
   actions,
   loading = false,
-  loadingText = 'Loading Detail…',
+  loadingText = 'Loading Details…',
   error,
   onClose,
   children,
@@ -30,7 +30,7 @@ export function DocumentDetailPanel({
         <h2 className="panel-title">{title}</h2>
         <span className="row-actions">
           {actions}
-          <Button variant="ghost" size="sm" icon={<IconX size={16} stroke={1.8} aria-hidden />} onClick={onClose} aria-label="Close Detail" title="Close Detail" />
+          <Button variant="ghost" size="sm" icon={<IconX size={16} stroke={1.8} aria-hidden />} onClick={onClose} aria-label="Close Details" title="Close Details" />
         </span>
       </div>
       <div className="panel-body">

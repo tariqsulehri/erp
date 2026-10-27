@@ -167,7 +167,7 @@ accountsRouter.patch('/:id', requirePermission('accounts.manage'), async (req, r
     res.json({
       success: true,
       account: await accountListService.update(companyId, id, input),
-      message: 'Account updated successfully.',
+      message: 'Account updated.',
     });
   } catch (error) {
     next(error);
@@ -182,7 +182,7 @@ accountsRouter.patch('/:id/active', requirePermission('accounts.manage'), async 
     res.json({
       success: true,
       account: await accountListService.setActive(companyId, id, input.is_active),
-      message: `Account ${input.is_active ? 'activated' : 'deactivated'} successfully.`,
+      message: `Account made ${input.is_active ? 'Active' : 'Inactive'}.`,
     });
   } catch (error) {
     next(error);

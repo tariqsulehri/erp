@@ -56,7 +56,7 @@ export function FormDialog({ open, title, children, saveLabel = 'Save', cancelLa
   }
 
   return (
-    <div className="dialog-backdrop" onMouseDown={event => { if (event.target === event.currentTarget && !saving) onCancel(); }}>
+    <div className="dialog-backdrop" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget && !saving) onCancel(); }}>
       <form ref={dialogRef} className="dialog form-dialog" role="dialog" aria-modal="true" aria-labelledby={titleId} onSubmit={submit} noValidate>
         <div className="form-dialog-head">
           <h2 id={titleId} className="form-dialog-title">{title}</h2>

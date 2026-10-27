@@ -32,7 +32,7 @@ interface PurchaseReturnPayloadInput {
 }
 
 export function buildPurchaseReturnDetails(selectedSupplier: SupplierOption | undefined, supplierReturnNumber: string, lineCount: number) {
-  if (!selectedSupplier) return 'Purchase return details will be generated after selecting Supplier.';
+  if (!selectedSupplier) return 'Details appear after you select a Supplier.';
   const parts = [
     `Purchase return to ${selectedSupplier.label.split(' - ').slice(1).join(' - ') || selectedSupplier.label}`,
     supplierReturnNumber ? `Supplier Return ${supplierReturnNumber}` : '',
@@ -43,7 +43,7 @@ export function buildPurchaseReturnDetails(selectedSupplier: SupplierOption | un
 
 export function validatePurchaseReturnVoucher(input: PurchaseReturnValidationInput) {
   if (!input.purchaseReturnDate) return 'Purchase Return Date is required.';
-  if (!input.isPurchaseReturnDateValid) return 'Purchase Return Date is not a valid date.';
+  if (!input.isPurchaseReturnDateValid) return 'Purchase Return Date is not a correct date. Check the date.';
   if (input.postingDateError) return input.postingDateError;
   if (!input.supplierId || !input.selectedSupplier) return 'Supplier is required.';
   if (!input.warehouseId) return 'Warehouse is required.';
@@ -52,8 +52,8 @@ export function validatePurchaseReturnVoucher(input: PurchaseReturnValidationInp
     return 'Supplier Return Date cannot be after Purchase Return Date.';
   }
   if (input.lines.length === 0) return 'Add at least one purchase return item.';
-  if (!validMoneyPattern.test(input.freightAmount || '0')) return 'Freight must be a valid amount.';
-  if (input.netAmount <= 0) return 'Net Amount must be greater than zero.';
+  if (!validMoneyPattern.test(input.freightAmount || '0')) return 'Freight is not a correct amount. Enter a number.';
+  if (input.netAmount <= 0) return 'Net Amount must be more than zero.';
   return '';
 }
 

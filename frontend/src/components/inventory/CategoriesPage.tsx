@@ -203,6 +203,13 @@ export default function CategoriesPage() {
       <PageHeader
         title="Product Categories"
         description="Group products into a tree of categories, up to 8 levels deep. Top level Categories are Level 0."
+        help={(
+          <>
+            <p>Use Categories to group your products, for example Electronics, then Mobiles under it.</p>
+            <p>Click New Category to add a top level Category. Use the Add Sub Category button on a row to add one under it.</p>
+            <p>You cannot delete a Category that has Sub Categories or products. Make it inactive instead.</p>
+          </>
+        )}
         actions={<Button variant="primary" icon={<IconPlus size={16} stroke={1.8} />} onClick={() => openNew()}>New Category</Button>}
       />
 
@@ -366,7 +373,7 @@ export default function CategoriesPage() {
         open={!!deleteTarget}
         variant="danger"
         title="Delete Category?"
-        message={`"${deleteTarget?.name}" will be permanently removed. Categories with Sub Categories or assigned products cannot be deleted.`}
+        message={`"${deleteTarget?.name}" will be deleted for good. You cannot delete a Category that has Sub Categories or products.`}
         confirmLabel="Delete"
         loading={deleteMut.isPending}
         onConfirm={() => deleteTarget && deleteMut.mutate(

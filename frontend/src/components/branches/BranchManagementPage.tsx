@@ -73,7 +73,7 @@ export default function BranchManagementPage() {
   const branches = branchesQuery.data?.data ?? [];
   const total = branchesQuery.data?.pagination.total ?? 0;
   const isFiltered = Boolean(search) || status !== 'All';
-  const listError = branchesQuery.error ? friendlyErrorMessage(branchesQuery.error, 'Unable to load Branches.') : '';
+  const listError = branchesQuery.error ? friendlyErrorMessage(branchesQuery.error, 'Could not load Branches. Please try again.') : '';
 
   function setField<K extends keyof typeof EMPTY_FORM>(key: K, value: (typeof EMPTY_FORM)[K]) {
     setForm(current => ({ ...current, [key]: value }));
@@ -122,7 +122,7 @@ export default function BranchManagementPage() {
   function validate() {
     if (!form.code.trim()) return 'Enter a Branch Code.';
     if (!form.name.trim()) return 'Enter a Branch Name.';
-    if (form.email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) return 'Email is not valid. Use a format like name@company.com.';
+    if (form.email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) return 'Email is not correct. Use a format like name@company.com.';
     return '';
   }
 
@@ -152,7 +152,7 @@ export default function BranchManagementPage() {
       setNotice({ tone: 'success', text: `Branch ${payload.code} saved.` });
       if (!editId) closeForm();
     };
-    const onError = (error: Error) => setNotice({ tone: 'danger', text: friendlyErrorMessage(error, 'Unable to save Branch.') });
+    const onError = (error: Error) => setNotice({ tone: 'danger', text: friendlyErrorMessage(error, 'Could not save Branch. Please try again.') });
 
     if (editId) updateBranch.mutate({ id: editId, data: payload }, { onSuccess, onError });
     else createBranch.mutate(payload, { onSuccess, onError });
@@ -166,6 +166,13 @@ export default function BranchManagementPage() {
         <PageHeader
           title={editId ? `Edit Branch ${form.code}` : 'New Branch'}
           description="A Branch is a shop that holds its own stock and sells. It receives stock from Warehouses by Stock Transfer."
+          help={(
+            <>
+              <p>Enter the Branch details and click Save Branch.</p>
+              <p>Branch Code and Branch Name are required. The code cannot be the same as another Branch.</p>
+              <p>The Default Branch is selected first on new transactions. Clear Active to stop using a Branch on new transactions.</p>
+            </>
+          )}
           actions={(
             <>
               <Button variant="secondary" icon={<IconArrowLeft size={16} stroke={1.8} />} onClick={closeForm}>Back To List</Button>
@@ -227,6 +234,17 @@ export default function BranchManagementPage() {
       <PageHeader
         title="Branches"
         description="Shops in each city. Each Branch holds its own stock, receives stock from Warehouses, and makes sales."
+        help={(
+          <>
+            <p>Use this screen to see and manage your Branches (shops).</p>
+            <ul>
+              <li>New Branch adds a shop.</li>
+              <li>The box icon shows the stock held at a Branch.</li>
+              <li>The pencil, or a double-click on a row, opens the Branch to change it.</li>
+            </ul>
+            <p>A Branch gets stock only from a Warehouse, by Stock Transfer.</p>
+          </>
+        )}
         actions={(
           <>
             <Button variant="secondary" icon={<IconRefresh size={16} stroke={1.8} />} onClick={refresh} loading={branchesQuery.isFetching && !branchesQuery.isLoading}>Refresh</Button>

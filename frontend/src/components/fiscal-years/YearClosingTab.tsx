@@ -117,7 +117,7 @@ function ClosingIssuesPanel({
   const pagination = issuesQuery.data?.pagination;
 
   return (
-    <div className="dialog-backdrop" onMouseDown={event => { if (event.target === event.currentTarget) onClose(); }}>
+    <div className="dialog-backdrop" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) onClose(); }}>
       <div
         className="dialog dialog-lg"
         role="dialog"
@@ -128,14 +128,14 @@ function ClosingIssuesPanel({
         <div className="panel-header">
           <div style={{ minWidth: 0 }}>
             <h2 className="dialog-title" style={{ margin: 0 }}>{issue.title}</h2>
-            <p className="dialog-message">Pending records that must be posted or voided before closing.</p>
+            <p className="dialog-message">These records must be posted or voided before you can close the year.</p>
           </div>
           <Button variant="ghost" size="sm" icon={<IconX size={16} stroke={1.8} />} onClick={onClose} aria-label="Close Details" title="Close Details" />
         </div>
 
         {issuesQuery.error && (
           <div style={{ padding: 16 }}>
-            <InlineAlert tone="danger">{friendlyErrorMessage(issuesQuery.error, 'Unable to load pending records.')}</InlineAlert>
+            <InlineAlert tone="danger">{friendlyErrorMessage(issuesQuery.error, 'Could not load pending records. Please try again.')}</InlineAlert>
           </div>
         )}
 
@@ -232,6 +232,8 @@ export function YearClosingTab({
   const queryClient = useQueryClient();
   const [remarks, setRemarks] = useState('');
   const [message, setMessage] = useState('');
+  // Success or failure comes from which callback ran, not from the wording of the message.
+  const [messageIsSuccess, setMessageIsSuccess] = useState(false);
   const [activeIssue, setActiveIssue] = useState<ClosingIssueState>(null);
   const [issuePage, setIssuePage] = useState(1);
   const [confirmCloseOpen, setConfirmCloseOpen] = useState(false);
@@ -241,7 +243,6 @@ export function YearClosingTab({
 
   const canClose = Boolean(preCloseQuery.data?.can_close && fiscalYear && fiscalYear.status !== 'closed');
   const showNewYearForm = !fiscalYear || fiscalYear.status === 'closed';
-  const messageIsSuccess = message.includes('successfully') || message.includes('closed');
 
   function refreshAll() {
     queryClient.invalidateQueries({ queryKey: fiscalYearsQueryKey });
@@ -255,12 +256,14 @@ export function YearClosingTab({
       { id: fiscalYear.id, remarks },
       {
         onSuccess: result => {
+          setMessageIsSuccess(true);
           setMessage(result.message);
           setRemarks('');
           setConfirmCloseOpen(false);
           refreshAll();
         },
         onError: error => {
+          setMessageIsSuccess(false);
           setMessage(error.message);
           setConfirmCloseOpen(false);
         },
@@ -289,7 +292,7 @@ export function YearClosingTab({
             disabled={!fiscalYear}
             loading={preCloseQuery.isFetching}
           >
-            Run Pre-Close Check
+            Run Closing Checks
           </Button>
         </div>
 
@@ -329,7 +332,7 @@ export function YearClosingTab({
 
             {preCloseQuery.error && (
               <div style={{ padding: '12px 16px 0' }}>
-                <InlineAlert tone="danger">{friendlyErrorMessage(preCloseQuery.error, 'Unable to run the closing checks.')}</InlineAlert>
+                <InlineAlert tone="danger">{friendlyErrorMessage(preCloseQuery.error, 'Could not run the closing checks. Please try again.')}</InlineAlert>
               </div>
             )}
 
@@ -408,7 +411,7 @@ export function YearClosingTab({
       <ConfirmDialog
         open={confirmCloseOpen}
         title="Close Fiscal Year?"
-        message={`Closing ${fiscalYear?.fiscal_year ?? 'this fiscal year'} will close all periods and lock the year for posting. This cannot currently be reopened from the application.`}
+        message={`Closing ${fiscalYear?.fiscal_year ?? 'this fiscal year'} closes all Periods and stops posting to this year. You cannot reopen it later in this system.`}
         confirmLabel="Yes, Close Fiscal Year"
         variant="danger"
         loading={closeYear.isPending}

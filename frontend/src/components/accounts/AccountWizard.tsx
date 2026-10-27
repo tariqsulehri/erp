@@ -402,7 +402,7 @@ function DetailsStep({ subgroup, onSuccess }: DetailsStepProps) {
 
 /** Loading error for one wizard step. */
 function StepError({ error }: { error: unknown }) {
-  return <InlineAlert tone="danger">{friendlyErrorMessage(error, 'Unable to load accounts for this step.')}</InlineAlert>;
+  return <InlineAlert tone="danger">{friendlyErrorMessage(error, 'Could not load accounts for this step. Please try again.')}</InlineAlert>;
 }
 
 /* ── Main Wizard ─────────────────────────────────────────────────────── */

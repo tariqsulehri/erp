@@ -174,13 +174,13 @@ function BankAccountsTab({ settings, entryOpen, onEntryOpenChange }: BankAccount
   }
 
   function validateForm() {
-    if (!form.code.trim()) return 'Code is required.';
-    if (!form.ledger_account_id) return 'Linked Account is required.';
-    if (!form.bank_name.trim()) return 'Bank Name is required.';
-    if (!form.account_title.trim()) return 'Account Title is required.';
-    if (!form.account_number.trim()) return 'Account Number is required.';
-    if (form.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) return 'Email is not valid.';
-    if (numericValue(String(form.opening_balance)) < 0) return 'Opening Balance cannot be negative.';
+    if (!form.code.trim()) return 'Enter a Code.';
+    if (!form.ledger_account_id) return 'Select a Linked Account.';
+    if (!form.bank_name.trim()) return 'Enter a Bank Name.';
+    if (!form.account_title.trim()) return 'Enter an Account Title.';
+    if (!form.account_number.trim()) return 'Enter an Account Number.';
+    if (form.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) return 'Email Address is not correct. Check it and try again.';
+    if (numericValue(String(form.opening_balance)) < 0) return 'Opening Balance cannot be less than zero.';
     return '';
   }
 
@@ -205,12 +205,12 @@ function BankAccountsTab({ settings, entryOpen, onEntryOpenChange }: BankAccount
         ? await updateBankAccount.mutateAsync({ id: editingId, input: payload })
         : await createBankAccount.mutateAsync(payload);
       await invalidateBankAccounts();
-      setMessage({ kind: 'success', text: result.message ?? 'Bank Account saved successfully.' });
+      setMessage({ kind: 'success', text: result.message ?? 'Bank Account saved.' });
       setEditingId('');
       setForm(blankBankForm(formatSettings.currencyCode));
       onEntryOpenChange(false);
     } catch (error) {
-      setMessage({ kind: 'error', text: friendlyErrorMessage(error, 'Unable to save Bank Account.') });
+      setMessage({ kind: 'error', text: friendlyErrorMessage(error, 'Could not save the Bank Account. Please try again.') });
     }
   }
 
@@ -303,7 +303,7 @@ function BankAccountsTab({ settings, entryOpen, onEntryOpenChange }: BankAccount
   return (
     <div style={tabBodyStyle}>
       {message && <InlineAlert tone={message.kind === 'success' ? 'success' : 'danger'}>{message.text}</InlineAlert>}
-      {listQuery.error && <InlineAlert tone="danger">{friendlyErrorMessage(listQuery.error, 'Unable to load Bank Accounts.')}</InlineAlert>}
+      {listQuery.error && <InlineAlert tone="danger">{friendlyErrorMessage(listQuery.error, 'Could not load Bank Accounts. Please try again.')}</InlineAlert>}
 
       <section className="panel">
         <div className="panel-header">
@@ -395,6 +395,17 @@ export default function BankPage() {
       <PageHeader
         title="Bank"
         description="Bank accounts and cheque books."
+        help={(
+          <>
+            <p>Use this screen to keep your company&apos;s bank accounts and cheque books.</p>
+            <ul>
+              <li>New Bank Account adds a bank account. Link it to a Posting Account in the Chart Of Accounts.</li>
+              <li>Click the pencil, or double-click a row, to change a bank account.</li>
+              <li>Cheque Books lets you add cheque books, then issue or void each cheque.</li>
+            </ul>
+            <p>A voided cheque cannot be issued again.</p>
+          </>
+        )}
         actions={(
           <>
             {activeTab === 'accounts' && !bankEntryOpen && (

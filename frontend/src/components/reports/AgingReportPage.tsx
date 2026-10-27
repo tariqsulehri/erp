@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/Button';
 import { DateField } from '@/components/ui/FormFields';
 import { InlineAlert } from '@/components/ui/InlineAlert';
 import { PageHeader } from '@/components/ui/PageHeader';
+import { reportHelp } from './report-help';
 import { TableMessageRow } from '@/components/ui/TableMessageRow';
 import { formatDate, formatMoney } from '@/lib/app-settings';
 import { type AgingBucketKey, type AgingKind, useAgingReport } from '@/lib/api/reports';
@@ -52,7 +53,7 @@ export function AgingReportPage({ embedded = false, kind }: AgingReportPageProps
   const ledgerReport = isReceivables ? 'customer-ledger' : 'supplier-ledger';
 
   function validateFilters() {
-    if (!isValidDateInput(asOfDate)) return 'As Of Date is required.';
+    if (!isValidDateInput(asOfDate)) return 'Enter the As Of Date.';
     return '';
   }
 
@@ -127,6 +128,7 @@ export function AgingReportPage({ embedded = false, kind }: AgingReportPageProps
         <PageHeader
           title={title}
           description={`Open ${isReceivables ? 'customer' : 'supplier'} balances by age as of ${formatDate(asOfDate, generalSettings)}.`}
+          help={reportHelp[isReceivables ? 'receivables-aging' : 'payables-aging']}
         />
       )}
 

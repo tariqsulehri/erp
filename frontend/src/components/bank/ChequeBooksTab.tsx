@@ -140,14 +140,14 @@ export function ChequeBooksTab({ settings }: { settings?: AppFormatSettingsSourc
   }
 
   function validateBookForm() {
-    if (!form.bank_account_id) return 'Bank Account is required.';
-    if (!form.book_number.trim()) return 'Cheque Book Number is required.';
+    if (!form.bank_account_id) return 'Select a Bank Account.';
+    if (!form.book_number.trim()) return 'Enter a Cheque Book Number.';
     if (!/^\d+$/.test(form.start_cheque_number.trim())) return 'Start Cheque Number must use digits only.';
     if (!/^\d+$/.test(form.end_cheque_number.trim())) return 'End Cheque Number must use digits only.';
     const start = BigInt(form.start_cheque_number.trim());
     const end = BigInt(form.end_cheque_number.trim());
-    if (end < start) return 'End Cheque Number must be greater than or equal to Start Cheque Number.';
-    if (end - start + 1n > 1000n) return 'One Cheque Book can generate a maximum of 1000 cheques.';
+    if (end < start) return 'End Cheque Number cannot be less than Start Cheque Number.';
+    if (end - start + 1n > 1000n) return 'One Cheque Book can have at most 1000 cheques.';
     return '';
   }
 
@@ -169,13 +169,13 @@ export function ChequeBooksTab({ settings }: { settings?: AppFormatSettingsSourc
         end_cheque_number: form.end_cheque_number.trim(),
       });
       await invalidateBankCheques();
-      setMessage({ kind: 'success', text: result.message ?? 'Cheque Book generated successfully.' });
+      setMessage({ kind: 'success', text: result.message ?? 'Cheque Book created.' });
       setEntryOpen(false);
       setForm({ ...blankBookForm(), bank_account_id: selectedBankId });
       setBookPage(1);
       setChequePage(1);
     } catch (error) {
-      setMessage({ kind: 'error', text: friendlyErrorMessage(error, 'Unable to generate Cheque Book.') });
+      setMessage({ kind: 'error', text: friendlyErrorMessage(error, 'Could not create the Cheque Book. Please try again.') });
     }
   }
 
@@ -196,22 +196,22 @@ export function ChequeBooksTab({ settings }: { settings?: AppFormatSettingsSourc
     try {
       const result = await voidCheque.mutateAsync({ id: voidTarget.id, input: voidForm });
       await invalidateBankCheques();
-      setMessage({ kind: 'success', text: result.message ?? 'Cheque voided successfully.' });
+      setMessage({ kind: 'success', text: result.message ?? 'Cheque voided.' });
       setVoidTarget(null);
       setVoidForm({ reason: 'Torn', notes: '' });
     } catch (error) {
-      setMessage({ kind: 'error', text: friendlyErrorMessage(error, 'Unable to void Cheque.') });
+      setMessage({ kind: 'error', text: friendlyErrorMessage(error, 'Could not void the Cheque. Please try again.') });
     }
   }
 
   async function submitIssue() {
     if (!issueTarget) return;
     if (!issueForm.payee_name.trim()) {
-      setMessage({ kind: 'error', text: 'Payee Name is required.' });
+      setMessage({ kind: 'error', text: 'Enter a Payee Name.' });
       return;
     }
     if (numericValue(issueForm.amount) <= 0) {
-      setMessage({ kind: 'error', text: 'Amount must be greater than zero.' });
+      setMessage({ kind: 'error', text: 'Amount must be more than zero.' });
       return;
     }
     try {
@@ -229,7 +229,7 @@ export function ChequeBooksTab({ settings }: { settings?: AppFormatSettingsSourc
       setIssueTarget(null);
       setIssueForm({ issue_date: new Date().toISOString().slice(0, 10), payee_name: '', payment_reference: '', amount: '' });
     } catch (error) {
-      setMessage({ kind: 'error', text: friendlyErrorMessage(error, 'Unable to issue Cheque.') });
+      setMessage({ kind: 'error', text: friendlyErrorMessage(error, 'Could not issue the Cheque. Please try again.') });
     }
   }
 
@@ -296,12 +296,12 @@ export function ChequeBooksTab({ settings }: { settings?: AppFormatSettingsSourc
           <div className="panel-header">
             <div>
               <h2 className="panel-title">New Cheque Book</h2>
-              <p className="page-head-desc">Create cheque leaves from a start and an end cheque number.</p>
+              <p className="page-head-desc">Enter the first and last cheque numbers. Every cheque in between is added.</p>
             </div>
             <div className="row-actions" style={{ gap: 8 }}>
               <Button variant="ghost" onClick={() => setEntryOpen(false)} disabled={saving}>Cancel</Button>
               <Button variant="primary" icon={<IconCheck size={16} stroke={1.8} />} onClick={generateBook} loading={saving}>
-                {saving ? 'Generating…' : 'Generate Cheques'}
+                {saving ? 'Creating…' : 'Create Cheques'}
               </Button>
             </div>
           </div>
@@ -416,13 +416,13 @@ export function ChequeBooksTab({ settings }: { settings?: AppFormatSettingsSourc
             <tbody>
               {bookQuery.isLoading && <TableMessageRow colSpan={8} title="Loading Cheque Books…" loading />}
               {!bookQuery.isLoading && bookQuery.error && (
-                <TableMessageRow colSpan={8} title="Cheque Books Could Not Be Loaded" description={friendlyErrorMessage(bookQuery.error, 'Please check your connection and try again.')} action={<Button onClick={() => bookQuery.refetch()}>Try Again</Button>} />
+                <TableMessageRow colSpan={8} title="Cheque Books Could Not Be Loaded" description={friendlyErrorMessage(bookQuery.error, 'Cannot reach the server. Check your connection and try again.')} action={<Button onClick={() => bookQuery.refetch()}>Try Again</Button>} />
               )}
               {!bookQuery.isLoading && !bookQuery.error && books.length === 0 && (
                 <TableMessageRow
                   colSpan={8}
                   title="No Cheque Books Yet"
-                  description="Create a Cheque Book for this Bank Account to generate its cheque leaves."
+                  description="Create a Cheque Book for this Bank Account to add its cheques."
                   action={!entryOpen ? <Button variant="primary" icon={<IconPlus size={16} stroke={1.8} />} onClick={() => { setEntryOpen(true); setMessage(null); }}>New Cheque Book</Button> : undefined}
                 />
               )}

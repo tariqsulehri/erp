@@ -88,10 +88,10 @@ export class PurchasePostService {
           ELSE true
         END AS can_post,
         CASE
-          WHEN fy.id IS NULL THEN 'Date does not fall within any active fiscal year'
-          WHEN fy.is_locked THEN 'Fiscal year is locked. No new transactions allowed.'
-          WHEN fp.id IS NULL THEN 'No open period found for this date'
-          WHEN fp.is_open = false THEN CONCAT('Period "', fp.period_name, '" is closed. Cannot post transactions.')
+          WHEN fy.id IS NULL THEN 'This date is not in any active Fiscal Year.'
+          WHEN fy.is_locked THEN 'This Fiscal Year is locked. You cannot post new entries in it.'
+          WHEN fp.id IS NULL THEN 'There is no open Period for this date.'
+          WHEN fp.is_open = false THEN CONCAT('Period "', fp.period_name, '" is closed. You cannot post in a closed Period.')
           ELSE NULL
         END AS reason
       FROM (SELECT CAST(${dateText} AS date) AS posting_date) d
@@ -110,7 +110,7 @@ export class PurchasePostService {
 
     const result = rows[0];
     if (!result?.can_post) {
-      const error = new Error(`Invalid Purchase Date: ${result?.reason ?? 'Date cannot be posted.'}`);
+      const error = new Error(`Purchase Date cannot be used. ${result?.reason ?? 'You cannot post on this date.'}`);
       Object.assign(error, { statusCode: 400 });
       throw error;
     }
@@ -144,7 +144,7 @@ export class PurchasePostService {
       LIMIT 1
     `;
     if (!rows[0]) {
-      const error = new Error(`${label} is not set or is inactive.`);
+      const error = new Error(`${label} is not set up or is Inactive.`);
       Object.assign(error, { statusCode: 400 });
       throw error;
     }

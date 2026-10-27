@@ -88,10 +88,10 @@ export class PurchaseReturnPostService {
           ELSE true
         END AS can_post,
         CASE
-          WHEN fy.id IS NULL THEN 'Date does not fall within any active fiscal year'
-          WHEN fy.is_locked THEN 'Fiscal year is locked. No new transactions allowed.'
-          WHEN fp.id IS NULL THEN 'No open period found for this date'
-          WHEN fp.is_open = false THEN CONCAT('Period "', fp.period_name, '" is closed. Cannot post transactions.')
+          WHEN fy.id IS NULL THEN 'This date is not in any active Fiscal Year.'
+          WHEN fy.is_locked THEN 'This Fiscal Year is locked. You cannot post new entries in it.'
+          WHEN fp.id IS NULL THEN 'There is no open Period for this date.'
+          WHEN fp.is_open = false THEN CONCAT('Period "', fp.period_name, '" is closed. You cannot post in a closed Period.')
           ELSE NULL
         END AS reason
       FROM (SELECT CAST(${dateText} AS date) AS posting_date) d
@@ -110,7 +110,7 @@ export class PurchaseReturnPostService {
 
     const result = rows[0];
     if (!result?.can_post) {
-      const error = new Error(`Invalid Purchase Return Date: ${result?.reason ?? 'Date cannot be posted.'}`);
+      const error = new Error(`Purchase Return Date cannot be used. ${result?.reason ?? 'You cannot post on this date.'}`);
       Object.assign(error, { statusCode: 400 });
       throw error;
     }
@@ -144,7 +144,7 @@ export class PurchaseReturnPostService {
       LIMIT 1
     `;
     if (!rows[0]) {
-      const error = new Error(`${label} is not set or is inactive.`);
+      const error = new Error(`${label} is not set up or is Inactive.`);
       Object.assign(error, { statusCode: 400 });
       throw error;
     }
@@ -306,14 +306,14 @@ export class PurchaseReturnPostService {
     `;
     const existing = balanceRows[0];
     if (!existing) {
-      const error = new Error('Cannot post Purchase Return because stock balance was not found.');
+      const error = new Error('Cannot post the Purchase Return. No stock was found for this item.');
       Object.assign(error, { statusCode: 400 });
       throw error;
     }
 
     const oldQuantity = this.quantity(existing.stock_on_hand ?? 0);
     if (quantity.gt(oldQuantity)) {
-      const error = new Error('Cannot post Purchase Return because quantity is greater than Stock On Hand.');
+      const error = new Error('Cannot post the Purchase Return. Quantity is more than Stock On Hand.');
       Object.assign(error, { statusCode: 400 });
       throw error;
     }
@@ -322,7 +322,7 @@ export class PurchaseReturnPostService {
     const newQuantity = this.quantity(oldQuantity.minus(quantity));
     const newValue = this.money(oldValue.minus(lineCost));
     if (newValue.lt(0)) {
-      const error = new Error('Cannot post Purchase Return because the returned value is greater than the stock value of this item. Check the return price.');
+      const error = new Error('Cannot post the Purchase Return. The return value is more than the stock value of this item. Check the return price.');
       Object.assign(error, { statusCode: 400 });
       throw error;
     }

@@ -26,7 +26,19 @@ const CARDS: InventoryCard[] = [
     href:  '/inventory/stock-transfers',
     icon:  'transfers',
     label: 'Stock Transfer',
-    desc:  'Move stock from one warehouse or branch store to another.',
+    desc:  'Send stock from one place to another: Warehouse → Branch, Branch → Branch, and more.',
+  },
+  {
+    href:  '/inventory/stock-received',
+    icon:  'received',
+    label: 'Stock Received',
+    desc:  'See the stock that arrived at each Branch or Warehouse.',
+  },
+  {
+    href:  '/inventory/stock-adjustments',
+    icon:  'adjustments',
+    label: 'Stock Adjustment',
+    desc:  'Correct stock after a count, damage, or loss.',
   },
   {
     href:  '/inventory/categories',
@@ -47,7 +59,18 @@ export default function InventoryIndexPage() {
     <main className="page-shell" style={{ overflow: 'auto' }}>
       <PageHeader
         title="Inventory"
-        description="Products, categories, units, warehouses, and stock movements. Choose an area to open it."
+        description="Products, stock movements, and the places that hold stock. Choose an area to open it."
+        help={(
+          <>
+            <p>Inventory keeps your products and where their stock is.</p>
+            <ul>
+              <li>Products: the items you buy and sell.</li>
+              <li>Stock Transfer: send stock between Warehouses and Branches.</li>
+              <li>Stock Received: see what arrived at each place.</li>
+              <li>Stock Adjustment: correct stock after a count.</li>
+            </ul>
+          </>
+        )}
       />
       <InventoryCardGrid cards={CARDS} />
     </main>

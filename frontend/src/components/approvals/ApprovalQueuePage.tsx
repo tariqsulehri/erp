@@ -124,28 +124,28 @@ export function ApprovalQueuePage() {
   async function approveSelectedVoucher() {
     setApproveConfirmOpen(false);
     if (!selectedVoucher?.id) {
-      setMessage({ kind: 'error', text: 'Please select a voucher to approve.' });
+      setMessage({ kind: 'error', text: 'Select a voucher to approve.' });
       return;
     }
     setMessage(null);
     try {
       await approveVoucher.mutateAsync({ id: selectedVoucher.id });
-      setMessage({ kind: 'success', text: `${selectedVoucher.voucher_number} approved successfully.` });
+      setMessage({ kind: 'success', text: `${selectedVoucher.voucher_number} approved.` });
       setSelectedId(null);
       setRejectReason('');
       await listQuery.refetch();
     } catch (error) {
-      setMessage({ kind: 'error', text: friendlyErrorMessage(error, 'Unable to approve Voucher.') });
+      setMessage({ kind: 'error', text: friendlyErrorMessage(error, 'Could not approve Voucher. Please try again.') });
     }
   }
 
   async function rejectSelectedVoucher() {
     if (!selectedVoucher?.id) {
-      setMessage({ kind: 'error', text: 'Please select a voucher to reject.' });
+      setMessage({ kind: 'error', text: 'Select a voucher to reject.' });
       return;
     }
     if (!rejectReason.trim()) {
-      setMessage({ kind: 'error', text: 'Rejection Reason is required.' });
+      setMessage({ kind: 'error', text: 'Enter a Rejection Reason, then reject the voucher.' });
       return;
     }
     setMessage(null);
@@ -156,7 +156,7 @@ export function ApprovalQueuePage() {
       setRejectReason('');
       await listQuery.refetch();
     } catch (error) {
-      setMessage({ kind: 'error', text: friendlyErrorMessage(error, 'Unable to reject Voucher.') });
+      setMessage({ kind: 'error', text: friendlyErrorMessage(error, 'Could not reject Voucher. Please try again.') });
     }
   }
 
@@ -187,11 +187,22 @@ export function ApprovalQueuePage() {
       <PageHeader
         title="Approvals"
         description="Vouchers waiting for a decision. Select a voucher to check its lines, then approve it or reject it with a reason."
+        help={(
+          <>
+            <p>This screen lists vouchers that are waiting for your approval.</p>
+            <ul>
+              <li>Select a voucher to see its lines on the right.</li>
+              <li>Approve lets the voucher be posted to the ledger.</li>
+              <li>Reject Voucher sends it back. You must enter a Rejection Reason first.</li>
+            </ul>
+            <p>You cannot approve a voucher that you created or sent for approval. Another approver must do it.</p>
+          </>
+        )}
         actions={<Button variant="secondary" icon={<IconRefresh size={16} stroke={1.8} />} onClick={() => listQuery.refetch()} loading={refreshing}>Refresh</Button>}
       />
 
       {message && <InlineAlert tone={message.kind === 'success' ? 'success' : 'danger'} onDismiss={() => setMessage(null)}>{message.text}</InlineAlert>}
-      {listQuery.error && <InlineAlert tone="danger">{friendlyErrorMessage(listQuery.error, 'Unable to load Pending Approvals.')}</InlineAlert>}
+      {listQuery.error && <InlineAlert tone="danger">{friendlyErrorMessage(listQuery.error, 'Could not load Pending Approvals. Please try again.')}</InlineAlert>}
 
       <div className={`split-view${selectedId ? ' has-side' : ''}`}>
         <section className="panel">
@@ -309,7 +320,7 @@ export function ApprovalQueuePage() {
             )}
           >
             {detailQuery.isLoading && <p className="form-hint" style={{ margin: 0 }}>Loading Approval Detail…</p>}
-            {detailQuery.error && <InlineAlert tone="danger">{friendlyErrorMessage(detailQuery.error, 'Unable to load Approval Detail.')}</InlineAlert>}
+            {detailQuery.error && <InlineAlert tone="danger">{friendlyErrorMessage(detailQuery.error, 'Could not load Approval Detail. Please try again.')}</InlineAlert>}
             {detail && approvalBlockedReason && <InlineAlert tone="info">{approvalBlockedReason}</InlineAlert>}
             {detail && (
               <>

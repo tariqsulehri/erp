@@ -1,6 +1,6 @@
 'use client';
 
-import { useId, useState, type ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { IconChartBar, IconDownload, IconTable } from '@tabler/icons-react';
 import {
   Bar,
@@ -17,7 +17,8 @@ import {
   YAxis,
 } from 'recharts';
 import { ChartTooltipBox } from './AnalyticsWidgets';
-import { barGradientStops, chartAxisTick, useChartTheme } from './chart-palette';
+import { HelpButton } from '@/components/ui/HelpButton';
+import { chartAxisTick, useChartTheme } from '@/hooks/useChartTheme';
 
 /*
  * Shared analytics charts. Rules followed by every chart here:
@@ -87,7 +88,7 @@ export function ChartCard({
   subtitle: string;
   /** The finding in one sentence, e.g. "86% of purchases are on credit." */
   headline?: ReactNode;
-  help?: string;
+  help?: ReactNode;
   metric?: { label: string; value: string };
   legend?: LegendItem[];
   table: ChartTable;
@@ -100,7 +101,7 @@ export function ChartCard({
         <div className="chart-card-heading">
           <h2 className="chart-card-title">
             {title}
-            {help && <span className="stat-tile-help chart-card-help" role="note" tabIndex={0} title={help} aria-label={`About ${title}: ${help}`}>?</span>}
+            {help && <HelpButton title={title} size="sm">{help}</HelpButton>}
           </h2>
           <div className="chart-card-subtitle">{subtitle}</div>
           {headline && <p className="chart-card-headline">{headline}</p>}
@@ -181,30 +182,6 @@ function ChartDataTable({ table }: { table: ChartTable }) {
   );
 }
 
-/* ── 3D fills ──────────────────────────────────────────────────── */
-
-/** Per-chart id prefix, so two charts on one page never share gradient ids. */
-export function useGradientPrefix() {
-  return `g${useId().replace(/[^a-zA-Z0-9]/g, '')}`;
-}
-
-export function gradientId(prefix: string, color: string) {
-  return `${prefix}-${color.replace(/[^a-zA-Z0-9]/g, '')}`;
-}
-
-/** Vertical light-to-deep gradients for the given colours. Place inside a Recharts chart, fill with `url(#…)`. */
-export function BarGradientDefs({ prefix, colors }: { prefix: string; colors: string[] }) {
-  return (
-    <defs>
-      {[...new Set(colors)].map(color => (
-        <linearGradient key={color} id={gradientId(prefix, color)} x1="0" y1="0" x2="0" y2="1">
-          {barGradientStops(color).map(stop => <stop key={stop.offset} offset={stop.offset} stopColor={stop.color} />)}
-        </linearGradient>
-      ))}
-    </defs>
-  );
-}
-
 /* ── Charts ───────────────────────────────────────────────────── */
 
 export interface MonthPoint {
@@ -218,7 +195,7 @@ function MoneyTooltip({ active, payload, title, format, colors }: {
   payload?: any[];
   title: (point: any) => string;
   format: Format;
-  /** Swatch colour per data key; the bar fill itself is a gradient reference. */
+  /** Swatch colour per data key. */
   colors: Record<string, string>;
 }) {
   if (!active || !payload?.length) return null;
@@ -278,21 +255,19 @@ export function MonthlyColumnChart({
   // Only the peak month carries a label, so the chart names its extreme without a number on every column.
   const peakIndex = data.reduce((best, point, index) => (Number(point[dataKey]) > Number(data[best]?.[dataKey] ?? -Infinity) ? index : best), 0);
   const labelled = data.map((point, index) => ({ ...point, peakLabel: index === peakIndex && Number(point[dataKey]) > 0 ? axis(Number(point[dataKey])) : '' }));
-  const prefix = useGradientPrefix();
   const color = theme.series.blue;
   return (
     <ResponsiveContainer width="100%" height={height}>
       <BarChart data={labelled} margin={{ top: 30, right: 8, left: 0, bottom: 0 }} barCategoryGap="24%">
-        <BarGradientDefs prefix={prefix} colors={[color]} />
-        <CartesianGrid stroke={theme.grid} vertical={false} />
+        <CartesianGrid stroke={theme.grid} strokeDasharray="3 4" vertical={false} />
         <XAxis dataKey="label" tick={tick} axisLine={{ stroke: theme.border }} tickLine={false} interval="preserveStartEnd" minTickGap={8} />
         <YAxis tickFormatter={axis} tick={tick} axisLine={false} tickLine={false} width={52} />
         <Tooltip cursor={{ fill: theme.grid, opacity: 0.6 }} content={<MoneyTooltip title={tooltipTitle} format={format} colors={{ [dataKey]: color }} />} />
         {average !== undefined && average > 0 && (
-          <ReferenceLine y={average} stroke={theme.axisText} strokeDasharray="4 4" ifOverflow="extendDomain" />
+          <ReferenceLine y={average} stroke={theme.target} strokeDasharray="5 4" strokeWidth={1.5} ifOverflow="extendDomain" />
         )}
-        {/* Tube style: each month has a light track to full height, the value fills it from the baseline. */}
-        <Bar dataKey={dataKey} name={seriesName} fill={`url(#${gradientId(prefix, color)})`} radius={[6, 6, 6, 6]} maxBarSize={30} background={{ fill: theme.grid, radius: 6 }}>
+        {/* Flat bar with 4px rounded top on a feather track (standards section 8). */}
+        <Bar dataKey={dataKey} name={seriesName} fill={color} radius={[4, 4, 0, 0]} maxBarSize={30} background={{ fill: theme.track, radius: 4 }}>
           <LabelList dataKey="peakLabel" content={pillLabel(theme)} />
         </Bar>
       </BarChart>
@@ -318,13 +293,11 @@ export function StackedMonthlyChart({
 }) {
   const theme = useChartTheme();
   const tick = chartAxisTick(theme);
-  const prefix = useGradientPrefix();
   const colors = Object.fromEntries(series.map(item => [item.key, item.color]));
   return (
     <ResponsiveContainer width="100%" height={height}>
       <BarChart data={data} margin={{ top: 8, right: 8, left: 0, bottom: 0 }} barCategoryGap="28%">
-        <BarGradientDefs prefix={prefix} colors={series.map(item => item.color)} />
-        <CartesianGrid stroke={theme.grid} vertical={false} />
+        <CartesianGrid stroke={theme.grid} strokeDasharray="3 4" vertical={false} />
         <XAxis dataKey="label" tick={tick} axisLine={{ stroke: theme.border }} tickLine={false} interval="preserveStartEnd" minTickGap={8} />
         <YAxis tickFormatter={axis} tick={tick} axisLine={false} tickLine={false} width={52} />
         <Tooltip cursor={{ fill: theme.grid, opacity: 0.6 }} content={<MoneyTooltip title={tooltipTitle} format={format} colors={colors} />} />
@@ -334,12 +307,12 @@ export function StackedMonthlyChart({
             dataKey={item.key}
             name={item.name}
             stackId="stack"
-            fill={`url(#${gradientId(prefix, item.color)})`}
+            fill={item.color}
             stroke={theme.surface}
             strokeWidth={2}
-            radius={index === series.length - 1 ? [6, 6, 0, 0] : [0, 0, 0, 0]}
+            radius={index === series.length - 1 ? [4, 4, 0, 0] : [0, 0, 0, 0]}
             maxBarSize={30}
-            background={index === 0 ? { fill: theme.grid, radius: 6 } : undefined}
+            background={index === 0 ? { fill: theme.track, radius: 4 } : undefined}
           />
         ))}
       </BarChart>
@@ -370,7 +343,6 @@ export function BridgeChart({ steps, format, axis, height = 250 }: { steps: Brid
     return { ...step, base: Math.min(start, running), size: Math.abs(step.amount), valueLabel };
   });
   const colorFor = (kind: BridgeStep['kind']) => (kind === 'total' ? theme.series.blue : kind === 'increase' ? theme.series.amber : theme.series.teal);
-  const prefix = useGradientPrefix();
   const tooltip = ({ active, payload }: any) => {
     if (!active || !payload?.length) return null;
     const step = payload[0].payload as BridgeStep;
@@ -384,14 +356,13 @@ export function BridgeChart({ steps, format, axis, height = 250 }: { steps: Brid
   return (
     <ResponsiveContainer width="100%" height={height}>
       <BarChart data={data} margin={{ top: 22, right: 8, left: 0, bottom: 0 }} barCategoryGap="30%">
-        <BarGradientDefs prefix={prefix} colors={[theme.series.blue, theme.series.amber, theme.series.teal]} />
-        <CartesianGrid stroke={theme.grid} vertical={false} />
+        <CartesianGrid stroke={theme.grid} strokeDasharray="3 4" vertical={false} />
         <XAxis dataKey="name" tick={tick} axisLine={{ stroke: theme.border }} tickLine={false} interval={0} />
         <YAxis tickFormatter={axis} tick={tick} axisLine={false} tickLine={false} width={52} />
         <Tooltip cursor={{ fill: theme.grid, opacity: 0.6 }} content={tooltip} />
         <Bar dataKey="base" stackId="bridge" fill="transparent" isAnimationActive={false} />
         <Bar dataKey="size" stackId="bridge" radius={[4, 4, 0, 0]} maxBarSize={44}>
-          {data.map(step => <Cell key={step.name} fill={`url(#${gradientId(prefix, colorFor(step.kind))})`} />)}
+          {data.map(step => <Cell key={step.name} fill={colorFor(step.kind)} />)}
           <LabelList dataKey="valueLabel" position="top" offset={8} fontSize={12} fontWeight={600} fill={theme.heading} />
         </Bar>
       </BarChart>
@@ -411,7 +382,8 @@ export function RankedBars({
   items: Array<{ name: string; value: number; count?: number }>;
   total: number;
   format: Format;
-  color: string;
+  /** Bar colour; omit for the standard meter fill (accent, or the vivid gradient). */
+  color?: string;
   limit?: number;
   countLabel?: (count: number) => string;
 }) {
@@ -431,7 +403,7 @@ export function RankedBars({
               <span className="name">{item.name}</span>
               <span className="value">{format(item.value)}<small>{share.toFixed(1)}%</small></span>
               <span className="track" aria-hidden>
-                <span className="fill" style={{ display: 'block', width: `${Math.max(item.value / max * 100, 1)}%`, background: `linear-gradient(180deg, ${barGradientStops(color).map(stop => `${stop.color} ${stop.offset}`).join(', ')})` }} />
+                <span className="fill" style={{ display: 'block', width: `${Math.max(item.value / max * 100, 1)}%`, background: color ?? 'var(--meter-fill)' }} />
               </span>
             </li>
           );
@@ -444,9 +416,9 @@ export function RankedBars({
   );
 }
 
-/** Donut with the total in the middle and a legend of count and share beside it. For part-to-whole with up to 6 parts. */
+/** Donut with the total in the middle and a legend of value and share beside it. Up to 5 slices; more are grouped as Other. */
 export function DonutChart({
-  items,
+  items: allItems,
   centerValue,
   centerLabel,
   format,
@@ -457,9 +429,14 @@ export function DonutChart({
   format: Format;
 }) {
   const theme = useChartTheme();
-  const prefix = useGradientPrefix();
+  // At most 5 slices (standards section 8): the four largest stay, the rest join "Other".
+  const sorted = [...allItems].sort((left, right) => right.value - left.value);
+  const items = sorted.length <= 5 ? allItems : [
+    ...sorted.slice(0, 4),
+    { name: 'Other', value: sorted.slice(4).reduce((sum, item) => sum + item.value, 0), color: theme.series.slate },
+  ];
   const total = items.reduce((sum, item) => sum + item.value, 0);
-  if (total <= 0) return <div className="chart-empty">No data yet.</div>;
+  if (total <= 0) return <div className="chart-empty">No data</div>;
   const tooltip = ({ active, payload }: any) => {
     if (!active || !payload?.length) return null;
     const item = payload[0].payload as { name: string; value: number; color: string };
@@ -470,10 +447,9 @@ export function DonutChart({
       <div className="donut-plot">
         <ResponsiveContainer width="100%" height="100%">
           <PieChart>
-            <BarGradientDefs prefix={prefix} colors={items.map(item => item.color)} />
             <Tooltip content={tooltip} />
             <Pie data={items} dataKey="value" nameKey="name" innerRadius="70%" outerRadius="100%" paddingAngle={1} stroke={theme.surface} strokeWidth={2} startAngle={90} endAngle={-270}>
-              {items.map(item => <Cell key={item.name} fill={`url(#${gradientId(prefix, item.color)})`} />)}
+              {items.map(item => <Cell key={item.name} fill={item.color} />)}
             </Pie>
           </PieChart>
         </ResponsiveContainer>

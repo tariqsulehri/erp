@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/Button';
 import { DateField, SelectField } from '@/components/ui/FormFields';
 import { InlineAlert } from '@/components/ui/InlineAlert';
 import { PageHeader } from '@/components/ui/PageHeader';
+import { reportHelp } from './report-help';
 import { PaginationBar } from '@/components/ui/PaginationBar';
 import { TableMessageRow } from '@/components/ui/TableMessageRow';
 import { formatDate, formatMoney } from '@/lib/app-settings';
@@ -75,9 +76,9 @@ export function DayBookReportPage({ embedded = false }: DayBookReportPageProps) 
   }, shouldLoad);
 
   function validateFilters() {
-    if (!isValidDateInput(dateFrom)) return 'Date From is required.';
-    if (!isValidDateInput(dateTo)) return 'Date To is required.';
-    if (dateTo < dateFrom) return 'Date To cannot be earlier than Date From.';
+    if (!isValidDateInput(dateFrom)) return 'Enter the Date From.';
+    if (!isValidDateInput(dateTo)) return 'Enter the Date To.';
+    if (dateTo < dateFrom) return 'Date To must be on or after Date From.';
     return '';
   }
 
@@ -161,7 +162,7 @@ export function DayBookReportPage({ embedded = false }: DayBookReportPageProps) 
         { label: 'Credit', kind: 'money' },
       ],
       rows,
-      note: `Page ${pagination?.page ?? page} of ${totalPages}. Totals cover the whole period. Narrow the dates to export fewer vouchers.`,
+      note: `Page ${pagination?.page ?? page} of ${totalPages}. Totals cover the whole period. Choose a shorter date range to export fewer vouchers.`,
       fileName: `day-book-${dateFrom}-to-${dateTo}${totalPages > 1 ? `-page-${pagination?.page ?? page}` : ''}`,
     };
   }
@@ -171,7 +172,7 @@ export function DayBookReportPage({ embedded = false }: DayBookReportPageProps) 
   return (
     <Root className={embedded ? undefined : 'page-shell'} style={embedded ? embeddedReportStyle : undefined}>
       {!embedded && (
-        <PageHeader title="Day Book" description={`Posted vouchers from ${periodText}.`} />
+        <PageHeader title="Day Book" description={`Posted vouchers from ${periodText}.`} help={reportHelp['day-book']} />
       )}
 
       {errorMessage && <InlineAlert tone="danger">{errorMessage}</InlineAlert>}
@@ -216,7 +217,7 @@ export function DayBookReportPage({ embedded = false }: DayBookReportPageProps) 
                 <TableMessageRow colSpan={7} title="Choose The Dates" description="Select Date From and Date To, then click View Report." />
               )}
               {!reportQuery.isFetching && !errorMessage && report && vouchers.length === 0 && (
-                <TableMessageRow colSpan={7} title="No Vouchers Found" description="No posted vouchers in the selected period. Widen the dates or choose All voucher types." />
+                <TableMessageRow colSpan={7} title="No Vouchers Found" description="No posted vouchers in the selected period. Choose a wider date range or set Voucher Type to All." />
               )}
               {!reportQuery.isFetching && vouchers.map(voucher => {
                 const groupStyle = reportGroupRowStyle(2);

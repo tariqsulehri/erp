@@ -592,10 +592,10 @@ export class PostingAccountSettingsService {
     const account = rows[0];
     if (!account) throw businessError(`${label} must be an active posting account.`);
     if (!expectedTypes.includes(account.account_type)) {
-      throw businessError(`${label} must be an ${typeText(expectedTypes)} account. Selected account is ${account.account_type}.`);
+      throw businessError(`${label} must be an ${typeText(expectedTypes)} account. The selected Account is ${account.account_type}.`);
     }
     if (!accountCodePrefixes.some(prefix => account.code.startsWith(prefix))) {
-      throw businessError(`${label} must use account code category ${categoryText(accountCodePrefixes)}. Selected account code is ${account.code}.`);
+      throw businessError(`${label} must use an Account Code starting with ${categoryText(accountCodePrefixes)}. The selected Account Code is ${account.code}.`);
     }
     return account;
   }

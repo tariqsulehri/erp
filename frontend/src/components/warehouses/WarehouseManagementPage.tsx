@@ -181,7 +181,7 @@ export default function WarehouseManagementPage() {
             refreshAll();
             setNotice({ tone: 'success', text: `Warehouse ${payload.code} saved.` });
           },
-          onError: error => setNotice({ tone: 'danger', text: friendlyErrorMessage(error, 'Unable to save Warehouse.') }),
+          onError: error => setNotice({ tone: 'danger', text: friendlyErrorMessage(error, 'Could not save Warehouse. Please try again.') }),
         },
       );
       return;
@@ -193,7 +193,7 @@ export default function WarehouseManagementPage() {
         openEditWarehouse(warehouse);
         setNotice({ tone: 'success', text: `Warehouse ${warehouse.code} created. You can now add its Locations.` });
       },
-      onError: error => setNotice({ tone: 'danger', text: friendlyErrorMessage(error, 'Unable to create Warehouse.') }),
+      onError: error => setNotice({ tone: 'danger', text: friendlyErrorMessage(error, 'Could not create Warehouse. Please try again.') }),
     });
   }
 
@@ -226,7 +226,7 @@ export default function WarehouseManagementPage() {
       setEditingLocationId('');
       setNotice({ tone: 'success', text: `Location ${payload.code} saved.` });
     };
-    const onError = (error: Error) => setNotice({ tone: 'danger', text: friendlyErrorMessage(error, 'Unable to save Warehouse Location.') });
+    const onError = (error: Error) => setNotice({ tone: 'danger', text: friendlyErrorMessage(error, 'Could not save Warehouse Location. Please try again.') });
 
     if (editingLocationId) {
       updateLocation.mutate({ id: editingLocationId, data: payload }, { onSuccess, onError });
@@ -264,6 +264,13 @@ export default function WarehouseManagementPage() {
         <PageHeader
           title={selectedWarehouseId ? `Edit Warehouse ${warehouseForm.code}` : 'New Warehouse'}
           description={selectedWarehouse ? `${selectedWarehouse.code} - ${selectedWarehouse.name}` : 'A Warehouse stores stock. It receives purchases and sends stock to Branches by Stock Transfer.'}
+          help={(
+            <>
+              <p>Enter the Warehouse details and click Save Warehouse.</p>
+              <p>Turn on Use Locations to track stock by rack, shelf, or bin. Save the Warehouse first, then add its Locations below.</p>
+              <p>The Stock Summary shows what this Warehouse holds now. You cannot change stock here.</p>
+            </>
+          )}
           actions={(
             <>
               <Button variant="secondary" icon={<IconArrowLeft size={16} stroke={1.8} />} onClick={closeForm}>Back To List</Button>
@@ -362,6 +369,16 @@ export default function WarehouseManagementPage() {
       <PageHeader
         title="Warehouses"
         description="Places that store stock. Warehouses receive purchases and send stock to Branches, and can use Locations such as racks or bins."
+        help={(
+          <>
+            <p>Use this screen to see and manage the places where you store stock.</p>
+            <ul>
+              <li>New Warehouse adds a storage place.</li>
+              <li>The pencil, or a double-click on a row, opens the Warehouse to change it, add Locations, and see its stock.</li>
+            </ul>
+            <p>Purchases go into a Warehouse. Branches get stock from a Warehouse by Stock Transfer.</p>
+          </>
+        )}
         actions={(
           <>
             <Button variant="secondary" icon={<IconRefresh size={16} stroke={1.8} />} onClick={refreshAll} loading={warehousesQuery.isFetching && !warehousesQuery.isLoading}>Refresh</Button>

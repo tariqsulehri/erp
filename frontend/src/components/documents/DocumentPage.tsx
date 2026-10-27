@@ -1,6 +1,7 @@
 'use client';
 
 import type { ReactNode } from 'react';
+import { HelpButton } from '@/components/ui/HelpButton';
 import { InlineAlert } from '@/components/ui/InlineAlert';
 import styles from './documents.module.css';
 
@@ -24,17 +25,21 @@ export function DocumentHeader({
   description,
   badges,
   actions,
+  help,
 }: {
   title: string;
   description?: string;
   badges?: ReactNode;
   actions?: ReactNode;
+  /** Plain-words help for the screen, shown from the ⓘ button beside the title. */
+  help?: ReactNode;
 }) {
   return (
     <header className={`page-head ${styles.head}`}>
       <div className="page-head-text">
         <div className={styles.titleRow}>
           <h1 className="page-head-title">{title}</h1>
+          {help && <HelpButton title={title}>{help}</HelpButton>}
           {badges}
         </div>
         {description && <p className="page-head-desc">{description}</p>}

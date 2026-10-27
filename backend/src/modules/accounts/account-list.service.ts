@@ -249,7 +249,7 @@ export class AccountListService {
     return {
       success: true,
       account,
-      message: `Account ${account.code} created successfully.`,
+      message: `Account ${account.code} created.`,
     };
   }
 
@@ -337,13 +337,13 @@ export class AccountListService {
     if (!existing) throw notFound('Account was not found.');
 
     if (existing.isSystem && input.is_active === false) {
-      throw badRequest('System accounts cannot be deactivated.');
+      throw badRequest('System accounts cannot be made Inactive.');
     }
 
     if (input.is_active === false && existing.isActive) {
       const childCount = await this.countActiveChildren(companyId, existing.code);
       if (childCount > 0) {
-        throw badRequest(`Cannot deactivate account with ${childCount} active child account(s).`);
+        throw badRequest(`This Account has ${childCount} active sub-account(s). Make them Inactive first.`);
       }
     }
 
@@ -451,7 +451,7 @@ export class AccountListService {
     return {
       success: true,
       updated,
-      message: `${updated} account(s) ${isActive ? 'activated' : 'deactivated'}.`,
+      message: `${updated} account(s) made ${isActive ? 'Active' : 'Inactive'}.`,
     };
   }
 
@@ -460,13 +460,13 @@ export class AccountListService {
       where: { id: sourceId, companyId, isDeleted: false },
     });
 
-    if (!source) throw notFound('Source account was not found.');
+    if (!source) throw notFound('The Account to copy was not found.');
 
     const parentCode = getParentAccountCode(source.code);
-    if (!parentCode) throw badRequest('Main Category accounts cannot be cloned.');
+    if (!parentCode) throw badRequest('Main Category accounts cannot be copied.');
 
     const nextCode = await this.getNextAvailableCode(companyId, parentCode, source.isPosting);
-    if (!nextCode) throw badRequest('No available account code was found under the same parent.');
+    if (!nextCode) throw badRequest('No free Account Code is left under the same Parent Account.');
 
     const cloned = await prisma.$transaction(async transaction => {
       const account = await transaction.account.create({
@@ -505,7 +505,7 @@ export class AccountListService {
     return {
       success: true,
       account: accountToResponse(cloned),
-      message: `Cloned as ${cloned.code}.`,
+      message: `Copied as ${cloned.code}.`,
     };
   }
 
@@ -528,7 +528,7 @@ export class AccountListService {
         await this.createAccount(companyId, row);
         results.push({ code: row.code, success: true, message: 'Created' });
       } catch (error) {
-        results.push({ code: row.code, success: false, message: error instanceof Error ? error.message : 'Unable to create account.' });
+        results.push({ code: row.code, success: false, message: error instanceof Error ? error.message : 'Could not create the Account. Please try again.' });
       }
     }
 
@@ -577,7 +577,7 @@ export class AccountListService {
       `;
       if (rows[0]) {
         throw badRequest(
-          `Opening Balance cannot be changed because period "${rows[0].period_name}" of Fiscal Year ${rows[0].fiscal_year} is already locked or closed. Post a Journal Voucher in an open period instead.`,
+          `Opening Balance cannot be changed. Period "${rows[0].period_name}" of Fiscal Year ${rows[0].fiscal_year} is locked or closed. Post a Journal Voucher in an open Period instead.`,
         );
       }
     }
@@ -653,7 +653,7 @@ export class AccountListService {
     });
 
     if (!template) throw notFound(`Template ${templateCode} was not found.`);
-    if (!Array.isArray(template.accounts)) throw badRequest('Template accounts are not in a valid format.');
+    if (!Array.isArray(template.accounts)) throw badRequest('The template accounts are not in the correct format.');
 
     const rows = template.accounts.map((entry: any) => ({
       code: toCurrentAccountCode(String(entry.code ?? ''), Boolean(entry.is_posting)),

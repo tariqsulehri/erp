@@ -162,7 +162,7 @@ export default function SuppliersPage() {
   function handleSubmit(event: FormEvent) {
     event.preventDefault();
     if (!form.name.trim()) return setFormError('Enter the Supplier Name.');
-    if (form.email?.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) return setFormError('Email is not valid. Use a format like accounts@company.com.');
+    if (form.email?.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) return setFormError('Email is not correct. Use a format like accounts@company.com.');
     setFormError('');
     const payload = {
       ...form,
@@ -187,7 +187,7 @@ export default function SuppliersPage() {
         setNotice({ tone: 'success' as const, text: `Supplier ${payload.name} saved.` });
         closeForm();
       },
-      onError: (error: Error) => setFormError(friendlyErrorMessage(error, 'Unable to save Supplier.')),
+      onError: (error: Error) => setFormError(friendlyErrorMessage(error, 'Could not save Supplier. Please try again.')),
     };
     if (editId) updateMut.mutate({ id: editId, ...payload }, callbacks);
     else createMut.mutate(payload, callbacks);
@@ -199,6 +199,13 @@ export default function SuppliersPage() {
         <PageHeader
           title={editId ? `Edit Supplier ${form.code ?? ''}`.trim() : 'New Supplier'}
           description="A Supplier sells to us. Each Supplier gets one Linked Account in Accounts Payable."
+          help={(
+            <>
+              <p>Enter the Supplier details and click Save. Only Supplier Name is required.</p>
+              <p>When you save a new Supplier, the system creates its Linked Account in Accounts Payable for you.</p>
+              <p>Tick Also Works As Customer if this party also buys from us. Both sides then use the same Linked Account.</p>
+            </>
+          )}
           actions={(
             <>
               <Button variant="secondary" icon={<IconArrowLeft size={16} stroke={1.8} />} onClick={closeForm}>Back To List</Button>
@@ -307,11 +314,21 @@ export default function SuppliersPage() {
       <PageHeader
         title="Suppliers"
         description="People and businesses we buy from. Each Supplier has a Linked Account in Accounts Payable."
+        help={(
+          <>
+            <p>Use this screen to see and manage your Suppliers.</p>
+            <ul>
+              <li>New Supplier adds a Supplier.</li>
+              <li>The pencil, or a double-click on a row, opens a Supplier to change it.</li>
+              <li>Delete does not remove the Supplier. It marks the Supplier Inactive and hides it from new transactions.</li>
+            </ul>
+          </>
+        )}
         actions={<Button variant="primary" icon={<IconPlus size={16} stroke={1.8} />} onClick={openNew}>New Supplier</Button>}
       />
 
       {notice && <InlineAlert tone={notice.tone}>{notice.text}</InlineAlert>}
-      {listQuery.error && <InlineAlert tone="danger">{friendlyErrorMessage(listQuery.error, 'Unable to load Suppliers.')}</InlineAlert>}
+      {listQuery.error && <InlineAlert tone="danger">{friendlyErrorMessage(listQuery.error, 'Could not load Suppliers. Please try again.')}</InlineAlert>}
 
       <section className="panel panel-fill">
         <div className="filter-bar">
@@ -393,7 +410,7 @@ export default function SuppliersPage() {
         confirmLabel="Delete"
         onConfirm={() => deleteTarget && deleteMut.mutate(deleteTarget.id, {
           onSuccess: () => { setNotice({ tone: 'success', text: `Supplier ${deleteTarget.name} marked inactive.` }); setDeleteTarget(null); },
-          onError: (error: Error) => { setNotice({ tone: 'danger', text: friendlyErrorMessage(error, 'Unable to delete Supplier.') }); setDeleteTarget(null); },
+          onError: (error: Error) => { setNotice({ tone: 'danger', text: friendlyErrorMessage(error, 'Could not delete Supplier. Please try again.') }); setDeleteTarget(null); },
         })}
         onCancel={() => setDeleteTarget(null)}
       />

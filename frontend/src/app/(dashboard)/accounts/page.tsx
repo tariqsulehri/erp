@@ -214,7 +214,7 @@ export default function AccountsPage() {
       const allAccounts = await fetchAllAccountsForExport();
       exportCSV(allAccounts);
     } catch (err) {
-      setExportError(friendlyErrorMessage(err, 'Unable to export Chart of Accounts.'));
+      setExportError(friendlyErrorMessage(err, 'Could not export the Chart Of Accounts. Please try again.'));
     } finally {
       setExporting(false);
     }
@@ -227,7 +227,7 @@ export default function AccountsPage() {
       const allAccounts = await fetchAllAccountsForExport();
       printChartOfAccountsReport({ accounts: allAccounts, company, generalSettings });
     } catch (err) {
-      setExportError(friendlyErrorMessage(err, 'Unable to prepare Chart of Accounts PDF.'));
+      setExportError(friendlyErrorMessage(err, 'Could not prepare the Chart Of Accounts PDF. Please try again.'));
     } finally {
       setPrintingPdf(false);
     }
@@ -240,7 +240,18 @@ export default function AccountsPage() {
     <main className="page-shell">
       <PageHeader
         title="Chart Of Accounts"
-        description="Your company's account hierarchy. Codes have 10 digits: Main Category, Group, Sub-Group, then Posting Account."
+        description="Your company's accounts, in levels. Each code has 10 digits: Main Category, Group, Sub-Group, then Posting Account."
+        help={(
+          <>
+            <p>This screen lists all accounts of your company. Vouchers use Posting Accounts; the higher levels only group them.</p>
+            <ul>
+              <li>New Account opens a step-by-step form. The code is given automatically.</li>
+              <li>Click an account to see or change its details and Opening Balance.</li>
+              <li>Export CSV and Print Or PDF give you the full list.</li>
+            </ul>
+            <p>System accounts cannot be deactivated.</p>
+          </>
+        )}
         actions={(
           <>
             <Button
@@ -248,7 +259,7 @@ export default function AccountsPage() {
               onClick={exportAllAccounts}
               disabled={busyExporting}
               loading={exporting}
-              title="Export every Chart Of Accounts row to CSV"
+              title="Download all accounts as a CSV file"
             >
               Export CSV
             </Button>
@@ -257,7 +268,7 @@ export default function AccountsPage() {
               onClick={printAllAccounts}
               disabled={busyExporting}
               loading={printingPdf}
-              title="Open a formatted Chart Of Accounts report that can be saved as PDF"
+              title="Open a printable Chart Of Accounts that you can save as PDF"
             >
               Print Or PDF
             </Button>
@@ -279,7 +290,7 @@ export default function AccountsPage() {
         )}
       />
 
-      {error && <InlineAlert tone="danger">{friendlyErrorMessage(error, 'Unable to load accounts.')}</InlineAlert>}
+      {error && <InlineAlert tone="danger">{friendlyErrorMessage(error, 'Could not load accounts. Please try again.')}</InlineAlert>}
       {exportError && <InlineAlert tone="danger">{exportError}</InlineAlert>}
       {openingSummary && !openingSummary.is_balanced && (
         <InlineAlert tone="warning">
@@ -290,7 +301,7 @@ export default function AccountsPage() {
       )}
       {openingSummary && openingSummary.accounts_without_date > 0 && (
         <InlineAlert tone="warning">
-          {openingSummary.accounts_without_date} account(s) have an Opening Balance without an Opening Balance Date. Add the go-live date to each one.
+          {openingSummary.accounts_without_date} account(s) have an Opening Balance without an Opening Balance Date. Add the date you started using this system to each one.
         </InlineAlert>
       )}
       {groupTruncated && (
@@ -385,7 +396,7 @@ export default function AccountsPage() {
               {groupLoading ? (
                 <div className="empty-state">
                   <span className="spinner" aria-hidden />
-                  <div className="empty-title">Building Groups…</div>
+                  <div className="empty-title">Loading Groups…</div>
                 </div>
               ) : (
                 <AccountGroupView accounts={groupAccounts} />

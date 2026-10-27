@@ -171,8 +171,8 @@ describe.skipIf(!databaseUrl)('Stock Adjustments (database)', () => {
     expect(await errorsFor({ lines: [{ adjustment_type: 'Decrease', item_id: itemA, quantity: 1, unit_cost: 0 }] }))
       .toContain('Not enough stock for line 1. Available Stock is 0.0000.');
     expect(await errorsFor({ lines: [{ adjustment_type: 'Increase', item_id: serviceItem, quantity: 1, unit_cost: 5 }] }))
-      .toContain('One or more adjustment items were not found, inactive, or not stock items.');
-    expect((await errorsFor({ adjustment_date: '2026-07-01' })).join(' ')).toMatch(/Adjustment Date: Date does not fall within any active fiscal year/);
+      .toContain('One or more adjustment items were not found, are Inactive, or are not stock items.');
+    expect((await errorsFor({ adjustment_date: '2026-07-01' })).join(' ')).toMatch(/Adjustment Date: This date is not in any active Fiscal Year/);
 
     const base = { adjustment_date: '2025-08-01', warehouse_id: warehouseId };
     expect(m.schema.ValidateStockAdjustmentInput.safeParse({ ...base, lines: [] }).success).toBe(false);
@@ -359,7 +359,7 @@ describe.skipIf(!databaseUrl)('Stock Adjustments (database)', () => {
     const february = (await fiscalYears.getPeriods(fiscalYearId)).find(period => period.start_date === '2026-02-01');
     await fiscalYears.lockPeriod(february!.id);
 
-    await expect(service().post(draft.id, userId)).rejects.toThrow(/Invalid Adjustment Date: Period "February 2026" is closed/);
+    await expect(service().post(draft.id, userId)).rejects.toThrow(/Adjustment Date cannot be used\. Period "February 2026" is closed/);
     expect((await header(draft.id)).status).toBe('Draft');
     expect(await balance(itemB)).toEqual({ quantity: '5.0000', value: '100.00', average: '20.0000' });
     expect((await service().validate(adjustmentInput({ adjustment_date: '2026-02-11' }))).errors.join(' ')).toMatch(/Period "February 2026" is closed/);

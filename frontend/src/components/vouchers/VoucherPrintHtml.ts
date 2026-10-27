@@ -1,5 +1,6 @@
 import { formatDate } from '@/lib/app-settings';
 import { escapeHtml } from '@/lib/erp-utils';
+import { printPaletteCss } from '@/lib/print-palette';
 
 const html = escapeHtml;
 
@@ -53,37 +54,39 @@ export function buildPostedVoucherPrintHtml({
   <meta charset="utf-8" />
   <title>${html(title)} - ${html(voucher.voucher_number)}</title>
   <style>
+    ${printPaletteCss()}
+    /* Printed text is at least 10px: paper is read close up. Colours come from the --print-* tokens. */
     @page { size: A4; margin: 12mm; }
     * { box-sizing: border-box; }
-    body { margin: 0; color: #0f172a; font-family: Arial, sans-serif; font-size: 11px; background: #fff; }
+    body { margin: 0; color: rgb(var(--print-ink)); font-family: Arial, sans-serif; font-size: 11px; background: rgb(var(--print-paper)); }
     .page { width: 100%; min-height: 100%; }
-    .top { display: flex; justify-content: space-between; gap: 18px; border-bottom: 2px solid #0f172a; padding-bottom: 12px; }
+    .top { display: flex; justify-content: space-between; gap: 18px; border-bottom: 2px solid rgb(var(--print-ink)); padding-bottom: 12px; }
     .company { max-width: 60%; }
     .company h1 { margin: 0 0 5px; font-size: 20px; letter-spacing: 0; }
     .doc-title { text-align: right; min-width: 240px; }
     .doc-title h2 { margin: 0 0 8px; font-size: 19px; letter-spacing: 0; }
-    .status { display: inline-block; padding: 4px 9px; border: 1px solid #15803d; color: #14532d; background: #f0fdf4; font-weight: 700; border-radius: 3px; }
-    .muted { color: #475569; font-size: 10px; line-height: 1.4; }
+    .status { display: inline-block; padding: 4px 9px; border: 1px solid rgb(var(--print-accent)); color: rgb(var(--print-accent)); background: rgb(var(--print-accent-soft)); font-weight: 700; border-radius: 3px; }
+    .muted { color: rgb(var(--print-muted)); font-size: 10px; line-height: 1.4; }
     .info-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 14px; }
-    .info { border: 1px solid #cbd5e1; padding: 7px 8px; min-height: 44px; }
-    .label { color: #64748b; font-size: 9px; font-weight: 700; margin-bottom: 3px; }
+    .info { border: 1px solid rgb(var(--print-rule)); padding: 7px 8px; min-height: 44px; }
+    .label { color: rgb(var(--print-faint)); font-size: 10px; font-weight: 700; margin-bottom: 3px; }
     .value { font-weight: 700; line-height: 1.25; overflow-wrap: anywhere; }
-    .box { border: 1px solid #cbd5e1; padding: 10px; min-height: 76px; margin-top: 12px; }
-    .box-title { margin-bottom: 6px; font-size: 10px; text-transform: uppercase; letter-spacing: .04em; color: #334155; font-weight: 700; }
+    .box { border: 1px solid rgb(var(--print-rule)); padding: 10px; min-height: 76px; margin-top: 12px; }
+    .box-title { margin-bottom: 6px; font-size: 10px; text-transform: uppercase; letter-spacing: .04em; color: rgb(var(--print-muted)); font-weight: 700; }
     table { width: 100%; border-collapse: collapse; margin-top: 14px; }
-    th { background: #102033; color: #fff; text-align: left; padding: 7px 6px; border: 1px solid #102033; font-size: 10px; }
-    td { padding: 6px; border: 1px solid #cbd5e1; vertical-align: top; }
+    th { background: rgb(var(--print-head-bg)); color: rgb(var(--print-head-fg)); text-align: left; padding: 7px 6px; border: 1px solid rgb(var(--print-head-bg)); font-size: 10px; }
+    td { padding: 6px; border: 1px solid rgb(var(--print-rule)); vertical-align: top; }
     .center { text-align: center; }
     .number { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
     .strong { font-weight: 700; }
     .footer { display: grid; grid-template-columns: 1fr 260px; gap: 18px; margin-top: 12px; align-items: start; }
-    .notes { border: 1px solid #cbd5e1; padding: 10px; min-height: 92px; }
-    .totals { border: 1px solid #cbd5e1; }
-    .total-row { display: flex; justify-content: space-between; gap: 16px; padding: 7px 9px; border-bottom: 1px solid #e2e8f0; }
-    .total-row:last-child { border-bottom: none; background: #f8fafc; font-size: 13px; font-weight: 800; }
+    .notes { border: 1px solid rgb(var(--print-rule)); padding: 10px; min-height: 92px; }
+    .totals { border: 1px solid rgb(var(--print-rule)); }
+    .total-row { display: flex; justify-content: space-between; gap: 16px; padding: 7px 9px; border-bottom: 1px solid rgb(var(--print-rule)); }
+    .total-row:last-child { border-bottom: none; background: rgb(var(--print-band)); font-size: 13px; font-weight: 800; }
     .signatures { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; margin-top: 42px; }
-    .signature { border-top: 1px solid #334155; padding-top: 6px; text-align: center; color: #334155; font-weight: 700; }
-    .print-meta { margin-top: 14px; color: #64748b; font-size: 9px; text-align: right; }
+    .signature { border-top: 1px solid rgb(var(--print-rule-strong)); padding-top: 6px; text-align: center; color: rgb(var(--print-muted)); font-weight: 700; }
+    .print-meta { margin-top: 14px; color: rgb(var(--print-faint)); font-size: 10px; text-align: right; }
   </style>
 </head>
 <body>

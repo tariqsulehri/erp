@@ -82,7 +82,7 @@ export function buildCashBankVoucherLines({
     const account = findAccount(accountOptions, line.accountId);
     if (!account) {
       const lineNumber = allLines.findIndex(item => item.id === line.id) + 1 || index + 1;
-      return { ok: false, error: `${config.lineAccountLabel} was not found on line ${lineNumber}. Please select it again.` };
+      return { ok: false, error: `${config.lineAccountLabel} was not found on line ${lineNumber}. Select it again.` };
     }
 
     voucherLines.push({
@@ -132,7 +132,7 @@ export function buildBankReceiptVoucherLines({
     const account = findAccount(accountOptions, line.receivedFromAccountId);
     if (!account) {
       const lineNumber = allLines.findIndex(item => item.id === line.id) + 1 || index + 1;
-      return { ok: false, error: `Received From Account was not found on line ${lineNumber}. Please select it again.` };
+      return { ok: false, error: `Received From Account was not found on line ${lineNumber}. Select it again.` };
     }
 
     const depositType = depositTypes.find(type => type.value === line.depositKind)?.label ?? 'Deposit';
@@ -175,7 +175,7 @@ export function buildJournalVoucherLines({
     const account = findAccount(accountOptions, line.accountId);
     if (!account) {
       const lineNumber = allLines.findIndex(item => item.id === line.id) + 1 || index + 1;
-      return { ok: false, error: `Account was not found on line ${lineNumber}. Please select it again.` };
+      return { ok: false, error: `Account was not found on line ${lineNumber}. Select it again.` };
     }
 
     voucherLines.push({

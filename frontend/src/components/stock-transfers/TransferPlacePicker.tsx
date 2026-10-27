@@ -20,6 +20,7 @@ export function TransferPlacePicker({
   disabled,
   lockedLabel,
   hint,
+  kindFixed = false,
   onChange,
 }: {
   side: 'From' | 'To';
@@ -30,6 +31,8 @@ export function TransferPlacePicker({
   disabled: boolean;
   lockedLabel?: string;
   hint?: ReactNode;
+  /** The transfer direction already decides Branch or Warehouse, so the type switch is hidden. */
+  kindFixed?: boolean;
   onChange: (place: TransferPlace) => void;
 }) {
   const kindLabel = PLACE_KIND_LABELS[place.kind];
@@ -44,7 +47,7 @@ export function TransferPlacePicker({
         <FieldLabel label={`${side} ${kindLabel}`} required>
           <input className="form-input" value={lockedLabel} readOnly aria-readonly />
         </FieldLabel>
-        <span className="form-hint" style={{ display: 'block' }}>You can only send stock from your own {kindLabel}.</span>
+        <span className="form-hint" style={{ display: 'block' }}>You can send stock only from your own {kindLabel}.</span>
         {hint}
       </div>
     );
@@ -52,20 +55,22 @@ export function TransferPlacePicker({
 
   return (
     <div className="span-2" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-      <FieldLabel label={`${side} Type`} required>
-        <SegmentedControl<TransferPlaceKind>
-          label={`${side} Type`}
-          value={place.kind}
-          options={PLACE_KIND_OPTIONS}
-          onChange={kind => onChange({ kind, id: '', locationId: '' })}
-        />
-      </FieldLabel>
+      {!kindFixed && (
+        <FieldLabel label={`${side} Type`} required>
+          <SegmentedControl<TransferPlaceKind>
+            label={`${side} Type`}
+            value={place.kind}
+            options={PLACE_KIND_OPTIONS}
+            onChange={kind => onChange({ kind, id: '', locationId: '' })}
+          />
+        </FieldLabel>
+      )}
       <FieldLabel label={`${side} ${kindLabel}`} required>
         <SearchableSelect
           value={place.id}
           options={places}
           onChange={value => onChange({ ...place, id: value, locationId: '' })}
-          placeholder={loading ? `Loading ${kindLabel}s` : `Search ${kindLabel}`}
+          placeholder={loading ? `Loading ${place.kind === 'BRANCH' ? 'Branches' : 'Warehouses'}` : `Search ${kindLabel}`}
           disabled={disabled}
         />
       </FieldLabel>

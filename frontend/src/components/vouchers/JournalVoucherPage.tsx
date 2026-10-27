@@ -113,7 +113,7 @@ export default function JournalVoucherPage() {
     if (accountsQuery.error) {
       setMessage({
         kind: 'error',
-        text: friendlyErrorMessage(accountsQuery.error, 'Unable to load accounts. Please refresh and try again.'),
+        text: friendlyErrorMessage(accountsQuery.error, 'Could not load accounts. Refresh the page and try again.'),
       });
     }
   }, [accountsQuery.error]);
@@ -122,7 +122,7 @@ export default function JournalVoucherPage() {
     if (dateValidation.error) {
       setMessage({
         kind: 'error',
-        text: friendlyErrorMessage(dateValidation.error, 'Unable to check Voucher Date. Please refresh and try again.'),
+        text: friendlyErrorMessage(dateValidation.error, 'Could not check Voucher Date. Refresh the page and try again.'),
       });
     }
   }, [dateValidation.error]);
@@ -135,7 +135,7 @@ export default function JournalVoucherPage() {
     const voucher = detailQuery.data;
     if (!voucher || !editingVoucherId) return;
     if (voucher.voucher_type !== 'JV') {
-      setMessage({ kind: 'error', text: 'This is not a Journal Voucher. Please open it from the correct voucher screen.' });
+      setMessage({ kind: 'error', text: 'This is not a Journal Voucher. Open it from the right voucher screen.' });
       return;
     }
     if (voucher.status !== 'Draft') {
@@ -143,7 +143,7 @@ export default function JournalVoucherPage() {
       return;
     }
     if (voucher.approval_status === 'Pending' || voucher.approval_status === 'Approved') {
-      setMessage({ kind: 'error', text: 'This voucher is in approval workflow and cannot be edited.' });
+      setMessage({ kind: 'error', text: 'This voucher is waiting for approval or is approved, so it cannot be edited.' });
       return;
     }
 
@@ -200,11 +200,11 @@ export default function JournalVoucherPage() {
         const dateResult = await dateValidation.refetch();
         if (dateResult.error) throw dateResult.error;
       }
-      setMessage({ kind: 'success', text: 'Voucher data refreshed successfully.' });
+      setMessage({ kind: 'success', text: 'Voucher data refreshed.' });
     } catch (error) {
       setMessage({
         kind: 'error',
-        text: friendlyErrorMessage(error, 'Unable to refresh voucher data. Please try again.'),
+        text: friendlyErrorMessage(error, 'Could not refresh voucher data. Please try again.'),
       });
     }
   }
@@ -215,7 +215,7 @@ export default function JournalVoucherPage() {
     } catch (error) {
       setMessage({
         kind: 'error',
-        text: friendlyErrorMessage(error, 'Unable to print Journal Voucher.'),
+        text: friendlyErrorMessage(error, 'Could not print Journal Voucher. Please try again.'),
       });
     }
   }
@@ -277,7 +277,7 @@ export default function JournalVoucherPage() {
       },
       submitForApproval,
       resetForm,
-      saveErrorFallback: 'Unable to save Journal Voucher.',
+      saveErrorFallback: 'Could not save Journal Voucher. Please try again.',
     });
     setMessage(result);
   }
@@ -307,6 +307,17 @@ export default function JournalVoucherPage() {
     <DocumentPage>
       <DocumentHeader
         title="Journal Voucher"
+        help={(
+          <>
+            <p>Use this screen to record an entry between accounts when no cash or bank is involved.</p>
+            <ul>
+              <li>Each line has a Debit or a Credit amount, not both.</li>
+              <li>Total Debit must equal Total Credit before you can save.</li>
+              <li>Save Draft keeps the voucher. Save For Approval sends it to an approver.</li>
+            </ul>
+            <p>Posted vouchers cannot be changed. Use Reverse to correct them.</p>
+          </>
+        )}
         badges={<DocumentStatusBadges code="JV" mode={editingVoucherId ? 'Edit' : 'Add'} />}
         actions={(
           <DocumentActions
@@ -333,7 +344,7 @@ export default function JournalVoucherPage() {
         <div className="span-3">
           <TextField label="Reference Number" value={referenceNumber} onChange={setReferenceNumber} placeholder="Reference, Note, or Document No." />
         </div>
-        <TextField label="Attachments" value="0 Files" disabled hint="Attachments and approval history will use the shared transaction workflow area." />
+        <TextField label="Attachments" value="0 Files" disabled hint="Attachments and approval history will be added here later." />
         <div className="span-all">
           <TextField label="Voucher Details" value={description} onChange={setDescription} placeholder="Optional Description For This Journal Voucher" />
         </div>
@@ -349,7 +360,7 @@ export default function JournalVoucherPage() {
           <DocumentSummary countLabel="Active Lines" count={activeLines.length}>
             <SummaryAmount label="Debit Total" value={money(totalDebit)} strong={isBalanced} />
             <SummaryAmount label="Credit Total" value={money(totalCredit)} strong={isBalanced} />
-            <SummaryAmount label="Out Of Balance" value={money(outOfBalance)} danger={!isBalanced && outOfBalance > 0} />
+            <SummaryAmount label="Difference" value={money(outOfBalance)} danger={!isBalanced && outOfBalance > 0} />
           </DocumentSummary>
         )}
       >

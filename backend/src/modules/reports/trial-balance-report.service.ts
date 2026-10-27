@@ -81,7 +81,7 @@ export class TrialBalanceReportService {
     databaseDate(query.date_to);
     if (query.date_from) databaseDate(query.date_from);
     const dateFromText = query.date_from ?? await this.fiscalYearStartText(query.date_to);
-    if (query.date_to < dateFromText) throw businessError('Date To cannot be earlier than Date From.');
+    if (query.date_to < dateFromText) throw businessError('Date To cannot be before Date From.');
 
     const accounts = await prisma.account.findMany({
       where: {

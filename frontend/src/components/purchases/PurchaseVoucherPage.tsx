@@ -111,7 +111,7 @@ export default function PurchaseVoucherPage() {
     if (supportQuery.error) {
       setMessage({
         kind: 'error',
-        text: friendlyErrorMessage(supportQuery.error, 'Unable to load purchase setup. Please refresh and try again.'),
+        text: friendlyErrorMessage(supportQuery.error, 'Could not load the purchase setup. Select Refresh and try again.'),
       });
     }
   }, [supportQuery.error]);
@@ -155,9 +155,9 @@ export default function PurchaseVoucherPage() {
     try {
       const result = await supportQuery.refetch();
       if (result.error) throw result.error;
-      setMessage({ kind: 'success', text: 'Purchase data refreshed successfully.' });
+      setMessage({ kind: 'success', text: 'Purchase data refreshed.' });
     } catch (error) {
-      setMessage({ kind: 'error', text: friendlyErrorMessage(error, 'Unable to refresh purchase data.') });
+      setMessage({ kind: 'error', text: friendlyErrorMessage(error, 'Could not refresh purchase data. Please try again.') });
     }
   }
 
@@ -165,7 +165,7 @@ export default function PurchaseVoucherPage() {
     try {
       window.print();
     } catch (error) {
-      setMessage({ kind: 'error', text: friendlyErrorMessage(error, 'Unable to print Purchase Voucher.') });
+      setMessage({ kind: 'error', text: friendlyErrorMessage(error, 'Could not print the Purchase Voucher. Please try again.') });
     }
   }
 
@@ -206,13 +206,13 @@ export default function PurchaseVoucherPage() {
       setMessage({
         kind: 'success',
         text: postNow
-          ? `${purchase.purchase_number} saved and posted successfully.`
+          ? `${purchase.purchase_number} saved and posted.`
           : `${purchase.purchase_number} saved as Draft.`,
       });
     } catch (error) {
       setMessage({
         kind: 'error',
-        text: friendlyErrorMessage(error, 'Unable to save Purchase Voucher.'),
+        text: friendlyErrorMessage(error, 'Could not save the Purchase Voucher. Please try again.'),
       });
     }
   }
@@ -288,12 +288,23 @@ export default function PurchaseVoucherPage() {
         onCancel={() => resetForm()}
         onSaveDraft={() => savePurchase(false)}
         onProcess={requestProcessConfirmation}
+        help={(
+          <>
+            <p>Use this screen to record goods you buy from a Supplier.</p>
+            <ul>
+              <li>Fill in the Supplier, dates and Warehouse, then add one line for each item.</li>
+              <li>Save Draft keeps the purchase so you can finish it later.</li>
+              <li>Process saves and posts it. Stock and the Supplier balance are updated.</li>
+            </ul>
+            <p>A posted purchase cannot be changed. Use a Purchase Return to correct it.</p>
+          </>
+        )}
       />
 
       <ConfirmDialog
         open={processConfirmOpen}
         title="Process Purchase Voucher?"
-        message="This will save and post the Purchase Voucher. Posted documents cannot be edited directly."
+        message="This saves and posts the Purchase Voucher. You cannot change it after it is posted."
         confirmLabel="Yes, Process"
         cancelLabel="No"
         variant="warning"

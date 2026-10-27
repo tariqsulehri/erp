@@ -1,0 +1,167 @@
+/* ================================================================
+   LIGHT THEME — <html class="erp">  (default)
+   Semantic tokens from DESIGN_STANDARDS.md section 6, as RGB triplets, then the app's
+   --color-* names that existing screens use, all mapped onto them. No raw colours here.
+   ================================================================ */
+:root, html.erp {
+  color-scheme: light;
+
+  /* ── Semantic tokens (triplets) ── */
+  --bg:               var(--erp-canvas);
+  --surface:          var(--erp-white);
+  --surface-2:        var(--erp-surface-2);
+  --surface-3:        var(--erp-feather);
+  --border:           var(--erp-feather);
+  --border-2:         var(--erp-border-strong);
+  --text-1:           var(--erp-dark);
+  --text-2:           var(--erp-text-2);
+  --text-3:           var(--erp-text-3);
+  --accent:           var(--erp-blue);
+  --accent-h:         var(--erp-blue-deep);
+  --accent-soft:      var(--erp-blue-10);
+  --accent-txt:       var(--erp-blue);
+  --accent-ring:      var(--erp-blue-deep);
+  --accent-fg:        var(--erp-white);
+  --brand-accent:     var(--erp-orange);
+  --brand-accent-txt: var(--erp-orange-text);
+  --brand-accent-soft: var(--erp-orange-10);
+  --success:          var(--erp-success);
+  --success-soft:     var(--erp-success-soft);
+  --success-fg:       var(--erp-white);
+  --warning:          var(--erp-warning);
+  --warning-soft:     var(--erp-warning-soft);
+  --warning-fg:       var(--erp-white);
+  --danger:           var(--erp-danger);
+  --danger-soft:      var(--erp-danger-soft);
+  --danger-fg:        var(--erp-white);
+  --info:             var(--erp-blue);
+  --shadow-ink:       var(--erp-black);
+  --lift-ink:         var(--erp-blue-deep);
+
+  /* Charts (read by hooks/useChartTheme.ts) */
+  --chart-1: var(--erp-blue);
+  --chart-2: var(--erp-chart-teal);
+  --chart-3: var(--erp-orange);
+  --chart-4: var(--erp-blue-deep);
+  --chart-5: var(--erp-blue-40);
+  --chart-6: var(--erp-dark-60);
+  --chart-grid:   var(--erp-feather);
+  --chart-axis:   var(--erp-text-3);
+  --chart-track:  var(--erp-feather);
+  --chart-target: var(--erp-orange-text);
+  --chart-ladder-1: var(--erp-ladder-1);
+  --chart-ladder-2: var(--erp-ladder-2);
+  --chart-ladder-3: var(--erp-ladder-3);
+  --chart-ladder-4: var(--erp-ladder-4);
+  --chart-ladder-5: var(--erp-ladder-5);
+
+  /* ── App tokens (names used across the screens) ── */
+  --color-primary:        rgb(var(--accent));
+  --color-primary-hover:  rgb(var(--accent-h));
+  --color-primary-dark:   rgb(var(--erp-blue-deep));
+  --color-primary-light:  rgb(var(--accent-soft));
+  --color-primary-text:   rgb(var(--accent-txt));
+  --color-on-primary:     rgb(var(--accent-fg));
+  --color-accent-bar:     rgb(var(--accent));
+
+  --color-bg:             rgb(var(--bg));
+  --color-surface:        rgb(var(--surface));
+  --color-surface-raised: rgb(var(--surface));
+  --color-surface-alt:    rgb(var(--surface-2));
+  --color-border:         rgb(var(--border));
+  --color-border-subtle:  rgb(var(--surface-2));
+  --color-border-focus:   rgb(var(--accent-ring));
+
+  --color-sidebar-bg:          rgb(var(--surface));
+  --color-sidebar-hover:       rgb(var(--surface-2));
+  --color-sidebar-active:      rgb(var(--accent-txt));
+  --color-sidebar-active-bg:   rgb(var(--accent-soft));
+  --color-sidebar-glow:        rgb(var(--accent) / 0.12);
+  --color-sidebar-text:        rgb(var(--text-2));
+  --color-sidebar-text-active: rgb(var(--text-1));
+  --color-sidebar-border:      rgb(var(--border));
+  --color-sidebar-logo-bg:     rgb(var(--accent));
+  --color-sidebar-section:     rgb(var(--text-3));
+  --color-sidebar-guide:       rgb(var(--erp-blue-40));
+
+  --color-topbar-bg:     rgb(var(--surface));
+  --color-topbar-border: rgb(var(--border));
+  --color-topbar-accent: rgb(var(--accent));
+
+  --color-workspace-bg:     rgb(var(--surface));
+  --color-workspace-border: rgb(var(--border));
+  --color-workspace-shadow: none;
+
+  --color-panel-list:             rgb(var(--surface));
+  --color-panel-list-fg:          rgb(var(--text-1));
+  --color-panel-list-fg-muted:    rgb(var(--text-3));
+  --color-panel-list-fg-num:      rgb(var(--text-1));
+  --color-panel-list-hover:       rgb(var(--surface-2));
+  --color-panel-list-selected:    rgb(var(--accent-soft));
+  --color-panel-list-sel-fg:      rgb(var(--accent-txt));
+  --color-panel-list-sel-border:  rgb(var(--accent));
+  --color-panel-list-divider:     rgb(var(--surface-2));
+  --color-panel-list-head-bg:     rgb(var(--surface-2));
+  --color-panel-list-head-border: rgb(var(--border));
+  --color-panel-list-input-bg:    rgb(var(--surface));
+  --color-panel-list-input-border: rgb(var(--border-2));
+
+  --color-panel-detail-bg:     rgb(var(--surface));
+  --color-panel-header-bg:     rgb(var(--surface-2));
+  --color-panel-header-border: rgb(var(--border));
+  --color-panel-header-text:   rgb(var(--text-1));
+  --color-panel-footer-bg:     rgb(var(--surface-2));
+  --color-panel-footer-border: rgb(var(--border));
+
+  --color-table-head-bg:      rgb(var(--surface-2));
+  --color-table-head-text:    rgb(var(--text-2));
+  --color-table-row-odd:      rgb(var(--surface));
+  --color-table-row-even:     rgb(var(--surface-2) / 0.45);
+  --color-table-row-hover:    rgb(var(--surface-2));
+  --color-table-row-selected: rgb(var(--accent-soft));
+  --color-table-foot-bg:      rgb(var(--surface-2));
+
+  --color-input-bg:           rgb(var(--surface));
+  --color-input-border:       rgb(var(--border-2));
+  --color-input-border-hover: rgb(var(--text-3));
+  --color-input-placeholder:  rgb(var(--text-3));
+  --color-input-readonly-bg:  rgb(var(--surface-2));
+
+  --color-heading:          rgb(var(--text-1));
+  --color-text:             rgb(var(--text-1));
+  --color-text-secondary:   rgb(var(--text-2));
+  --color-text-muted:       rgb(var(--text-3));
+  --color-text-light:       rgb(var(--text-3));
+  --color-text-placeholder: rgb(var(--text-3));
+
+  --color-success: rgb(var(--success)); --color-success-bg: rgb(var(--success-soft)); --color-success-border: rgb(var(--success) / 0.35); --color-success-text: rgb(var(--success));
+  --color-warning: rgb(var(--warning)); --color-warning-bg: rgb(var(--warning-soft)); --color-warning-border: rgb(var(--warning) / 0.35); --color-warning-text: rgb(var(--warning));
+  --color-danger:  rgb(var(--danger));  --color-danger-bg:  rgb(var(--danger-soft));  --color-danger-border:  rgb(var(--danger) / 0.35);  --color-danger-text:  rgb(var(--danger));
+  --color-info:    rgb(var(--info));    --color-info-bg:    rgb(var(--accent-soft));  --color-info-border:    rgb(var(--erp-blue-20));   --color-info-text:    rgb(var(--accent-txt));
+  --color-danger-solid: rgb(var(--danger));
+  --color-neutral-bg:   rgb(var(--surface-2)); --color-neutral-text: rgb(var(--text-2)); --color-neutral-border: rgb(var(--border));
+  --color-flag: rgb(var(--brand-accent-txt)); --color-flag-bg: rgb(var(--brand-accent-soft));
+
+  --color-amount:   rgb(var(--text-1));
+  --color-debit:    var(--color-amount);
+  --color-credit:   var(--color-amount);
+  --color-negative: rgb(var(--danger));
+
+  /* Sign-in panel: the one brand gradient the standard allows. */
+  --color-login-panel:  linear-gradient(135deg, rgb(var(--erp-blue)) 0%, rgb(var(--erp-blue-deep)) 100%);
+  --color-login-text:   rgb(var(--erp-white));
+  --color-login-muted:  rgb(var(--erp-blue-10));
+  --color-login-accent: rgb(var(--erp-blue-20));
+
+  /* Tile tones (decoration only) mapped to the brand and status palette. */
+  --tone-blue:   rgb(var(--accent));
+  --tone-teal:   rgb(var(--erp-chart-teal));
+  --tone-violet: rgb(var(--erp-blue-deep));
+  --tone-amber:  rgb(var(--warning));
+  --tone-rose:   rgb(var(--danger));
+  --tone-slate:  rgb(var(--erp-dark-60));
+
+  --color-selection: rgb(var(--erp-blue-20));
+  --color-scrim:     rgb(var(--shadow-ink) / 0.48);
+  --select-chevron:  var(--erp-select-chevron-light);
+}

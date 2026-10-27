@@ -165,7 +165,7 @@ export function PurchaseAnalyticsCharts({
             rows: model.suppliers.map(row => ({ name: row.name, count: count(row.count), net: money(row.value), share: share(row.value, totals.netAmount) })),
           }}
         >
-          <RankedBars items={model.suppliers} total={totals.netAmount} format={money} color={theme.series.blue} countLabel={value => `${count(value)} Invoices`} />
+          <RankedBars items={model.suppliers} total={totals.netAmount} format={money} countLabel={value => `${count(value)} Invoices`} />
         </ChartCard>
 
         <ChartCard
@@ -179,7 +179,7 @@ export function PurchaseAnalyticsCharts({
             rows: model.warehouses.map(row => ({ name: row.name, count: count(row.count), net: money(row.value), share: share(row.value, totals.netAmount) })),
           }}
         >
-          <RankedBars items={model.warehouses} total={totals.netAmount} format={money} color={theme.series.blue} countLabel={value => `${count(value)} Invoices`} />
+          <RankedBars items={model.warehouses} total={totals.netAmount} format={money} countLabel={value => `${count(value)} Invoices`} />
         </ChartCard>
       </div>
     </>

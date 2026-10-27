@@ -35,7 +35,7 @@ function chequeRange(input: CreateChequeBookInput) {
   const end = BigInt(input.end_cheque_number);
   if (end < start) throw businessError('End Cheque Number must be greater than or equal to Start Cheque Number.');
   const total = end - start + 1n;
-  if (total > 1000n) throw businessError('One Cheque Book can generate a maximum of 1000 cheques.');
+  if (total > 1000n) throw businessError('One Cheque Book can have at most 1000 cheques.');
   return {
     start,
     end,
@@ -209,7 +209,7 @@ export class BankChequeService {
         success: true,
         cheque_book: book,
         generated_cheques: range.total,
-        message: `${range.total} cheques generated successfully.`,
+        message: `${range.total} cheques created.`,
       };
     });
   }

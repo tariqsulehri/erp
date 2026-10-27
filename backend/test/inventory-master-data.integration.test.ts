@@ -115,7 +115,7 @@ describe.skipIf(!databaseUrl)('Inventory master data (database)', () => {
     });
 
     it('rejects a duplicate code and an unknown parent', async () => {
-      await expectBusinessError(products.createCategory(productSchemas.createCategorySchema.parse({ code: 'Elec', name: 'Again' })), 'Category code "ELEC" already exists.');
+      await expectBusinessError(products.createCategory(productSchemas.createCategorySchema.parse({ code: 'Elec', name: 'Again' })), 'Category Code "ELEC" already exists.');
       await expectBusinessError(products.createCategory(productSchemas.createCategorySchema.parse({ code: 'LOST', name: 'Lost', parent_id: MISSING_ID })), 'Parent Category not found.');
     });
 
@@ -135,24 +135,24 @@ describe.skipIf(!databaseUrl)('Inventory master data (database)', () => {
       }
       await expectBusinessError(
         products.createCategory(productSchemas.createCategorySchema.parse({ code: 'DEEP8', name: 'Too Deep', parent_id: parentId })),
-        'Maximum nesting depth has been reached in this branch.',
+        'This Category already has the most levels allowed. You cannot add a level under it.',
       );
     });
 
     it('updates a category and checks code, parent and existence', async () => {
       const updated = await products.updateCategory(productSchemas.updateCategorySchema.parse({ id: childId, name: 'Mobile Phones', is_active: false }));
       expect(updated).toMatchObject({ name: 'Mobile Phones', code: 'PHONE', isActive: false });
-      await expectBusinessError(products.updateCategory(productSchemas.updateCategorySchema.parse({ id: childId, code: 'elec' })), 'Code "ELEC" is already in use.');
+      await expectBusinessError(products.updateCategory(productSchemas.updateCategorySchema.parse({ id: childId, code: 'elec' })), 'Category Code "ELEC" is already used.');
       await expectBusinessError(products.updateCategory({ id: childId, parent_id: childId }), 'A Category cannot be its own parent.');
       await expectBusinessError(products.updateCategory({ id: MISSING_ID, name: 'Ghost' }), 'Category not found.', 404);
     });
 
     it('blocks deleting a category with sub-categories or products, and deletes an empty one', async () => {
-      await expectBusinessError(products.deleteCategory(rootId), 'Cannot delete. This Category has 1 sub-category.');
+      await expectBusinessError(products.deleteCategory(rootId), 'This Category cannot be deleted. It has 1 Sub Category.');
 
       const used = await products.createCategory(productSchemas.createCategorySchema.parse({ code: 'USED', name: 'Used Category' }));
       await products.create(productInput({ sku: 'CAT-ITEM-1', name: 'Category Item', category_id: used.id }));
-      await expectBusinessError(products.deleteCategory(used.id), 'Cannot delete. 1 product(s) use this Category.');
+      await expectBusinessError(products.deleteCategory(used.id), 'This Category cannot be deleted. 1 product(s) use it.');
 
       const empty = await products.createCategory(productSchemas.createCategorySchema.parse({ code: 'EMPTY', name: 'Empty Category' }));
       await products.deleteCategory(empty.id);
@@ -209,7 +209,7 @@ describe.skipIf(!databaseUrl)('Inventory master data (database)', () => {
     });
 
     it('rejects a duplicate abbreviation and an empty name', async () => {
-      await expectBusinessError(products.createUom(productSchemas.createUomSchema.parse({ name: 'Pieces', abbreviation: 'pcs', uom_type: 'Quantity' })), 'UOM abbreviation "pcs" already exists.');
+      await expectBusinessError(products.createUom(productSchemas.createUomSchema.parse({ name: 'Pieces', abbreviation: 'pcs', uom_type: 'Quantity' })), 'UOM Abbreviation "pcs" already exists.');
       expect(productSchemas.createUomSchema.safeParse({ name: '', abbreviation: 'x', uom_type: 'Quantity' }).success).toBe(false);
       expect(productSchemas.createUomSchema.safeParse({ name: 'X', abbreviation: 'x', uom_type: 'Speed' }).success).toBe(false);
     });
@@ -226,7 +226,7 @@ describe.skipIf(!databaseUrl)('Inventory master data (database)', () => {
 
     it('blocks deleting a unit used by a product and deletes an unused one', async () => {
       await products.create(productInput({ sku: 'UOM-ITEM-1', name: 'Unit Item', uom_id: boxId }));
-      await expectBusinessError(products.deleteUom(boxId), 'Cannot delete. 1 product(s) use this UOM.');
+      await expectBusinessError(products.deleteUom(boxId), 'This UOM cannot be deleted. 1 product(s) use it.');
 
       const spare = await products.createUom(productSchemas.createUomSchema.parse({ name: 'Dozen', abbreviation: 'dz', uom_type: 'Quantity' }));
       await products.deleteUom(spare.id);
@@ -321,7 +321,7 @@ describe.skipIf(!databaseUrl)('Inventory master data (database)', () => {
 
       // Saved maximum is 100, so a minimum of 100 must be refused even though only the minimum is sent.
       await expectBusinessError(products.update({ id: productId, min_stock_level: 100 }), 'Minimum Stock Level must be less than Maximum Stock Level.');
-      await expectBusinessError(products.update({ id: productId, sku: 'SRV-001' }), 'SKU "SRV-001" already in use.');
+      await expectBusinessError(products.update({ id: productId, sku: 'SRV-001' }), 'SKU "SRV-001" is already used.');
       await expectBusinessError(products.update({ id: MISSING_ID, name: 'Ghost' }), 'Product not found.', 404);
       expect(await products.getById(MISSING_ID)).toBeNull();
     });
@@ -332,7 +332,7 @@ describe.skipIf(!databaseUrl)('Inventory master data (database)', () => {
       expect((await products.getById(archived.id)).status).toBe('Discontinued');
       await expectBusinessError(products.archive(MISSING_ID), 'Product not found.', 404);
 
-      await expectBusinessError(products.delete(productId), 'Only Inactive products may be permanently deleted. Use Archive to mark as Discontinued.');
+      await expectBusinessError(products.delete(productId), 'Only Inactive products can be deleted for good. Use Archive to mark a product as Discontinued.');
       const inactive = await prisma.inventoryItem.findFirstOrThrow({ where: { companyId, sku: 'OLD-001' } });
       await products.delete(inactive.id);
       expect(await prisma.inventoryItem.count({ where: { id: inactive.id } })).toBe(0);

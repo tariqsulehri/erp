@@ -283,11 +283,11 @@ describe.skipIf(!databaseUrl)('Sale Returns (database)', () => {
     const validator = new m.SaleReturnValidationService(companyId);
     const errorsFor = async (overrides: Partial<ReturnInput>) => (await validator.validate(returnInput(overrides))).errors.join(' | ');
     expect(await errorsFor({ lines: [{ item_id: itemA, quantity: 1, sale_price: 10, discount_amount: 10.5, tax_amount: 0 }] }))
-      .toMatch(/Discount cannot be greater than item amount on line 1/);
+      .toMatch(/Discount cannot be more than the item amount on line 1/);
     expect(await errorsFor({ customer_return_date: '2025-08-05' })).toMatch(/Customer Return Date cannot be after Sale Return Date/);
     expect(await errorsFor({ customer_return_number: 'cr-1' })).toMatch(/Customer Return No\. is already used on SR-2025-0001/);
     expect(await errorsFor({ branch_id: undefined })).toMatch(/Please select a Branch or Warehouse/);
-    expect(await errorsFor({ sale_return_date: '2026-07-01' })).toMatch(/does not fall within any active fiscal year/);
+    expect(await errorsFor({ sale_return_date: '2026-07-01' })).toMatch(/Date is not in any active Fiscal Year/);
     expect(m.ValidateSaleReturnInput.safeParse({ ...returnInput(), lines: [] }).success).toBe(false);
     expect(m.ValidateSaleReturnInput.safeParse({ ...returnInput(), lines: [{ item_id: itemA, quantity: 0, sale_price: 10 }] }).success).toBe(false);
 

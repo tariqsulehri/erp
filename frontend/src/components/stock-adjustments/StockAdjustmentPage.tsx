@@ -162,7 +162,7 @@ export default function StockAdjustmentPage() {
   }, [editingLineId, lineItemId, selectedItem]);
 
   useEffect(() => {
-    if (supportQuery.error) setMessage({ kind: 'error', text: friendlyErrorMessage(supportQuery.error, 'Unable to load Stock Adjustment setup.') });
+    if (supportQuery.error) setMessage({ kind: 'error', text: friendlyErrorMessage(supportQuery.error, 'Could not load the Stock Adjustment setup. Please try again.') });
   }, [supportQuery.error]);
 
   function resetForm() {
@@ -185,7 +185,7 @@ export default function StockAdjustmentPage() {
 
   function openNewAdjustment() {
     if (newAdjustmentGuard.disabled) {
-      setMessage({ kind: 'error', text: newAdjustmentDisabledReason || 'Adjustment Date cannot be used for posting.' });
+      setMessage({ kind: 'error', text: newAdjustmentDisabledReason || 'You cannot post on this Adjustment Date. Choose another date.' });
       return;
     }
     resetForm();
@@ -193,12 +193,12 @@ export default function StockAdjustmentPage() {
   }
 
   function validateForm() {
-    if (postingDateGuard.disabled) return dateStatusMessage || 'Adjustment Date cannot be used for posting.';
+    if (postingDateGuard.disabled) return dateStatusMessage || 'You cannot post on this Adjustment Date. Choose another date.';
     if (!holderId) return kind === 'BRANCH' ? 'Branch is required.' : 'Warehouse is required.';
-    if (locationRequired && !locationId) return 'Location is required because Warehouse uses Locations.';
+    if (locationRequired && !locationId) return 'Location is required because this Warehouse uses Locations.';
     if (lines.length === 0) return 'Add at least one adjustment item.';
     const invalidLine = lines.find(line => numericValue(line.quantity) <= 0);
-    if (invalidLine) return `Quantity must be greater than zero for ${invalidLine.itemCode}.`;
+    if (invalidLine) return `Quantity must be more than zero for ${invalidLine.itemCode}.`;
     const negativeCostLine = lines.find(line => numericValue(line.unitCost) < 0);
     if (negativeCostLine) return `Unit Cost cannot be negative for ${negativeCostLine.itemCode}.`;
     const lowStockLine = lines.find(line => line.adjustmentType === 'Decrease' && numericValue(line.quantity) > numericValue(line.stockOnHand));
@@ -212,11 +212,11 @@ export default function StockAdjustmentPage() {
       return;
     }
     if (numericValue(lineQuantity) <= 0) {
-      setMessage({ kind: 'error', text: 'Quantity must be greater than zero.' });
+      setMessage({ kind: 'error', text: 'Quantity must be more than zero.' });
       return;
     }
     if (lineType === 'Decrease' && numericValue(lineQuantity) > numericValue(selectedItem.stockOnHand)) {
-      setMessage({ kind: 'error', text: `Available Stock is ${formatNumber(selectedItem.stockOnHand, generalSettings)}.` });
+      setMessage({ kind: 'error', text: `Not enough stock. Available Stock is ${formatNumber(selectedItem.stockOnHand, generalSettings)}.` });
       return;
     }
 
@@ -302,10 +302,10 @@ export default function StockAdjustmentPage() {
         : await createDraft.mutateAsync(buildPayload());
       await invalidate();
       resetForm();
-      setMessage({ kind: 'success', text: postNow ? `${result.adjustment_number} posted successfully.` : `${result.adjustment_number} saved as Draft.` });
+      setMessage({ kind: 'success', text: postNow ? `${result.adjustment_number} posted.` : `${result.adjustment_number} saved as Draft.` });
       if (postNow) setViewMode('list');
     } catch (error) {
-      setMessage({ kind: 'error', text: friendlyErrorMessage(error, 'Unable to save Stock Adjustment.') });
+      setMessage({ kind: 'error', text: friendlyErrorMessage(error, 'Could not save Stock Adjustment. Please try again.') });
     }
   }
 
@@ -315,6 +315,13 @@ export default function StockAdjustmentPage() {
       <main className="page-shell">
         <PageHeader
           title="Stock Adjustments"
+          help={(
+            <>
+              <p>This list shows posted stock adjustments. Use an adjustment to fix stock after a count, damage or loss.</p>
+              <p>Select a row to see its items. Select New Adjustment to add or remove stock.</p>
+              <p>A posted adjustment cannot be changed. To correct it, post a new adjustment.</p>
+            </>
+          )}
           description="Posted stock increases and decreases, with cost and reason."
           actions={(
             <>
@@ -373,7 +380,18 @@ export default function StockAdjustmentPage() {
     <main className="page-shell">
       <PageHeader
         title="New Stock Adjustment"
-        description="Adjust stock quantity with an auditable posted movement."
+        help={(
+          <>
+            <p>Use this screen to add stock (Increase) or remove stock (Decrease) at a Branch or Warehouse.</p>
+            <ul>
+              <li>Choose the place, date and reason, then add one line for each item.</li>
+              <li>Save Draft keeps the adjustment so you can finish it later.</li>
+              <li>Process posts it and updates stock at once.</li>
+            </ul>
+            <p>You cannot remove more stock than is available. A posted adjustment cannot be changed.</p>
+          </>
+        )}
+        description="Increase or decrease stock. Every change is recorded for checking later."
         actions={(
           <>
             <Button variant="ghost" onClick={() => setViewMode('list')}>Cancel</Button>
@@ -459,7 +477,7 @@ export default function StockAdjustmentPage() {
                 <th style={{ width: 100 }}>Type</th>
                 <th>Item</th>
                 <th className="num" style={{ width: 110 }}>Quantity</th>
-                <th style={{ width: 80 }}>UOM</th>
+                <th style={{ width: 80 }}>Unit</th>
                 <th className="num" style={{ width: 120 }}>Unit Cost</th>
                 <th className="num" style={{ width: 130 }}>Total Cost</th>
                 <th>Description</th>
@@ -497,7 +515,7 @@ export default function StockAdjustmentPage() {
           <Total label="Cost Out" value={formatMoney(totalCostOut, generalSettings)} />
         </div>
       </section>
-      <ConfirmDialog open={confirmOpen} variant="primary" title="Process Stock Adjustment?" message="This posts the stock movements and updates stock balances. A posted adjustment cannot be edited." confirmLabel="Process" onConfirm={() => saveAdjustment(true)} onCancel={() => setConfirmOpen(false)} />
+      <ConfirmDialog open={confirmOpen} variant="primary" title="Process Stock Adjustment?" message="This posts the stock changes and updates stock balances. You cannot change a posted adjustment." confirmLabel="Process" onConfirm={() => saveAdjustment(true)} onCancel={() => setConfirmOpen(false)} />
     </main>
   );
 }

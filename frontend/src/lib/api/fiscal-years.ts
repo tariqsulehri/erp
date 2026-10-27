@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo } from 'react';
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { friendlyErrorMessage, isValidDateInput } from '@/lib/erp-utils';
 import { backendGet, backendPatch, backendPost } from './backend-client';
 
@@ -143,6 +143,8 @@ export function useValidatePostingDate(date: string, enabled = true) {
     queryKey: [...fiscalYearsQueryKey, 'validate-posting-date', date],
     queryFn: () => backendGet<PostingDateValidation>(`/fiscal-years/validate-posting-date?date=${encodeURIComponent(date)}`),
     enabled,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 15 * 60 * 1000,
     retry: false,
   });
 }
@@ -233,6 +235,9 @@ export function useFiscalYearsList(params: { page?: number; limit?: number; enab
     queryKey: [...fiscalYearsQueryKey, 'list', params],
     queryFn: () => backendGet<FiscalYearsListResponse>(`/fiscal-years?${searchParams.toString()}`),
     enabled: params.enabled ?? true,
+    staleTime: 10 * 60 * 1000,
+    gcTime: 30 * 60 * 1000,
+    refetchOnWindowFocus: false,
     retry: false,
   });
 }
@@ -247,8 +252,12 @@ export function useFiscalPeriods(fiscalYearId: string | undefined) {
 }
 
 export function useCreateFiscalYear() {
+  const queryClient = useQueryClient();
   return useMutation<CreateFiscalYearResponse, Error, CreateFiscalYearInput>({
     mutationFn: body => backendPost<CreateFiscalYearResponse, CreateFiscalYearInput>('/fiscal-years', body),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: fiscalYearsQueryKey });
+    },
   });
 }
 
@@ -281,31 +290,51 @@ export function useFiscalYearClosingIssues(
 }
 
 export function useCloseFiscalYear() {
+  const queryClient = useQueryClient();
   return useMutation<FiscalYearActionResponse, Error, { id: string; remarks?: string }>({
     mutationFn: ({ id, remarks }) => backendPatch<FiscalYearActionResponse, { remarks?: string }>(`/fiscal-years/${id}/close`, { remarks }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: fiscalYearsQueryKey });
+    },
   });
 }
 
 export function useLockFiscalYear() {
+  const queryClient = useQueryClient();
   return useMutation<FiscalYearActionResponse, Error, { id: string }>({
     mutationFn: ({ id }) => backendPatch<FiscalYearActionResponse, Record<string, never>>(`/fiscal-years/${id}/lock`, {}),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: fiscalYearsQueryKey });
+    },
   });
 }
 
 export function useUnlockFiscalYear() {
+  const queryClient = useQueryClient();
   return useMutation<FiscalYearActionResponse, Error, { id: string }>({
     mutationFn: ({ id }) => backendPatch<FiscalYearActionResponse, Record<string, never>>(`/fiscal-years/${id}/unlock`, {}),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: fiscalYearsQueryKey });
+    },
   });
 }
 
 export function useLockFiscalPeriod() {
+  const queryClient = useQueryClient();
   return useMutation<FiscalYearActionResponse, Error, { id: string }>({
     mutationFn: ({ id }) => backendPatch<FiscalYearActionResponse, Record<string, never>>(`/fiscal-years/periods/${id}/lock`, {}),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: fiscalYearsQueryKey });
+    },
   });
 }
 
 export function useCloseFiscalPeriod() {
+  const queryClient = useQueryClient();
   return useMutation<FiscalYearActionResponse, Error, { id: string }>({
     mutationFn: ({ id }) => backendPatch<FiscalYearActionResponse, Record<string, never>>(`/fiscal-years/periods/${id}/close`, {}),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: fiscalYearsQueryKey });
+    },
   });
 }

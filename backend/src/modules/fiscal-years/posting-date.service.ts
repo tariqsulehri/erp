@@ -29,25 +29,25 @@ export class PostingDateService {
     if (!row) {
       return {
         canPost: false,
-        reason: 'Date does not fall within any active fiscal year',
+        reason: 'This date is not in any active Fiscal Year.',
       };
     }
     if (row.fiscal_year_locked) {
       return {
         canPost: false,
-        reason: 'Fiscal year is locked. No new transactions allowed.',
+        reason: 'This Fiscal Year is locked. You cannot post new entries in it.',
       };
     }
     if (!row.period_id) {
       return {
         canPost: false,
-        reason: 'No open period found for this date (beyond posting cutoff)',
+        reason: 'There is no open Period for this date.',
       };
     }
     if (!row.is_open) {
       return {
         canPost: false,
-        reason: `Period "${row.period_name}" is closed. Cannot post transactions.`,
+        reason: `Period "${row.period_name}" is closed. You cannot post in a closed Period.`,
         period: {
           id: row.period_id,
           period_name: row.period_name,

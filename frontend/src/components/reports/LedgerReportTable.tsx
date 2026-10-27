@@ -49,7 +49,7 @@ export function LedgerReportTable({ report, loading, errorMessage, settings }: L
             <TableMessageRow colSpan={8} title="Choose An Account" description="Select an Account and the dates, then click View Report." />
           )}
           {!loading && !errorMessage && report && lines.length === 0 && (
-            <TableMessageRow colSpan={8} title="No Posted Transactions" description="This Account has no posted transactions in the selected period. Widen the dates to see more." />
+            <TableMessageRow colSpan={8} title="No Posted Transactions" description="This Account has no posted transactions in the selected period. Choose a wider date range to see more." />
           )}
           {!loading && lines.map(line => (
             <tr key={line.id}>

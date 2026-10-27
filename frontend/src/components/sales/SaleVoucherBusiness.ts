@@ -34,7 +34,7 @@ interface SalePayloadInput {
 }
 
 export function buildSaleDetails(selectedCustomer: CustomerOption | undefined, customerReferenceNumber: string, lineCount: number) {
-  if (!selectedCustomer) return 'Sale details will be generated after selecting Customer.';
+  if (!selectedCustomer) return 'Details appear after you select a Customer.';
 
   return [
     `Sale to ${selectedCustomer.label.split(' - ').slice(1).join(' - ') || selectedCustomer.label}`,
@@ -45,19 +45,19 @@ export function buildSaleDetails(selectedCustomer: CustomerOption | undefined, c
 
 export function validateSaleVoucher(input: SaleValidationInput) {
   if (!input.saleDate) return 'Sale Date is required.';
-  if (!input.isSaleDateValid) return 'Sale Date is not a valid date.';
+  if (!input.isSaleDateValid) return 'Sale Date is not a correct date. Check the date.';
   if (input.postingDateError) return input.postingDateError;
   if (!input.customerId) return 'Customer is required.';
-  if (!input.selectedCustomer) return 'Selected Customer was not found. Please select it again.';
-  if (!input.selectedCustomer.accountCode) return 'Selected Customer does not have a Linked Account.';
+  if (!input.selectedCustomer) return 'The selected Customer is no longer available. Select it again.';
+  if (!input.selectedCustomer.accountCode) return 'The selected Customer has no Linked Account. Set one up for this Customer first.';
   if (!input.branchId) return 'Branch is required.';
-  if (!input.selectedBranch) return 'Selected Branch was not found or is Inactive. Please select it again.';
+  if (!input.selectedBranch) return 'The selected Branch is no longer available or is Inactive. Select it again.';
   if (input.paymentType === 'Credit' && !input.dueDate) return 'Due Date is required for Credit sale.';
   if (input.paymentType === 'Credit' && input.dueDate < input.saleDate) return 'Due Date cannot be before Sale Date.';
   if (input.deliveryDate && input.deliveryDate < input.saleDate) return 'Delivery Date cannot be before Sale Date.';
   if (input.lines.length === 0) return 'Add at least one sale item.';
-  if (input.freightAmount && !validMoneyPattern.test(cleanNumber(input.freightAmount))) return 'Freight must be a valid amount.';
-  if (input.netAmount <= 0) return 'Net Amount must be greater than zero.';
+  if (input.freightAmount && !validMoneyPattern.test(cleanNumber(input.freightAmount))) return 'Freight is not a correct amount. Enter a number.';
+  if (input.netAmount <= 0) return 'Net Amount must be more than zero.';
   return null;
 }
 

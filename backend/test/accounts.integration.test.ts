@@ -65,7 +65,7 @@ describe.skipIf(!databaseUrl)('Chart of Accounts (database)', () => {
       const result = await accounts.create(companyId, posting('0101010001', 'Cash In Hand', 'Asset', 'Debit', { description: '  Main till  ' }));
 
       expect(result.success).toBe(true);
-      expect(result.message).toBe('Account 0101010001 created successfully.');
+      expect(result.message).toBe('Account 0101010001 created.');
       expect(result.account).toMatchObject({
         code: '0101010001',
         name: 'Cash In Hand',
@@ -191,7 +191,7 @@ describe.skipIf(!databaseUrl)('Chart of Accounts (database)', () => {
 
     it('does not allow a system account to be deactivated', async () => {
       const created = await accounts.create(companyId, { ...posting('0101010010', 'System Clearing', 'Asset', 'Debit'), is_system: true });
-      await expectBusinessError(accounts.setActive(companyId, created.account.id, false), 'System accounts cannot be deactivated.');
+      await expectBusinessError(accounts.setActive(companyId, created.account.id, false), 'System accounts cannot be made Inactive.');
       expect((await byCode('0101010010')).isActive).toBe(true);
     });
 
@@ -200,7 +200,7 @@ describe.skipIf(!databaseUrl)('Chart of Accounts (database)', () => {
       const child = await accounts.create(companyId, posting('0202020001', 'Accrued Salaries', 'Liability', 'Credit'));
       const parent = await byCode('0202020000');
 
-      await expectBusinessError(accounts.setActive(companyId, parent.id, false), 'Cannot deactivate account with 1 active child account(s).');
+      await expectBusinessError(accounts.setActive(companyId, parent.id, false), 'This Account has 1 active sub-account(s). Make them Inactive first.');
       expect((await byCode('0202020000')).isActive).toBe(true);
 
       const deactivatedChild = await accounts.setActive(companyId, child.account.id, false);
@@ -224,7 +224,7 @@ describe.skipIf(!databaseUrl)('Chart of Accounts (database)', () => {
 
       // The parent is listed first: at that moment it still has active children, so it is skipped.
       const result = await accounts.bulkSetActive(companyId, [parentWithChildren.id, system.id, a.account.id, b.account.id], false);
-      expect(result).toEqual({ success: true, updated: 2, message: '2 account(s) deactivated.' });
+      expect(result).toEqual({ success: true, updated: 2, message: '2 account(s) made Inactive.' });
 
       const rows = await prisma.account.findMany({ where: { companyId, id: { in: [a.account.id, b.account.id, system.id, parentWithChildren.id] } } });
       const activeById = new Map(rows.map(row => [row.id, row.isActive]));
@@ -274,7 +274,7 @@ describe.skipIf(!databaseUrl)('Chart of Accounts (database)', () => {
     });
 
     it('blocks an opening balance dated on or before the end of a locked period', async () => {
-      const message = `Opening Balance cannot be changed because period "${lockedPeriodName}" of Fiscal Year 2025 is already locked or closed. Post a Journal Voucher in an open period instead.`;
+      const message = `Opening Balance cannot be changed. Period "${lockedPeriodName}" of Fiscal Year 2025 is locked or closed. Post a Journal Voucher in an open Period instead.`;
       await expectBusinessError(
         accounts.create(companyId, posting('0101010022', 'Locked Bank', 'Asset', 'Debit', { opening_balance: 100, opening_balance_date: '2025-02-01' })),
         message,
@@ -290,7 +290,7 @@ describe.skipIf(!databaseUrl)('Chart of Accounts (database)', () => {
       const created = await accounts.create(companyId, posting('0101010023', 'Open Bank', 'Asset', 'Debit', { opening_balance: 100, opening_balance_date: '2025-04-01' }));
       expect(created.account.opening_balance).toBe('100');
 
-      await expectBusinessError(accounts.update(companyId, created.account.id, { opening_balance_date: '2025-01-15' }), /^Opening Balance cannot be changed because period/);
+      await expectBusinessError(accounts.update(companyId, created.account.id, { opening_balance_date: '2025-01-15' }), /^Opening Balance cannot be changed\. Period "/);
       // Changing the amount while the date stays after the locked period is allowed.
       const updated = await accounts.update(companyId, created.account.id, { opening_balance: 150 });
       expect(updated.opening_balance).toBe('150');
@@ -378,7 +378,7 @@ describe.skipIf(!databaseUrl)('Chart of Accounts (database)', () => {
         is_system: false,
         is_active: true,
       });
-      expect(result.message).toBe(`Cloned as ${result.account.code}.`);
+      expect(result.message).toBe(`Copied as ${result.account.code}.`);
 
       const history = await accounts.history(companyId, result.account.id);
       expect(history[0]).toMatchObject({ action: 'cloned', changes: { cloned_from: { from: null, to: '0101010010' } } });
@@ -393,7 +393,7 @@ describe.skipIf(!databaseUrl)('Chart of Accounts (database)', () => {
 
     it('does not clone a Main Category account', async () => {
       const assets = await byCode('0100000000');
-      await expectBusinessError(accounts.clone(companyId, assets.id, 'Assets Copy'), 'Main Category accounts cannot be cloned.');
+      await expectBusinessError(accounts.clone(companyId, assets.id, 'Assets Copy'), 'Main Category accounts cannot be copied.');
     });
 
     // BUG: AccountListService.clone copies openingBalance/openingBalanceDate from the source account

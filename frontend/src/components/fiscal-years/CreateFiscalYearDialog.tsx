@@ -96,7 +96,7 @@ export function CreateFiscalYearDialog({ open, settings, onClose, onCreated }: {
         <IconInfoCircle size={18} stroke={1.8} aria-hidden />
         <div>
           <strong>About Fiscal Years</strong>
-          <p>A fiscal year groups postings into periods (for example months). Vouchers can be posted only into an open period of an open year. Only one year is marked Active.</p>
+          <p>A Fiscal Year splits your accounting year into Periods (for example, months). You can post vouchers only into an open Period of an open year. Only one year can be Active.</p>
         </div>
       </div>
 
@@ -109,7 +109,7 @@ export function CreateFiscalYearDialog({ open, settings, onClose, onCreated }: {
           value={form.fiscal_year}
           onChange={value => update({ fiscal_year: value })}
           placeholder="For example 2026-2027"
-          hint="Shown on reports; must be unique."
+          hint="Shown on reports. Each year needs a different name."
           error={nameError}
         />
         <SelectField
@@ -132,7 +132,7 @@ export function CreateFiscalYearDialog({ open, settings, onClose, onCreated }: {
           onChange={value => update({ number_of_periods: value })}
         />
         <TextField
-          label="Posting Cutoff Days"
+          label="Late Entry Days"
           value={form.posting_cutoff_days}
           onChange={value => update({ posting_cutoff_days: value.replace(/[^0-9]/g, '') })}
           inputProps={{ inputMode: 'numeric', maxLength: 2 }}

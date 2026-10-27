@@ -240,7 +240,7 @@ export class FiscalYearService {
         success: true,
         fiscal_year: mapFiscalYear(fiscalYear),
         periods: fiscalYear.periods.map(mapFiscalPeriod),
-        message: 'Fiscal Year created successfully.',
+        message: 'Fiscal Year created.',
       };
     });
   }
@@ -268,7 +268,7 @@ export class FiscalYearService {
       checks,
       message: canClose
         ? 'Fiscal Year is ready to close.'
-        : 'Fiscal Year cannot be closed until failed checks are resolved.',
+        : 'Fiscal Year cannot be closed yet. Fix the failed checks first.',
     };
   }
 
@@ -359,8 +359,8 @@ export class FiscalYearService {
     return {
       success: true,
       message: closingVoucherNumber
-        ? `Fiscal Year closed successfully. Closing Voucher ${closingVoucherNumber} moved the year result to Retained Earnings. You can now open the new Fiscal Year.`
-        : 'Fiscal Year closed successfully. There was no Revenue or Expense balance to move. You can now open the new Fiscal Year.',
+        ? `Fiscal Year closed. Closing Voucher ${closingVoucherNumber} moved the year result to Retained Earnings. You can now open the new Fiscal Year.`
+        : 'Fiscal Year closed. There was no Revenue or Expense balance to move. You can now open the new Fiscal Year.',
       closing_voucher_number: closingVoucherNumber,
       checks,
     };
@@ -385,7 +385,7 @@ export class FiscalYearService {
     `;
     const retainedEarnings = retainedRows[0];
     if (!retainedEarnings || retainedEarnings.account_type !== 'Equity') {
-      throw businessError('Retained Earnings Account is not set or is not an active Equity posting account. Set it in Posting Account Settings.');
+      throw businessError('Retained Earnings Account is not set up, or it is not an active Equity posting account. Set it in Posting Account Settings.');
     }
 
     const startText = toDateText(fiscalYear.startDate);
@@ -471,13 +471,13 @@ export class FiscalYearService {
         closingStartedAt: new Date(),
       },
     });
-    return { success: true, message: 'Fiscal Year locked successfully.' };
+    return { success: true, message: 'Fiscal Year locked.' };
   }
 
   async unlockFiscalYear(fiscalYearId: string) {
     const fiscalYear = await this.assertFiscalYearExists(fiscalYearId);
     if (fiscalYear.status === 'closed') {
-      throw businessError('Closed fiscal years cannot be unlocked. Open the next fiscal year or use an approved reopening workflow.');
+      throw businessError('A closed Fiscal Year cannot be unlocked. Open the next Fiscal Year, or ask for an approved reopening.');
     }
     if (!fiscalYear.isLocked) {
       return { success: true, message: 'Fiscal Year is already unlocked.' };
@@ -492,13 +492,13 @@ export class FiscalYearService {
       },
     });
 
-    return { success: true, message: 'Fiscal Year unlocked successfully. Posting is allowed only in valid open periods.' };
+    return { success: true, message: 'Fiscal Year unlocked. You can post only in open Periods.' };
   }
 
   async lockPeriod(periodId: string) {
     const period = await this.assertPeriodExists(periodId);
     if (period.status === 'closed') {
-      throw businessError('Closed periods cannot be locked again.');
+      throw businessError('A closed Period cannot be locked again.');
     }
 
     await prisma.fiscalPeriod.update({
@@ -511,7 +511,7 @@ export class FiscalYearService {
       },
     });
 
-    return { success: true, message: 'Fiscal Period locked successfully.' };
+    return { success: true, message: 'Fiscal Period locked.' };
   }
 
   async closePeriod(periodId: string) {
@@ -526,7 +526,7 @@ export class FiscalYearService {
     });
 
     if (openCount <= 1 && period.isOpen) {
-      throw businessError('Cannot close the last open period. At least one period must remain open.');
+      throw businessError('You cannot close the last open Period. At least one Period must stay open.');
     }
 
     await prisma.fiscalPeriod.update({
@@ -538,7 +538,7 @@ export class FiscalYearService {
       },
     });
 
-    return { success: true, message: 'Fiscal Period closed successfully.' };
+    return { success: true, message: 'Fiscal Period closed.' };
   }
 
   /**
@@ -550,7 +550,7 @@ export class FiscalYearService {
     while (addMonths(startDate, monthsInYear + 1) <= addDays(endDate, 1)) monthsInYear += 1;
     if (monthsInYear === 0 || monthsInYear % numberOfPeriods !== 0) {
       const choices = [1, 2, 3, 4, 6, 12].filter(value => monthsInYear > 0 && monthsInYear % value === 0).join(', ');
-      throw businessError(`Number Of Periods must divide the ${monthsInYear}-month year into equal parts (${choices || 'none'}).`);
+      throw businessError(`Number Of Periods must split the ${monthsInYear}-month year into equal parts. Choose from (${choices || 'none'}).`);
     }
     const monthsPerPeriod = monthsInYear / numberOfPeriods;
 
@@ -616,7 +616,7 @@ export class FiscalYearService {
       .join(', ');
     const remainingText = openPeriods.length > 3 ? ` and ${openPeriods.length - 3} more` : '';
     throw businessError(
-      `Fiscal Year cannot be closed. ${openPeriods.length} fiscal period(s) are still open (${periodNames}${remainingText}). Lock or close every open period first.`,
+      `Fiscal Year cannot be closed. ${openPeriods.length} Period(s) are still open (${periodNames}${remainingText}). Lock or close every open Period first.`,
     );
   }
 
@@ -643,10 +643,10 @@ export class FiscalYearService {
         },
         {
           key: 'closing_tables',
-          label: 'Closing Tables Available',
+          label: 'System Ready For Closing',
           status: 'Failed',
           count: missingTables.length,
-          message: `Required closing table(s) not found: ${missingTables.join(', ')}. Please run database migrations before closing the Fiscal Year.`,
+          message: `The system is missing an update needed for closing (${missingTables.join(', ')}). Ask your system administrator to update the system, then close the Fiscal Year.`,
           blocking: true,
         },
       ];
@@ -687,10 +687,10 @@ export class FiscalYearService {
         },
         {
           key: 'closing_schema',
-          label: 'Closing Schema Available',
+          label: 'System Ready For Closing',
           status: 'Failed',
           count: missingColumns.length,
-          message: `Required closing column(s) not found: ${missingColumns.join(', ')}. Please run database migrations before closing the Fiscal Year.`,
+          message: `The system is missing an update needed for closing (${missingColumns.join(', ')}). Ask your system administrator to update the system, then close the Fiscal Year.`,
           blocking: true,
         },
       ];
@@ -784,8 +784,8 @@ export class FiscalYearService {
         status: openPeriods > 0 ? 'Failed' : 'Passed',
         count: openPeriods,
         message: openPeriods > 0
-          ? `${openPeriods} fiscal period(s) are still open. Lock or close every open period before closing the Fiscal Year.`
-          : 'No fiscal periods are open.',
+          ? `${openPeriods} Period(s) are still open. Lock or close every open Period before closing the Fiscal Year.`
+          : 'No Periods are open.',
         blocking: true,
       },
       {
@@ -837,7 +837,7 @@ export class FiscalYearService {
         label: 'No Pending Cheque Action',
         status: unresolvedCheques > 0 ? 'Failed' : 'Passed',
         count: unresolvedCheques,
-        message: unresolvedCheques > 0 ? `${unresolvedCheques} cheque(s) still need clearing, cancellation, or voiding.` : 'No pending cheque actions found.',
+        message: unresolvedCheques > 0 ? `${unresolvedCheques} cheque(s) still need to be cleared, cancelled, or voided.` : 'No pending cheque actions found.',
         blocking: true,
       },
     ];
@@ -851,7 +851,7 @@ export class FiscalYearService {
       ...businessDraftDocuments.map(document => document.tableName),
     ]);
     if (missingTables.length > 0) {
-      throw businessError(`Required closing table(s) not found: ${missingTables.join(', ')}. Please run database migrations before reviewing closing issues.`);
+      throw businessError(`The system is missing an update needed for closing (${missingTables.join(', ')}). Ask your system administrator to update the system, then review closing issues.`);
     }
 
     const missingColumns = await this.missingClosingColumns([
@@ -897,7 +897,7 @@ export class FiscalYearService {
       { tableName: 'bank_deposits', columnName: 'total_amount' },
     ]);
     if (missingColumns.length > 0) {
-      throw businessError(`Required closing column(s) not found: ${missingColumns.join(', ')}. Please run database migrations before reviewing closing issues.`);
+      throw businessError(`The system is missing an update needed for closing (${missingColumns.join(', ')}). Ask your system administrator to update the system, then review closing issues.`);
     }
   }
 

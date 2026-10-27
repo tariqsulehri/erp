@@ -94,7 +94,7 @@ export default function CitiesPage() {
       setSavedMessage(`City ${payload.name} saved.`);
       closeForm();
     };
-    const onError = (error: Error) => setFormError(friendlyErrorMessage(error, 'Unable to save City.'));
+    const onError = (error: Error) => setFormError(friendlyErrorMessage(error, 'Could not save City. Please try again.'));
 
     if (editId) updateMut.mutate({ id: editId, data: payload }, { onSuccess, onError });
     else createMut.mutate(payload, { onSuccess, onError });
@@ -105,11 +105,18 @@ export default function CitiesPage() {
       <PageHeader
         title="Cities"
         description="Cities inside each State Or Province. Areas belong to a City."
+        help={(
+          <>
+            <p>Use this screen to keep the list of Cities used in addresses.</p>
+            <p>Click New City and choose its State Or Province. Click the pencil or double-click a row to change it.</p>
+            <p>Clear Active to stop a City from being chosen on new records. Old records keep it.</p>
+          </>
+        )}
         actions={<Button variant="primary" icon={<IconPlus size={16} stroke={1.8} />} onClick={openNew}>New City</Button>}
       />
 
       {savedMessage && <InlineAlert tone="success">{savedMessage}</InlineAlert>}
-      {citiesQuery.error && <InlineAlert tone="danger">{friendlyErrorMessage(citiesQuery.error, 'Unable to load Cities.')}</InlineAlert>}
+      {citiesQuery.error && <InlineAlert tone="danger">{friendlyErrorMessage(citiesQuery.error, 'Could not load Cities. Please try again.')}</InlineAlert>}
 
       <div className={`split-view${showForm ? ' has-side' : ''}`}>
         <section className="panel">

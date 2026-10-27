@@ -15,6 +15,8 @@ import {
   IconMap,
   IconMapPin,
   IconPackage,
+  IconPackageImport,
+  IconPalette,
   IconReceipt,
   IconRulerMeasure,
   IconScale,
@@ -50,7 +52,7 @@ export interface NavGroup {
   label: string;
   icon: TablerIcon;
   items: NavLeaf[];
-  /** Shows the pages as numbered steps, in the order they are set up. */
+  /** Shows the pages as numbered steps (in the page tabs), in the order they are set up. */
   numbered?: boolean;
 }
 
@@ -105,6 +107,7 @@ export const NAV_SECTIONS: NavSection[] = [
         items: [
           { label: 'Products', href: '/inventory/products', icon: IconPackage, moduleKey: 'inventory', featureKey: 'products', permissionKey: 'inventory.products.view' },
           { label: 'Stock Transfer', href: '/inventory/stock-transfers', icon: IconArrowsExchange, code: 'ST', moduleKey: 'inventory', featureKey: 'stock-transfer', permissionKey: 'inventory.stock_transfer.view', requiresPosting: true },
+          { label: 'Stock Received', href: '/inventory/stock-received', icon: IconPackageImport, moduleKey: 'inventory', featureKey: 'stock-received', permissionKey: 'inventory.stock_received.view' },
           { label: 'Stock Adjustment', href: '/inventory/stock-adjustments', icon: IconAdjustmentsHorizontal, code: 'SA', moduleKey: 'inventory', featureKey: 'stock-adjustment', permissionKey: 'inventory.stock_adjustment.view', requiresPosting: true },
         ],
       }),
@@ -134,6 +137,7 @@ export const NAV_SECTIONS: NavSection[] = [
     label: 'System',
     entries: [
       leaf({ label: 'Reports', href: '/reports', icon: IconFileAnalytics, moduleKey: 'system', featureKey: 'reports', permissionKey: 'system.reports.view' }),
+      leaf({ label: 'Design System', href: '/design-system', icon: IconPalette, moduleKey: 'system', featureKey: 'design-system', permissionKey: 'system.design_system.view', userManagersOnly: true }),
       group({
         key: 'config',
         label: 'Configuration',

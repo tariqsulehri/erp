@@ -1,5 +1,6 @@
 generator client {
-  provider = "prisma-client-js"
+  provider        = "prisma-client-js"
+  previewFeatures = ["relationJoins"]
 }
 
 datasource db {
@@ -228,6 +229,7 @@ model Voucher {
   reversalReason      String?           @map("reversal_reason")
   createdAt           DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt           DateTime          @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  version             Int               @default(1)
   lines               VoucherLine[]
   bankDeposit         BankDeposit?
   stockAdjustments    StockAdjustment[]
@@ -237,6 +239,8 @@ model Voucher {
   @@index([companyId, status], map: "idx_vouchers_company_status")
   @@index([companyId, approvalStatus, voucherDate], map: "idx_vouchers_company_approval_date")
   @@index([companyId, status, voucherDate, id], map: "idx_vouchers_company_status_date_id")
+  @@index([companyId, voucherType, voucherNumber], map: "idx_vouchers_company_type_number")
+  @@index([companyId, createdAt], map: "idx_vouchers_company_created_at")
   @@map("vouchers")
 }
 
@@ -273,6 +277,8 @@ model VoucherLine {
   @@index([accountId], map: "idx_voucher_lines_account")
   @@index([voucherId], map: "idx_voucher_lines_voucher")
   @@index([companyId, accountId, voucherId], map: "idx_voucher_lines_company_account_voucher")
+  @@index([companyId, accountCode], map: "idx_voucher_lines_company_account_code")
+  @@index([voucherId, lineNo], map: "idx_voucher_lines_voucher_line_no")
   @@map("voucher_lines")
 }
 
@@ -881,6 +887,7 @@ model StockBalance {
   availableStock  Decimal            @default(0) @map("available_stock") @db.Decimal(18, 4)
   averageCost     Decimal            @default(0) @map("average_cost") @db.Decimal(18, 4)
   totalStockValue Decimal            @default(0) @map("total_stock_value") @db.Decimal(18, 4)
+  version         Int                @default(1)
   isActive        Boolean            @default(true) @map("is_active")
   createdAt       DateTime           @default(now()) @map("created_at")
   updatedAt       DateTime           @default(now()) @updatedAt @map("updated_at")
@@ -895,6 +902,7 @@ model StockBalance {
   @@index([companyId, itemId])
   @@index([companyId, warehouseId])
   @@index([companyId, isActive])
+  @@index([companyId, itemId, warehouseId], map: "idx_stock_balances_lookup")
   @@map("inventory_stock_balances")
 }
 
@@ -931,6 +939,7 @@ model StockMovement {
   @@index([companyId, isActive])
   @@index([companyId, sourceKind, sourceDocumentId], map: "inventory_stock_movements_company_id_source_kind_source_documen")
   @@index([companyId, warehouseId, movementDate], map: "inventory_stock_movements_company_id_warehouse_id_movement_date")
+  @@index([companyId, itemId, warehouseId, movementDate], map: "idx_stock_movements_comp_item_wh_date")
   @@map("inventory_stock_movements")
 }
 
@@ -1015,6 +1024,7 @@ model StockAdjustment {
   postedAt            DateTime?             @map("posted_at") @db.Timestamptz(6)
   createdAt           DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt           DateTime              @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  version             Int                   @default(1)
   isActive            Boolean               @default(true) @map("is_active")
   company             Company               @relation(fields: [companyId], references: [id])
   accountingVoucher   Voucher?              @relation(fields: [accountingVoucherId], references: [id], onDelete: Restrict)
@@ -1371,6 +1381,7 @@ model SaleInvoice {
   voidedById              String?           @map("voided_by_id") @db.Uuid
   voidedAt                DateTime?         @map("voided_at") @db.Timestamptz(6)
   voidReason              String?           @map("void_reason")
+  version                 Int               @default(1)
   isActive                Boolean           @default(true) @map("is_active")
   createdAt               DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt               DateTime          @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
@@ -1441,6 +1452,7 @@ model PurchaseInvoice {
   voidedById            String?               @map("voided_by_id") @db.Uuid
   voidedAt              DateTime?             @map("voided_at") @db.Timestamptz(6)
   voidReason            String?               @map("void_reason")
+  version               Int                   @default(1)
   isActive              Boolean               @default(true) @map("is_active")
   createdAt             DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt             DateTime              @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
@@ -1656,5 +1668,6 @@ model UserCompanyAccess {
   @@unique([userId, companyId])
   @@index([companyId, branchId])
   @@index([companyId, warehouseId])
+  @@index([userId, isActive], map: "idx_user_company_access_user_active")
   @@map("user_company_access")
 }

@@ -28,7 +28,7 @@ export class SalesTaxReportService {
   constructor(private readonly companyId: string) {}
 
   async getSalesTax(query: SalesTaxQuery) {
-    if (query.date_to < query.date_from) throw businessError('Date To cannot be earlier than Date From.');
+    if (query.date_to < query.date_from) throw businessError('Date To cannot be before Date From.');
 
     const rows = await prisma.$queryRaw<TaxDocumentRow[]>`
       SELECT 'Sale' AS document_type, si.id::text AS document_id, si.sale_number AS document_number, si.sale_date AS document_date,

@@ -34,7 +34,7 @@ export default function UserManagementPage() {
   if (!allowed) {
     return (
       <main className="page-shell">
-        <PageHeader title="Users" description="Create users and choose the Branch or Warehouse each one works in." />
+        <PageHeader title="Users" description="Create users and choose the Branch or Warehouse each one works in." help="This screen is for adding users and setting their access. Only Admin and Top Management can open it." />
         <InlineAlert tone="danger">Only Admin and Top Management users can manage users.</InlineAlert>
       </main>
     );
@@ -62,7 +62,7 @@ function UserManagement({ canAssignAdmin }: { canAssignAdmin: boolean }) {
   const users = usersQuery.data?.data ?? [];
   const total = usersQuery.data?.pagination.total ?? 0;
   const isFiltered = Boolean(search) || status !== 'All';
-  const listError = usersQuery.error ? friendlyErrorMessage(usersQuery.error, 'Unable to load Users.') : '';
+  const listError = usersQuery.error ? friendlyErrorMessage(usersQuery.error, 'Could not load Users. Please try again.') : '';
 
   function refresh() {
     queryClient.invalidateQueries({ queryKey: usersQueryKey });
@@ -108,7 +108,7 @@ function UserManagement({ canAssignAdmin }: { canAssignAdmin: boolean }) {
       setNotice({ tone: 'success', text: `User ${saved.full_name} saved.` });
       if (isNew) closeForm();
     };
-    const onError = (error: Error) => setNotice({ tone: 'danger', text: friendlyErrorMessage(error, 'Unable to save User.') });
+    const onError = (error: Error) => setNotice({ tone: 'danger', text: friendlyErrorMessage(error, 'Could not save User. Please try again.') });
 
     if (editId) updateUser.mutate({ id: editId, data: payload }, { onSuccess, onError });
     else createUser.mutate(payload, { onSuccess, onError });
@@ -134,6 +134,16 @@ function UserManagement({ canAssignAdmin }: { canAssignAdmin: boolean }) {
       <PageHeader
         title="Users"
         description="People who can sign in. Each user works in one Branch or one Warehouse and sees only its data."
+        help={(
+          <>
+            <p>Use this screen to add the people who can sign in, and to change their access.</p>
+            <ul>
+              <li>New User adds a person.</li>
+              <li>The pencil, or a double-click on a row, opens a user to change details or reset the password.</li>
+            </ul>
+            <p>Only Admin and Top Management can manage users.</p>
+          </>
+        )}
         actions={(
           <>
             <Button variant="secondary" icon={<IconRefresh size={16} stroke={1.8} />} onClick={refresh} loading={usersQuery.isFetching && !usersQuery.isLoading}>Refresh</Button>

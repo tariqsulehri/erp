@@ -31,6 +31,7 @@ export function Tabs<T extends string>({ value, items, onChange, label }: {
   }
 
   return (
+    // eslint-disable-next-line jsx-a11y/interactive-supports-focus -- roving tabindex: the active tab takes focus, arrow keys move it
     <div className="tabs" role="tablist" aria-label={label} ref={listRef} onKeyDown={onKeyDown}>
       {items.map(item => {
         const selected = item.value === value;

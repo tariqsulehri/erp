@@ -179,7 +179,7 @@ export function PostedVouchersView({ initialStatus = 'Draft', initialVoucherId }
   const reverseVoucher = useReverseVoucher();
   const money = useMemo(() => (value: string | number) => formatMoney(value, generalSettings), [generalSettings]);
   const createDateGuard = usePostingDateGuard(defaultVoucherDate, 'Voucher Date', Boolean(defaultVoucherDate));
-  const newVoucherDisabledReason = createDateGuard.isChecking ? 'Fiscal period is being checked.' : createDateGuard.statusMessage;
+  const newVoucherDisabledReason = createDateGuard.isChecking ? 'The Fiscal Year Period is being checked.' : createDateGuard.statusMessage;
   const newVoucherDisabled = createDateGuard.disabled;
   const listTitle = voucherLifecycle === 'All' ? 'Voucher List' : `${voucherLifecycle} Voucher List`;
   const listStatusQuery = lifecycleQuery(voucherLifecycle);
@@ -211,12 +211,12 @@ export function PostedVouchersView({ initialStatus = 'Draft', initialVoucherId }
   const selectedVoucherNextStep = selectedVoucherLifecycle === 'Pending Approval'
     ? 'This voucher is waiting for approval. Approve it from Approvals, then return here to post it.'
     : selectedVoucherLifecycle === 'Draft'
-      ? 'This voucher is still Draft. Edit it and save for approval before posting.'
+      ? 'This voucher is a Draft. Edit it and save it for approval before posting.'
       : selectedVoucherLifecycle === 'Rejected'
         ? 'This voucher was rejected. Edit it, correct it, and save for approval again.'
         : selectedVoucherLifecycle === 'Posted'
           ? selectedVoucher?.reversed_by_voucher_id
-            ? 'This voucher is posted and has been reversed by a Reversal Voucher.'
+            ? 'This voucher is posted and was reversed by a Reversal Voucher.'
             : selectedVoucher?.reversal_of_voucher_id
               ? `This is a Reversal Voucher for ${selectedVoucher.reference ?? 'another voucher'}.`
               : selectedVoucherCanReverse
@@ -270,7 +270,7 @@ export function PostedVouchersView({ initialStatus = 'Draft', initialVoucherId }
 
   function printDetail() {
     if (!detailQuery.data) {
-      setMessage({ kind: 'error', text: 'Please select a voucher before printing.' });
+      setMessage({ kind: 'error', text: 'Select a voucher first, then print it.' });
       return;
     }
     setMessage(null);
@@ -279,7 +279,7 @@ export function PostedVouchersView({ initialStatus = 'Draft', initialVoucherId }
 
   function requestPostSelectedVoucher() {
     if (!selectedVoucher?.id || selectedVoucher.status !== 'Draft') {
-      setMessage({ kind: 'error', text: 'Please select a Draft voucher before posting.' });
+      setMessage({ kind: 'error', text: 'Select a Draft voucher first, then post it.' });
       return;
     }
     if (!selectedVoucherCanPost) {
@@ -292,7 +292,7 @@ export function PostedVouchersView({ initialStatus = 'Draft', initialVoucherId }
   async function postSelectedVoucher() {
     if (!selectedVoucher?.id || selectedVoucher.status !== 'Draft') {
       setPostConfirmOpen(false);
-      setMessage({ kind: 'error', text: 'Please select a Draft voucher before posting.' });
+      setMessage({ kind: 'error', text: 'Select a Draft voucher first, then post it.' });
       return;
     }
     if (!selectedVoucherCanPost) {
@@ -306,9 +306,9 @@ export function PostedVouchersView({ initialStatus = 'Draft', initialVoucherId }
       await postVoucher.mutateAsync({ id: selectedVoucher.id });
       await Promise.all([listQuery.refetch(), detailQuery.refetch()]);
       setVoucherLifecycle('Posted');
-      setMessage({ kind: 'success', text: `${selectedVoucher.voucher_number} posted successfully.` });
+      setMessage({ kind: 'success', text: `${selectedVoucher.voucher_number} posted.` });
     } catch (error) {
-      setMessage({ kind: 'error', text: friendlyErrorMessage(error, 'Unable to post Voucher.') });
+      setMessage({ kind: 'error', text: friendlyErrorMessage(error, 'Could not post Voucher. Please try again.') });
     }
   }
 
@@ -321,7 +321,7 @@ export function PostedVouchersView({ initialStatus = 'Draft', initialVoucherId }
 
   function requestReverseSelectedVoucher() {
     if (!selectedVoucherCanReverse) {
-      setMessage({ kind: 'error', text: 'Only Posted manual vouchers that are not reversed yet can be reversed.' });
+      setMessage({ kind: 'error', text: 'You can reverse only Posted vouchers entered by hand that are not reversed yet.' });
       return;
     }
     if (!reversalDate) {
@@ -349,7 +349,7 @@ export function PostedVouchersView({ initialStatus = 'Draft', initialVoucherId }
       await Promise.all([listQuery.refetch(), detailQuery.refetch()]);
       setMessage({ kind: 'success', text: `${selectedVoucher.voucher_number} reversed by ${reversal?.voucher_number ?? 'a Reversal Voucher'}.` });
     } catch (error) {
-      setMessage({ kind: 'error', text: friendlyErrorMessage(error, 'Unable to reverse Voucher.') });
+      setMessage({ kind: 'error', text: friendlyErrorMessage(error, 'Could not reverse Voucher. Please try again.') });
     }
   }
 
@@ -374,6 +374,17 @@ export function PostedVouchersView({ initialStatus = 'Draft', initialVoucherId }
     <DocumentPage>
       <DocumentHeader
         title={listTitle}
+        help={(
+          <>
+            <p>Use this screen to find vouchers and see their details.</p>
+            <ul>
+              <li>Use the filters to find vouchers by type, status, date or amount.</li>
+              <li>Select a voucher to see its lines. You can edit a Draft, post an Approved voucher, or reverse a Posted one.</li>
+              <li>A voucher must be approved before you can post it.</li>
+            </ul>
+            <p>Posted vouchers cannot be changed. Use Reverse to correct them.</p>
+          </>
+        )}
         badges={(
           <>
             <Badge variant={statusTone(voucherLifecycle)}>{voucherLifecycle}</Badge>
@@ -455,7 +466,7 @@ export function PostedVouchersView({ initialStatus = 'Draft', initialVoucherId }
             <tbody>
               {listQuery.isLoading && <TableMessageRow colSpan={9} title="Loading Vouchers…" loading />}
               {listQuery.error && (
-                <TableMessageRow colSpan={9} title="Unable To Load Vouchers" description={friendlyErrorMessage(listQuery.error, 'Unable to load Vouchers.')} />
+                <TableMessageRow colSpan={9} title="Could Not Load Vouchers" description={friendlyErrorMessage(listQuery.error, 'Could not load Vouchers. Please try again.')} />
               )}
               {!listQuery.isLoading && !listQuery.error && rows.length === 0 && (
                 <TableMessageRow colSpan={9} title="No Vouchers Found" description="Change or clear the filters to see more vouchers." />
@@ -491,10 +502,10 @@ export function PostedVouchersView({ initialStatus = 'Draft', initialVoucherId }
         )}
         detail={selectedId && (
           <DocumentDetailPanel
-            title="Voucher Detail"
+            title="Voucher Details"
             loading={detailQuery.isLoading}
-            loadingText="Loading Voucher Detail…"
-            error={detailQuery.error ? friendlyErrorMessage(detailQuery.error, 'Unable to load Voucher Detail.') : undefined}
+            loadingText="Loading Voucher Details…"
+            error={detailQuery.error ? friendlyErrorMessage(detailQuery.error, 'Could not load Voucher Details. Please try again.') : undefined}
             onClose={() => setSelectedId(null)}
             actions={selectedVoucher && (
               <>
@@ -603,7 +614,7 @@ export function PostedVouchersView({ initialStatus = 'Draft', initialVoucherId }
       <ConfirmDialog
         open={postConfirmOpen}
         title="Post Voucher?"
-        message={`Post ${selectedVoucher?.voucher_number ?? 'this voucher'}? Posted vouchers cannot be edited directly.`}
+        message={`Post ${selectedVoucher?.voucher_number ?? 'this voucher'}? Posted vouchers cannot be changed. Use Reverse to correct them.`}
         confirmLabel="Yes, Post Voucher"
         cancelLabel="No"
         variant="warning"
@@ -614,7 +625,7 @@ export function PostedVouchersView({ initialStatus = 'Draft', initialVoucherId }
       <ConfirmDialog
         open={reverseConfirmOpen}
         title="Reverse Voucher?"
-        message={`Post a Reversal Voucher dated ${reversalDate ? formatDate(reversalDate, generalSettings) : 'Not Set'} that cancels ${selectedVoucher?.voucher_number ?? 'this voucher'}? Both vouchers stay in the ledger and this cannot be undone.`}
+        message={`Post a Reversal Voucher dated ${reversalDate ? formatDate(reversalDate, generalSettings) : 'Not Set'} to cancel ${selectedVoucher?.voucher_number ?? 'this voucher'}? Both vouchers stay in the Ledger. You cannot undo this.`}
         confirmLabel="Yes, Reverse Voucher"
         cancelLabel="No"
         variant="warning"

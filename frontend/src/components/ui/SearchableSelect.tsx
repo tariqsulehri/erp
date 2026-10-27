@@ -123,6 +123,8 @@ export function SearchableSelect({
       <IconChevronDown size={16} stroke={1.8} aria-hidden style={chevronStyle(open)} />
       {open && !disabled && (
         <div ref={listRef} id={listId} role="listbox" style={dropdownMenuStyle}>
+          {/* Combobox pattern: focus stays in the input and arrow keys move aria-activedescendant, so options take clicks only. */}
+          {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/interactive-supports-focus */}
           <div
             id={optionId(-1)}
             data-index={-1}
@@ -136,6 +138,7 @@ export function SearchableSelect({
             {placeholder}
           </div>
           {filtered.map((option, index) => (
+            // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/interactive-supports-focus
             <div
               key={option.value}
               id={optionId(index)}

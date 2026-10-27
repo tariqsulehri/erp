@@ -56,7 +56,7 @@ export function PurchaseLineEntry({
           decimalPlaces={4}
           value={lineDraft.quantity}
           onChange={value => onChange({ quantity: value })}
-          hint={selectedItem ? `UOM: ${selectedItem.uomName || 'Not Set'}` : undefined}
+          hint={selectedItem ? `Unit: ${selectedItem.uomName || 'Not Set'}` : undefined}
         />
       </div>
       <div className={lineEntryFieldClass.amount}>

@@ -119,7 +119,7 @@ export default function AreasPage() {
       setSavedMessage(`Area ${payload.name} saved.`);
       closeForm();
     };
-    const onError = (error: Error) => setFormError(friendlyErrorMessage(error, 'Unable to save Area.'));
+    const onError = (error: Error) => setFormError(friendlyErrorMessage(error, 'Could not save Area. Please try again.'));
 
     if (editId) updateMut.mutate({ id: editId, data: payload }, { onSuccess, onError });
     else createMut.mutate(payload, { onSuccess, onError });
@@ -130,11 +130,18 @@ export default function AreasPage() {
       <PageHeader
         title="Areas"
         description="Neighborhoods, sectors, or business zones inside a City. Used on customer and supplier addresses."
+        help={(
+          <>
+            <p>Use this screen to keep the list of Areas inside each City.</p>
+            <p>Click New Area, choose the State and City, then enter the Area Name. Click the pencil or double-click a row to change it.</p>
+            <p>Clear Active to stop an Area from being chosen on new records. Old records keep it.</p>
+          </>
+        )}
         actions={<Button variant="primary" icon={<IconPlus size={16} stroke={1.8} />} onClick={openNew}>New Area</Button>}
       />
 
       {savedMessage && <InlineAlert tone="success">{savedMessage}</InlineAlert>}
-      {areasQuery.error && <InlineAlert tone="danger">{friendlyErrorMessage(areasQuery.error, 'Unable to load Areas.')}</InlineAlert>}
+      {areasQuery.error && <InlineAlert tone="danger">{friendlyErrorMessage(areasQuery.error, 'Could not load Areas. Please try again.')}</InlineAlert>}
 
       <div className={`split-view${showForm ? ' has-side' : ''}`}>
         <section className="panel">

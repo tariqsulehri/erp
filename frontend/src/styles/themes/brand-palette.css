@@ -1,0 +1,95 @@
+/* ================================================================
+   BRAND PALETTE — the ONLY file allowed to contain raw colour values.
+   Source: documents/design/DESIGN_STANDARDS.md, section 5.
+   Values are space-separated RGB triplets so opacity works: rgb(var(--erp-blue) / 0.5).
+   Components never use these names directly; they use the semantic tokens in light.css / dark.css.
+   `npm run check:colors` fails if a colour literal appears in any other source file.
+   ================================================================ */
+:root {
+  /* Brand */
+  --erp-blue:          7 85 233;     /* #0755E9 primary action, links, main series */
+  --erp-blue-deep:     4 51 140;     /* #04338C hover, focus ring, gradient end */
+  --erp-orange:        238 66 0;     /* #EE4200 accent marks and large text only */
+  --erp-orange-text:   190 53 0;     /* #BE3500 orange for small text */
+  --erp-feather:       210 217 217;  /* #D2D9D9 dividers, borders, chart tracks */
+  --erp-dark:          27 27 27;     /* #1B1B1B main text (light), card (dark) */
+  --erp-white:         255 255 255;  /* #FFFFFF */
+  --erp-black:         0 0 0;        /* shadows only */
+  --erp-canvas:        242 245 245;  /* #F2F5F5 page background (light) */
+  --erp-surface-2:     238 241 241;  /* #EEF1F1 secondary surface, row hover */
+  --erp-border-strong: 126 138 138;  /* #7E8A8A input borders */
+  --erp-text-2:        74 74 74;     /* #4A4A4A secondary text */
+  --erp-text-3:        94 94 94;     /* #5E5E5E muted text */
+
+  /* Blue tints */
+  --erp-blue-80: 57 119 237;   /* #3977ED */
+  --erp-blue-60: 106 153 242;  /* #6A99F2 link text on dark */
+  --erp-blue-40: 156 187 246;  /* #9CBBF6 */
+  --erp-blue-20: 205 221 251;  /* #CDDDFB */
+  --erp-blue-10: 230 238 253;  /* #E6EEFD */
+
+  /* Orange tints */
+  --erp-orange-80: 241 104 51;  /* #F16833 orange text on dark */
+  --erp-orange-10: 253 236 230; /* #FDECE6 */
+
+  /* Dark tints (greys) */
+  --erp-dark-80: 73 73 73;     /* #494949 */
+  --erp-dark-60: 118 118 118;  /* #767676 */
+  --erp-dark-40: 164 164 164;  /* #A4A4A4 */
+  --erp-dark-20: 209 209 209;  /* #D1D1D1 */
+  --erp-dark-10: 232 232 232;  /* #E8E8E8 */
+
+  /* Night (dark theme) */
+  --erp-night:               20 20 20;    /* #141414 page */
+  --erp-night-2:             36 36 36;    /* #242424 surface-2 */
+  --erp-night-3:             46 46 46;    /* #2E2E2E surface-3 */
+  --erp-night-border:        51 51 51;    /* #333333 */
+  --erp-night-border-strong: 107 107 107; /* #6B6B6B */
+  --erp-blue-hover-dark:     47 107 230;  /* #2F6BE6 button hover in dark */
+  --erp-accent-soft-dark:    10 42 102;   /* #0A2A66 */
+  --erp-orange-soft-dark:    58 26 13;    /* #3A1A0D */
+
+  /* Status (light / dark) */
+  --erp-success:           21 128 61;    /* #15803D */
+  --erp-success-soft:      220 252 231;  /* #DCFCE7 */
+  --erp-success-dark:      74 222 128;   /* #4ADE80 */
+  --erp-success-soft-dark: 5 46 22;      /* #052E16 */
+  --erp-warning:           161 98 7;     /* #A16207 */
+  --erp-warning-soft:      254 249 195;  /* #FEF9C3 */
+  --erp-warning-dark:      250 204 21;   /* #FACC15 */
+  --erp-warning-soft-dark: 69 26 3;      /* #451A03 */
+  --erp-danger:            185 28 28;    /* #B91C1C */
+  --erp-danger-soft:       254 226 226;  /* #FEE2E2 */
+  --erp-danger-dark:       248 113 113;  /* #F87171 */
+  --erp-danger-soft-dark:  69 10 10;     /* #450A0A */
+
+  /* Charts */
+  --erp-chart-teal:        15 159 143;   /* #0F9F8F second series (light) */
+  --erp-chart-teal-dark:   19 160 143;   /* #13A08F second series (dark) */
+  --erp-chart-orange-dark: 224 78 20;    /* #E04E14 third series (dark) */
+  /* Ordered levels (aging buckets, grades): one-hue ladder, light theme */
+  --erp-ladder-1: 7 85 233;    /* #0755E9 */
+  --erp-ladder-2: 6 73 196;    /* #0649C4 */
+  --erp-ladder-3: 5 61 160;    /* #053DA0 */
+  --erp-ladder-4: 4 51 140;    /* #04338C */
+  --erp-ladder-5: 3 38 106;    /* #03266A */
+
+  /* Select chevron (the only colour inside an SVG data URL) */
+  --erp-select-chevron-light: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%235E5E5E' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6l6 -6'/%3E%3C/svg%3E");
+  --erp-select-chevron-dark:  url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23A4A4A4' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6l6 -6'/%3E%3C/svg%3E");
+
+  /* Print documents (always ink on white paper, whatever the screen theme).
+     Read at print time by src/lib/print-palette.ts; templates use var(--print-*) only. */
+  --print-ink:        27 27 27;     /* #1B1B1B body text */
+  --print-muted:      74 74 74;     /* #4A4A4A secondary text */
+  --print-faint:      94 94 94;     /* #5E5E5E notes and meta */
+  --print-paper:      255 255 255;  /* #FFFFFF */
+  --print-rule:       210 217 217;  /* #D2D9D9 table lines */
+  --print-rule-strong: 126 138 138; /* #7E8A8A */
+  --print-head-bg:    4 51 140;     /* #04338C table header fill */
+  --print-head-fg:    255 255 255;  /* #FFFFFF table header text */
+  --print-band:       238 241 241;  /* #EEF1F1 group rows, totals, zebra */
+  --print-accent:     7 85 233;     /* #0755E9 titles, links */
+  --print-accent-soft: 230 238 253; /* #E6EEFD notes */
+  --print-negative:   185 28 28;    /* #B91C1C negative amounts */
+}

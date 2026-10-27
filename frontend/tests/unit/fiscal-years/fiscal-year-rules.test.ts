@@ -64,7 +64,7 @@ describe('previewPeriods (same rule as the backend)', () => {
   it('rejects 13 periods in a 12-month year, as the backend does', () => {
     const { periods, problem } = previewPeriods('2026-07-01', '2027-06-30', 13);
     expect(periods).toEqual([]);
-    expect(problem).toBe('Number Of Periods must divide the 12-month year into equal parts (1, 2, 3, 4, 6, 12).');
+    expect(problem).toBe('Number Of Periods must split the 12-month year into equal parts. You can use: 1, 2, 3, 4, 6, 12.');
   });
 
   it('ends the last period on the End Date', () => {

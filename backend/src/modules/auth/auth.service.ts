@@ -1,3 +1,4 @@
+import { LRUCache } from 'lru-cache';
 import jwt from 'jsonwebtoken';
 import { env } from '../../config/env.js';
 import { prisma } from '../../db/prisma.js';
@@ -5,6 +6,21 @@ import type { AccessLevel, AuthUser, CompanyAccess } from './access-rules.js';
 import { hasAllBranchAccess, isUserRole } from './access-rules.js';
 import type { ChangePasswordInput, LoginInput } from './auth.schema.js';
 import { hashPassword, verifyPassword } from './password.js';
+
+interface CachedAuthUser {
+  user: AuthUser;
+  pwd: number | null;
+}
+
+// In-memory cache for authenticated user sessions (up to 10,000 active sessions for 60 seconds)
+const authUserCache = new LRUCache<string, CachedAuthUser>({
+  max: 10_000,
+  ttl: 60 * 1000,
+});
+
+export function invalidateAuthUserCache(userId: string) {
+  authUserCache.delete(userId);
+}
 
 interface TokenPayload {
   sub: string;
@@ -97,12 +113,30 @@ export class AuthService {
       throw businessError('Your session has expired. Please sign in again.', 401);
     }
 
-    const user = typeof payload.sub === 'string' ? await findUserWithAccess({ id: payload.sub }) : null;
+    const userId = typeof payload.sub === 'string' ? payload.sub : '';
+    if (!userId) {
+      throw businessError('Your session is no longer valid. Please sign in again.', 401);
+    }
+
+    if (env.NODE_ENV !== 'test') {
+      const cached = authUserCache.get(userId);
+      if (cached) {
+        if (cached.pwd !== (payload.pwd ?? null)) {
+          authUserCache.delete(userId);
+          throw businessError('Your password was changed. Please sign in again.', 401);
+        }
+        return cached.user;
+      }
+    }
+
+    const user = await findUserWithAccess({ id: userId });
     if (!user || !user.isActive || !isUserRole(user.role)) {
+      authUserCache.delete(userId);
       throw businessError('Your session is no longer valid. Please sign in again.', 401);
     }
     // A password change or reset signs out every session started before it.
     if ((user.passwordChangedAt?.getTime() ?? null) !== (payload.pwd ?? null)) {
+      authUserCache.delete(userId);
       throw businessError('Your password was changed. Please sign in again.', 401);
     }
 
@@ -113,7 +147,12 @@ export class AuthService {
       warehouseId: row.warehouseId,
     }));
 
-    return { id: user.id, email: user.email, fullName: user.fullName, role: user.role, access };
+    const authUser: AuthUser = { id: user.id, email: user.email, fullName: user.fullName, role: user.role, access };
+    if (env.NODE_ENV !== 'test') {
+      authUserCache.set(userId, { user: authUser, pwd: user.passwordChangedAt?.getTime() ?? null });
+    }
+
+    return authUser;
   }
 
   async profile(userId: string) {
@@ -136,6 +175,7 @@ export class AuthService {
       where: { id: userId },
       data: { passwordHash: await hashPassword(input.new_password), passwordChangedAt: new Date(), updatedById: userId },
     });
+    invalidateAuthUserCache(userId);
     return { message: 'Password changed. Please sign in again with your new password.' };
   }
 }

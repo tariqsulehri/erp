@@ -31,6 +31,12 @@ export function SaleAnalyticsView({ settings, onNewSale, onPostedSales, newDisab
   return (
     <TransactionAnalyticsView
       title="Sales Analysis"
+      help={(
+        <>
+          <p>This screen shows charts and totals for posted sales. Draft documents are not counted.</p>
+          <p>See totals by month, cash and credit, and your top Customers. Select Posted Sales to see the full list, or New to enter one.</p>
+        </>
+      )}
       documentLabel="Sales"
       partyLabel="Customer"
       postedListLabel="Posted Sales"

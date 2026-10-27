@@ -85,12 +85,12 @@ function parseCSV(text: string): ParsedRow[] {
     const description   = iDesc    >= 0 ? (cols[iDesc]    ?? '').trim() : '';
 
     const errors: string[] = [];
-    if (!code || !ACCOUNT_CODE_PATTERN.test(code)) errors.push('Code must be exactly 10 digits');
-    if (!name)                                  errors.push('Name is required');
+    if (!code || !ACCOUNT_CODE_PATTERN.test(code)) errors.push('Code must have exactly 10 digits.');
+    if (!name)                                  errors.push('Enter a Name.');
     if (!VALID_TYPES.includes(account_type as any))
-      errors.push(`account_type must be one of: ${VALID_TYPES.join(', ')}`);
+      errors.push(`The account_type column must be one of: ${VALID_TYPES.join(', ')}.`);
     if (!VALID_BALANCES.includes(normal_balance as any))
-      errors.push(`normal_balance must be Debit or Credit`);
+      errors.push('The normal_balance column must be Debit or Credit.');
 
     return {
       line:           i + 2,
@@ -184,7 +184,7 @@ export function BulkImportModal({ open, onClose, onDone }: BulkImportModalProps)
   const failedCount = results ? results.filter(r => !r.success).length : 0;
 
   return (
-    <div className="dialog-backdrop" onMouseDown={event => { if (event.target === event.currentTarget && !importMutation.isPending) handleClose(); }}>
+    <div className="dialog-backdrop" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget && !importMutation.isPending) handleClose(); }}>
       <div className="dialog dialog-lg" role="dialog" aria-modal="true" aria-labelledby="bulk-import-title" style={{ display: 'flex', flexDirection: 'column', maxHeight: '90vh' }}>
         <div className="panel-header" style={{ padding: '14px 20px' }}>
           <div>
@@ -241,7 +241,7 @@ export function BulkImportModal({ open, onClose, onDone }: BulkImportModalProps)
               >
                 <IconUpload size={28} stroke={1.6} aria-hidden style={{ color: 'var(--color-text-light)' }} />
                 <span style={{ fontWeight: 600, fontSize: 'var(--font-size-md)' }}>{dragOver ? 'Drop Your CSV File Here' : 'Drop A CSV File Or Click To Browse'}</span>
-                <span style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-muted)' }}>Required columns: code, name, account_type, normal_balance, is_posting</span>
+                <span style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-muted)' }}>The file must have these columns: code, name, account_type, normal_balance, is_posting</span>
               </button>
               <input ref={fileRef} type="file" accept=".csv" style={{ display: 'none' }} onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f); }} />
               <Button variant="secondary" icon={<IconDownload size={16} stroke={1.8} />} onClick={downloadTemplate} style={{ alignSelf: 'flex-start' }}>Download CSV Template</Button>
@@ -249,8 +249,8 @@ export function BulkImportModal({ open, onClose, onDone }: BulkImportModalProps)
           ) : (
             <>
               <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-                <Badge variant="success">{validRows.length} Valid</Badge>
-                {invalidRows.length > 0 && <Badge variant="danger">{invalidRows.length} Invalid</Badge>}
+                <Badge variant="success">{validRows.length} Ready</Badge>
+                {invalidRows.length > 0 && <Badge variant="danger">{invalidRows.length} With Errors</Badge>}
                 <Button variant="secondary" size="sm" style={{ marginLeft: 'auto' }} onClick={() => { setRows([]); if (fileRef.current) fileRef.current.value = ''; }}>Change File</Button>
               </div>
               <div className="panel" style={{ maxHeight: 360 }}>
@@ -273,7 +273,7 @@ export function BulkImportModal({ open, onClose, onDone }: BulkImportModalProps)
                           <td>{row.is_posting ? 'Yes' : 'No'}</td>
                           <td title={row.errors.join('\n') || undefined}>
                             {row.errors.length === 0
-                              ? <Badge variant="success">Valid</Badge>
+                              ? <Badge variant="success">Ready</Badge>
                               : <span style={{ color: 'var(--color-danger-text)', fontWeight: 500 }}>{row.errors[0]}{row.errors.length > 1 ? ` (+${row.errors.length - 1} More)` : ''}</span>}
                           </td>
                         </tr>

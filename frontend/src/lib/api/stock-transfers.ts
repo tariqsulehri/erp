@@ -54,6 +54,10 @@ export interface StockTransferListQuery {
   to_warehouse_id?: string;
   date_from?: string;
   date_to?: string;
+  /** Kinds of place the stock moved between. */
+  direction?: 'BRANCH_TO_BRANCH' | 'WAREHOUSE_TO_BRANCH' | 'WAREHOUSE_TO_WAREHOUSE' | 'BRANCH_TO_WAREHOUSE';
+  /** Only stock delivered to the user's own Branch or Warehouse. */
+  incoming?: boolean;
 }
 
 function buildQueryString<TQuery extends object>(query: TQuery) {

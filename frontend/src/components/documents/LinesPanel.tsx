@@ -31,6 +31,7 @@ export function LinesPanel({
   children: ReactNode;
 }) {
   return (
+    // eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions -- keyboard shortcuts for the lines (Ctrl+S, Enter, Escape) are handled for the whole panel
     <section ref={linesRef} className={`panel ${styles.linesPanel}`} aria-label={title} onKeyDown={onKeyDown}>
       <div className="panel-header">
         <div className={styles.linesHeading}>

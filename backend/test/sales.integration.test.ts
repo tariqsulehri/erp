@@ -317,14 +317,14 @@ describe.skipIf(!databaseUrl)('Sale Vouchers (database)', () => {
     expect(await errorsFor({ lines: [{ item_id: itemB, quantity: 1, sale_price: 49.99, discount_amount: 0, tax_amount: 0 }] }))
       .toMatch(/Sale Price is below Minimum Sale Price on line 1/);
     expect(await errorsFor({ lines: [{ item_id: itemA, quantity: 1, sale_price: 100, discount_amount: 100.01, tax_amount: 0 }] }))
-      .toMatch(/Discount cannot be greater than item amount on line 1/);
+      .toMatch(/Discount cannot be more than the item amount on line 1/);
     expect(await errorsFor({ due_date: undefined })).toMatch(/Due Date is required for Credit sale/);
     expect(await errorsFor({ due_date: '2025-07-31' })).toMatch(/Due Date cannot be before Sale Date/);
     expect(await errorsFor({ delivery_date: '2025-07-31' })).toMatch(/Delivery Date cannot be before Sale Date/);
     expect(await errorsFor({ customer_reference_number: 'po-77' })).toMatch(/Customer Reference No\. is already used on SI-2025-0001/);
     expect(await errorsFor({ customer_id: otherCustomerId, customer_reference_number: 'PO-77' })).toBe('');
     expect(await errorsFor({ branch_id: undefined })).toMatch(/Please select a Branch or Warehouse/);
-    expect(await errorsFor({ sale_date: '2024-12-01', due_date: '2024-12-31' })).toMatch(/does not fall within any active fiscal year/);
+    expect(await errorsFor({ sale_date: '2024-12-01', due_date: '2024-12-31' })).toMatch(/Date is not in any active Fiscal Year/);
     expect(await errorsFor({ customer_id: '00000000-0000-4000-8000-000000000000' })).toMatch(/Customer was not found or is inactive/);
 
     expect(m.ValidateSaleInvoiceInput.safeParse({ ...saleInput(), lines: [] }).success).toBe(false);
@@ -417,7 +417,7 @@ describe.skipIf(!databaseUrl)('Sale Vouchers (database)', () => {
     const december = (await fiscalYears.getPeriods(fiscalYearId)).find(period => period.start_date === '2025-12-01');
     await fiscalYears.lockPeriod(december!.id);
 
-    await expect(new m.SalePostService(companyId).post(draft.id, userId)).rejects.toThrow(/Invalid Sale Date: Period "December 2025" is closed/);
+    await expect(new m.SalePostService(companyId).post(draft.id, userId)).rejects.toThrow(/Sale Date cannot be used\. Period "December 2025" is closed/);
     expect((await saleRow(draft.id)).status).toBe('Draft');
     expect(await balance(itemA)).toBe('3.0000 @ 300.00');
     await expect(createDraft({ sale_date: '2025-12-03', due_date: '2025-12-31' })).rejects.toThrow(/is closed/);

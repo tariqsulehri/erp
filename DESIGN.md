@@ -123,12 +123,14 @@ components:
 # Design System: ERP Finance
 
 > **Who this is for:** everyone who builds or changes a screen in `frontend/`, people and AI agents alike.
-> **Where the values live:** [`frontend/src/app/design-tokens.css`](frontend/src/app/design-tokens.css) holds every token. Shared classes are in [`globals.css`](frontend/src/app/globals.css) and shared components in [`frontend/src/components/ui/`](frontend/src/components/ui/).
+> **Source of truth for the look:** [`documents/design/DESIGN_STANDARDS.md`](documents/design/DESIGN_STANDARDS.md) decides fonts (Poppins, JetBrains Mono for numbers), colours (Calibr brand palette), themes (`erp`, `erp dark`, optional `vivid`), charts, and layout. Where this file disagrees, the standards win. Since October 2026 the app is **flat and crisp**: no bevels, glow, or multi-colour gradients; the optional **Vivid** add-on (Appearance menu) adds only a soft card lift and gradient meters.
+> **Where the values live:** raw colours only in [`frontend/src/styles/themes/brand-palette.css`](frontend/src/styles/themes/brand-palette.css); semantic tokens in `light.css`, `dark.css`, `vivid.css` next to it; type, shape, spacing, and depth in [`frontend/src/app/design-tokens.css`](frontend/src/app/design-tokens.css). The component list is [`COMPONENT_CATALOG.md`](frontend/src/components/COMPONENT_CATALOG.md); see everything on `/design-system`.
+> **Former token notes below:** Shared classes are in [`globals.css`](frontend/src/app/globals.css) and shared components in [`frontend/src/components/ui/`](frontend/src/components/ui/).
 > **Reference screens:** [Branches](frontend/src/components/branches/BranchManagementPage.tsx) (list + full-page form) and [Areas](frontend/src/components/config/AreasPage.tsx) (list + side panel). When in doubt, copy them.
 
 ## Overview
 
-**Creative North Star: "The Dimensional Ledger (3D Gradient Style)"**
+**Creative North Star (history): "The Dimensional Ledger"** — now flat and crisp per `documents/design/DESIGN_STANDARDS.md`; see the note at the top.
 
 A high-precision financial instrument crafted with modern physical dimensionality: crisp surfaces, subtle top-to-bottom gradients that capture directional light, delicate specular inner highlights (`inset 0 1px 0`), and tactile 3D controls. The staff who use this ERP enter vouchers and maintain records all day. The interface earns their trust by pairing strict numerical predictability with satisfying tactile depth—making primary actions, data groupings, and active states unmistakable without visual clutter.
 
@@ -221,7 +223,10 @@ Every screen follows one anatomy, top to bottom:
 | Larger master data | List, then a full-page form with actions at the top | Branches |
 | Documents (vouchers, invoices, transfers) | Full-page voucher form (below) | — |
 
-## Elevation & 3D Depth
+## Elevation & 3D Depth (superseded)
+
+> **Replaced by the design standards (section 7).** Surfaces and buttons are flat; the `--grad-*` and `--shadow-3d-*` names still exist so older classes keep working, but they now resolve to flat fills and the standard `card` / `card-hover` / `elevated` shadows. Soft depth only comes from the optional Vivid add-on. The text below is kept for history.
+
 
 Surfaces and controls embrace a **3D Dimensional Standard**. Rather than stark flat surfaces, elements express physical depth through directional top-to-bottom gradients, 1px specular inner highlights (`inset 0 1px 0`), layered multi-stop ambient drop shadows, and tactile active depression on click.
 

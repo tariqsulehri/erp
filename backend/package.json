@@ -34,6 +34,7 @@
     "express": "^4.21.2",
     "helmet": "^8.0.0",
     "jsonwebtoken": "^9.0.3",
+    "lru-cache": "^11.5.3",
     "zod": "^3.25.76"
   },
   "devDependencies": {

@@ -73,23 +73,23 @@ export function usePurchaseLineEditor({
       return false;
     }
     if (!selectedItem) {
-      onError('Selected Item was not found. Please select it again.');
+      onError('The selected Item is no longer available. Select it again.');
       return false;
     }
     if (!validQuantityPattern.test(cleanNumber(lineDraft.quantity)) || numericValue(lineDraft.quantity) <= 0) {
-      onError('Quantity must be greater than zero.');
+      onError('Quantity must be more than zero.');
       return false;
     }
     if (!validMoneyPattern.test(cleanNumber(lineDraft.purchasePrice)) || numericValue(lineDraft.purchasePrice) <= 0) {
-      onError('Purchase Price must be greater than zero.');
+      onError('Purchase Price must be more than zero.');
       return false;
     }
     if (lineDraft.discountAmount && !validMoneyPattern.test(cleanNumber(lineDraft.discountAmount))) {
-      onError('Discount must be a valid amount.');
+      onError('Discount is not a correct amount. Enter a number.');
       return false;
     }
     if (lineDraft.taxAmount && !validMoneyPattern.test(cleanNumber(lineDraft.taxAmount))) {
-      onError('Tax must be a valid amount.');
+      onError('Tax is not a correct amount. Enter a number.');
       return false;
     }
 
@@ -99,7 +99,7 @@ export function usePurchaseLineEditor({
       return false;
     }
     if (lineDraftTotal.lte(0)) {
-      onError('Line Total must be greater than zero.');
+      onError('Line Total must be more than zero.');
       return false;
     }
 

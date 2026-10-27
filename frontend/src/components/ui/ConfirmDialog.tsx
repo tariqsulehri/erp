@@ -71,7 +71,7 @@ export function ConfirmDialog({
   const canConfirm = !requiredText || typedText.trim() === requiredText;
 
   return (
-    <div className="dialog-backdrop" onMouseDown={event => { if (event.target === event.currentTarget && !loading) onCancel(); }}>
+    <div className="dialog-backdrop" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget && !loading) onCancel(); }}>
       <div ref={dialogRef} className="dialog" role="alertdialog" aria-modal="true" aria-labelledby={titleId} aria-describedby={messageId}>
         <div className="dialog-body">
           <span className={`dialog-icon dialog-icon-${variant}`} aria-hidden><Icon size={20} stroke={1.8} /></span>

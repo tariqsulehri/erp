@@ -164,7 +164,7 @@ describe.skipIf(!databaseUrl)('Manual vouchers (database)', () => {
     it('rejects stale account code/name and inactive accounts on cash and bank vouchers', async () => {
       const stale = { ...line('customer', 0, 10, 2), account_name: 'Old Name' };
       await expect(vouchers.create(input('CRV', '2025-08-04', [line('cash', 10, 0, 1), stale]), maker))
-        .rejects.toThrow(/Account details are not current on line 2/);
+        .rejects.toThrow(/Account details on line 2 have changed/);
       await prisma.account.update({ where: { id: accounts.revenue.id }, data: { isActive: false } });
       try {
         await expect(vouchers.create(input('CRV', '2025-08-04', [line('cash', 10, 0, 1), line('revenue', 0, 10, 2)]), maker))
@@ -210,7 +210,7 @@ describe.skipIf(!databaseUrl)('Manual vouchers (database)', () => {
 
     it('rejects a voucher dated outside any fiscal year', async () => {
       await expect(vouchers.create(input('JV', '2024-01-05', [line('expense', 1, 0, 1), line('supplier', 0, 1, 2)]), maker))
-        .rejects.toThrow(/Invalid Voucher Date/);
+        .rejects.toThrow(/Voucher Date cannot be used/);
     });
   });
 
@@ -339,10 +339,10 @@ describe.skipIf(!databaseUrl)('Manual vouchers (database)', () => {
     it('does not allow the approval process on Posted or Voided vouchers', async () => {
       const posted = await approvedVoucher('JV', '2025-08-09', [line('expense', 3, 0, 1), line('supplier', 0, 3, 2)]);
       await vouchers.post(posted.id, maker);
-      await expect(vouchers.requestApproval(posted.id, {}, maker)).rejects.toThrow(/Only Draft vouchers can use the approval process/);
+      await expect(vouchers.requestApproval(posted.id, {}, maker)).rejects.toThrow(/Only Draft vouchers can be sent for approval/);
       const voided = await vouchers.create(input('JV', '2025-08-09', [line('expense', 3, 0, 1), line('supplier', 0, 3, 2)]), maker);
       await vouchers.void(voided.id, 'x', maker);
-      await expect(vouchers.requestApproval(voided.id, {}, maker)).rejects.toThrow(/Only Draft vouchers can use the approval process/);
+      await expect(vouchers.requestApproval(voided.id, {}, maker)).rejects.toThrow(/Only Draft vouchers can be sent for approval/);
     });
   });
 

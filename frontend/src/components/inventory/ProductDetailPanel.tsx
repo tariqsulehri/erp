@@ -53,7 +53,7 @@ export function ProductDetailPanel({ id, onClose, onEdit }: {
     <>
       {header('Product Detail')}
       <div className="panel-body" style={{ display: 'grid', gap: 8 }}>
-        <InlineAlert tone="danger">{friendlyErrorMessage(loadError, 'This Product could not be loaded.')}</InlineAlert>
+        <InlineAlert tone="danger">{friendlyErrorMessage(loadError, 'Could not load this Product. Please try again.')}</InlineAlert>
         <div><Button onClick={() => refetch()}>Try Again</Button></div>
       </div>
     </>
@@ -72,7 +72,7 @@ export function ProductDetailPanel({ id, onClose, onEdit }: {
         queryClient.invalidateQueries({ queryKey: productsQueryKey });
         onClose();
       },
-      onError: (error: Error) => setArchiveError(friendlyErrorMessage(error, 'Unable to archive Product.')),
+      onError: (error: Error) => setArchiveError(friendlyErrorMessage(error, 'Could not archive this Product. Please try again.')),
     });
     setShowArchiveConfirm(false);
   }
@@ -121,7 +121,7 @@ export function ProductDetailPanel({ id, onClose, onEdit }: {
           <DetailRow label="Reserved" value={fmtQty(p.qty_reserved, generalSettings)} figure />
           <DetailRow label="Available" value={fmtQty((parseFloat(p.qty_on_hand) || 0) - (parseFloat(p.qty_reserved) || 0), generalSettings)} figure />
           <DetailRow label="Minimum Level" value={p.min_stock_level ? fmtQty(p.min_stock_level, generalSettings) : null} figure />
-          <DetailRow label="Reorder Qty" value={p.reorder_qty ? fmtQty(p.reorder_qty, generalSettings) : null} figure />
+          <DetailRow label="Reorder Quantity" value={p.reorder_qty ? fmtQty(p.reorder_qty, generalSettings) : null} figure />
         </dl>
 
         <h3 className="form-section-title" style={sectionTitleStyle}>Record</h3>
@@ -154,7 +154,7 @@ export function ProductDetailPanel({ id, onClose, onEdit }: {
         open={showArchiveConfirm}
         variant="danger"
         title="Archive Product?"
-        message={`"${p.name}" will be marked Discontinued and hidden from active use. It stays in past records, and you can make it Active again by editing its Status.`}
+        message={`"${p.name}" will be marked Discontinued and hidden from new work. It stays in past records. To use it again, edit it and set Status to Active.`}
         confirmLabel="Archive"
         loading={archiveMut.isPending}
         onConfirm={archive}

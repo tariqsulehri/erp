@@ -6,7 +6,9 @@ import {
   IconBuildingStore,
   IconBuildingWarehouse,
   IconCategory,
+  IconAdjustmentsHorizontal,
   IconPackage,
+  IconPackageImport,
   IconRuler2,
 } from '@tabler/icons-react';
 
@@ -15,6 +17,8 @@ const ICONS = {
   products: IconPackage,
   warehouses: IconBuildingWarehouse,
   transfers: IconArrowsExchange,
+  received: IconPackageImport,
+  adjustments: IconAdjustmentsHorizontal,
   categories: IconCategory,
   units: IconRuler2,
 } as const;

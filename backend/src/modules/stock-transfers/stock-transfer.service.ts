@@ -86,10 +86,10 @@ export class StockTransferService {
           ELSE true
         END AS can_post,
         CASE
-          WHEN fy.id IS NULL THEN 'Date does not fall within any active fiscal year'
-          WHEN fy.is_locked THEN 'Fiscal year is locked. No new transactions allowed.'
-          WHEN fp.id IS NULL THEN 'No open period found for this date'
-          WHEN fp.is_open = false THEN CONCAT('Period "', fp.period_name, '" is closed. Cannot post transactions.')
+          WHEN fy.id IS NULL THEN 'This date is not in any active Fiscal Year.'
+          WHEN fy.is_locked THEN 'This Fiscal Year is locked. You cannot post new entries in it.'
+          WHEN fp.id IS NULL THEN 'There is no open Period for this date.'
+          WHEN fp.is_open = false THEN CONCAT('Period "', fp.period_name, '" is closed. You cannot post in a closed Period.')
           ELSE NULL
         END AS reason
       FROM (SELECT CAST(${dateText} AS date) AS posting_date) d
@@ -105,7 +105,7 @@ export class StockTransferService {
       ORDER BY (fp.end_date >= d.posting_date) DESC NULLS LAST
       LIMIT 1
     `;
-    if (!rows[0]?.can_post) throw businessError(`Invalid Transfer Date: ${rows[0]?.reason ?? 'Date cannot be posted.'}`);
+    if (!rows[0]?.can_post) throw businessError(`Transfer Date cannot be used. ${rows[0]?.reason ?? 'You cannot post on this date.'}`);
   }
 
   /**
@@ -254,6 +254,19 @@ export class StockTransferService {
     }
     if (query.to_warehouse_id) {
       params.push(query.to_warehouse_id);
+      where.push(`st.to_warehouse_id = CAST($${params.length} AS uuid)`);
+    }
+    if (query.direction) {
+      const [from, to] = query.direction.split('_TO_');
+      where.push(from === 'BRANCH' ? 'st.from_branch_id IS NOT NULL' : 'st.from_warehouse_id IS NOT NULL');
+      where.push(to === 'BRANCH' ? 'st.to_branch_id IS NOT NULL' : 'st.to_warehouse_id IS NOT NULL');
+    }
+    // Stock Received: a Branch or Warehouse user sees only what was delivered to their own place.
+    if (query.incoming && this.scope?.accessLevel === 'BRANCH') {
+      params.push(this.scope.branchId);
+      where.push(`st.to_branch_id = CAST($${params.length} AS uuid)`);
+    } else if (query.incoming && this.scope?.accessLevel === 'WAREHOUSE') {
+      params.push(this.scope.warehouseId);
       where.push(`st.to_warehouse_id = CAST($${params.length} AS uuid)`);
     }
     if (query.date_from) {
@@ -410,7 +423,7 @@ export class StockTransferService {
   private async insertDraft(transaction: TransactionClient, input: ValidateStockTransferInput, userId?: string | null) {
     const errors: string[] = [];
     const holders = await this.validateInput(input, errors, [], transaction);
-    if (errors.length || !holders) throw businessError(errors[0] ?? 'Stock Transfer is not valid.');
+    if (errors.length || !holders) throw businessError(errors[0] ?? 'Check the Stock Transfer details and try again.');
     const { from, to } = holders;
 
     const transferNumber = await this.nextTransferNumber(input.transfer_date.slice(0, 4), transaction);
@@ -558,7 +571,7 @@ export class StockTransferService {
   private async validateInput(input: ValidateStockTransferInput, errors: string[], warnings: string[], transaction: TransactionClient | typeof prisma = prisma) {
     if (input.from_branch_id && input.from_warehouse_id) errors.push('From must be a Branch or a Warehouse, not both.');
     if (input.to_branch_id && input.to_warehouse_id) errors.push('To must be a Branch or a Warehouse, not both.');
-    await this.assertDateInOpenPeriod(transaction as TransactionClient, input.transfer_date).catch(error => errors.push(error.message.replace('Invalid Transfer Date: ', 'Transfer Date: ')));
+    await this.assertDateInOpenPeriod(transaction as TransactionClient, input.transfer_date).catch(error => errors.push(error.message.replace('Transfer Date cannot be used. ', 'Transfer Date: ')));
 
     const from = await validateHolder(transaction, this.companyId, {
       branchId: textOrNull(input.from_branch_id), warehouseId: textOrNull(input.from_warehouse_id), locationId: textOrNull(input.from_location_id),
@@ -575,7 +588,7 @@ export class StockTransferService {
     }
 
     const itemRows = await this.getItemsForLines(input.lines.map(line => line.item_id), transaction);
-    if (itemRows.length !== new Set(input.lines.map(line => line.item_id)).size) errors.push('One or more transfer items were not found, inactive, or not stock items.');
+    if (itemRows.length !== new Set(input.lines.map(line => line.item_id)).size) errors.push('One or more transfer items were not found, are Inactive, or are not stock items.');
 
     for (const [index, line] of input.lines.entries()) {
       const quantity = this.quantity(line.quantity);
@@ -636,7 +649,7 @@ export class StockTransferService {
     const from = fromHolder(transfer);
     const to = toHolder(transfer);
     const source = await this.getSourceBalanceForUpdate(transaction, line.item_id, from);
-    if (!source.row) throw businessError(`No stock balance found for ${line.item_code}.`);
+    if (!source.row) throw businessError(`There is no stock for ${line.item_code}.`);
     if (source.stockOnHand.lt(quantity)) throw businessError(`Not enough stock for ${line.item_code}.`);
 
     const unitCost = source.averageCost;
@@ -662,7 +675,7 @@ export class StockTransferService {
 
     // lockBalancesForTransfer has already created the destination row when it was missing.
     const destination = await this.getDestinationBalanceForUpdate(transaction, line.item_id, to);
-    if (!destination) throw businessError(`Destination stock balance could not be prepared for ${line.item_code}.`, 500);
+    if (!destination) throw businessError(`Could not add ${line.item_code} to stock at the receiving place. Please try again.`, 500);
     const oldDestinationQuantity = this.quantity(destination.stock_on_hand ?? 0);
     const oldDestinationValue = this.money(destination.total_stock_value ?? 0);
     const newDestinationQuantity = this.quantity(oldDestinationQuantity.plus(quantity));

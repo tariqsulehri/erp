@@ -49,7 +49,7 @@ type Tab = 'details' | 'clone' | 'history';
 
 const TAB_ITEMS: { value: Tab; label: string }[] = [
   { value: 'details', label: 'Details' },
-  { value: 'clone',   label: 'Clone'   },
+  { value: 'clone',   label: 'Copy'    },
   { value: 'history', label: 'History' },
 ];
 
@@ -146,7 +146,7 @@ function DetailsTab({ account, onSaved }: { account: AccountListItem; onSaved: (
           </div>
           <div className="detail-row">
             <dt>Account Kind</dt>
-            <dd>{account.is_posting ? 'Posting Account' : 'Header Only'}</dd>
+            <dd>{account.is_posting ? 'Posting Account' : 'Heading Only'}</dd>
           </div>
           <div className="detail-row">
             <dt>Status</dt>
@@ -224,7 +224,7 @@ function DetailsTab({ account, onSaved }: { account: AccountListItem; onSaved: (
       <ConfirmDialog
         open={confirmOpen}
         title="Deactivate Account"
-        message={`"${account.code} — ${account.name}" will be hidden from transaction dropdowns. You can reactivate it at any time.`}
+        message={`"${account.code} — ${account.name}" will no longer show in lists on new transactions. You can make it active again at any time.`}
         confirmLabel="Deactivate"
         variant="danger"
         loading={toggleMutation.isPending}
@@ -250,8 +250,8 @@ function CloneTab({ account, onCloned }: { account: AccountListItem; onCloned: (
     return (
       <div className="panel-body">
         <div className="empty-state">
-          <div className="empty-title">Cannot Clone A Main Category</div>
-          <div className="empty-desc">Main Category accounts cannot be cloned. Open a Group, Sub-Group, or Posting Account instead.</div>
+          <div className="empty-title">Cannot Copy A Main Category</div>
+          <div className="empty-desc">You cannot copy a Main Category account. Open a Group, Sub-Group, or Posting Account instead.</div>
         </div>
       </div>
     );
@@ -284,7 +284,7 @@ function CloneTab({ account, onCloned }: { account: AccountListItem; onCloned: (
         <p className="form-hint" style={{ margin: 0, fontSize: 'var(--font-size-sm)' }}>
           Creates a new account under the same parent as{' '}
           <span style={{ fontVariantNumeric: 'tabular-nums', fontWeight: 600, color: 'var(--color-heading)' }}>{account.code}</span>,
-          with the next free code. It copies the type, normal balance, posting setting, and description.
+          with the next free code. It copies the type, normal balance, Posting Account setting, and description.
         </p>
 
         <TextField
@@ -305,7 +305,7 @@ function CloneTab({ account, onCloned }: { account: AccountListItem; onCloned: (
           disabled={!name.trim()}
           loading={cloneMutation.isPending}
         >
-          Clone Account
+          Copy Account
         </Button>
       </div>
     </>
@@ -318,7 +318,7 @@ const ACTION_STYLE: Record<string, { variant: 'success' | 'info' | 'danger' | 'n
   updated:     { variant: 'info',    label: 'Updated'     },
   activated:   { variant: 'success', label: 'Activated'   },
   deactivated: { variant: 'danger',  label: 'Deactivated' },
-  cloned:      { variant: 'neutral', label: 'Cloned'      },
+  cloned:      { variant: 'neutral', label: 'Copied'      },
 };
 
 function HistoryTab({ accountId }: { accountId: string }) {
@@ -344,7 +344,7 @@ function HistoryTab({ accountId }: { accountId: string }) {
   if (error) {
     return (
       <div className="panel-body">
-        <InlineAlert tone="danger">{friendlyErrorMessage(error, 'Unable to load account history.')}</InlineAlert>
+        <InlineAlert tone="danger">{friendlyErrorMessage(error, 'Could not load account history. Please try again.')}</InlineAlert>
       </div>
     );
   }

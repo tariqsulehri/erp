@@ -85,7 +85,7 @@ export default function StatesPage() {
       setSavedMessage(`State Or Province ${payload.name} saved.`);
       closeForm();
     };
-    const onError = (error: Error) => setFormError(friendlyErrorMessage(error, 'Unable to save State Or Province.'));
+    const onError = (error: Error) => setFormError(friendlyErrorMessage(error, 'Could not save State Or Province. Please try again.'));
 
     if (editId) updateMut.mutate({ id: editId, data: payload }, { onSuccess, onError });
     else createMut.mutate(payload, { onSuccess, onError });
@@ -96,11 +96,18 @@ export default function StatesPage() {
       <PageHeader
         title="States And Provinces"
         description="The top level of an address. Cities belong to a State Or Province."
+        help={(
+          <>
+            <p>Use this screen to keep the list of States and Provinces used in addresses.</p>
+            <p>Click New State to add one. Click the pencil or double-click a row to change it.</p>
+            <p>You cannot delete a State. Clear Active to stop it from being chosen on new records.</p>
+          </>
+        )}
         actions={<Button variant="primary" icon={<IconPlus size={16} stroke={1.8} />} onClick={openNew}>New State</Button>}
       />
 
       {savedMessage && <InlineAlert tone="success">{savedMessage}</InlineAlert>}
-      {statesQuery.error && <InlineAlert tone="danger">{friendlyErrorMessage(statesQuery.error, 'Unable to load States.')}</InlineAlert>}
+      {statesQuery.error && <InlineAlert tone="danger">{friendlyErrorMessage(statesQuery.error, 'Could not load States. Please try again.')}</InlineAlert>}
 
       <div className={`split-view${showForm ? ' has-side' : ''}`}>
         <section className="panel">

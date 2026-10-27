@@ -264,7 +264,7 @@ export function AccountTreeView({
   if (error) {
     return (
       <div className="panel-body">
-        <InlineAlert tone="danger">{friendlyErrorMessage(error, 'Unable to load the Account Tree.')}</InlineAlert>
+        <InlineAlert tone="danger">{friendlyErrorMessage(error, 'Could not load the Account Tree. Please try again.')}</InlineAlert>
       </div>
     );
   }
@@ -290,7 +290,8 @@ export function AccountTreeView({
 
       <div className="layout-main-aside" style={{ flex: 1, minHeight: 0, gap: 0, ['--aside-width' as string]: '260px' }}>
         <div className="table-scroll" style={{ borderRight: '1px solid var(--color-border-subtle)' }}>
-          <table className="data-table" role="treegrid" aria-label="Chart Of Accounts Tree">
+          {/* eslint-disable-next-line jsx-a11y/no-noninteractive-element-to-interactive-role -- ARIA treegrid on a table is the standard tree-table pattern */}
+    <table className="data-table" role="treegrid" aria-label="Chart Of Accounts Tree">
             <thead>
               <tr>
                 <th style={{ width: 230 }}>Account Code</th>

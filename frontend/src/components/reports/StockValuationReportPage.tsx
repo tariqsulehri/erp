@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/Button';
 import { DateField } from '@/components/ui/FormFields';
 import { InlineAlert } from '@/components/ui/InlineAlert';
 import { PageHeader } from '@/components/ui/PageHeader';
+import { reportHelp } from './report-help';
 import { TableMessageRow } from '@/components/ui/TableMessageRow';
 import { formatDate, formatMoney, formatNumber, type AppFormatSettingsSource } from '@/lib/app-settings';
 import { useStockValuationReport, type StockValuationResponse } from '@/lib/api/reports';
@@ -33,8 +34,8 @@ function ledgerCheckWarning(check: LedgerCheck, settings?: AppFormatSettingsSour
   ];
   if (Number(check.opening_stock_value) > 0) {
     parts.push(
-      `Opening stock worth ${formatMoney(check.opening_stock_value, settings)} was loaded without an accounting entry. `
-      + 'Post a Journal Voucher (Debit Inventory, Credit Opening Balance Equity) dated the go-live date to bring the ledger in line.',
+      `Opening stock worth ${formatMoney(check.opening_stock_value, settings)} was entered without an accounting entry. `
+      + 'Post a Journal Voucher (Debit Inventory, Credit Opening Balance Equity) dated the day you started using this system. The ledger will then match.',
     );
   }
   return parts.join(' ');
@@ -75,7 +76,7 @@ export function StockValuationReportPage({ embedded = false }: StockValuationRep
   const reportQuery = useStockValuationReport({ as_of_date: asOfDate, ...place.query }, shouldLoad);
 
   function validateFilters() {
-    if (!isValidDateInput(asOfDate)) return 'As Of Date is required.';
+    if (!isValidDateInput(asOfDate)) return 'Enter the As Of Date.';
     return place.validate();
   }
 
@@ -162,7 +163,7 @@ export function StockValuationReportPage({ embedded = false }: StockValuationRep
   return (
     <Root className={embedded ? undefined : 'page-shell'} style={embedded ? embeddedReportStyle : undefined}>
       {!embedded && (
-        <PageHeader title="Stock Valuation" description={`Stock quantity and value as of ${asOfText}.`} />
+        <PageHeader title="Stock Valuation" description={`Stock quantity and value as of ${asOfText}.`} help={reportHelp['stock-valuation']} />
       )}
 
       {options.errorMessage && <InlineAlert tone="danger">{options.errorMessage}</InlineAlert>}

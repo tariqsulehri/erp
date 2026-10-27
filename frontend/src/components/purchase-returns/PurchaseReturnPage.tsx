@@ -104,7 +104,7 @@ export default function PurchaseReturnPage() {
     if (supportQuery.error) {
       setMessage({
         kind: 'error',
-        text: friendlyErrorMessage(supportQuery.error, 'Unable to load purchase return setup. Please refresh and try again.'),
+        text: friendlyErrorMessage(supportQuery.error, 'Could not load the purchase return setup. Select Refresh and try again.'),
       });
     }
   }, [supportQuery.error]);
@@ -146,9 +146,9 @@ export default function PurchaseReturnPage() {
     try {
       const result = await supportQuery.refetch();
       if (result.error) throw result.error;
-      setMessage({ kind: 'success', text: 'Purchase return data refreshed successfully.' });
+      setMessage({ kind: 'success', text: 'Purchase return data refreshed.' });
     } catch (error) {
-      setMessage({ kind: 'error', text: friendlyErrorMessage(error, 'Unable to refresh purchase return data.') });
+      setMessage({ kind: 'error', text: friendlyErrorMessage(error, 'Could not refresh purchase return data. Please try again.') });
     }
   }
 
@@ -156,7 +156,7 @@ export default function PurchaseReturnPage() {
     try {
       window.print();
     } catch (error) {
-      setMessage({ kind: 'error', text: friendlyErrorMessage(error, 'Unable to print Purchase Return.') });
+      setMessage({ kind: 'error', text: friendlyErrorMessage(error, 'Could not print Purchase Return. Please try again.') });
     }
   }
 
@@ -196,13 +196,13 @@ export default function PurchaseReturnPage() {
       setMessage({
         kind: 'success',
         text: postNow
-          ? `${purchaseReturn.purchase_return_number} saved and posted successfully.`
+          ? `${purchaseReturn.purchase_return_number} saved and posted.`
           : `${purchaseReturn.purchase_return_number} saved as Draft.`,
       });
     } catch (error) {
       setMessage({
         kind: 'error',
-        text: friendlyErrorMessage(error, 'Unable to save Purchase Return.'),
+        text: friendlyErrorMessage(error, 'Could not save Purchase Return. Please try again.'),
       });
     }
   }
@@ -280,12 +280,23 @@ export default function PurchaseReturnPage() {
         onCancel={() => resetForm()}
         onSaveDraft={() => savePurchaseReturn(false)}
         onProcess={requestProcessConfirmation}
+        help={(
+          <>
+            <p>Use this screen to send goods back to a Supplier.</p>
+            <ul>
+              <li>Fill in the Supplier, dates and Warehouse, then add one line for each item you return.</li>
+              <li>Save Draft keeps the return so you can finish it later.</li>
+              <li>Process saves and posts it. Stock goes down and the Supplier balance is updated.</li>
+            </ul>
+            <p>A posted return cannot be changed.</p>
+          </>
+        )}
       />
 
       <ConfirmDialog
         open={processConfirmOpen}
         title="Process Purchase Return?"
-        message="This will save and post the Purchase Return. Posted documents cannot be edited directly."
+        message="This saves and posts the Purchase Return. You cannot change it after it is posted."
         confirmLabel="Yes, Process"
         cancelLabel="No"
         variant="warning"

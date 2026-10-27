@@ -97,19 +97,19 @@ export class SaleReturnValidationService {
 
     const fiscalPeriod = rows[0];
     if (!fiscalPeriod) {
-      this.addError(errors, 'Sale Return Date does not fall within any active fiscal year.');
+      this.addError(errors, 'Sale Return Date is not in any active Fiscal Year.');
       return null;
     }
     if (fiscalPeriod.fiscal_year_locked) {
-      this.addError(errors, 'Fiscal year is locked. No new transactions allowed.');
+      this.addError(errors, 'This Fiscal Year is locked. You cannot post new entries in it.');
       return fiscalPeriod;
     }
     if (!fiscalPeriod.period_name) {
-      this.addError(errors, 'No open period found for Sale Return Date.');
+      this.addError(errors, 'There is no open Period for the Sale Return Date.');
       return fiscalPeriod;
     }
     if (!fiscalPeriod.is_open) {
-      this.addError(errors, `Period "${fiscalPeriod.period_name}" is closed. Cannot post transactions.`);
+      this.addError(errors, `Period "${fiscalPeriod.period_name}" is closed. You cannot post in a closed Period.`);
     }
     return fiscalPeriod;
   }
@@ -182,7 +182,7 @@ export class SaleReturnValidationService {
       : [];
     const itemMap = new Map(itemRows.map(item => [item.id, item]));
     if (itemMap.size !== itemIds.length) {
-      this.addError(errors, 'One or more return items were not found, inactive, or not sellable.');
+      this.addError(errors, 'One or more return items were not found, are Inactive, or cannot be sold.');
     }
 
     const calculatedLines = input.lines.map((line, index) => {
@@ -191,7 +191,7 @@ export class SaleReturnValidationService {
       const gross = this.money(quantity.times(salePrice));
       const discount = this.money(line.discount_amount);
       const tax = this.money(line.tax_amount);
-      if (discount.gt(gross)) this.addError(errors, `Discount cannot be greater than item amount on line ${index + 1}.`);
+      if (discount.gt(gross)) this.addError(errors, `Discount cannot be more than the item amount on line ${index + 1}.`);
 
       const lineTotal = this.money(gross.minus(discount).plus(tax));
       if (lineTotal.lte(0)) this.addError(errors, `Line Total must be greater than zero on line ${index + 1}.`);

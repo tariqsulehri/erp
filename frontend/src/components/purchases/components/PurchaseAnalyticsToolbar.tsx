@@ -33,9 +33,16 @@ export function PurchaseAnalyticsToolbar({
   return (
     <DocumentHeader
       title="Purchase Analytics"
+      help={(
+        <>
+          <p>This screen shows charts and totals for your posted purchases.</p>
+          <p>Use the filters to choose dates, a Supplier, a payment type or a Warehouse. Draft purchases are not counted.</p>
+          <p>Select New Purchase to enter a purchase, or Posted Purchases to see the full list.</p>
+        </>
+      )}
       badges={(
         <>
-          <Badge variant="info">Decision View</Badge>
+          <Badge variant="info">Posted Only</Badge>
           <Badge variant="neutral">{dateFrom ? formatDate(dateFrom, generalSettings) : 'Start'} To {dateTo ? formatDate(dateTo, generalSettings) : 'Today'}</Badge>
         </>
       )}

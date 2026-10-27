@@ -1,14 +1,14 @@
 'use client';
 
 import { signIn } from 'next-auth/react';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { IconCheck, IconLogin } from '@tabler/icons-react';
 import { Button } from '@/components/ui/Button';
 import { FieldLabel } from '@/components/ui/FieldLabel';
 import { InlineAlert } from '@/components/ui/InlineAlert';
 
 const FEATURES = [
-  'Chart Of Accounts With A 10-Digit Code Structure',
+  'Chart Of Accounts With 10-Digit Account Codes',
   'Fiscal Years And Accounting Periods',
   'Journal Vouchers Posted To The General Ledger',
   'Trial Balance And Financial Statements',
@@ -20,11 +20,14 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const emailRef = useRef<HTMLInputElement | null>(null);
 
   // Shows why the user was signed out, e.g. an expired session or a password reset.
   useEffect(() => {
     const reason = new URLSearchParams(window.location.search).get('reason');
     if (reason) setError(reason);
+    // Signing in is the only task here, so start in the email field.
+    emailRef.current?.focus();
   }, []);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -74,7 +77,7 @@ export default function LoginPage() {
             Complete Financial Control For Your Business
           </h1>
           <p style={{ margin: '0 0 28px', fontSize: 'var(--font-size-md)', lineHeight: 1.6, color: 'var(--color-login-muted)' }}>
-            Multi-company ERP with double-entry accounting, real-time reporting, and IFRS and GAAP support.
+            One system for several companies. Double-entry accounting, live reports, and IFRS and GAAP support.
           </p>
 
           <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -98,9 +101,10 @@ export default function LoginPage() {
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           <FieldLabel label="Email Address" htmlFor="email" required>
             <input
+              ref={emailRef}
               id="email" type="email" className="form-input"
               placeholder="you@company.com" value={email}
-              onChange={(e) => setEmail(e.target.value)} required autoFocus
+              onChange={(e) => setEmail(e.target.value)} required
               autoComplete="email"
             />
           </FieldLabel>

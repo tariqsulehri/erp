@@ -104,19 +104,19 @@ export class PurchaseValidationService {
 
     const fiscalPeriod = rows[0];
     if (!fiscalPeriod) {
-      this.addError(errors, 'Purchase Date does not fall within any active fiscal year.');
+      this.addError(errors, 'Purchase Date is not in any active Fiscal Year.');
       return null;
     }
     if (fiscalPeriod.fiscal_year_locked) {
-      this.addError(errors, 'Fiscal year is locked. No new transactions allowed.');
+      this.addError(errors, 'This Fiscal Year is locked. You cannot post new entries in it.');
       return fiscalPeriod;
     }
     if (!fiscalPeriod.period_name) {
-      this.addError(errors, 'No open period found for Purchase Date.');
+      this.addError(errors, 'There is no open Period for the Purchase Date.');
       return fiscalPeriod;
     }
     if (!fiscalPeriod.is_open) {
-      this.addError(errors, `Period "${fiscalPeriod.period_name}" is closed. Cannot post transactions.`);
+      this.addError(errors, `Period "${fiscalPeriod.period_name}" is closed. You cannot post in a closed Period.`);
     }
 
     return fiscalPeriod;
@@ -242,12 +242,12 @@ export class PurchaseValidationService {
       : [];
     const itemMap = new Map(itemRows.map(item => [item.id, item]));
     if (itemMap.size !== itemIds.length) {
-      this.addError(errors, 'One or more purchase items were not found, inactive, or not purchasable.');
+      this.addError(errors, 'One or more purchase items were not found, are Inactive, or cannot be bought.');
     }
 
     const calculatedLines = input.lines.map((line, index) => {
       if (line.warehouse_id && line.warehouse_id !== input.warehouse_id) {
-        this.addError(errors, `Line ${index + 1} Warehouse must match the selected Warehouse.`);
+        this.addError(errors, `The Warehouse on line ${index + 1} must match the selected Warehouse.`);
       }
 
       const quantity = this.quantity(line.quantity);
@@ -257,7 +257,7 @@ export class PurchaseValidationService {
       const tax = this.money(line.tax_amount);
 
       if (discount.gt(gross)) {
-        this.addError(errors, `Discount cannot be greater than item amount on line ${index + 1}.`);
+        this.addError(errors, `Discount cannot be more than the item amount on line ${index + 1}.`);
       }
 
       const lineTotal = this.money(gross.minus(discount).plus(tax));

@@ -38,7 +38,7 @@ export function useStockReportOptions() {
     branches,
     warehouses,
     isLoading: supportQuery.isLoading,
-    errorMessage: supportQuery.error ? friendlyErrorMessage(supportQuery.error, 'Unable to load Items, Branches and Warehouses.') : '',
+    errorMessage: supportQuery.error ? friendlyErrorMessage(supportQuery.error, 'Could not load Items, Branches and Warehouses. Please try again.') : '',
   };
 }
 
@@ -54,8 +54,8 @@ export function useStockPlaceFilter() {
   }, [placeType, placeId]);
 
   function validate() {
-    if (placeType === 'BRANCH' && !placeId) return 'Please select a Branch, or set Place Type to All Places.';
-    if (placeType === 'WAREHOUSE' && !placeId) return 'Please select a Warehouse, or set Place Type to All Places.';
+    if (placeType === 'BRANCH' && !placeId) return 'Select a Branch, or set Place Type to All Places.';
+    if (placeType === 'WAREHOUSE' && !placeId) return 'Select a Warehouse, or set Place Type to All Places.';
     return '';
   }
 

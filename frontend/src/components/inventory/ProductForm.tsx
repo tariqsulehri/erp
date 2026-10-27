@@ -230,8 +230,8 @@ export function ProductForm({ editId, onSaved, onCancel }: {
 
   function saveNewCategory() {
     setCatCreateError('');
-    if (!newCatCode.trim()) { setCatCreateError('Code is required.'); return; }
-    if (!newCatName.trim()) { setCatCreateError('Name is required.'); return; }
+    if (!newCatCode.trim()) { setCatCreateError('Enter a Category Code.'); return; }
+    if (!newCatName.trim()) { setCatCreateError('Enter a Category Name.'); return; }
     createCatMut.mutate({
       code:      newCatCode.trim().toUpperCase(),
       name:      newCatName.trim(),
@@ -243,8 +243,8 @@ export function ProductForm({ editId, onSaved, onCancel }: {
 
   function save() {
     setError('');
-    if (!sku.trim())  { setError('SKU is required.'); return; }
-    if (!name.trim()) { setError('Product name is required.'); return; }
+    if (!sku.trim())  { setError('Enter the SKU.'); return; }
+    if (!name.trim()) { setError('Enter a Product Name.'); return; }
 
     const payload = {
       sku: sku.trim().toUpperCase(),
@@ -299,10 +299,10 @@ export function ProductForm({ editId, onSaved, onCancel }: {
   }
 
   const stockLevelFields = [
-    { label: 'Opening Stock (Qty)', value: qtyOnHand, set: setQtyOnHand, hint: 'Quantity on hand now.' },
+    { label: 'Opening Stock Quantity', value: qtyOnHand, set: setQtyOnHand, hint: 'Quantity on hand now.' },
     { label: 'Minimum Level', value: minStock, set: setMinStock, hint: 'Order again when stock falls below this.' },
     { label: 'Maximum Level', value: maxStock, set: setMaxStock, hint: 'Most stock to hold.' },
-    { label: 'Reorder Qty', value: reorderQty, set: setReorderQty, hint: 'Quantity to order each time.' },
+    { label: 'Reorder Quantity', value: reorderQty, set: setReorderQty, hint: 'Quantity to order each time.' },
   ];
 
   return (
@@ -310,6 +310,13 @@ export function ProductForm({ editId, onSaved, onCancel }: {
       <PageHeader
         title={isEdit ? `Edit Product ${existing?.name ?? ''}`.trim() : 'New Product'}
         description="A Product is an item you buy, sell, or keep in stock. SKU and Product Name are required."
+        help={(
+          <>
+            <p>Enter the product details, prices, tax, and stock levels, then click Save Product.</p>
+            <p>The SKU is the code you use for this product.</p>
+            <p>Turn off Track Stock For This Product for services and items you do not keep in stock.</p>
+          </>
+        )}
         actions={(
           <>
             <Button variant="secondary" icon={<IconArrowLeft size={16} stroke={1.8} />} onClick={onCancel}>Back To List</Button>
@@ -403,15 +410,15 @@ export function ProductForm({ editId, onSaved, onCancel }: {
                 onChange={nextStatus => setStatus(nextStatus || 'Active')}
               />
               <div style={{ display: 'flex', gap: 24, alignItems: 'end', minHeight: 52, flexWrap: 'wrap' }}>
-                <CheckboxField label="Sellable" checked={isSellable} onChange={setIsSellable} />
-                <CheckboxField label="Purchasable" checked={isPurchasable} onChange={setIsPurchasable} />
+                <CheckboxField label="Can Be Sold" checked={isSellable} onChange={setIsSellable} />
+                <CheckboxField label="Can Be Bought" checked={isPurchasable} onChange={setIsPurchasable} />
               </div>
 
               <div className="span-all">
                 <TextareaField label="Description" value={description} onChange={setDescription} placeholder="Detailed description of the product" rows={3} />
               </div>
               <div className="span-2">
-                <TextField label="Product Image URL" value={imageUrl} onChange={setImageUrl} placeholder="https://example.com/images/product.jpg" inputProps={{ type: 'url' }} />
+                <TextField label="Product Image Link" value={imageUrl} onChange={setImageUrl} placeholder="https://example.com/images/product.jpg" inputProps={{ type: 'url' }} />
               </div>
             </div>
           </div>

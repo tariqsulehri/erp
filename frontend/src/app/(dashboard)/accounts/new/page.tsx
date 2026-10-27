@@ -47,6 +47,16 @@ export default function NewAccountPage() {
         <PageHeader
           title="Account Created"
           description="The new account is ready to use on vouchers."
+        help={(
+          <>
+            <p>Use this screen to add a new account to the Chart Of Accounts.</p>
+            <ul>
+              <li>Pick the Main Category. Then pick or create the Group and the Sub-Group.</li>
+              <li>Enter the account name. The system gives the 10-digit code.</li>
+            </ul>
+            <p>Only Posting Accounts can be used on vouchers.</p>
+          </>
+        )}
           actions={(
             <>
               <Button icon={<IconArrowLeft size={16} stroke={1.8} />} onClick={backToList}>Back To Chart Of Accounts</Button>
@@ -65,7 +75,17 @@ export default function NewAccountPage() {
     <main className="page-shell">
       <PageHeader
         title="New Account"
-        description="Follow the steps to place the account in the correct place in the hierarchy."
+        description="Follow the steps to put the account in the right group."
+        help={(
+          <>
+            <p>Use this screen to add a new account to the Chart Of Accounts.</p>
+            <ul>
+              <li>Pick the Main Category. Then pick or create the Group and the Sub-Group.</li>
+              <li>Enter the account name. The system gives the 10-digit code.</li>
+            </ul>
+            <p>Only Posting Accounts can be used on vouchers.</p>
+          </>
+        )}
         actions={<Button icon={<IconArrowLeft size={16} stroke={1.8} />} onClick={backToList}>Back To Chart Of Accounts</Button>}
       />
 

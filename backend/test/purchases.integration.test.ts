@@ -350,18 +350,18 @@ describe.skipIf(!databaseUrl)('Purchase Vouchers (database)', () => {
     const errorsFor = async (overrides: Partial<PurchaseInput>) => (await validator.validate(purchaseInput(overrides))).errors.join(' | ');
 
     expect(await errorsFor({ lines: [{ item_id: itemA, quantity: 1, purchase_price: 10, discount_amount: 11, tax_amount: 0 }] }))
-      .toMatch(/Discount cannot be greater than item amount on line 1/);
+      .toMatch(/Discount cannot be more than the item amount on line 1/);
     expect(await errorsFor({ lines: [{ item_id: itemA, warehouse_id: otherWarehouseId, quantity: 1, purchase_price: 10, discount_amount: 0, tax_amount: 0 }] }))
-      .toMatch(/Line 1 Warehouse must match the selected Warehouse/);
+      .toMatch(/The Warehouse on line 1 must match the selected Warehouse/);
     expect(await errorsFor({ due_date: undefined })).toMatch(/Due Date is required for Credit purchase/);
     expect(await errorsFor({ due_date: '2025-07-15' })).toMatch(/Due Date cannot be before Purchase Date/);
     expect(await errorsFor({ supplier_invoice_date: '2025-08-02' })).toMatch(/Supplier Invoice Date cannot be after Purchase Date/);
     expect(await errorsFor({ lines: [{ item_id: notPurchasableItem, quantity: 1, purchase_price: 10, discount_amount: 0, tax_amount: 0 }] }))
-      .toMatch(/not found, inactive, or not purchasable/);
+      .toMatch(/not found, are Inactive, or cannot be bought/);
     expect(await errorsFor({ supplier_invoice_number: 'bill-100' })).toMatch(/Supplier Bill No\. is already used on PI-2025-0001/);
     expect(await errorsFor({ warehouse_id: emptyLocationWarehouseId })).toMatch(/create an Active Default Location/);
     expect(await errorsFor({ location_id: defaultLocationId })).toMatch(/Location can only be selected when the Warehouse uses Locations/);
-    expect(await errorsFor({ purchase_date: '2024-08-01', due_date: '2024-08-31' })).toMatch(/does not fall within any active fiscal year/);
+    expect(await errorsFor({ purchase_date: '2024-08-01', due_date: '2024-08-31' })).toMatch(/Date is not in any active Fiscal Year/);
     expect(await errorsFor({ supplier_id: '00000000-0000-4000-8000-000000000000' })).toMatch(/Supplier was not found or is inactive/);
 
     // The same Supplier Bill No. is fine for a different supplier.
@@ -438,7 +438,7 @@ describe.skipIf(!databaseUrl)('Purchase Vouchers (database)', () => {
     await new m.FiscalYearService(companyId).lockPeriod(september!.id);
 
     const movementsBefore = await companyCount('inventory_stock_movements');
-    await expect(new m.PurchasePostService(companyId).post(draft.id, userId)).rejects.toThrow(/Invalid Purchase Date: Period "September 2025" is closed/);
+    await expect(new m.PurchasePostService(companyId).post(draft.id, userId)).rejects.toThrow(/Purchase Date cannot be used\. Period "September 2025" is closed/);
     expect((await invoiceRow(draft.id)).status).toBe('Draft');
     expect(await companyCount('inventory_stock_movements')).toBe(movementsBefore);
 

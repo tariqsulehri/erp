@@ -102,7 +102,7 @@ function SummaryRow({ label, value, last = false }: { label: ReactNode; value: R
 // ── Financial position (money tiles) ─────────────────────────────────────────
 
 function changeOf(percent: string | null | undefined) {
-  return percent === null || percent === undefined ? null : { percent: Number(percent), text: 'vs same period last year' };
+  return percent === null || percent === undefined ? null : { percent: Number(percent), text: 'compared with the same period last year' };
 }
 
 /** Good when zero or more, a problem when below zero. */
@@ -202,6 +202,13 @@ function FinancialPosition({ settings }: { settings?: AppFormatSettingsSource | 
   );
 }
 
+const DASHBOARD_HELP = (
+  <>
+    <p>The Dashboard gives a quick view of your accounts, vouchers, and the current Fiscal Year.</p>
+    <p>Each tile and chart has its own short help. Money figures use posted vouchers only. Drafts do not change balances.</p>
+  </>
+);
+
 // ── Main page ─────────────────────────────────────────────────────────────────
 export default function DashboardPage() {
   const { data, isLoading, error } = useDashboardSummary();
@@ -212,8 +219,8 @@ export default function DashboardPage() {
   if (isLoading || error || !data) {
     return (
       <main className="page-shell">
-        <PageHeader title="Dashboard" description="Accounts, vouchers, and the current fiscal year at a glance." />
-        {error && <InlineAlert tone="danger">Unable to load the Dashboard: {error.message}. Refresh the page and try again.</InlineAlert>}
+        <PageHeader title="Dashboard" description="Accounts, vouchers, and the current fiscal year at a glance." help={DASHBOARD_HELP} />
+        {error && <InlineAlert tone="danger">Could not load the Dashboard: {error.message}. Refresh the page and try again.</InlineAlert>}
         {error && <FinancialPosition settings={settings} />}
         {isLoading && (
           <section className="panel">
@@ -275,7 +282,7 @@ export default function DashboardPage() {
 
   return (
     <main className="page-shell">
-      <PageHeader title="Dashboard" description={description} />
+      <PageHeader title="Dashboard" description={description} help={DASHBOARD_HELP} />
 
       <div style={scrollStyle}>
         {/* Money tiles: only for users who may see financial reports */}
@@ -403,7 +410,6 @@ export default function DashboardPage() {
               items={rankedTypes}
               total={typeTotal}
               format={value => formatMoney(value, settings)}
-              color={theme.series.blue}
               limit={7}
               countLabel={value => `${formatCount(value, settings)} Vouchers`}
             />

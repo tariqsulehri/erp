@@ -39,6 +39,13 @@ export default function ProductsPage() {
       <PageHeader
         title="Products"
         description="Items you buy, sell, or keep in stock, with their prices and stock levels."
+        help={(
+          <>
+            <p>This list shows all your products with their prices and stock.</p>
+            <p>Click a product to see its details. Click New Product to add one, or Edit Product to change it.</p>
+            <p>Products are not deleted. To stop using a product, open it and click Archive.</p>
+          </>
+        )}
         actions={<Button variant="primary" icon={<IconPlus size={16} stroke={1.8} />} onClick={openNew}>New Product</Button>}
       />
 

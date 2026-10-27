@@ -56,7 +56,7 @@ export function ImportTemplateModal({ open, onClose, onDone }: ImportTemplateMod
 
   /* ── Render ───────────────────────────────────────────────────────── */
   return (
-    <div className="dialog-backdrop" onMouseDown={event => { if (event.target === event.currentTarget) handleClose(); }}>
+    <div className="dialog-backdrop" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) handleClose(); }}>
       <div className="dialog" role="dialog" aria-modal="true" aria-labelledby="import-template-title" style={{ maxWidth: 560 }}>
         <div className="panel-header" style={{ padding: '14px 20px' }}>
           <div>

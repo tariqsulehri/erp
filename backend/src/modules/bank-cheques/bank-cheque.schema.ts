@@ -2,7 +2,7 @@ import { z } from 'zod';
 
 const dateInput = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Use YYYY-MM-DD format.');
 const optionalText = (max = 500) => z.string().trim().max(max).optional().or(z.literal(''));
-const chequeNumber = z.string().trim().regex(/^\d+$/, 'Cheque number must use digits only.').min(1).max(20);
+const chequeNumber = z.string().trim().regex(/^\d+$/, 'Cheque Number must use digits only.').min(1).max(20);
 
 export const chequeStatuses = ['Available', 'Reserved', 'Issued', 'Cleared', 'Bounced', 'Void', 'Cancelled', 'Stopped'] as const;
 export const chequeBookStatuses = ['Active', 'Closed'] as const;

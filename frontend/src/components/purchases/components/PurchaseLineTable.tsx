@@ -47,7 +47,7 @@ export function PurchaseLineTable({
         <tr>
           <th className="num">No.</th>
           <th>Item</th>
-          <th>UOM</th>
+          <th>Unit</th>
           <th className="num">Quantity</th>
           <th className="num">{priceColumnLabel}</th>
           <th className="num">Discount</th>

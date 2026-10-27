@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import Link from 'next/link';
 import { IconArrowDownRight, IconArrowUpRight, IconChevronRight } from '@tabler/icons-react';
+import { HelpButton } from './HelpButton';
 
 export type StatTone = 'blue' | 'teal' | 'violet' | 'amber' | 'rose' | 'slate';
 
@@ -14,8 +15,8 @@ export interface StatTileProps {
   icon?: ReactNode;
   /** Colour identity: the wash, the edge, the icon and the figure. Pick it from the meaning (good, attention, problem). */
   tone?: StatTone;
-  /** Plain-language explanation shown from the "?" button. */
-  help?: string;
+  /** Plain-language explanation shown in a help window from the ⓘ button. */
+  help?: ReactNode;
   /** One or two short lines under the figure. */
   detail?: ReactNode;
   /** Thin progress bar, 0–100. */
@@ -57,9 +58,7 @@ export function StatTile({ label, value, suffix, icon, tone = 'blue', help, deta
         {icon && <span className="stat-tile-icon" aria-hidden>{icon}</span>}
         <span className="stat-tile-label">{label}</span>
         {href && <IconChevronRight className="stat-tile-go" size={14} stroke={2} aria-hidden />}
-        {help && (
-          <span className="stat-tile-help" role="note" tabIndex={0} title={help} aria-label={`About ${label}: ${help}`}>?</span>
-        )}
+        {help && <span className="stat-tile-help"><HelpButton title={label} size="sm">{help}</HelpButton></span>}
       </div>
       <div className="stat-tile-figure">
         <span className="stat-tile-value">{value}</span>

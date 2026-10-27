@@ -36,7 +36,7 @@ export class StockReportService {
 
   /** Movements of one item in a date range with opening, running and closing quantity and value. */
   async getStockLedger(query: StockLedgerQuery) {
-    if (query.date_to < query.date_from) throw businessError('Date To cannot be earlier than Date From.');
+    if (query.date_to < query.date_from) throw businessError('Date To cannot be before Date From.');
     const holder = this.holderFilter(query.branch_id, query.warehouse_id);
 
     const items = await prisma.$queryRaw<Array<{ id: string; item_code: string; item_name: string }>>`

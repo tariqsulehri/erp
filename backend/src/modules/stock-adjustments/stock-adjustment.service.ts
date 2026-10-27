@@ -107,10 +107,10 @@ export class StockAdjustmentService {
           ELSE true
         END AS can_post,
         CASE
-          WHEN fy.id IS NULL THEN 'Date does not fall within any active fiscal year'
-          WHEN fy.is_locked THEN 'Fiscal year is locked. No new transactions allowed.'
-          WHEN fp.id IS NULL THEN 'No open period found for this date'
-          WHEN fp.is_open = false THEN CONCAT('Period "', fp.period_name, '" is closed. Cannot post transactions.')
+          WHEN fy.id IS NULL THEN 'This date is not in any active Fiscal Year.'
+          WHEN fy.is_locked THEN 'This Fiscal Year is locked. You cannot post new entries in it.'
+          WHEN fp.id IS NULL THEN 'There is no open Period for this date.'
+          WHEN fp.is_open = false THEN CONCAT('Period "', fp.period_name, '" is closed. You cannot post in a closed Period.')
           ELSE NULL
         END AS reason
       FROM (SELECT CAST(${dateText} AS date) AS posting_date) d
@@ -126,7 +126,7 @@ export class StockAdjustmentService {
       ORDER BY (fp.end_date >= d.posting_date) DESC NULLS LAST
       LIMIT 1
     `;
-    if (!rows[0]?.can_post) throw businessError(`Invalid Adjustment Date: ${rows[0]?.reason ?? 'Date cannot be posted.'}`);
+    if (!rows[0]?.can_post) throw businessError(`Adjustment Date cannot be used. ${rows[0]?.reason ?? 'You cannot post on this date.'}`);
   }
 
   async supportData() {
@@ -555,7 +555,7 @@ export class StockAdjustmentService {
         AND is_deleted = false
       LIMIT 1
     `;
-    if (!rows[0]) throw businessError(`${label} is not set or is inactive.`);
+    if (!rows[0]) throw businessError(`${label} is not set up or is Inactive.`);
     return rows[0];
   }
 
@@ -623,7 +623,7 @@ export class StockAdjustmentService {
     transaction: TransactionClient | typeof prisma = prisma,
   ) {
     await this.assertDateInOpenPeriod(transaction as TransactionClient, input.adjustment_date)
-      .catch(error => errors.push(error.message.replace('Invalid Adjustment Date: ', 'Adjustment Date: ')));
+      .catch(error => errors.push(error.message.replace('Adjustment Date cannot be used. ', 'Adjustment Date: ')));
 
     if (input.branch_id && input.warehouse_id) errors.push('Select a Branch or a Warehouse, not both.');
     const holder = await validateHolder(transaction, this.companyId, {
@@ -635,7 +635,7 @@ export class StockAdjustmentService {
 
     const itemRows = await this.getItemsForLines(input.lines.map(line => line.item_id), transaction);
     if (itemRows.length !== new Set(input.lines.map(line => line.item_id)).size) {
-      errors.push('One or more adjustment items were not found, inactive, or not stock items.');
+      errors.push('One or more adjustment items were not found, are Inactive, or are not stock items.');
     }
 
     for (const [index, line] of input.lines.entries()) {

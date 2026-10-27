@@ -69,7 +69,7 @@ export function FiscalYearsTable({ years, loading, settings, calendarYears, onNe
             <tr>
               <th style={{ width: 150 }}>Fiscal Year</th>
               <th style={{ width: 130 }}>Basis</th>
-              <th>Timeline Window</th>
+              <th>Dates</th>
               <th className="num" style={{ width: 120 }}>Transactions</th>
               <th style={{ width: 110 }}>Status</th>
               <th style={{ width: 140 }}>Active Year</th>
@@ -145,7 +145,7 @@ export function FiscalYearsTable({ years, loading, settings, calendarYears, onNe
       <ConfirmDialog
         open={confirm?.action === 'lock'}
         title="Lock Fiscal Year?"
-        message={`Locking ${confirm?.year.fiscal_year ?? ''} will stop new postings for the full fiscal year. Use this only after final review.`}
+        message={`Locking ${confirm?.year.fiscal_year ?? ''} stops all new posting in this whole Fiscal Year. Do this only after the final review.`}
         confirmLabel="Yes, Lock Year"
         variant="danger"
         loading={busy}
@@ -157,7 +157,7 @@ export function FiscalYearsTable({ years, loading, settings, calendarYears, onNe
       <ConfirmDialog
         open={confirm?.action === 'unlock'}
         title="Unlock Fiscal Year?"
-        message={`Unlocking ${confirm?.year.fiscal_year ?? ''} removes the year-level posting block only. It will not reopen closed periods or change any transactions.`}
+        message={`Unlocking ${confirm?.year.fiscal_year ?? ''} lets you post to this year again. It does not reopen closed Periods or change any transactions.`}
         confirmLabel="Yes, Unlock Year"
         variant="warning"
         loading={busy}

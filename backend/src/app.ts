@@ -5,6 +5,10 @@ import { env } from './config/env.js';
 import { authMiddleware } from './middleware/auth.js';
 import { errorHandler } from './middleware/error-handler.js';
 import { requestLog } from './middleware/request-log.js';
+import { usePlainErrorMessages } from './http/plain-error-map.js';
+
+// Plain-English defaults for request checks without a message of their own.
+usePlainErrorMessages();
 import { healthRouter } from './routes/health.routes.js';
 import { publicAuthRouter } from './routes/auth.routes.js';
 import { apiRouter } from './routes/index.js';

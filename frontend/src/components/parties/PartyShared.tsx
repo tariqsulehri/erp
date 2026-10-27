@@ -29,7 +29,7 @@ export function LinkedAccountNotice({ isEdit, account }: { isEdit: boolean; acco
     <InlineAlert tone="info">
       {isEdit
         ? 'This party has no Linked Account yet. One is created in the Chart of Accounts when you save.'
-        : 'A posting account is created in the Chart of Accounts and linked to this party when you save.'}
+        : 'An account is created in the Chart of Accounts and linked to this party when you save.'}
     </InlineAlert>
   );
 }

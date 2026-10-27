@@ -31,6 +31,7 @@ import { FieldLabel } from '@/components/ui/FieldLabel';
 import { DateField, NumericField, TextField } from '@/components/ui/FormFields';
 import { InlineAlert } from '@/components/ui/InlineAlert';
 import { PageHeader } from '@/components/ui/PageHeader';
+import { reportHelp } from './report-help';
 import { PaginationBar as SharedPaginationBar } from '@/components/ui/PaginationBar';
 import { SearchableSelect, type SelectOption } from '@/components/ui/SearchableSelect';
 import { SegmentedControl } from '@/components/ui/SegmentedControl';
@@ -244,7 +245,7 @@ export function ReportsWorkspace({ link }: { link?: ReportLink }) {
 
   return (
     <main className="page-shell">
-      <PageHeader title="Reports" description={`${activeGroup.title} Reports · ${activeReport.title}`} />
+      <PageHeader title="Reports" description={`${activeGroup.title} Reports · ${activeReport.title}`} help={reportHelp[activeReport.key]} />
 
       <Tabs
         label="Report Groups"
@@ -602,7 +603,7 @@ function TransactionReport({
 
   return (
     <div style={embeddedReportStyle}>
-      {Boolean(error) && <InlineAlert tone="danger">Unable to load {title}. Click Refresh to try again.</InlineAlert>}
+      {Boolean(error) && <InlineAlert tone="danger">Could not load {title}. Click Refresh to try again.</InlineAlert>}
 
       <section className="panel panel-fill">
         <ReportHeader title={title} count={total} onRefresh={onRefresh} />
@@ -734,7 +735,7 @@ function StockSummaryReport() {
 
   return (
     <div style={embeddedReportStyle}>
-      {stockQuery.error && <InlineAlert tone="danger">Unable to load Stock Summary. Click Refresh to try again.</InlineAlert>}
+      {stockQuery.error && <InlineAlert tone="danger">Could not load Stock Summary. Click Refresh to try again.</InlineAlert>}
 
       <section className="panel panel-fill">
         <ReportHeader title="Stock Summary" count={total} onRefresh={() => stockQuery.refetch()} />

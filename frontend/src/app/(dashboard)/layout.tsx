@@ -7,6 +7,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useDefaultPostingDate } from '@/lib/api/fiscal-years';
 import { AppHeader } from '@/components/shell/AppHeader';
 import { AppSidebar } from '@/components/shell/AppSidebar';
+import { ModuleTabs } from '@/components/shell/ModuleTabs';
 import { navSectionsFor, resolveRoute } from '@/components/shell/nav-config';
 import { canManageUsers } from '@/lib/auth/session-user';
 
@@ -59,16 +60,21 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
   if (!session) return null;
 
   const user = session.user;
+  const sections = navSectionsFor({ canManageUsers: canManageUsers(user.role), accessLevel: user.accessLevel, role: user.role });
+  // The current page's group as this user sees it (pages they cannot open are left out of the tabs).
+  const visibleGroup = route?.group
+    ? sections.flatMap(section => section.entries).find(entry => entry.type === 'group' && entry.group.key === route.group?.key)
+    : undefined;
+  const tabGroup = visibleGroup?.type === 'group' && visibleGroup.group.items.length > 1 ? visibleGroup.group : undefined;
 
   return (
     <div className={`app-shell${collapsed ? ' is-collapsed' : ''}${drawerOpen ? ' is-drawer-open' : ''}`}>
       <AppSidebar
-        sections={navSectionsFor({ canManageUsers: canManageUsers(user.role), accessLevel: user.accessLevel, role: user.role })}
+        sections={sections}
         activeHref={route?.item.href}
         activeGroupKey={route?.group?.key}
         collapsed={collapsed}
         onToggleCollapsed={() => setCollapsedAndRemember(!collapsed)}
-        onExpand={() => setCollapsedAndRemember(false)}
         postingDisabled={postingDisabled}
         postingReason={postingReason}
       />
@@ -81,7 +87,10 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
           user={user}
           onOpenMenu={() => setDrawerOpen(true)}
         />
-        <main className="page">{children}</main>
+        <main className="page">
+          {tabGroup && <ModuleTabs group={tabGroup} activeHref={route?.item.href} postingDisabled={postingDisabled} postingReason={postingReason} />}
+          {children}
+        </main>
       </div>
     </div>
   );

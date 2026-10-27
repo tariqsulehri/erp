@@ -46,13 +46,13 @@ function validatePostingDate({
   dateValidation: PostingDateValidationState;
 }) {
   if (!value) return `${label} is required.`;
-  if (!isValid) return `${label} is not a valid date.`;
+  if (!isValid) return `${label} is not a correct date. Check the date.`;
   if (dateValidation.isFetching) return `${label} is still being checked. Please wait.`;
   if (dateValidation.error) {
-    return friendlyErrorMessage(dateValidation.error, `Unable to check ${label}. Please refresh and try again.`);
+    return friendlyErrorMessage(dateValidation.error, `Could not check ${label}. Refresh the page and try again.`);
   }
   if (dateValidation.data && !dateValidation.data.canPost) {
-    return dateValidation.data.reason ?? `${label} is outside the open fiscal period.`;
+    return dateValidation.data.reason ?? `${label} is not in an open Fiscal Year Period. Choose another date.`;
   }
   return null;
 }
@@ -67,8 +67,8 @@ function validateAccountsReady({
   accountCount: number;
 }) {
   if (isLoading) return 'Accounts are still loading. Please wait.';
-  if (error) return friendlyErrorMessage(error, 'Unable to load accounts. Please refresh and try again.');
-  if (accountCount === 0) return 'No active posting accounts were found. Please create accounts first.';
+  if (error) return friendlyErrorMessage(error, 'Could not load accounts. Refresh the page and try again.');
+  if (accountCount === 0) return 'No active accounts are ready for entries. Create accounts first.';
   return null;
 }
 
@@ -79,16 +79,16 @@ function optionExists(options: VoucherSelectOption[], value: string) {
 function validateRequiredAmount(value: string, lineNumber: number, label = 'Amount') {
   const rawAmount = cleanAmount(value).trim();
   const amount = amountValue(value);
-  if (!rawAmount || !validAmountPattern.test(rawAmount)) return `${label} must be a valid number on line ${lineNumber}.`;
-  if (!Number.isFinite(amount) || amount <= 0) return `${label} must be greater than zero on line ${lineNumber}.`;
+  if (!rawAmount || !validAmountPattern.test(rawAmount)) return `Enter a correct number for ${label} on line ${lineNumber}.`;
+  if (!Number.isFinite(amount) || amount <= 0) return `${label} must be more than zero on line ${lineNumber}.`;
   return null;
 }
 
 function validateOptionalAmount(value: string, lineNumber: number, label: string) {
   const cleaned = cleanAmount(value).trim();
   if (!cleaned) return null;
-  if (!validAmountPattern.test(cleaned)) return `${label} must be a valid number on line ${lineNumber}.`;
-  if (amountValue(cleaned) <= 0) return `${label} must be greater than zero on line ${lineNumber}.`;
+  if (!validAmountPattern.test(cleaned)) return `Enter a correct number for ${label} on line ${lineNumber}.`;
+  if (amountValue(cleaned) <= 0) return `${label} must be more than zero on line ${lineNumber}.`;
   return null;
 }
 
@@ -137,7 +137,7 @@ export function validateCashBankVoucher({
   if (accountsErrorMessage) return accountsErrorMessage;
 
   if (!primaryAccountId) return `${config.primaryAccountLabel} is required.`;
-  if (!selectedPrimaryAccount) return `${config.primaryAccountKind} Account was not found. Please select it again.`;
+  if (!selectedPrimaryAccount) return `${config.primaryAccountKind} Account was not found. Select it again.`;
   if (!description.trim()) return 'Voucher Details is required.';
   if (enteredLines.length === 0) return `Add at least one ${config.direction === 'receipt' ? 'receipt' : 'payment'} line.`;
 
@@ -146,10 +146,10 @@ export function validateCashBankVoucher({
     const lineNumber = allLines.findIndex(item => item.id === line.id) + 1 || index + 1;
     if (!line.accountId) return `${config.lineAccountLabel} is required on line ${lineNumber}.`;
     if (!optionExists(accountOptions, line.accountId)) {
-      return `${config.lineAccountLabel} was not found on line ${lineNumber}. Please select it again.`;
+      return `${config.lineAccountLabel} was not found on line ${lineNumber}. Select it again.`;
     }
     if (line.accountId === primaryAccountId) {
-      return `${config.lineAccountLabel} cannot be the selected ${config.primaryAccountKind} Account on line ${lineNumber}.`;
+      return `${config.lineAccountLabel} cannot be the same as the ${config.primaryAccountKind} Account on line ${lineNumber}.`;
     }
     const amountError = validateRequiredAmount(line.amount, lineNumber);
     if (amountError) return amountError;
@@ -167,14 +167,14 @@ export function validateCashBankVoucher({
       if (line.chequeDetails.trim()) {
         const chequeKey = `${primaryAccountId.toLowerCase()}::${line.chequeDetails.trim().toLowerCase()}`;
         if (chequeKeys.has(chequeKey)) {
-          return `Cheque Details ${line.chequeDetails.trim()} are already entered for this bank account.`;
+          return `Cheque Details ${line.chequeDetails.trim()} are already entered for this Bank Account.`;
         }
         chequeKeys.add(chequeKey);
       }
     }
   }
 
-  if (totalAmount <= 0) return `${config.totalLabel} must be greater than zero.`;
+  if (totalAmount <= 0) return `${config.totalLabel} must be more than zero.`;
   return null;
 }
 
@@ -221,22 +221,22 @@ export function validateBankReceiptVoucher({
   if (accountsErrorMessage) return accountsErrorMessage;
 
   if (!bankAccountId) return 'Bank Account is required.';
-  if (!selectedBankAccount) return 'Selected Bank Account was not found. Please select it again.';
+  if (!selectedBankAccount) return 'Bank Account was not found. Select it again.';
   if (enteredLines.length === 0) return 'Add at least one receipt line.';
 
   for (const [index, line] of enteredLines.entries()) {
     const lineNumber = allLines.findIndex(item => item.id === line.id) + 1 || index + 1;
     if (!line.receivedFromAccountId) return `Received From Account is required on line ${lineNumber}.`;
     if (!optionExists(accountOptions, line.receivedFromAccountId)) {
-      return `Received From Account was not found on line ${lineNumber}. Please select it again.`;
+      return `Received From Account was not found on line ${lineNumber}. Select it again.`;
     }
-    if (line.receivedFromAccountId === bankAccountId) return `Received From Account cannot be the selected Bank Account on line ${lineNumber}.`;
+    if (line.receivedFromAccountId === bankAccountId) return `Received From Account cannot be the same as the Bank Account on line ${lineNumber}.`;
 
     const amountError = validateRequiredAmount(line.amount, lineNumber);
     if (amountError) return amountError;
   }
 
-  if (totalAmount <= 0) return 'Total Deposit must be greater than zero.';
+  if (totalAmount <= 0) return 'Total Deposit must be more than zero.';
 
   const chequeKeys = new Set<string>();
   for (const line of validLines) {
@@ -313,10 +313,10 @@ export function validateJournalVoucher({
     const credit = amountValue(line.credit);
     if (!line.accountId) return `Account is required on line ${lineNumber}.`;
     if (!optionExists(accountOptions, line.accountId)) {
-      return `Account was not found on line ${lineNumber}. Please select it again.`;
+      return `Account was not found on line ${lineNumber}. Select it again.`;
     }
-    if (debit <= 0 && credit <= 0) return `Debit or Credit amount is required on line ${lineNumber}.`;
-    if (debit > 0 && credit > 0) return `Line ${lineNumber} cannot have both Debit and Credit amounts.`;
+    if (debit <= 0 && credit <= 0) return `Enter a Debit or a Credit amount on line ${lineNumber}.`;
+    if (debit > 0 && credit > 0) return `Line ${lineNumber} has both Debit and Credit. Enter only one.`;
 
     const debitError = validateOptionalAmount(line.debit, lineNumber, 'Debit');
     if (debitError) return debitError;
@@ -324,8 +324,8 @@ export function validateJournalVoucher({
     if (creditError) return creditError;
   }
 
-  if (totalDebit <= 0) return 'Total Debit must be greater than zero.';
-  if (totalCredit <= 0) return 'Total Credit must be greater than zero.';
-  if (!isBalanced) return `Journal Voucher is out of balance by ${outOfBalanceText}.`;
+  if (totalDebit <= 0) return 'Total Debit must be more than zero.';
+  if (totalCredit <= 0) return 'Total Credit must be more than zero.';
+  if (!isBalanced) return `Debit and Credit do not match. The difference is ${outOfBalanceText}.`;
   return null;
 }

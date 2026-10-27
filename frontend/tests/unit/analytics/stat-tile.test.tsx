@@ -23,9 +23,13 @@ describe('StatTile', () => {
     expect(container.querySelector('.stat-tile')).toHaveClass('tone-blue');
   });
 
-  it('explains the figure from the help mark', () => {
+  it('explains the figure in a help window from the help button', () => {
     render(<StatTile label="Net Profit" value="1" help="Revenue less all expenses." />);
-    expect(screen.getByRole('note', { name: 'About Net Profit: Revenue less all expenses.' })).toBeInTheDocument();
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Help: Net Profit' }));
+    expect(screen.getByRole('dialog', { name: 'Net Profit' })).toHaveTextContent('Revenue less all expenses.');
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 
   it('shows the change with its comparison, and hides it when there is nothing to compare', () => {

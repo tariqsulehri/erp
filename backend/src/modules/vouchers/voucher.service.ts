@@ -184,7 +184,7 @@ export class VoucherService {
   private async assertDateInOpenPeriod(dateText: string) {
     const postingDate = new PostingDateService(this.companyId);
     const result = await postingDate.validate(dateText);
-    if (!result.canPost) throw businessError(`Invalid Voucher Date: ${result.reason}`);
+    if (!result.canPost) throw businessError(`Voucher Date cannot be used. ${result.reason}`);
   }
 
   private validateLines(input: CreateVoucherInput) {
@@ -193,7 +193,7 @@ export class VoucherService {
       if (!line.account_code.trim()) throw businessError(`Account Code is required on line ${lineNumber}.`);
       if (!line.account_name.trim()) throw businessError(`Account Name is required on line ${lineNumber}.`);
       if (!Number.isFinite(line.dr_amount) || !Number.isFinite(line.cr_amount)) {
-        throw businessError(`Debit and Credit must be valid numbers on line ${lineNumber}.`);
+        throw businessError(`Debit and Credit must be numbers on line ${lineNumber}.`);
       }
       if (line.dr_amount < 0 || line.cr_amount < 0) {
         throw businessError(`Debit and Credit cannot be negative on line ${lineNumber}.`);
@@ -219,13 +219,13 @@ export class VoucherService {
 
   private assertSupportedFields(input: CreateVoucherInput) {
     if (input.auto_reverse_date) {
-      throw businessError('Auto Reverse Date is not enabled for vouchers yet.');
+      throw businessError('Auto Reverse Date is not available for vouchers yet.');
     }
     const hasUnsupportedLineField = input.lines.some(line =>
       line.cost_center_id || line.project_id || line.department_id,
     );
     if (hasUnsupportedLineField) {
-      throw businessError('Project, Cost Center, and Department are not enabled for voucher lines yet.');
+      throw businessError('Project, Cost Center, and Department are not available on voucher lines yet.');
     }
   }
 
@@ -243,7 +243,7 @@ export class VoucherService {
       if (!account || !account.isActive) throw businessError(`Account was not found or is inactive on line ${lineNumber}.`);
       if (!account.isPosting) throw businessError(`Account ${account.code} on line ${lineNumber} is a header account. Select a posting account.`);
       if (line.account_code !== account.code || line.account_name !== account.name) {
-        throw businessError(`Account details are not current on line ${lineNumber}. Please select the account again.`);
+        throw businessError(`Account details on line ${lineNumber} have changed. Please select the Account again.`);
       }
     });
   }
@@ -290,7 +290,7 @@ export class VoucherService {
         throw businessError(`Account was not found or is inactive on line ${lineNumber}.`);
       }
       if (line.account_code !== account.code || line.account_name !== account.name) {
-        throw businessError(`Account details are not current on line ${lineNumber}. Please select the account again.`);
+        throw businessError(`Account details on line ${lineNumber} have changed. Please select the Account again.`);
       }
     }
 
@@ -325,7 +325,7 @@ export class VoucherService {
 
   private assertVoucherCanUseApproval(voucher: { status: string }) {
     if (voucher.status !== 'Draft') {
-      throw businessError('Only Draft vouchers can use the approval process.');
+      throw businessError('Only Draft vouchers can be sent for approval.');
     }
   }
 
@@ -370,7 +370,7 @@ export class VoucherService {
       throw businessError('This voucher is waiting for approval and cannot be edited.');
     }
     if (voucher.approvalStatus === 'Approved') {
-      throw businessError('Approved vouchers cannot be edited. Create a new correction if changes are needed.');
+      throw businessError('Approved vouchers cannot be edited. Make a new correcting voucher if you need changes.');
     }
   }
 
@@ -599,7 +599,7 @@ export class VoucherService {
 
       const originalDateText = voucher.voucherDate.toISOString().slice(0, 10);
       if (reversalDateText < originalDateText) {
-        throw businessError(`Reversal Date cannot be earlier than the voucher date ${originalDateText}.`);
+        throw businessError(`Reversal Date cannot be before the Voucher Date ${originalDateText}.`);
       }
 
       const voucherNumber = await nextVoucherNumber(transaction, this.companyId, voucherPrefixes.RV, reversalDate.getFullYear());

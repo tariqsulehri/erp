@@ -1,0 +1,71 @@
+/* ================================================================
+   DARK THEME — <html class="erp dark">
+   Only the semantic triplets change; every --color-* name in light.css follows them.
+   Blue is a fill behind white text; blue text uses blue-60 (brand blue on dark is only 2.86:1).
+   ================================================================ */
+html.dark {
+  color-scheme: dark;
+
+  --bg:               var(--erp-night);
+  --surface:          var(--erp-dark);
+  --surface-2:        var(--erp-night-2);
+  --surface-3:        var(--erp-night-3);
+  --border:           var(--erp-night-border);
+  --border-2:         var(--erp-night-border-strong);
+  --text-1:           var(--erp-white);
+  --text-2:           var(--erp-dark-20);
+  --text-3:           var(--erp-dark-40);
+  --accent:           var(--erp-blue);
+  --accent-h:         var(--erp-blue-hover-dark);
+  --accent-soft:      var(--erp-accent-soft-dark);
+  --accent-txt:       var(--erp-blue-60);
+  --accent-ring:      var(--erp-blue-40);
+  --accent-fg:        var(--erp-white);
+  --brand-accent:     var(--erp-orange);
+  --brand-accent-txt: var(--erp-orange-80);
+  --brand-accent-soft: var(--erp-orange-soft-dark);
+  --success:          var(--erp-success-dark);
+  --success-soft:     var(--erp-success-soft-dark);
+  --success-fg:       var(--erp-night);
+  --warning:          var(--erp-warning-dark);
+  --warning-soft:     var(--erp-warning-soft-dark);
+  --warning-fg:       var(--erp-night);
+  --danger:           var(--erp-danger-dark);
+  --danger-soft:      var(--erp-danger-soft-dark);
+  --danger-fg:        var(--erp-night);
+  --info:             var(--erp-blue-60);
+  --shadow-ink:       var(--erp-black);
+  --lift-ink:         var(--erp-black);
+
+  --chart-1: var(--erp-blue-80);
+  --chart-2: var(--erp-chart-teal-dark);
+  --chart-3: var(--erp-chart-orange-dark);
+  --chart-4: var(--erp-blue-60);
+  --chart-5: var(--erp-blue-40);
+  --chart-6: var(--erp-dark-60);
+  --chart-grid:   var(--erp-night-border);
+  --chart-axis:   var(--erp-dark-40);
+  --chart-track:  var(--erp-night-3);
+  --chart-target: var(--erp-orange-80);
+  --chart-ladder-1: var(--erp-blue-60);
+  --chart-ladder-2: var(--erp-blue-40);
+  --chart-ladder-3: var(--erp-blue-20);
+  --chart-ladder-4: var(--erp-blue-10);
+  --chart-ladder-5: var(--erp-white);
+
+  --color-info-border: rgb(var(--accent) / 0.45);
+  --color-sidebar-guide: rgb(var(--accent-txt) / 0.45);
+  --color-table-row-even: rgb(var(--surface-2) / 0.5);
+  --color-selection: rgb(var(--accent-soft));
+  --color-scrim: rgb(var(--shadow-ink) / 0.6);
+  --color-login-muted: rgb(var(--erp-blue-20));
+
+  --tone-blue:   rgb(var(--erp-blue-60));
+  --tone-teal:   rgb(var(--erp-chart-teal-dark));
+  --tone-violet: rgb(var(--erp-blue-40));
+  --tone-amber:  rgb(var(--warning));
+  --tone-rose:   rgb(var(--danger));
+  --tone-slate:  rgb(var(--erp-dark-40));
+
+  --select-chevron: var(--erp-select-chevron-dark);
+}

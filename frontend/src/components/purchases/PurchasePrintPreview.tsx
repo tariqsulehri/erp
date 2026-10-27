@@ -4,6 +4,7 @@ import type { CSSProperties } from 'react';
 import { IconCircleX, IconDownload, IconPrinter } from '@tabler/icons-react';
 import { formatDate, formatNumber } from '@/lib/app-settings';
 import { friendlyErrorMessage } from '@/lib/erp-utils';
+import { printColor } from '@/lib/print-palette';
 import { openPurchaseInvoicePrintWindow } from './PurchasePrintHtml';
 import type { PurchasePrintProps } from './PurchasePrintTypes';
 
@@ -36,7 +37,7 @@ export function PurchaseInvoicePrintPreview({
         <div className="no-print" style={printPreviewToolbarStyle}>
           <div>
             <strong style={{ color: 'var(--color-heading)' }}>Print Preview</strong>
-            <div style={{ color: 'var(--color-text-muted)', fontSize: '0.72rem' }}>{invoice.purchase_number}</div>
+            <div style={{ color: 'var(--color-text-muted)', fontSize: '0.75rem' }}>{invoice.purchase_number}</div>
           </div>
           <div style={{ display: 'flex', gap: 6 }}>
             <button type="button" className="btn-secondary" onClick={() => print('Purchase Invoice')} style={compactButtonStyle}><IconPrinter size={15} /> Print</button>
@@ -49,12 +50,12 @@ export function PurchaseInvoicePrintPreview({
           <div style={printPreviewPaperStyle}>
             <div style={printHeaderStyle}>
               <div>
-                <h2 style={{ margin: 0, fontSize: 22, color: '#0f172a' }}>{company?.name ?? 'Company Name'}</h2>
+                <h2 style={{ margin: 0, fontSize: 22, color: printColor('print-ink') }}>{company?.name ?? 'Company Name'}</h2>
                 <div style={printMutedStyle}>{[company?.address, company?.city, company?.country].filter(Boolean).join(', ') || 'Company Address'}</div>
                 <div style={printMutedStyle}>{[company?.phone, company?.email].filter(Boolean).join(' | ')}</div>
               </div>
               <div style={{ textAlign: 'right' }}>
-                <h1 style={{ margin: '0 0 8px', fontSize: 24, color: '#0f172a' }}>Purchase Invoice</h1>
+                <h1 style={{ margin: '0 0 8px', fontSize: 24, color: printColor('print-ink') }}>Purchase Invoice</h1>
                 <span style={printStatusStyle}>{invoice.status}</span>
               </div>
             </div>
@@ -130,7 +131,7 @@ export function PurchaseInvoicePrintPreview({
                   ['Freight', Number(invoice.freight_amount)],
                   ['Net Amount', Number(invoice.net_amount)],
                 ].map(([label, value], index) => (
-                  <div key={String(label)} style={{ ...printTotalRowStyle, fontWeight: index === 4 ? 800 : 600, background: index === 4 ? '#f8fafc' : '#fff' }}>
+                  <div key={String(label)} style={{ ...printTotalRowStyle, fontWeight: index === 4 ? 800 : 600, background: index === 4 ? printColor('print-band') : printColor('print-paper') }}>
                     <span>{label}</span>
                     <span>{money(Number(value))}</span>
                   </div>
@@ -160,7 +161,7 @@ const printPreviewOverlayStyle: CSSProperties = {
   position: 'fixed',
   inset: 0,
   zIndex: 1000,
-  background: 'rgba(15, 23, 42, 0.58)',
+  background: 'var(--color-scrim)',
   display: 'grid',
   placeItems: 'center',
   padding: 18,
@@ -172,7 +173,7 @@ const printPreviewShellStyle: CSSProperties = {
   background: 'var(--color-bg)',
   borderRadius: 'var(--radius-md)',
   border: '1px solid var(--color-border)',
-  boxShadow: '0 24px 70px rgba(15, 23, 42, 0.32)',
+  boxShadow: 'var(--shadow-overlay)',
   display: 'grid',
   gridTemplateRows: 'auto 1fr',
   overflow: 'hidden',
@@ -199,11 +200,11 @@ const printPreviewPaperWrapStyle: CSSProperties = {
 const printPreviewPaperStyle: CSSProperties = {
   width: 794,
   minHeight: 1123,
-  background: '#fff',
-  color: '#0f172a',
-  boxShadow: '0 18px 46px rgba(15, 23, 42, 0.20)',
+  background: printColor('print-paper'),
+  color: printColor('print-ink'),
+  boxShadow: 'var(--shadow-elevated)',
   padding: 44,
-  fontSize: 11,
+  fontSize: 12,
   lineHeight: 1.4,
 };
 
@@ -211,21 +212,21 @@ const printHeaderStyle: CSSProperties = {
   display: 'flex',
   justifyContent: 'space-between',
   gap: 18,
-  borderBottom: '2px solid #0f172a',
+  borderBottom: `2px solid ${printColor('print-ink')}`,
   paddingBottom: 12,
 };
 
 const printMutedStyle: CSSProperties = {
-  color: '#475569',
-  fontSize: 10,
+  color: printColor('print-muted'),
+  fontSize: 12,
 };
 
 const printStatusStyle: CSSProperties = {
   display: 'inline-block',
   padding: '4px 9px',
-  border: '1px solid #15803d',
-  color: '#14532d',
-  background: '#f0fdf4',
+  border: `1px solid ${printColor('print-accent')}`,
+  color: printColor('print-accent'),
+  background: printColor('print-accent-soft'),
   fontWeight: 800,
   borderRadius: 3,
 };
@@ -238,14 +239,14 @@ const printInfoGridStyle: CSSProperties = {
 };
 
 const printInfoBoxStyle: CSSProperties = {
-  border: '1px solid #cbd5e1',
+  border: `1px solid ${printColor('print-rule')}`,
   padding: '7px 8px',
   minHeight: 44,
 };
 
 const printLabelStyle: CSSProperties = {
-  color: '#64748b',
-  fontSize: 9,
+  color: printColor('print-faint'),
+  fontSize: 12,
   fontWeight: 800,
   marginBottom: 3,
 };
@@ -265,17 +266,17 @@ const printPartyGridStyle: CSSProperties = {
 };
 
 const printBoxStyle: CSSProperties = {
-  border: '1px solid #cbd5e1',
+  border: `1px solid ${printColor('print-rule')}`,
   padding: 10,
   minHeight: 80,
 };
 
 const printBoxTitleStyle: CSSProperties = {
   marginBottom: 6,
-  fontSize: 10,
+  fontSize: 12,
   textTransform: 'uppercase',
   letterSpacing: '0.04em',
-  color: '#334155',
+  color: printColor('print-muted'),
   fontWeight: 800,
 };
 
@@ -287,19 +288,19 @@ const printTableStyle: CSSProperties = {
 
 function printThStyle(right = false): CSSProperties {
   return {
-    background: '#102033',
-    color: '#fff',
+    background: printColor('print-head-bg'),
+    color: printColor('print-head-fg'),
     textAlign: right ? 'right' : 'left',
     padding: '7px 6px',
-    border: '1px solid #102033',
-    fontSize: 10,
+    border: `1px solid ${printColor('print-head-bg')}`,
+    fontSize: 12,
   };
 }
 
 function printTdStyle(right = false, center = false): CSSProperties {
   return {
     padding: 6,
-    border: '1px solid #cbd5e1',
+    border: `1px solid ${printColor('print-rule')}`,
     verticalAlign: 'top',
     textAlign: center ? 'center' : right ? 'right' : 'left',
     fontVariantNumeric: right ? 'tabular-nums' : undefined,
@@ -316,7 +317,7 @@ const printFooterGridStyle: CSSProperties = {
 };
 
 const printTotalsStyle: CSSProperties = {
-  border: '1px solid #cbd5e1',
+  border: `1px solid ${printColor('print-rule')}`,
 };
 
 const printTotalRowStyle: CSSProperties = {
@@ -324,7 +325,7 @@ const printTotalRowStyle: CSSProperties = {
   justifyContent: 'space-between',
   gap: 16,
   padding: '7px 9px',
-  borderBottom: '1px solid #e2e8f0',
+  borderBottom: `1px solid ${printColor('print-rule')}`,
 };
 
 const printSignatureGridStyle: CSSProperties = {
@@ -335,9 +336,9 @@ const printSignatureGridStyle: CSSProperties = {
 };
 
 const printSignatureStyle: CSSProperties = {
-  borderTop: '1px solid #334155',
+  borderTop: `1px solid ${printColor('print-rule-strong')}`,
   paddingTop: 6,
   textAlign: 'center',
-  color: '#334155',
+  color: printColor('print-muted'),
   fontWeight: 800,
 };

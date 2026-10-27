@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/Button';
 import { DateField } from '@/components/ui/FormFields';
 import { InlineAlert } from '@/components/ui/InlineAlert';
 import { PageHeader } from '@/components/ui/PageHeader';
+import { reportHelp } from './report-help';
 import { TableMessageRow } from '@/components/ui/TableMessageRow';
 import { formatDate, formatMoney } from '@/lib/app-settings';
 import { type SalesTaxResponse, useSalesTaxReport } from '@/lib/api/reports';
@@ -45,9 +46,9 @@ export function SalesTaxReportPage({ embedded = false }: SalesTaxReportPageProps
   const reportQuery = useSalesTaxReport({ date_from: dateFrom, date_to: dateTo }, shouldLoad);
 
   function validateFilters() {
-    if (!isValidDateInput(dateFrom)) return 'Date From is required.';
-    if (!isValidDateInput(dateTo)) return 'Date To is required.';
-    if (dateTo < dateFrom) return 'Date To cannot be earlier than Date From.';
+    if (!isValidDateInput(dateFrom)) return 'Enter the Date From.';
+    if (!isValidDateInput(dateTo)) return 'Enter the Date To.';
+    if (dateTo < dateFrom) return 'Date To must be on or after Date From.';
     return '';
   }
 
@@ -150,7 +151,7 @@ export function SalesTaxReportPage({ embedded = false }: SalesTaxReportPageProps
   return (
     <Root className={embedded ? undefined : 'page-shell'} style={embedded ? embeddedReportStyle : undefined}>
       {!embedded && (
-        <PageHeader title="Sales Tax Report" description={`Tax charged on sales and paid on purchases from ${periodText}.`} />
+        <PageHeader title="Sales Tax Report" description={`Tax charged on sales and paid on purchases from ${periodText}.`} help={reportHelp['sales-tax']} />
       )}
 
       {errorMessage && <InlineAlert tone="danger">{errorMessage}</InlineAlert>}
@@ -209,7 +210,7 @@ export function SalesTaxReportPage({ embedded = false }: SalesTaxReportPageProps
                 <TableMessageRow colSpan={8} title="Choose The Dates" description="Select Date From and Date To, then click View Report." />
               )}
               {!reportQuery.isFetching && !errorMessage && report && documents.length === 0 && (
-                <TableMessageRow colSpan={8} title="No Taxed Documents Found" description="No posted sales or purchases with tax in the selected period. Widen the dates to see more." />
+                <TableMessageRow colSpan={8} title="No Taxed Documents Found" description="No posted sales or purchases with tax in the selected period. Choose a wider date range to see more." />
               )}
               {!reportQuery.isFetching && documents.map(document => (
                 <tr key={`${document.document_type}-${document.document_id}`}>

@@ -142,7 +142,7 @@ export default function BankReceiptVoucherPage() {
     if (accountsError) {
       setMessage({
         kind: 'error',
-        text: friendlyErrorMessage(accountsError, 'Unable to load accounts. Please refresh and try again.'),
+        text: friendlyErrorMessage(accountsError, 'Could not load accounts. Refresh the page and try again.'),
       });
     }
   }, [accountsError]);
@@ -151,7 +151,7 @@ export default function BankReceiptVoucherPage() {
     if (dateValidation.error) {
       setMessage({
         kind: 'error',
-        text: friendlyErrorMessage(dateValidation.error, 'Unable to check Deposit Date. Please refresh and try again.'),
+        text: friendlyErrorMessage(dateValidation.error, 'Could not check Deposit Date. Refresh the page and try again.'),
       });
     }
   }, [dateValidation.error]);
@@ -164,7 +164,7 @@ export default function BankReceiptVoucherPage() {
     const voucher = detailQuery.data;
     if (!voucher || !editingVoucherId) return;
     if (voucher.voucher_type !== 'BRV') {
-      setMessage({ kind: 'error', text: 'This is not a Bank Receipt Voucher. Please open it from the correct voucher screen.' });
+      setMessage({ kind: 'error', text: 'This is not a Bank Receipt Voucher. Open it from the right voucher screen.' });
       return;
     }
     if (voucher.status !== 'Draft') {
@@ -172,7 +172,7 @@ export default function BankReceiptVoucherPage() {
       return;
     }
     if (voucher.approval_status === 'Pending' || voucher.approval_status === 'Approved') {
-      setMessage({ kind: 'error', text: 'This voucher is in approval workflow and cannot be edited.' });
+      setMessage({ kind: 'error', text: 'This voucher is waiting for approval or is approved, so it cannot be edited.' });
       return;
     }
 
@@ -238,11 +238,11 @@ export default function BankReceiptVoucherPage() {
         const dateResult = await dateValidation.refetch();
         if (dateResult.error) throw dateResult.error;
       }
-      setMessage({ kind: 'success', text: 'Voucher data refreshed successfully.' });
+      setMessage({ kind: 'success', text: 'Voucher data refreshed.' });
     } catch (error) {
       setMessage({
         kind: 'error',
-        text: friendlyErrorMessage(error, 'Unable to refresh voucher data. Please try again.'),
+        text: friendlyErrorMessage(error, 'Could not refresh voucher data. Please try again.'),
       });
     }
   }
@@ -253,7 +253,7 @@ export default function BankReceiptVoucherPage() {
     } catch (error) {
       setMessage({
         kind: 'error',
-        text: friendlyErrorMessage(error, 'Unable to print Bank Receipt Voucher.'),
+        text: friendlyErrorMessage(error, 'Could not print Bank Receipt Voucher. Please try again.'),
       });
     }
   }
@@ -288,7 +288,7 @@ export default function BankReceiptVoucherPage() {
       return;
     }
     if (!selectedBankAccount) {
-      setMessage({ kind: 'error', text: 'Selected Bank Account was not found.' });
+      setMessage({ kind: 'error', text: 'Bank Account was not found. Select it again.' });
       return;
     }
 
@@ -322,7 +322,7 @@ export default function BankReceiptVoucherPage() {
       },
       submitForApproval,
       resetForm,
-      saveErrorFallback: 'Unable to save Bank Receipt Voucher.',
+      saveErrorFallback: 'Could not save Bank Receipt Voucher. Please try again.',
     });
     setMessage(result);
   }
@@ -347,6 +347,17 @@ export default function BankReceiptVoucherPage() {
     <DocumentPage>
       <DocumentHeader
         title="Bank Receipt Voucher"
+        help={(
+          <>
+            <p>Use this screen to record money deposited into a Bank Account.</p>
+            <ul>
+              <li>Choose the Bank Account, then add one line for each amount received.</li>
+              <li>For a cheque, enter the Cheque Number, Cheque Date and Cheque Bank.</li>
+              <li>Save Draft keeps the voucher. Save For Approval sends it to an approver.</li>
+            </ul>
+            <p>Posted vouchers cannot be changed. Use Reverse to correct them.</p>
+          </>
+        )}
         badges={<DocumentStatusBadges code="BRV" mode={editingVoucherId ? 'Edit' : 'Add'} />}
         actions={(
           <DocumentActions

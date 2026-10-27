@@ -77,12 +77,12 @@ describe.skipIf(!databaseUrl)('Bank Accounts and Cheques (database)', () => {
     it('rejects a linked account that is not an active Asset posting account', async () => {
       const service = new BankAccountService(companyId);
       await expect(service.create(bankInput({ code: 'X1', account_number: 'X1', ledger_account_id: liabilityAccount }), userId))
-        .rejects.toThrow(/not an Asset posting account/);
+        .rejects.toThrow(/is not an Asset posting account/);
 
       const inactive = await insertAccount(prisma, companyId, '0101200009', 'Inactive Bank', 'Asset', 'Debit');
       await prisma.$executeRaw`UPDATE accounts SET is_active = false WHERE id = CAST(${inactive} AS uuid)`;
       await expect(service.create(bankInput({ code: 'X2', account_number: 'X2', ledger_account_id: inactive }), userId))
-        .rejects.toThrow(/inactive/);
+        .rejects.toThrow(/is Inactive/);
 
       const header = await insertAccount(prisma, companyId, '0101200008', 'Bank Header', 'Asset', 'Debit');
       await prisma.$executeRaw`UPDATE accounts SET is_posting = false WHERE id = CAST(${header} AS uuid)`;
@@ -239,7 +239,7 @@ describe.skipIf(!databaseUrl)('Bank Accounts and Cheques (database)', () => {
       await expect(service.createBook(bookInput({ book_number: 'B-R', start_cheque_number: '20', end_cheque_number: '10' }), userId))
         .rejects.toThrow(/greater than or equal/);
       await expect(service.createBook(bookInput({ book_number: 'B-BIG', start_cheque_number: '1', end_cheque_number: '1001' }), userId))
-        .rejects.toThrow(/maximum of 1000/);
+        .rejects.toThrow(/at most 1000 cheques/);
       expect(() => bookInput({ start_cheque_number: '12A' })).toThrow(/digits only/);
     });
 

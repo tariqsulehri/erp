@@ -16,8 +16,9 @@ export const config = {
      * - /api/health (container health check)
      * - /_next/static (static files)
      * - /_next/image (image optimization files)
-     * - favicon.ico, icon.svg, public assets
+     * - /_next/data (data files)
+     * - favicon.ico, icon.svg, public assets (.svg, .png, .jpg, .ico, fonts)
      */
-    '/((?!api/auth|api/v1|api/health|_next/static|_next/image|favicon.ico|icon.svg|login).*)',
+    '/((?!api/auth|api/v1|api/health|_next/static|_next/image|_next/data|favicon.ico|icon.svg|login|.*\\.(?:svg|png|jpg|jpeg|webp|woff2?)$).*)',
   ],
 };

@@ -159,8 +159,8 @@ describe.skipIf(!databaseUrl)('Stock Transfers (database)', () => {
     expect(await errorsFor({ to_branch_id: '', to_warehouse_id: warehouseTwo, to_location_id: shelfOne }))
       .toContain('To Location can only be selected when the Warehouse uses Locations.');
     expect(await errorsFor({ to_location_id: shelfOne })).toContain('To Location was not found, Inactive, or does not belong to the selected Branch.');
-    expect(await errorsFor({ lines: [{ item_id: serviceItem, quantity: 1 }] })).toContain('One or more transfer items were not found, inactive, or not stock items.');
-    expect((await errorsFor({ transfer_date: '2027-08-01' })).join(' ')).toMatch(/Transfer Date: Date does not fall within any active fiscal year/);
+    expect(await errorsFor({ lines: [{ item_id: serviceItem, quantity: 1 }] })).toContain('One or more transfer items were not found, are Inactive, or are not stock items.');
+    expect((await errorsFor({ transfer_date: '2027-08-01' })).join(' ')).toMatch(/Transfer Date: This date is not in any active Fiscal Year/);
 
     expect(m.schema.ValidateStockTransferInput.safeParse({ transfer_date: '2025-08-01', from_warehouse_id: warehouseOne, to_branch_id: branchOne, lines: [] }).success).toBe(false);
     const zero = m.schema.ValidateStockTransferInput.safeParse({ transfer_date: '2025-08-01', from_warehouse_id: warehouseOne, to_branch_id: branchOne, lines: [{ item_id: itemA, quantity: 0 }] });
@@ -305,13 +305,35 @@ describe.skipIf(!databaseUrl)('Stock Transfers (database)', () => {
     expect(new Decimal(own.find(row => row.item_id === itemA)!.stock_on_hand).toFixed(4)).toBe('2.0000');
   });
 
+  it('filters the list by direction and shows a Branch or Warehouse user only the stock they received', async () => {
+    const parse = (query: Record<string, string>) => m.schema.ListStockTransfersQuery.parse({ status: 'Posted', limit: '200', ...query });
+    type Row = { from_kind: string; to_kind: string; to_code: string };
+    const everything = (await service().list(parse({}))).data as Row[];
+
+    for (const direction of ['BRANCH_TO_BRANCH', 'WAREHOUSE_TO_BRANCH', 'WAREHOUSE_TO_WAREHOUSE', 'BRANCH_TO_WAREHOUSE'] as const) {
+      const [from, to] = direction.split('_TO_');
+      const rows = (await service().list(parse({ direction }))).data as Row[];
+      expect(rows.every(row => row.from_kind === from && row.to_kind === to)).toBe(true);
+      expect(rows.length).toBe(everything.filter(row => row.from_kind === from && row.to_kind === to).length);
+    }
+    expect((await service().list(parse({ direction: 'BRANCH_TO_BRANCH' }))).total).toBeGreaterThan(0);
+
+    // Stock Received for Branch 2: only transfers delivered to BR-2, none it sent.
+    const allForBranchTwo = (await service(branchUser(branchTwo)).list(parse({}))).data as Row[];
+    const received = (await service(branchUser(branchTwo)).list(parse({ incoming: 'true' }))).data as Row[];
+    expect(received.length).toBeGreaterThan(0);
+    expect(received.every(row => row.to_code === 'BR-2')).toBe(true);
+    expect(received.length).toBe(allForBranchTwo.filter(row => row.to_code === 'BR-2').length);
+    expect(m.schema.ListStockTransfersQuery.safeParse({ direction: 'SIDEWAYS' }).success).toBe(false);
+  });
+
   it('rejects posting a transfer into a locked period', async () => {
     const draft = await service().createDraft(transferInput({ transfer_date: '2025-11-03', from_warehouse_id: '', from_branch_id: branchTwo, to_branch_id: branchOne, lines: [{ item_id: itemA, quantity: 1 }] }), userId);
     const fiscalYears = new m.FiscalYearService(companyId);
     const november = (await fiscalYears.getPeriods(fiscalYearId)).find(period => period.start_date === '2025-11-01');
     await fiscalYears.lockPeriod(november!.id);
 
-    await expect(service().post(draft.id, userId)).rejects.toThrow(/Invalid Transfer Date: Period "November 2025" is closed/);
+    await expect(service().post(draft.id, userId)).rejects.toThrow(/Transfer Date cannot be used\. Period "November 2025" is closed/);
     expect(await status(draft.id)).toBe('Draft');
     expect(await balance({ branchId: branchTwo })).toEqual({ quantity: '8.0000', value: '880.00', average: '110.0000' });
     expect((await service().validate(transferInput({ transfer_date: '2025-11-04' }))).errors.join(' ')).toMatch(/Period "November 2025" is closed/);

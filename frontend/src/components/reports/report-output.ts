@@ -1,5 +1,6 @@
 import { formatDate, formatMoney, formatNumber, type AppFormatSettingsSource } from '@/lib/app-settings';
 import { escapeHtml } from '@/lib/erp-utils';
+import { printPaletteCss } from '@/lib/print-palette';
 
 /** How a column is shown: money and quantity are formatted from settings and right aligned. */
 export type ReportColumnKind = 'text' | 'money' | 'quantity' | 'date';
@@ -75,29 +76,31 @@ export function buildReportPrintHtml(report: ReportDocument, company?: ReportCom
   <meta charset="utf-8" />
   <title>${html(report.title)}</title>
   <style>
-    @page { size: A4 ${report.columns.length > 7 ? 'landscape' : 'portrait'}; margin: 10mm; @bottom-right { content: "Page " counter(page) " of " counter(pages); font-size: 9px; color: #64748b; } }
+    ${printPaletteCss()}
+    /* Printed text is at least 10px: paper is read close up. Colours come from the --print-* tokens. */
+    @page { size: A4 ${report.columns.length > 7 ? 'landscape' : 'portrait'}; margin: 10mm; @bottom-right { content: "Page " counter(page) " of " counter(pages); font-size: 10px; color: rgb(var(--print-faint)); } }
     * { box-sizing: border-box; }
-    body { margin: 0; color: #0f172a; font-family: Arial, sans-serif; font-size: 10px; background: #fff; }
-    .top { display: flex; justify-content: space-between; gap: 18px; border-bottom: 2px solid #0f172a; padding-bottom: 8px; }
+    body { margin: 0; color: rgb(var(--print-ink)); font-family: Arial, sans-serif; font-size: 10px; background: rgb(var(--print-paper)); }
+    .top { display: flex; justify-content: space-between; gap: 18px; border-bottom: 2px solid rgb(var(--print-ink)); padding-bottom: 8px; }
     .top h1 { margin: 0 0 4px; font-size: 18px; }
     .top h2 { margin: 0 0 4px; font-size: 16px; text-align: right; }
-    .muted { color: #475569; line-height: 1.4; }
+    .muted { color: rgb(var(--print-muted)); line-height: 1.4; }
     .right { text-align: right; }
     .summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px; margin-top: 10px; }
-    .box { border: 1px solid #cbd5e1; padding: 6px 8px; }
-    .label { color: #64748b; font-size: 9px; font-weight: 700; }
+    .box { border: 1px solid rgb(var(--print-rule)); padding: 6px 8px; }
+    .label { color: rgb(var(--print-faint)); font-size: 10px; font-weight: 700; }
     .value { font-size: 13px; font-weight: 800; font-variant-numeric: tabular-nums; }
     table { width: 100%; border-collapse: collapse; margin-top: 10px; }
     thead { display: table-header-group; }
-    th { background: #102033; color: #fff; text-align: left; padding: 5px; border: 1px solid #102033; font-size: 9px; }
-    td { padding: 4px 5px; border: 1px solid #cbd5e1; vertical-align: top; }
+    th { background: rgb(var(--print-head-bg)); color: rgb(var(--print-head-fg)); text-align: left; padding: 5px; border: 1px solid rgb(var(--print-head-bg)); font-size: 10px; }
+    td { padding: 4px 5px; border: 1px solid rgb(var(--print-rule)); vertical-align: top; }
     tr { page-break-inside: avoid; }
     .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
-    tr.group td { background: #f1f5f9; font-weight: 700; }
-    tr.total td { background: #e2e8f0; font-weight: 800; border-top: 2px solid #0f172a; }
-    .empty { text-align: center; color: #64748b; padding: 14px; }
-    .note { margin-top: 8px; color: #334155; }
-    .footer { display: flex; justify-content: space-between; margin-top: 10px; color: #64748b; font-size: 9px; }
+    tr.group td { background: rgb(var(--print-band)); font-weight: 700; }
+    tr.total td { background: rgb(var(--print-rule) / 0.55); font-weight: 800; border-top: 2px solid rgb(var(--print-ink)); }
+    .empty { text-align: center; color: rgb(var(--print-faint)); padding: 14px; }
+    .note { margin-top: 8px; color: rgb(var(--print-muted)); }
+    .footer { display: flex; justify-content: space-between; margin-top: 10px; color: rgb(var(--print-faint)); font-size: 10px; }
   </style>
 </head>
 <body>

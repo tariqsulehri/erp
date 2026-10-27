@@ -20,7 +20,7 @@ async function forward(request: NextRequest, { params }: { params: Promise<{ pat
 
   const { path } = await params;
   if (path.some(segment => segment === '.' || segment === '..')) {
-    return NextResponse.json({ error: { code: 'REQUEST_ERROR', message: 'Invalid request path.' } }, { status: 400 });
+    return NextResponse.json({ error: { code: 'REQUEST_ERROR', message: 'This page address is not correct. Check the address and try again.' } }, { status: 400 });
   }
   const target = `${backendInternalUrl()}/${path.map(encodeURIComponent).join('/')}${request.nextUrl.search}`;
 
@@ -45,9 +45,10 @@ async function forward(request: NextRequest, { params }: { params: Promise<{ pat
       headers,
       body: hasBody ? await request.arrayBuffer() : undefined,
       cache: 'no-store',
+      keepalive: true,
     });
   } catch {
-    return NextResponse.json({ error: { code: 'REQUEST_ERROR', message: 'The server is not available. Please try again in a moment.' } }, { status: 502 });
+    return NextResponse.json({ error: { code: 'REQUEST_ERROR', message: 'Cannot reach the server. Check your connection and try again.' } }, { status: 502 });
   }
 
   const responseHeaders = new Headers();
