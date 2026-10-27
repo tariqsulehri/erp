@@ -36,6 +36,7 @@ export interface UpdatePostingAccountSettingsInput {
     default_inventory_account_id: string;
     adjustment_gain_account_id: string;
     adjustment_loss_account_id: string;
+    opening_balance_account_id: string | null;
   }>;
   year_end?: Partial<{
     retained_earnings_account_id: string;

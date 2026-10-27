@@ -11,6 +11,9 @@ export type AdjustmentType = 'Increase' | 'Decrease';
 
 export type StockHolderKind = 'BRANCH' | 'WAREHOUSE';
 
+/** 'Opening Stock' records an item's first stock at a place (OS numbers); 'Adjustment' corrects stock later (SA numbers). */
+export type StockDocumentKind = 'Adjustment' | 'Opening Stock';
+
 export interface StockAdjustmentSupportData {
   /** Branch users get only their Branch; Warehouse users get no Branches. */
   branches: any[];
@@ -29,6 +32,7 @@ export interface StockAdjustmentLinePayload {
 }
 
 export interface StockAdjustmentPayload {
+  document_kind: StockDocumentKind;
   adjustment_date: string;
   /** Exactly one of branch_id and warehouse_id is sent. */
   branch_id?: string;
@@ -44,6 +48,7 @@ export interface StockAdjustmentListQuery {
   page: number;
   limit: number;
   status?: 'Draft' | 'Posted' | 'Voided';
+  document_kind?: StockDocumentKind;
   search?: string;
   branch_id?: string;
   warehouse_id?: string;

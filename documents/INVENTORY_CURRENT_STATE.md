@@ -15,6 +15,10 @@ Snapshot date: 2026-09-30, branch `feature/inventory-professional`. Line numbers
   - An adjustment also gets a Reversal Voucher (RV) that mirrors its SA voucher.
   - The document becomes `Voided` with a posted date, shown as Reversed.
   - The reversal is refused when the place no longer holds the stock or value to give back.
+- **Opening stock entry (branch `feature/opening-stock`):** Inventory → Opening Stock.
+  - Opening Stock is a kind of stock adjustment (`document_kind = 'Opening Stock'`), numbered `OS-YYYY-NNNN`.
+  - It is accepted once per item per Branch or Warehouse: only when the item has no stock history there.
+  - Posting writes `OPENING_BALANCE` movements and an `OS` voucher: Dr Inventory, Cr the Opening Balance account (Settings → Posting Accounts; default Opening Balance Equity `0302100301`).
 
 ---
 

@@ -17,6 +17,7 @@ import { useGeneralSettings } from '@/lib/api/settings';
 import {
   type AdjustmentType,
   type StockAdjustmentPayload,
+  type StockDocumentKind,
   type StockHolderKind,
   useCancelStockAdjustmentDraft,
   useCreateAndPostStockAdjustment,
@@ -71,7 +72,15 @@ const adjustmentTypeOptions = [
 ];
 type StatusFilter = 'Posted' | 'Draft' | 'Voided';
 
-export default function StockAdjustmentPage() {
+/** Words that change between Stock Adjustments and Opening Stock, which share this screen. */
+const DOCUMENT_TEXT = {
+  Adjustment: { plural: 'Stock Adjustments', single: 'Stock Adjustment', number: 'Adjustment No.', newLabel: 'New Adjustment' },
+  'Opening Stock': { plural: 'Opening Stock', single: 'Opening Stock', number: 'Opening Stock No.', newLabel: 'New Opening Stock' },
+} as const;
+
+export default function StockAdjustmentPage({ documentKind = 'Adjustment' }: { documentKind?: StockDocumentKind } = {}) {
+  const isOpeningStock = documentKind === 'Opening Stock';
+  const words = DOCUMENT_TEXT[documentKind];
   const { data: session } = useSession();
   // Branch and Warehouse users can only adjust their own place; All Branches users choose Branch or Warehouse.
   const accessLevel = session?.user.accessLevel;
@@ -118,7 +127,7 @@ export default function StockAdjustmentPage() {
   const actionDisabled = saving || postingDateGuard.disabled;
   const dateStatusMessage = postingDateGuard.isChecking ? 'Checking Adjustment Date...' : postingDateGuard.statusMessage;
   const newAdjustmentDisabledReason = newAdjustmentGuard.isChecking ? 'Checking Adjustment Date...' : newAdjustmentGuard.statusMessage;
-  const listQuery = useStockAdjustmentsList({ page: 1, limit: 50, status: statusFilter });
+  const listQuery = useStockAdjustmentsList({ page: 1, limit: 50, status: statusFilter, document_kind: documentKind });
   const detailQuery = useStockAdjustmentDetail(selectedAdjustmentId);
 
   const warehouses = useMemo(() => (supportQuery.data?.warehouses ?? []).map((warehouse: any) => ({
@@ -251,6 +260,8 @@ export default function StockAdjustmentPage() {
     if (invalidLine) return `Quantity must be more than zero for ${invalidLine.itemCode}.`;
     const negativeCostLine = lines.find(line => numericValue(line.unitCost) < 0);
     if (negativeCostLine) return `Unit Cost cannot be negative for ${negativeCostLine.itemCode}.`;
+    const zeroCostLine = isOpeningStock ? lines.find(line => numericValue(line.unitCost) <= 0) : undefined;
+    if (zeroCostLine) return `Enter a Unit Cost above zero for ${zeroCostLine.itemCode}.`;
     const lowStockLine = lines.find(line => line.adjustmentType === 'Decrease' && numericValue(line.quantity) > numericValue(line.stockOnHand));
     if (lowStockLine) return `Available Stock is not enough for ${lowStockLine.itemCode}.`;
     return '';
@@ -323,6 +334,7 @@ export default function StockAdjustmentPage() {
 
   function buildPayload(): StockAdjustmentPayload {
     return {
+      document_kind: documentKind,
       adjustment_date: adjustmentDate,
       ...(kind === 'BRANCH' ? { branch_id: branchId } : { warehouse_id: warehouseId }),
       location_id: locationId || undefined,
@@ -359,7 +371,7 @@ export default function StockAdjustmentPage() {
       setMessage({ kind: 'success', text: postNow ? `${result.adjustment_number} posted.` : `${result.adjustment_number} saved as Draft.` });
       if (postNow) setViewMode('list');
     } catch (error) {
-      setMessage({ kind: 'error', text: friendlyErrorMessage(error, 'Could not save Stock Adjustment. Please try again.') });
+      setMessage({ kind: 'error', text: friendlyErrorMessage(error, `Could not save the ${words.single}. Please try again.`) });
     }
   }
 
@@ -368,8 +380,15 @@ export default function StockAdjustmentPage() {
     return (
       <main className="page-shell">
         <PageHeader
-          title="Stock Adjustments"
-          help={(
+          title={words.plural}
+          help={isOpeningStock ? (
+            <>
+              <p>Opening Stock records the stock you already have when you start using the system, at its cost.</p>
+              <p>Enter each item once for each Branch or Warehouse. After an item has stock there, correct it with a Stock Adjustment.</p>
+              <p>Posting adds the stock and a voucher: Inventory is debited and the Opening Balance account (set in Settings, Posting Accounts) is credited.</p>
+              <p>Change the Status to Draft to find saved drafts. A Manager can Reverse posted Opening Stock.</p>
+            </>
+          ) : (
             <>
               <p>This list shows posted stock adjustments. Use an adjustment to fix stock after a count, damage or loss.</p>
               <p>Select a row to see its items. Select New Adjustment to add or remove stock.</p>
@@ -377,11 +396,11 @@ export default function StockAdjustmentPage() {
               <p>A posted adjustment cannot be changed. A Manager can Reverse it: the stock and the ledger entry are undone on the Reversal Date.</p>
             </>
           )}
-          description="Stock increases and decreases, with cost and reason."
+          description={isOpeningStock ? 'The first stock of each item at each place, with its cost.' : 'Stock increases and decreases, with cost and reason.'}
           actions={(
             <>
               <Button variant="secondary" icon={<IconRefresh size={16} stroke={1.8} />} onClick={() => listQuery.refetch()} loading={listQuery.isFetching && !listQuery.isLoading}>Refresh</Button>
-              <Button variant="primary" icon={<IconFilePlus size={16} stroke={1.8} />} disabled={newAdjustmentGuard.disabled} title={newAdjustmentDisabledReason} onClick={openNewAdjustment}>New Adjustment</Button>
+              <Button variant="primary" icon={<IconFilePlus size={16} stroke={1.8} />} disabled={newAdjustmentGuard.disabled} title={newAdjustmentDisabledReason} onClick={openNewAdjustment}>{words.newLabel}</Button>
             </>
           )}
         />
@@ -401,7 +420,7 @@ export default function StockAdjustmentPage() {
               <table className="data-table" style={{ tableLayout: 'fixed' }}>
                 <thead>
                   <tr>
-                    <th style={{ width: 160 }}>Adjustment No.</th>
+                    <th style={{ width: 160 }}>{words.number}</th>
                     <th style={{ width: 110 }}>Date</th>
                     <th>Branch Or Warehouse</th>
                     <th>Reason</th>
@@ -412,11 +431,11 @@ export default function StockAdjustmentPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {listQuery.isLoading && <TableMessageRow colSpan={8} title="Loading Stock Adjustments…" loading />}
+                  {listQuery.isLoading && <TableMessageRow colSpan={8} title={`Loading ${words.plural}…`} loading />}
                   {!listQuery.isLoading && rows.length === 0 && (
                     statusFilter === 'Posted'
-                      ? <TableMessageRow colSpan={8} title="No Posted Stock Adjustments Yet" description="Record a stock count difference, damage, or opening fix with a new adjustment." action={<Button variant="primary" icon={<IconFilePlus size={16} stroke={1.8} />} disabled={newAdjustmentGuard.disabled} onClick={openNewAdjustment}>New Adjustment</Button>} />
-                      : <TableMessageRow colSpan={8} title={statusFilter === 'Draft' ? 'No Draft Stock Adjustments' : 'No Cancelled Or Reversed Stock Adjustments'} description="Choose another Status to see more adjustments." />
+                      ? <TableMessageRow colSpan={8} title={`No Posted ${words.plural} Yet`} description={isOpeningStock ? 'Enter the stock you already have at each Branch and Warehouse.' : 'Record a stock count difference, damage, or loss with a new adjustment.'} action={<Button variant="primary" icon={<IconFilePlus size={16} stroke={1.8} />} disabled={newAdjustmentGuard.disabled} onClick={openNewAdjustment}>{words.newLabel}</Button>} />
+                      : <TableMessageRow colSpan={8} title={statusFilter === 'Draft' ? `No Draft ${words.plural}` : `No Cancelled Or Reversed ${words.plural}`} description="Choose another Status to see more." />
                   )}
                   {!listQuery.isLoading && rows.map((row: any) => (
                     <tr key={row.id} className={selectedAdjustmentId === row.id ? 'is-selected' : undefined} onClick={() => setSelectedAdjustmentId(row.id)} style={{ cursor: 'pointer' }}>
@@ -444,7 +463,7 @@ export default function StockAdjustmentPage() {
               onClose={() => setSelectedAdjustmentId(null)}
               actions={detailQuery.data?.status === 'Posted' && canReverse ? (
                 <ReverseDocumentAction
-                  documentName="Stock Adjustment"
+                  documentName={words.single}
                   documentNumber={detailQuery.data.adjustment_number}
                   reverseEffect="Increases are taken back out and Decreases put back at the cost they were posted at, and a Reversal Voucher undoes the ledger entry."
                   onReverse={async (reversalDate, reason) => {
@@ -456,7 +475,7 @@ export default function StockAdjustmentPage() {
                 />
               ) : detailQuery.data?.status === 'Draft' && canChangeDrafts && (
                 <DraftDocumentActions
-                  documentName="Stock Adjustment"
+                  documentName={words.single}
                   documentNumber={detailQuery.data.adjustment_number}
                   postEffect="Stock and the Inventory account are updated."
                   onOpen={() => openSavedDraft(detailQuery.data)}
@@ -483,8 +502,17 @@ export default function StockAdjustmentPage() {
   return (
     <main className="page-shell">
       <PageHeader
-        title={openDraft ? `Stock Adjustment ${openDraft.adjustmentNumber}` : 'New Stock Adjustment'}
-        help={(
+        title={openDraft ? `${words.single} ${openDraft.adjustmentNumber}` : isOpeningStock ? 'New Opening Stock' : 'New Stock Adjustment'}
+        help={isOpeningStock ? (
+          <>
+            <p>Use this screen to enter the stock you already have at one Branch or Warehouse when you start.</p>
+            <ul>
+              <li>Add one line for each item with its Quantity and Unit Cost. Enter each item once.</li>
+              <li>An item that already has stock at this place cannot be entered again; use a Stock Adjustment instead.</li>
+              <li>Process posts the stock and the opening voucher. If posting is refused, nothing is saved.</li>
+            </ul>
+          </>
+        ) : (
           <>
             <p>Use this screen to add stock (Increase) or remove stock (Decrease) at a Branch or Warehouse.</p>
             <ul>
@@ -495,7 +523,7 @@ export default function StockAdjustmentPage() {
             <p>You cannot remove more stock than is available. A posted adjustment cannot be changed.</p>
           </>
         )}
-        description="Increase or decrease stock. Every change is recorded for checking later."
+        description={isOpeningStock ? 'The first stock of each item at this place, with its cost.' : 'Increase or decrease stock. Every change is recorded for checking later.'}
         actions={(
           <>
             <Button variant="ghost" onClick={() => setViewMode('list')}>Cancel</Button>
@@ -552,11 +580,13 @@ export default function StockAdjustmentPage() {
       <section className="panel" style={{ flex: 1, minHeight: 0 }}>
         <div className="panel-header" style={{ alignItems: 'flex-end', paddingTop: 12, paddingBottom: 12, overflow: 'visible' }}>
           <div className="form-grid" style={{ flex: 1, ['--form-cols' as string]: 8 }}>
-            <FieldLabel label="Type" required>
-              <select className="form-input" value={lineType} onChange={event => setLineType(event.currentTarget.value as AdjustmentType)}>
-                {adjustmentTypeOptions.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
-              </select>
-            </FieldLabel>
+            {!isOpeningStock && (
+              <FieldLabel label="Type" required>
+                <select className="form-input" value={lineType} onChange={event => setLineType(event.currentTarget.value as AdjustmentType)}>
+                  {adjustmentTypeOptions.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+                </select>
+              </FieldLabel>
+            )}
             <div className="span-2">
               <FieldLabel label="Item" required>
                 <SearchableSelect value={lineItemId} options={items} onChange={setLineItemId} placeholder={supportQuery.isLoading ? 'Loading Items' : 'Search Item'} disabled={supportQuery.isLoading || supportQuery.isError} />
@@ -619,7 +649,7 @@ export default function StockAdjustmentPage() {
           <Total label="Cost Out" value={formatMoney(totalCostOut, generalSettings)} />
         </div>
       </section>
-      <ConfirmDialog open={confirmOpen} variant="primary" title="Process Stock Adjustment?" message="This posts the stock changes and updates stock balances. You cannot change a posted adjustment." confirmLabel="Process" onConfirm={() => saveAdjustment(true)} onCancel={() => setConfirmOpen(false)} />
+      <ConfirmDialog open={confirmOpen} variant="primary" title={`Process ${words.single}?`} message={isOpeningStock ? "This posts the opening stock and its voucher. You cannot change it after it is posted." : "This posts the stock changes and updates stock balances. You cannot change a posted adjustment."} confirmLabel="Process" onConfirm={() => saveAdjustment(true)} onCancel={() => setConfirmOpen(false)} />
     </main>
   );
 }

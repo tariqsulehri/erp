@@ -88,6 +88,7 @@ type PostingAccountForm = {
     default_inventory_account_id: string;
     adjustment_gain_account_id: string;
     adjustment_loss_account_id: string;
+    opening_balance_account_id: string | null;
   };
   year_end: {
     retained_earnings_account_id: string;
@@ -202,6 +203,7 @@ function postingAccountFormFromSettings(settings: PostingAccountSettings): Posti
       default_inventory_account_id: settings.stock_adjustment?.default_inventory_account_id ?? '',
       adjustment_gain_account_id: settings.stock_adjustment?.adjustment_gain_account_id ?? '',
       adjustment_loss_account_id: settings.stock_adjustment?.adjustment_loss_account_id ?? '',
+      opening_balance_account_id: settings.stock_adjustment?.opening_balance_account_id ?? null,
     },
     year_end: {
       retained_earnings_account_id: settings.year_end?.retained_earnings_account_id ?? '',
@@ -413,6 +415,17 @@ const STOCK_ADJUSTMENT_POSTING_FIELDS: PostingAccountField[] = [
     accountTypes: ['Expense'],
     accountCodePrefixes: ['050230'],
     required: true,
+  },
+  {
+    section: 'stock_adjustment',
+    idKey: 'opening_balance_account_id',
+    codeKey: 'opening_balance_account_code',
+    nameKey: 'opening_balance_account_name',
+    label: 'Opening Balance Account',
+    hint: 'Credited when Opening Stock is posted. Left empty, Opening Balance Equity (0302100301) is used.',
+    accountTypes: ['Equity'],
+    accountCodePrefixes: ['03'],
+    required: false,
   },
 ];
 

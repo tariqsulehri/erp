@@ -73,7 +73,7 @@ describe('AppSidebar', () => {
     render(<AppSidebar {...props} />);
     const inventory = screen.getByRole('link', { name: /Inventory/ });
     expect(inventory).toHaveAttribute('href', '/inventory/overview');
-    expect(inventory).toHaveTextContent('4');
+    expect(inventory).toHaveTextContent('5');
     expect(screen.getByRole('link', { name: /Company & Finance/ })).toHaveAttribute('href', '/settings');
     expect(screen.getByRole('link', { name: /Places & Facilities/ })).toHaveAttribute('href', '/inventory/branches');
     expect(screen.getByRole('link', { name: /Product Management/ })).toHaveAttribute('href', '/inventory/products');
@@ -101,6 +101,7 @@ describe('ModuleTabs', () => {
     const tabs = screen.getByRole('navigation', { name: 'Inventory Pages' });
     expect(tabs).toHaveTextContent('Stock Transfer');
     expect(tabs).toHaveTextContent('Stock Adjustment');
+    expect(tabs).toHaveTextContent('Opening Stock');
     expect(screen.getByRole('link', { current: 'page' })).toHaveTextContent('Stock Received');
     expect(screen.queryByLabelText('Step 1')).not.toBeInTheDocument();
   });

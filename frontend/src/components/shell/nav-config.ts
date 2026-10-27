@@ -118,6 +118,7 @@ export const NAV_SECTIONS: NavSection[] = [
           { label: 'Stock Transfer', href: '/inventory/stock-transfers', icon: IconArrowsExchange, code: 'ST', moduleKey: 'inventory', featureKey: 'stock-transfer', permissionKey: 'inventory.stock_transfer.view', requiresPosting: true },
           { label: 'Stock Received', href: '/inventory/stock-received', icon: IconPackageImport, moduleKey: 'inventory', featureKey: 'stock-received', permissionKey: 'inventory.stock_received.view' },
           { label: 'Stock Adjustment', href: '/inventory/stock-adjustments', icon: IconAdjustmentsHorizontal, code: 'SA', moduleKey: 'inventory', featureKey: 'stock-adjustment', permissionKey: 'inventory.stock_adjustment.view', requiresPosting: true },
+          { label: 'Opening Stock', href: '/inventory/opening-stock', icon: IconPackage, code: 'OS', moduleKey: 'inventory', featureKey: 'opening-stock', permissionKey: 'inventory.opening_stock.view', requiresPosting: true },
         ],
       }),
       group({
