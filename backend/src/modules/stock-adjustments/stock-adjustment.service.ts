@@ -333,6 +333,8 @@ export class StockAdjustmentService {
         sa.total_cost_in::text,
         sa.total_cost_out::text,
         sa.posted_at,
+        sa.void_reason,
+        sa.voided_at,
         sa.branch_id,
         b.code AS branch_code,
         b.name AS branch_name,

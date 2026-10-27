@@ -18,13 +18,18 @@ import {
   type AdjustmentType,
   type StockAdjustmentPayload,
   type StockHolderKind,
+  useCancelStockAdjustmentDraft,
   useCreateAndPostStockAdjustment,
   useCreateStockAdjustmentDraft,
   useInvalidateStockAdjustmentQueries,
+  usePostStockAdjustmentDraft,
   useStockAdjustmentDetail,
   useStockAdjustmentsList,
   useStockAdjustmentSupportData,
+  useUpdateAndPostStockAdjustment,
+  useUpdateStockAdjustmentDraft,
 } from '@/lib/api/stock-adjustments';
+import { hasPermission } from '@/lib/auth/session-user';
 import { usePostingDateGuard } from '@/lib/api/fiscal-years';
 import { friendlyErrorMessage, numericValue } from '@/lib/erp-utils';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
@@ -37,6 +42,9 @@ import { PageHeader } from '@/components/ui/PageHeader';
 import { TableMessageRow } from '@/components/ui/TableMessageRow';
 import { SearchableSelect } from '@/components/ui/SearchableSelect';
 import { SegmentedControl } from '@/components/ui/SegmentedControl';
+import { StatusChip } from '@/components/ui/StatusChip';
+import { DOCUMENT_STATUS_OPTIONS, documentStatusLabel, DraftDocumentActions, type DraftActionMessage } from '@/components/documents';
+import { adjustmentFormFromDetail } from './adjustment-drafts';
 
 interface AdjustmentLine {
   id: number;
@@ -60,6 +68,7 @@ const adjustmentTypeOptions = [
   { value: 'Increase', label: 'Increase' },
   { value: 'Decrease', label: 'Decrease' },
 ];
+type StatusFilter = 'Posted' | 'Draft' | 'Voided';
 
 export default function StockAdjustmentPage() {
   const { data: session } = useSession();
@@ -70,7 +79,16 @@ export default function StockAdjustmentPage() {
   const supportQuery = useStockAdjustmentSupportData();
   const createDraft = useCreateStockAdjustmentDraft();
   const createAndPost = useCreateAndPostStockAdjustment();
+  const updateDraft = useUpdateStockAdjustmentDraft();
+  const updateAndPost = useUpdateAndPostStockAdjustment();
+  const postDraft = usePostStockAdjustmentDraft();
+  const cancelDraft = useCancelStockAdjustmentDraft();
   const invalidate = useInvalidateStockAdjustmentQueries();
+  const canChangeDrafts = hasPermission(session?.user.role, 'stock_adjustments.edit');
+  /** The saved Draft open in the form, or null for a new adjustment. */
+  const [openDraft, setOpenDraft] = useState<{ id: string; adjustmentNumber: string } | null>(null);
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('Posted');
+  const [actionMessage, setActionMessage] = useState<DraftActionMessage | null>(null);
   const [viewMode, setViewMode] = useState<'list' | 'entry'>('list');
   const [adjustmentDate, setAdjustmentDate] = useState(today());
   const [holderKind, setHolderKind] = useState<StockHolderKind>('WAREHOUSE');
@@ -93,11 +111,11 @@ export default function StockAdjustmentPage() {
 
   const postingDateGuard = usePostingDateGuard(adjustmentDate, 'Adjustment Date');
   const newAdjustmentGuard = usePostingDateGuard(today(), 'Adjustment Date');
-  const saving = createDraft.isPending || createAndPost.isPending;
+  const saving = createDraft.isPending || createAndPost.isPending || updateDraft.isPending || updateAndPost.isPending;
   const actionDisabled = saving || postingDateGuard.disabled;
   const dateStatusMessage = postingDateGuard.isChecking ? 'Checking Adjustment Date...' : postingDateGuard.statusMessage;
   const newAdjustmentDisabledReason = newAdjustmentGuard.isChecking ? 'Checking Adjustment Date...' : newAdjustmentGuard.statusMessage;
-  const listQuery = useStockAdjustmentsList({ page: 1, limit: 50, status: 'Posted' });
+  const listQuery = useStockAdjustmentsList({ page: 1, limit: 50, status: statusFilter });
   const detailQuery = useStockAdjustmentDetail(selectedAdjustmentId);
 
   const warehouses = useMemo(() => (supportQuery.data?.warehouses ?? []).map((warehouse: any) => ({
@@ -181,6 +199,35 @@ export default function StockAdjustmentPage() {
     setLines([]);
     setEditingLineId(null);
     setMessage(null);
+    setOpenDraft(null);
+  }
+
+  /** Opens a saved Draft in the entry form so it can be changed, saved again, or posted. */
+  function openSavedDraft(detail: Record<string, any>) {
+    const form = adjustmentFormFromDetail(detail);
+    setAdjustmentDate(form.adjustmentDate);
+    setHolderKind(form.holderKind);
+    if (form.branchId) setBranchId(form.branchId);
+    if (form.warehouseId) setWarehouseId(form.warehouseId);
+    setLocationId(form.locationId);
+    setReferenceNumber(form.referenceNumber);
+    setReason(form.reason);
+    setDescription(form.description);
+    setLineType('Increase');
+    setLineItemId('');
+    setLineQuantity('');
+    setLineUnitCost('');
+    setLineDescription('');
+    setEditingLineId(null);
+    setLines(form.lines.map((line, index) => ({
+      ...line,
+      id: Date.now() + index,
+      stockOnHand: items.find(item => item.value === line.itemId)?.stockOnHand ?? '0',
+    })));
+    setOpenDraft({ id: form.id, adjustmentNumber: form.adjustmentNumber });
+    setSelectedAdjustmentId(null);
+    setMessage(null);
+    setViewMode('entry');
   }
 
   function openNewAdjustment() {
@@ -297,9 +344,13 @@ export default function StockAdjustmentPage() {
       return;
     }
     try {
-      const result = postNow
-        ? await createAndPost.mutateAsync(buildPayload())
-        : await createDraft.mutateAsync(buildPayload());
+      const result = openDraft
+        ? postNow
+          ? await updateAndPost.mutateAsync({ id: openDraft.id, input: buildPayload() })
+          : await updateDraft.mutateAsync({ id: openDraft.id, input: buildPayload() })
+        : postNow
+          ? await createAndPost.mutateAsync(buildPayload())
+          : await createDraft.mutateAsync(buildPayload());
       await invalidate();
       resetForm();
       setMessage({ kind: 'success', text: postNow ? `${result.adjustment_number} posted.` : `${result.adjustment_number} saved as Draft.` });
@@ -319,10 +370,11 @@ export default function StockAdjustmentPage() {
             <>
               <p>This list shows posted stock adjustments. Use an adjustment to fix stock after a count, damage or loss.</p>
               <p>Select a row to see its items. Select New Adjustment to add or remove stock.</p>
+              <p>Change the Status to Draft to find saved drafts. A Draft can be opened and changed, posted, or cancelled.</p>
               <p>A posted adjustment cannot be changed. To correct it, post a new adjustment.</p>
             </>
           )}
-          description="Posted stock increases and decreases, with cost and reason."
+          description="Stock increases and decreases, with cost and reason."
           actions={(
             <>
               <Button variant="secondary" icon={<IconRefresh size={16} stroke={1.8} />} onClick={() => listQuery.refetch()} loading={listQuery.isFetching && !listQuery.isLoading}>Refresh</Button>
@@ -331,8 +383,17 @@ export default function StockAdjustmentPage() {
           )}
         />
         {message && <InlineAlert tone={message.kind === 'success' ? 'success' : 'danger'}>{message.text}</InlineAlert>}
+        {actionMessage && <InlineAlert tone={actionMessage.tone} onDismiss={() => setActionMessage(null)}>{actionMessage.text}</InlineAlert>}
         <div className={`split-view${selectedAdjustmentId ? ' has-side' : ''}`}>
           <section className="panel">
+            <div className="panel-header">
+              <SegmentedControl<StatusFilter>
+                label="Status"
+                value={statusFilter}
+                options={DOCUMENT_STATUS_OPTIONS as Array<{ value: StatusFilter; label: string }>}
+                onChange={value => { setStatusFilter(value); setSelectedAdjustmentId(null); }}
+              />
+            </div>
             <div className="table-scroll">
               <table className="data-table" style={{ tableLayout: 'fixed' }}>
                 <thead>
@@ -350,7 +411,9 @@ export default function StockAdjustmentPage() {
                 <tbody>
                   {listQuery.isLoading && <TableMessageRow colSpan={8} title="Loading Stock Adjustments…" loading />}
                   {!listQuery.isLoading && rows.length === 0 && (
-                    <TableMessageRow colSpan={8} title="No Posted Stock Adjustments Yet" description="Record a stock count difference, damage, or opening fix with a new adjustment." action={<Button variant="primary" icon={<IconFilePlus size={16} stroke={1.8} />} disabled={newAdjustmentGuard.disabled} onClick={openNewAdjustment}>New Adjustment</Button>} />
+                    statusFilter === 'Posted'
+                      ? <TableMessageRow colSpan={8} title="No Posted Stock Adjustments Yet" description="Record a stock count difference, damage, or opening fix with a new adjustment." action={<Button variant="primary" icon={<IconFilePlus size={16} stroke={1.8} />} disabled={newAdjustmentGuard.disabled} onClick={openNewAdjustment}>New Adjustment</Button>} />
+                      : <TableMessageRow colSpan={8} title={`No ${documentStatusLabel(statusFilter)} Stock Adjustments`} description="Choose another Status to see more adjustments." />
                   )}
                   {!listQuery.isLoading && rows.map((row: any) => (
                     <tr key={row.id} className={selectedAdjustmentId === row.id ? 'is-selected' : undefined} onClick={() => setSelectedAdjustmentId(row.id)} style={{ cursor: 'pointer' }}>
@@ -360,7 +423,7 @@ export default function StockAdjustmentPage() {
                       <td className={row.reason ? undefined : 'cell-muted'}>{row.reason || 'Not Set'}</td>
                       <td className="num">{formatNumber(row.total_quantity_in, generalSettings)}</td>
                       <td className="num">{formatNumber(row.total_quantity_out, generalSettings)}</td>
-                      <td><Badge variant="success">{row.status}</Badge></td>
+                      <td><StatusChip status={row.status} label={documentStatusLabel(row.status)} /></td>
                       <td className="cell-actions">
                         <Button variant="ghost" size="sm" icon={<IconEye size={16} stroke={1.8} />} onClick={event => { event.stopPropagation(); setSelectedAdjustmentId(row.id); }} aria-label={`View Adjustment ${row.adjustment_number}`} title="View Adjustment" />
                       </td>
@@ -370,7 +433,33 @@ export default function StockAdjustmentPage() {
               </table>
             </div>
           </section>
-          {selectedAdjustmentId && <DetailPanel detail={detailQuery.data} loading={detailQuery.isFetching} settings={generalSettings} onClose={() => setSelectedAdjustmentId(null)} />}
+          {selectedAdjustmentId && (
+            <DetailPanel
+              detail={detailQuery.data}
+              loading={detailQuery.isFetching}
+              settings={generalSettings}
+              onClose={() => setSelectedAdjustmentId(null)}
+              actions={detailQuery.data?.status === 'Draft' && canChangeDrafts && (
+                <DraftDocumentActions
+                  documentName="Stock Adjustment"
+                  documentNumber={detailQuery.data.adjustment_number}
+                  postEffect="Stock and the Inventory account are updated."
+                  onOpen={() => openSavedDraft(detailQuery.data)}
+                  onPost={async () => {
+                    const result = await postDraft.mutateAsync(detailQuery.data.id);
+                    await invalidate();
+                    return result.adjustment_number;
+                  }}
+                  onCancel={async reason => {
+                    const result = await cancelDraft.mutateAsync({ id: detailQuery.data.id, reason });
+                    await invalidate();
+                    return result.adjustment_number;
+                  }}
+                  onMessage={setActionMessage}
+                />
+              )}
+            />
+          )}
         </div>
       </main>
     );
@@ -379,14 +468,14 @@ export default function StockAdjustmentPage() {
   return (
     <main className="page-shell">
       <PageHeader
-        title="New Stock Adjustment"
+        title={openDraft ? `Stock Adjustment ${openDraft.adjustmentNumber}` : 'New Stock Adjustment'}
         help={(
           <>
             <p>Use this screen to add stock (Increase) or remove stock (Decrease) at a Branch or Warehouse.</p>
             <ul>
               <li>Choose the place, date and reason, then add one line for each item.</li>
-              <li>Save Draft keeps the adjustment so you can finish it later.</li>
-              <li>Process posts it and updates stock at once.</li>
+              <li>Save Draft keeps the adjustment so you can finish it later. Find it in the list with Status Draft and select Open Draft.</li>
+              <li>Process posts it and updates stock at once. If posting is refused, nothing is saved.</li>
             </ul>
             <p>You cannot remove more stock than is available. A posted adjustment cannot be changed.</p>
           </>
@@ -526,7 +615,7 @@ function locationOptions(rows: any[], kind: StockHolderKind, holderId: string) {
     .map(location => ({ value: location.id, label: `${location.code} - ${location.name}`, searchText: `${location.code} ${location.name}`, isDefault: location.is_default }));
 }
 
-function DetailPanel({ detail, loading, settings, onClose }: { detail: any; loading: boolean; settings: any; onClose: () => void }) {
+function DetailPanel({ detail, loading, settings, actions, onClose }: { detail: any; loading: boolean; settings: any; actions?: ReactNode; onClose: () => void }) {
   return (
     <aside className="panel side-panel" aria-label="Adjustment Detail">
       <div className="panel-header">
@@ -540,9 +629,12 @@ function DetailPanel({ detail, loading, settings, onClose }: { detail: any; load
         {loading && <p className="form-hint">Loading Adjustment Detail…</p>}
         {!loading && detail && (
           <>
+            {actions}
             <dl className="detail-list">
               <InfoRow label="Date" value={formatDate(detail.adjustment_date, settings)} />
-              <InfoRow label="Status" value={<Badge variant="success">{detail.status}</Badge>} />
+              <InfoRow label="Status" value={<StatusChip status={detail.status} label={documentStatusLabel(detail.status)} />} />
+              {detail.status === 'Voided' && <InfoRow label="Cancelled Reason" value={detail.void_reason || 'Not Set'} />}
+              {detail.status === 'Voided' && <InfoRow label="Cancelled At" value={detail.voided_at ? formatDate(detail.voided_at, settings) : 'Not Set'} />}
               <InfoRow label={detail.branch_id ? 'Branch' : 'Warehouse'} value={holderText(detail)} />
               <InfoRow label="Location" value={detail.location_code ? `${detail.location_code} - ${detail.location_name}` : 'Not Set'} />
               <InfoRow label="Reason" value={detail.reason || 'Not Set'} />

@@ -1,7 +1,7 @@
 'use client';
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { backendGet, backendPost } from './backend-client';
+import { backendGet, backendPost, backendPut } from './backend-client';
 
 export const stockAdjustmentSupportQueryKey = ['backend', 'stock-adjustments', 'support-data'] as const;
 export const stockAdjustmentListQueryKey = ['backend', 'stock-adjustments', 'list'] as const;
@@ -96,6 +96,34 @@ export function useCreateStockAdjustmentDraft() {
 export function useCreateAndPostStockAdjustment() {
   return useMutation({
     mutationFn: (input: StockAdjustmentPayload) => backendPost<any, StockAdjustmentPayload>('/stock-adjustments/create-and-post', input),
+  });
+}
+
+/** Saves changes to a Draft stock adjustment. Its number stays the same. */
+export function useUpdateStockAdjustmentDraft() {
+  return useMutation({
+    mutationFn: ({ id, input }: { id: string; input: StockAdjustmentPayload }) => backendPut<any, StockAdjustmentPayload>(`/stock-adjustments/${id}`, input),
+  });
+}
+
+/** Saves changes to a Draft stock adjustment and posts it in one step. */
+export function useUpdateAndPostStockAdjustment() {
+  return useMutation({
+    mutationFn: ({ id, input }: { id: string; input: StockAdjustmentPayload }) => backendPost<any, StockAdjustmentPayload>(`/stock-adjustments/${id}/update-and-post`, input),
+  });
+}
+
+/** Posts a saved Draft stock adjustment as it is. */
+export function usePostStockAdjustmentDraft() {
+  return useMutation({
+    mutationFn: (id: string) => backendPost<any, Record<string, never>>(`/stock-adjustments/${id}/post`, {}),
+  });
+}
+
+/** Cancels a Draft stock adjustment. It stays on file as Cancelled with the reason. */
+export function useCancelStockAdjustmentDraft() {
+  return useMutation({
+    mutationFn: ({ id, reason }: { id: string; reason: string }) => backendPost<any, { reason: string }>(`/stock-adjustments/${id}/cancel`, { reason }),
   });
 }
 
