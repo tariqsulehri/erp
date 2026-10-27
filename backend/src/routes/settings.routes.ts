@@ -66,6 +66,7 @@ const updatePostingAccountSettingsSchema = z.object({
     default_inventory_account_id: z.string().uuid().optional(),
     adjustment_gain_account_id: z.string().uuid().optional(),
     adjustment_loss_account_id: z.string().uuid().optional(),
+    opening_balance_account_id: optionalAccountIdSchema.optional(),
   }).optional(),
   year_end: z.object({
     retained_earnings_account_id: z.string().uuid().optional(),

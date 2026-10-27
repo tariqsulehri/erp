@@ -31,6 +31,7 @@ interface StockAdjustmentSettingsRow {
 
 interface AdjustmentHeaderRow {
   id: string;
+  document_kind: 'Adjustment' | 'Opening Stock';
   accounting_voucher_id: string | null;
   adjustment_number: string;
   adjustment_date: string | Date;
@@ -241,6 +242,10 @@ export class StockAdjustmentService {
       params.push(query.status);
       where.push(`sa.status = $${params.length}`);
     }
+    if (query.document_kind) {
+      params.push(query.document_kind);
+      where.push(`sa.document_kind = $${params.length}`);
+    }
     if (query.search) {
       params.push(`%${query.search}%`);
       const p = `$${params.length}`;
@@ -280,6 +285,7 @@ export class StockAdjustmentService {
       `
         SELECT
           sa.id,
+          sa.document_kind,
           sa.adjustment_number,
           sa.adjustment_date,
           sa.reference_number,
@@ -321,6 +327,7 @@ export class StockAdjustmentService {
     const rows = await prisma.$queryRaw<any[]>`
       SELECT
         sa.id,
+        sa.document_kind,
         sa.adjustment_number,
         sa.adjustment_date,
         sa.warehouse_id,
@@ -421,18 +428,19 @@ export class StockAdjustmentService {
     if (errors.length) throw businessError(errors[0]);
     const holder = inputHolder(input);
 
-    const adjustmentNumber = await this.nextAdjustmentNumber(input.adjustment_date.slice(0, 4), transaction);
+    const adjustmentNumber = await this.nextAdjustmentNumber(input.adjustment_date.slice(0, 4), transaction, input.document_kind === 'Opening Stock' ? 'OS' : 'SA');
     const userIdValue = userIdOrNull(userId);
     const totals = await this.calculateDraftTotals(input, transaction);
 
     const headerRows = await transaction.$queryRaw<{ id: string }[]>`
       INSERT INTO stock_adjustments (
-        company_id, adjustment_number, adjustment_date, branch_id, warehouse_id, location_id,
+        company_id, document_kind, adjustment_number, adjustment_date, branch_id, warehouse_id, location_id,
         reference_number, reason, description, status, total_quantity_in, total_quantity_out,
         total_cost_in, total_cost_out, created_by_id, updated_by_id, updated_at
       )
       VALUES (
         CAST(${this.companyId} AS uuid),
+        ${input.document_kind},
         ${adjustmentNumber},
         CAST(${input.adjustment_date} AS date),
         ${holder.branchId}::uuid,
@@ -603,6 +611,8 @@ export class StockAdjustmentService {
     if (this.scope) assertCanUseHolder(this.scope, headerHolder(adjustment), 'change Stock Adjustments');
     if (adjustment.status !== 'Draft') throw businessError('Only Draft Stock Adjustments can be changed. A posted adjustment cannot be changed.');
 
+    // A draft keeps its kind: an adjustment cannot become Opening Stock or the other way round.
+    input = { ...input, document_kind: adjustment.document_kind };
     const errors: string[] = [];
     await this.validateInput(input, errors, [], transaction);
     if (errors.length) throw businessError(errors[0]);
@@ -707,6 +717,14 @@ export class StockAdjustmentService {
       ORDER BY line_number ASC
     `;
     if (!lines.length) throw businessError('Stock Adjustment has no items.');
+    const isOpeningStock = adjustment.document_kind === 'Opening Stock';
+    if (isOpeningStock) {
+      const used = await this.itemsWithStockHistory(transaction, headerHolder(adjustment), lines.map(line => line.item_id));
+      if (used.length) throw businessError(`${used.join(', ')} already has stock history at this place. Use a Stock Adjustment to correct its stock.`);
+    }
+    const openingAccount = isOpeningStock
+      ? await this.getAccount(transaction, await new PostingAccountSettingsService(this.companyId).ensureOpeningBalanceAccount(transaction), 'Opening Balance Account')
+      : null;
 
     let totalQuantityIn = new Decimal(0);
     let totalQuantityOut = new Decimal(0);
@@ -727,7 +745,8 @@ export class StockAdjustmentService {
       adjustment,
       {
         inventoryAccount,
-        gainAccount,
+        // Opening Stock credits the Opening Balance account instead of the gain account.
+        gainAccount: openingAccount ?? gainAccount,
         lossAccount,
         totalCostIn,
         totalCostOut,
@@ -792,18 +811,19 @@ export class StockAdjustmentService {
     const creditInventory = this.accountingAmount(input.totalCostOut);
     if (debitInventory.plus(debitLoss).lte(0)) return null;
 
+    const isOpeningStock = adjustment.document_kind === 'Opening Stock';
     const voucherLines: PostingLine[] = [
       {
         account: input.inventoryAccount,
         debit: debitInventory,
         credit: new Decimal(0),
-        narration: `Stock adjustment increase ${adjustment.adjustment_number}`,
+        narration: `${isOpeningStock ? 'Opening stock' : 'Stock adjustment increase'} ${adjustment.adjustment_number}`,
       },
       {
         account: input.gainAccount,
         debit: new Decimal(0),
         credit: creditGain,
-        narration: `Stock adjustment gain ${adjustment.adjustment_number}`,
+        narration: `${isOpeningStock ? 'Opening balance' : 'Stock adjustment gain'} ${adjustment.adjustment_number}`,
       },
       {
         account: input.lossAccount,
@@ -822,10 +842,10 @@ export class StockAdjustmentService {
     return insertPostedVoucher(transaction, {
       companyId: this.companyId,
       voucherNumber: adjustment.adjustment_number,
-      voucherType: 'SA',
+      voucherType: isOpeningStock ? 'OS' : 'SA',
       voucherDate: this.databaseDateText(adjustment.adjustment_date),
       reference: adjustment.reference_number,
-      narration: adjustment.description || `Stock Adjustment ${adjustment.adjustment_number}`,
+      narration: adjustment.description || `${isOpeningStock ? 'Opening Stock' : 'Stock Adjustment'} ${adjustment.adjustment_number}`,
       userId,
       lines: voucherLines,
     });
@@ -867,7 +887,50 @@ export class StockAdjustmentService {
       }
     }
 
+    if (input.document_kind === 'Opening Stock') await this.validateOpeningStock(input, holder, itemRows, errors, transaction);
+
     if (!warnings.length && input.lines.length > 20) warnings.push('This Stock Adjustment has many items. Please review before posting.');
+  }
+
+  /**
+   * Opening Stock adds an item's first stock at a place, once: every line adds stock at a cost above zero,
+   * an item appears on one line only, and the item must have no stock history at that place yet.
+   */
+  private async validateOpeningStock(
+    input: ValidateStockAdjustmentInput,
+    holder: StockHolder | null,
+    itemRows: Array<{ id: string; item_code: string }>,
+    errors: string[],
+    transaction: TransactionClient | typeof prisma,
+  ) {
+    const codes = new Map(itemRows.map(item => [item.id, item.item_code]));
+    const seen = new Set<string>();
+    for (const [index, line] of input.lines.entries()) {
+      if (line.adjustment_type !== 'Increase') errors.push(`Opening Stock can only add stock. Line ${index + 1} must be Increase.`);
+      if (this.money(line.unit_cost).lte(0)) errors.push(`Enter a Unit Cost above zero on line ${index + 1}.`);
+      if (seen.has(line.item_id)) errors.push(`${codes.get(line.item_id) ?? 'An item'} is on more than one line. Enter each item once.`);
+      seen.add(line.item_id);
+    }
+    if (!holder) return;
+    for (const code of await this.itemsWithStockHistory(transaction, holder, [...seen])) {
+      errors.push(`${code} already has stock history at this ${holder.kind === 'BRANCH' ? 'Branch' : 'Warehouse'}. Use a Stock Adjustment to correct its stock.`);
+    }
+  }
+
+  /** Item codes that already have any stock movement at the place. */
+  private async itemsWithStockHistory(transaction: TransactionClient | typeof prisma, holder: StockHolder, itemIds: string[]) {
+    if (!itemIds.length) return [];
+    const rows = await transaction.$queryRaw<Array<{ item_code: string }>>`
+      SELECT DISTINCT COALESCE(i.sku, i.item_code) AS item_code
+      FROM inventory_stock_movements m
+      JOIN inventory_items i ON i.id = m.item_id
+      WHERE m.company_id = CAST(${this.companyId} AS uuid)
+        AND m.is_active = true
+        AND m.item_id = ANY(${itemIds}::uuid[])
+        AND ${holderCondition(holder, 'm')}
+      ORDER BY 1
+    `;
+    return rows.map(row => row.item_code);
   }
 
   private async calculateDraftTotals(input: ValidateStockAdjustmentInput, transaction: TransactionClient) {
@@ -912,8 +975,8 @@ export class StockAdjustmentService {
     `;
   }
 
-  private async nextAdjustmentNumber(year: string, transaction: TransactionClient) {
-    return nextDocumentNumber(transaction, { companyId: this.companyId, table: 'stock_adjustments', prefix: 'SA', year });
+  private async nextAdjustmentNumber(year: string, transaction: TransactionClient, prefix: 'SA' | 'OS' = 'SA') {
+    return nextDocumentNumber(transaction, { companyId: this.companyId, table: 'stock_adjustments', prefix, year });
   }
 
   private async getBalance(transaction: TransactionClient | typeof prisma, itemId: string, holder: StockHolder) {
@@ -1014,7 +1077,9 @@ export class StockAdjustmentService {
       `;
     }
 
-    const movementKind = line.adjustment_type === 'Increase' ? 'ADJUSTMENT_IN' : 'ADJUSTMENT_OUT';
+    const movementKind = adjustment.document_kind === 'Opening Stock'
+      ? 'OPENING_BALANCE'
+      : line.adjustment_type === 'Increase' ? 'ADJUSTMENT_IN' : 'ADJUSTMENT_OUT';
     await this.insertMovement(
       transaction,
       adjustment,
@@ -1048,7 +1113,7 @@ export class StockAdjustmentService {
     transaction: TransactionClient,
     adjustment: AdjustmentHeaderRow,
     line: AdjustmentLineRow,
-    movementKind: 'ADJUSTMENT_IN' | 'ADJUSTMENT_OUT',
+    movementKind: 'ADJUSTMENT_IN' | 'ADJUSTMENT_OUT' | 'OPENING_BALANCE',
     quantityIn: Decimal,
     quantityOut: Decimal,
     unitCost: Decimal,
@@ -1072,7 +1137,7 @@ export class StockAdjustmentService {
         ${adjustment.location_id}::uuid,
         CAST(${reversal?.date ?? this.databaseDateText(adjustment.adjustment_date)} AS date),
         ${movementKind}::"StockMovementKind",
-        'STOCK_ADJUSTMENT',
+        ${adjustment.document_kind === 'Opening Stock' ? 'OPENING_BALANCE' : 'STOCK_ADJUSTMENT'}::"StockSourceKind",
         CAST(${adjustment.id} AS uuid),
         ${adjustment.adjustment_number},
         CAST(${quantityIn.toFixed(4)} AS numeric),
@@ -1081,7 +1146,7 @@ export class StockAdjustmentService {
         CAST(${totalCost.toFixed(4)} AS numeric),
         CAST(${stockAfterMovement.toFixed(4)} AS numeric),
         'WEIGHTED_AVERAGE',
-        ${reversal?.remarks ?? `${movementKind === 'ADJUSTMENT_IN' ? 'Adjustment In' : 'Adjustment Out'} ${adjustment.adjustment_number}`},
+        ${reversal?.remarks ?? `${movementKind === 'OPENING_BALANCE' ? 'Opening Stock' : movementKind === 'ADJUSTMENT_IN' ? 'Adjustment In' : 'Adjustment Out'} ${adjustment.adjustment_number}`},
         true,
         ${userId}::uuid,
         now()

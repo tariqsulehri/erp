@@ -182,7 +182,7 @@ async function main() {
   log('2 posted Stock Transfers (Warehouse to Branches)');
 
   await new StockAdjustmentService(companyId, scope).createAndPost({
-    adjustment_date: '2026-09-30', warehouse_id: warehouse.id, reference_number: DEMO_REFERENCE, reason: 'Quarterly stock count',
+    document_kind: 'Adjustment', adjustment_date: '2026-09-30', warehouse_id: warehouse.id, reference_number: DEMO_REFERENCE, reason: 'Quarterly stock count',
     description: 'Demo stock count differences',
     lines: [
       { adjustment_type: 'Decrease', item_id: items[1].id, quantity: 2, unit_cost: 0, description: 'Damaged in storage' },

@@ -1048,6 +1048,7 @@ model StockAdjustment {
   reason              String?               @db.VarChar(150)
   description         String?
   status              String                @default("Draft") @db.VarChar(20)
+  documentKind        String                @default("Adjustment") @map("document_kind") @db.VarChar(20)
   totalQuantityIn     Decimal               @default(0) @map("total_quantity_in") @db.Decimal(18, 4)
   totalQuantityOut    Decimal               @default(0) @map("total_quantity_out") @db.Decimal(18, 4)
   totalCostIn         Decimal               @default(0) @map("total_cost_in") @db.Decimal(18, 4)
@@ -1070,6 +1071,7 @@ model StockAdjustment {
   @@unique([companyId, adjustmentNumber])
   @@index([companyId, adjustmentDate, adjustmentNumber])
   @@index([companyId, status, adjustmentDate])
+  @@index([companyId, documentKind, status], map: "idx_stock_adjustments_company_kind_status")
   @@index([companyId, warehouseId])
   @@map("stock_adjustments")
 }
@@ -1080,6 +1082,7 @@ model StockAdjustmentSettings {
   defaultInventoryAccountId String   @map("default_inventory_account_id") @db.Uuid
   adjustmentGainAccountId   String   @map("adjustment_gain_account_id") @db.Uuid
   adjustmentLossAccountId   String   @map("adjustment_loss_account_id") @db.Uuid
+  openingBalanceAccountId   String?  @map("opening_balance_account_id") @db.Uuid
   isActive                  Boolean  @default(true) @map("is_active")
   createdAt                 DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt                 DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)

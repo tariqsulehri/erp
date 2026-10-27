@@ -1786,7 +1786,8 @@ CREATE TABLE public.stock_adjustment_settings (
     adjustment_loss_account_id uuid NOT NULL,
     is_active boolean DEFAULT true NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    opening_balance_account_id uuid
 );
 
 
@@ -1822,6 +1823,8 @@ CREATE TABLE public.stock_adjustments (
     voided_by_id uuid,
     voided_at timestamp(6) with time zone,
     void_reason text,
+    document_kind character varying(20) DEFAULT 'Adjustment'::character varying NOT NULL,
+    CONSTRAINT stock_adjustments_document_kind_check CHECK (((document_kind)::text = ANY ((ARRAY['Adjustment'::character varying, 'Opening Stock'::character varying])::text[]))),
     CONSTRAINT stock_adjustments_holder_check CHECK (((branch_id IS NULL) <> (warehouse_id IS NULL))),
     CONSTRAINT stock_adjustments_status_check CHECK (((status)::text = ANY ((ARRAY['Draft'::character varying, 'Posted'::character varying, 'Voided'::character varying])::text[])))
 );
@@ -2053,7 +2056,7 @@ CREATE TABLE public.vouchers (
     reversal_reason text,
     version integer DEFAULT 1 NOT NULL,
     CONSTRAINT vouchers_approval_status_check CHECK (((approval_status)::text = ANY ((ARRAY['Not Required'::character varying, 'Pending'::character varying, 'Approved'::character varying, 'Rejected'::character varying])::text[]))),
-    CONSTRAINT vouchers_voucher_type_check CHECK (((voucher_type)::text = ANY ((ARRAY['BRV'::character varying, 'BPV'::character varying, 'CRV'::character varying, 'CPV'::character varying, 'JV'::character varying, 'CV'::character varying, 'DN'::character varying, 'CN'::character varying, 'PI'::character varying, 'PR'::character varying, 'SI'::character varying, 'SR'::character varying, 'SA'::character varying, 'RV'::character varying, 'CL'::character varying])::text[])))
+    CONSTRAINT vouchers_voucher_type_check CHECK (((voucher_type)::text = ANY ((ARRAY['BRV'::character varying, 'BPV'::character varying, 'CRV'::character varying, 'CPV'::character varying, 'JV'::character varying, 'CV'::character varying, 'DN'::character varying, 'CN'::character varying, 'PI'::character varying, 'PR'::character varying, 'SI'::character varying, 'SR'::character varying, 'SA'::character varying, 'RV'::character varying, 'CL'::character varying, 'OS'::character varying])::text[])))
 );
 
 
@@ -3278,6 +3281,13 @@ CREATE INDEX idx_sale_returns_company_status_date ON public.sale_returns USING b
 --
 
 CREATE INDEX idx_sale_returns_customer_date ON public.sale_returns USING btree (company_id, customer_id, sale_return_date DESC);
+
+
+--
+-- Name: idx_stock_adjustments_company_kind_status; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_stock_adjustments_company_kind_status ON public.stock_adjustments USING btree (company_id, document_kind, status);
 
 
 --

@@ -45,6 +45,7 @@ interface StockAdjustmentSettingsRow {
   default_inventory_account_id: string;
   adjustment_gain_account_id: string;
   adjustment_loss_account_id: string;
+  opening_balance_account_id: string | null;
 }
 
 export interface YearEndClosingSettingsRow {
@@ -73,6 +74,7 @@ export interface UpdatePostingAccountSettingsInput {
     default_inventory_account_id: string;
     adjustment_gain_account_id: string;
     adjustment_loss_account_id: string;
+    opening_balance_account_id: string | null;
   }>;
   year_end?: Partial<{
     retained_earnings_account_id: string;
@@ -176,6 +178,14 @@ const defaultAccounts = {
     normal_balance: 'Debit',
     sort_order: 523001,
   },
+  openingBalance: {
+    code: '0302100301',
+    name: 'Opening Balance Equity',
+    description: 'Default equity account credited when Opening Stock is posted.',
+    account_type: 'Equity',
+    normal_balance: 'Credit',
+    sort_order: 321003,
+  },
   retainedEarnings: {
     code: '0302100101',
     name: 'Retained Earnings — Prior Years',
@@ -217,6 +227,7 @@ const postingAccountCodeCategories = {
   salesDiscount: ['050220'],
   adjustmentLoss: ['050230'],
   retainedEarnings: ['0302'],
+  openingBalance: ['03'],
 } as const;
 
 export class PostingAccountSettingsService {
@@ -530,6 +541,24 @@ export class PostingAccountSettingsService {
     `;
   }
 
+  /**
+   * The account credited when Opening Stock is posted. When none is chosen yet, the default
+   * Opening Balance Equity account is created once and saved; a chosen account is never replaced.
+   */
+  async ensureOpeningBalanceAccount(transaction: TransactionClient) {
+    const settings = await this.ensureStockAdjustmentSettings(transaction);
+    if (settings.opening_balance_account_id) return settings.opening_balance_account_id;
+    const account = await this.ensureAccount(transaction, defaultAccounts.openingBalance);
+    await transaction.$executeRaw`
+      UPDATE stock_adjustment_settings
+      SET opening_balance_account_id = CAST(${account.id} AS uuid),
+          updated_at = now()
+      WHERE company_id = CAST(${this.companyId} AS uuid)
+        AND opening_balance_account_id IS NULL
+    `;
+    return account.id;
+  }
+
   private async updateStockAdjustmentSettings(
     transaction: TransactionClient,
     current: StockAdjustmentSettingsRow,
@@ -538,6 +567,7 @@ export class PostingAccountSettingsService {
     const inventoryAccountId = await this.resolveRequiredAccount(transaction, input.default_inventory_account_id, current.default_inventory_account_id, 'Stock Adjustment Inventory Account', ['Asset'], postingAccountCodeCategories.inventory);
     const gainAccountId = await this.resolveRequiredAccount(transaction, input.adjustment_gain_account_id, current.adjustment_gain_account_id, 'Stock Adjustment Gain Account', ['Revenue'], postingAccountCodeCategories.adjustmentGain);
     const lossAccountId = await this.resolveRequiredAccount(transaction, input.adjustment_loss_account_id, current.adjustment_loss_account_id, 'Stock Adjustment Loss Account', ['Expense'], postingAccountCodeCategories.adjustmentLoss);
+    const openingAccountId = await this.resolveOptionalAccount(transaction, input.opening_balance_account_id, current.opening_balance_account_id, 'Opening Balance Account', ['Equity'], postingAccountCodeCategories.openingBalance);
 
     await transaction.$executeRaw`
       UPDATE stock_adjustment_settings
@@ -545,6 +575,7 @@ export class PostingAccountSettingsService {
         default_inventory_account_id = CAST(${inventoryAccountId} AS uuid),
         adjustment_gain_account_id = CAST(${gainAccountId} AS uuid),
         adjustment_loss_account_id = CAST(${lossAccountId} AS uuid),
+        opening_balance_account_id = ${openingAccountId}::uuid,
         is_active = true,
         updated_at = now()
       WHERE company_id = CAST(${this.companyId} AS uuid)
@@ -660,11 +691,14 @@ export class PostingAccountSettingsService {
           gain.code AS adjustment_gain_account_code,
           gain.name AS adjustment_gain_account_name,
           loss.code AS adjustment_loss_account_code,
-          loss.name AS adjustment_loss_account_name
+          loss.name AS adjustment_loss_account_name,
+          opening.code AS opening_balance_account_code,
+          opening.name AS opening_balance_account_name
         FROM stock_adjustment_settings sas
         JOIN accounts inventory ON inventory.id = sas.default_inventory_account_id
         JOIN accounts gain ON gain.id = sas.adjustment_gain_account_id
         JOIN accounts loss ON loss.id = sas.adjustment_loss_account_id
+        LEFT JOIN accounts opening ON opening.id = sas.opening_balance_account_id
         WHERE sas.company_id = CAST(${this.companyId} AS uuid)
         LIMIT 1
       `,

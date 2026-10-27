@@ -550,4 +550,117 @@ describe.skipIf(!databaseUrl)('Stock Adjustments (database)', () => {
       expect(after.ledger).toBe(after.stock);
     });
   });
+
+  describe('Opening Stock', () => {
+    let freshItem = '';
+    let otherFreshItem = '';
+    const opening = (overrides: Partial<AdjustmentInput> = {}) => adjustmentInput({
+      document_kind: 'Opening Stock',
+      adjustment_date: '2025-09-20',
+      lines: [{ adjustment_type: 'Increase', item_id: freshItem, quantity: 5, unit_cost: 40 }],
+      ...overrides,
+    });
+    const settingsService = async () => new (await import('../src/modules/settings/posting-account-settings.service.js')).PostingAccountSettingsService(companyId);
+
+    beforeAll(async () => {
+      const { ProductService } = await import('../src/modules/inventory/product.service.js');
+      const { createProductSchema } = await import('../src/modules/inventory/product.schema.js');
+      const products = new ProductService(companyId);
+      freshItem = (await products.create(createProductSchema.parse({ sku: 'OPEN-1', name: 'Opening One', product_type: 'Finished' }))).id;
+      otherFreshItem = (await products.create(createProductSchema.parse({ sku: 'OPEN-2', name: 'Opening Two', product_type: 'Finished' }))).id;
+    });
+
+    it('posts OS-numbered Opening Stock: OPENING_BALANCE movements and an OS voucher crediting Opening Balance Equity', async () => {
+      const posted = await service().createAndPost(opening(), userId);
+      expect(posted.adjustment_number).toMatch(/^OS-2025-\d{4}$/);
+      expect(await balance(freshItem)).toEqual({ quantity: '5.0000', value: '200.00', average: '40.0000' });
+
+      const movements = await prisma.$queryRaw<{ movement_kind: string; source_kind: string; remarks: string }[]>`
+        SELECT movement_kind::text, source_kind::text, remarks FROM inventory_stock_movements WHERE source_document_id = CAST(${posted.id} AS uuid)
+      `;
+      expect(movements).toEqual([{ movement_kind: 'OPENING_BALANCE', source_kind: 'OPENING_BALANCE', remarks: `Opening Stock ${posted.adjustment_number}` }]);
+
+      const voucher = await voucherFor(posted.id);
+      expect(voucher.voucherType).toBe('OS');
+      const openingAccount = await prisma.account.findFirstOrThrow({ where: { companyId, code: '0302100301' } });
+      expect(openingAccount).toMatchObject({ name: 'Opening Balance Equity', accountType: 'Equity' });
+      expect(amountOn(voucher, accounts.inventory)).toEqual({ debit: '200.00', credit: '0.00' });
+      expect(amountOn(voucher, openingAccount.id)).toEqual({ debit: '0.00', credit: '200.00' });
+      const saved = await (await settingsService()).get();
+      expect(saved.stock_adjustment?.opening_balance_account_id).toBe(openingAccount.id);
+
+      const after = await inventoryLedgerAndStock();
+      expect(after.ledger).toBe(after.stock);
+    });
+
+    it('accepts each item once per place and refuses Decrease lines, zero cost, repeated items and items with stock history', async () => {
+      const errorsFor = async (input: AdjustmentInput) => (await service().validate(input)).errors.join(' | ');
+      expect(await errorsFor(opening({ lines: [{ adjustment_type: 'Decrease', item_id: otherFreshItem, quantity: 1, unit_cost: 5 }] })))
+        .toMatch(/Opening Stock can only add stock\. Line 1 must be Increase/);
+      expect(await errorsFor(opening({ lines: [{ adjustment_type: 'Increase', item_id: otherFreshItem, quantity: 1, unit_cost: 0 }] })))
+        .toMatch(/Enter a Unit Cost above zero on line 1/);
+      expect(await errorsFor(opening({ lines: [
+        { adjustment_type: 'Increase', item_id: otherFreshItem, quantity: 1, unit_cost: 5 },
+        { adjustment_type: 'Increase', item_id: otherFreshItem, quantity: 2, unit_cost: 5 },
+      ] }))).toMatch(/OPEN-2 is on more than one line/);
+      expect(await errorsFor(opening())).toMatch(/OPEN-1 already has stock history at this Warehouse\. Use a Stock Adjustment/);
+      // The same item may still get Opening Stock at another place.
+      expect(await errorsFor(opening({ warehouse_id: '', branch_id: branchOne }))).toBe('');
+      // A normal adjustment of the same item is still fine.
+      expect(await errorsFor(adjustmentInput({ adjustment_date: '2025-09-20', lines: [{ adjustment_type: 'Increase', item_id: freshItem, quantity: 1, unit_cost: 40 }] }))).toBe('');
+    });
+
+    it('checks stock history again when posting, so two drafts cannot both open the same item', async () => {
+      const first = await service().createDraft(opening({ lines: [{ adjustment_type: 'Increase', item_id: otherFreshItem, quantity: 2, unit_cost: 10 }] }), userId);
+      const second = await service().createDraft(opening({ lines: [{ adjustment_type: 'Increase', item_id: otherFreshItem, quantity: 3, unit_cost: 10 }] }), userId);
+      await service().post(first.id, userId);
+      const vouchersBefore = await companyCount('vouchers');
+      await expect(service().post(second.id, userId)).rejects.toThrow(/OPEN-2 already has stock history at this place/);
+      expect((await header(second.id)).status).toBe('Draft');
+      expect(await companyCount('vouchers')).toBe(vouchersBefore);
+    });
+
+    it('keeps a draft Opening Stock as Opening Stock when it is edited', async () => {
+      const { ProductService } = await import('../src/modules/inventory/product.service.js');
+      const { createProductSchema } = await import('../src/modules/inventory/product.schema.js');
+      const item = (await new ProductService(companyId).create(createProductSchema.parse({ sku: 'OPEN-3', name: 'Opening Three', product_type: 'Finished' }))).id;
+      const draft = await service().createDraft(opening({ lines: [{ adjustment_type: 'Increase', item_id: item, quantity: 1, unit_cost: 9 }] }), userId);
+      // An Increase at zero cost is fine for an adjustment but not for Opening Stock, so this proves the kind is kept.
+      await expect(service().updateDraft(draft.id, adjustmentInput({ document_kind: 'Adjustment', adjustment_date: '2025-09-21', lines: [{ adjustment_type: 'Increase', item_id: item, quantity: 1, unit_cost: 0 }] }), userId))
+        .rejects.toThrow(/Enter a Unit Cost above zero on line 1/);
+      await service().updateDraft(draft.id, adjustmentInput({ adjustment_date: '2025-09-21', lines: [{ adjustment_type: 'Increase', item_id: item, quantity: 4, unit_cost: 9 }] }), userId);
+      const posted = await service().post(draft.id, userId);
+      expect(posted.adjustment_number).toMatch(/^OS-/);
+      expect((await voucherFor(draft.id)).voucherType).toBe('OS');
+    });
+
+    it('credits the Opening Balance account chosen in Settings and refuses a non-Equity account', async () => {
+      const settings = await settingsService();
+      const retained = await prisma.account.findFirstOrThrow({ where: { companyId, code: '0302100101' } });
+      await expect(settings.update({ stock_adjustment: { opening_balance_account_id: accounts.inventory } })).rejects.toThrow(/Opening Balance Account/);
+      await settings.update({ stock_adjustment: { opening_balance_account_id: retained.id } });
+
+      const { ProductService } = await import('../src/modules/inventory/product.service.js');
+      const { createProductSchema } = await import('../src/modules/inventory/product.schema.js');
+      const item = (await new ProductService(companyId).create(createProductSchema.parse({ sku: 'OPEN-4', name: 'Opening Four', product_type: 'Finished' }))).id;
+      const posted = await service().createAndPost(opening({ lines: [{ adjustment_type: 'Increase', item_id: item, quantity: 1, unit_cost: 25 }] }), userId);
+      expect(amountOn(await voucherFor(posted.id), retained.id)).toEqual({ debit: '0.00', credit: '25.00' });
+    });
+
+    it('lists Opening Stock separately from Stock Adjustments, and can be reversed', async () => {
+      const openingList = await service().list(m.schema.ListStockAdjustmentsQuery.parse({ document_kind: 'Opening Stock', limit: 200 }));
+      const adjustmentList = await service().list(m.schema.ListStockAdjustmentsQuery.parse({ document_kind: 'Adjustment', limit: 200 }));
+      const openingRows = openingList.data as Array<{ adjustment_number: string; document_kind: string }>;
+      expect(openingRows.length).toBeGreaterThan(0);
+      expect(openingRows.every(row => row.document_kind === 'Opening Stock' && row.adjustment_number.startsWith('OS-'))).toBe(true);
+      expect((adjustmentList.data as Array<{ document_kind: string }>).every(row => row.document_kind === 'Adjustment')).toBe(true);
+
+      const target = openingRows.find(row => row.adjustment_number)!;
+      const id = (await prisma.stockAdjustment.findFirstOrThrow({ where: { companyId, adjustmentNumber: target.adjustment_number, status: 'Posted' } })).id;
+      await service().reverse(id, { reversal_date: '2025-09-25', reason: 'Wrong count' }, userId);
+      expect((await header(id)).status).toBe('Voided');
+      const after = await inventoryLedgerAndStock();
+      expect(after.ledger).toBe(after.stock);
+    });
+  });
 });

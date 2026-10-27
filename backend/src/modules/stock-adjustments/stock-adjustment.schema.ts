@@ -10,7 +10,12 @@ export const StockAdjustmentLineInput = z.object({
   description: z.string().trim().max(500).optional().or(z.literal('')),
 });
 
+/** 'Opening Stock' records the first stock of an item at a place (OS numbers); 'Adjustment' corrects stock later (SA numbers). */
+export const StockDocumentKind = z.enum(['Adjustment', 'Opening Stock']);
+export type StockDocumentKind = z.infer<typeof StockDocumentKind>;
+
 export const ValidateStockAdjustmentInput = z.object({
+  document_kind: StockDocumentKind.default('Adjustment'),
   adjustment_date: dateInput,
   // Adjust stock at exactly one Branch or one Warehouse; a Location (shelf / rack) is optional.
   branch_id: z.string().uuid().optional().or(z.literal('')),
@@ -26,6 +31,7 @@ export const ListStockAdjustmentsQuery = z.object({
   page: z.coerce.number().int().min(1).default(1),
   limit: z.coerce.number().int().min(1).max(200).default(50),
   status: z.enum(['Draft', 'Posted', 'Voided']).optional(),
+  document_kind: StockDocumentKind.optional(),
   search: z.string().trim().optional(),
   branch_id: z.string().uuid().optional(),
   warehouse_id: z.string().uuid().optional(),
