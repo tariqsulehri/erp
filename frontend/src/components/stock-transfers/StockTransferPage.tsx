@@ -10,6 +10,7 @@ import {
   IconX,
 } from '@tabler/icons-react';
 import { formatNumber } from '@/lib/app-settings';
+import { hasPermission } from '@/lib/auth/session-user';
 import { useGeneralSettings } from '@/lib/api/settings';
 import {
   placeFields,
@@ -394,6 +395,7 @@ export default function StockTransferPage() {
         <TransferList
           settings={generalSettings}
           onOpenDraft={openSavedDraft}
+          canChangeDrafts={hasPermission(session?.user.role, 'stock_transfers.edit')}
           empty={{
             title: 'No Posted Stock Transfers Yet',
             description: 'Move stock from a Warehouse to a Branch, or between any two places.',

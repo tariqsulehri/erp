@@ -7,9 +7,15 @@ import { TRANSFER_DIRECTIONS, directionOf, directionOption, directionsFor } from
 const listCalls: any[] = [];
 const lastCall = () => listCalls[listCalls.length - 1];
 let listResult: any = { isLoading: false, error: null, data: { data: [] } };
+let detailStatus = 'Posted';
+const postDraft = jest.fn();
+const cancelDraft = jest.fn();
 jest.mock('@/lib/api/stock-transfers', () => ({
   useStockTransfersList: (query: any) => { listCalls.push(query); return listResult; },
-  useStockTransferDetail: (id: string | null) => ({ isFetching: false, data: id ? { transfer_number: 'ST-2026-0001', transfer_date: '2026-10-01', status: 'Posted', from_kind: 'WAREHOUSE', from_code: 'MAIN', from_name: 'Main', to_kind: 'BRANCH', to_code: 'BR-1', to_name: 'Lahore', lines: [{ id: 'l1', item_code: 'P-1', item_name: 'Paper', quantity: '5' }] } : undefined }),
+  usePostStockTransferDraft: () => ({ mutateAsync: postDraft }),
+  useCancelStockTransferDraft: () => ({ mutateAsync: cancelDraft }),
+  useInvalidateStockTransferQueries: () => () => Promise.resolve(),
+  useStockTransferDetail: (id: string | null) => ({ isFetching: false, data: id ? { id, transfer_number: 'ST-2026-0001', transfer_date: '2026-10-01', status: detailStatus, from_kind: 'WAREHOUSE', from_code: 'MAIN', from_name: 'Main', to_kind: 'BRANCH', to_code: 'BR-1', to_name: 'Lahore', lines: [{ id: 'l1', item_code: 'P-1', item_name: 'Paper', quantity: '5' }] } : undefined }),
 }));
 
 const row = (id: string, number: string, fromKind: string, toKind: string) => ({
@@ -17,7 +23,7 @@ const row = (id: string, number: string, fromKind: string, toKind: string) => ({
   from_kind: fromKind, from_code: 'F', from_name: 'From Place', to_kind: toKind, to_code: 'T', to_name: 'To Place',
 });
 
-beforeEach(() => { listCalls.length = 0; listResult = { isLoading: false, error: null, data: { data: [] } }; });
+beforeEach(() => { listCalls.length = 0; listResult = { isLoading: false, error: null, data: { data: [] } }; detailStatus = 'Posted'; postDraft.mockReset(); cancelDraft.mockReset(); });
 
 describe('transfer directions', () => {
   it('lists the four directions, Warehouse → Branch first', () => {
@@ -81,5 +87,42 @@ describe('TransferList', () => {
     render(<TransferList empty={empty} />);
     fireEvent.change(screen.getByRole('searchbox', { name: 'Search Transfers' }), { target: { value: 'ST-2026' } });
     expect(lastCall()).toMatchObject({ search: 'ST-2026' });
+  });
+
+  it('shows no Status filter for Stock Received, which lists posted transfers only', () => {
+    render(<TransferList incoming empty={empty} />);
+    expect(screen.queryByRole('group', { name: 'Status' })).not.toBeInTheDocument();
+  });
+
+  it('filters by Status and offers Open Draft, Post and Cancel Draft for a selected Draft', () => {
+    const onOpenDraft = jest.fn();
+    detailStatus = 'Draft';
+    listResult = { isLoading: false, error: null, data: { data: [{ ...row('t1', 'ST-2026-0001', 'WAREHOUSE', 'BRANCH'), status: 'Draft' }] } };
+    render(<TransferList empty={empty} onOpenDraft={onOpenDraft} canChangeDrafts />);
+    expect(lastCall()).toMatchObject({ status: 'Posted' });
+    fireEvent.click(screen.getByRole('button', { name: 'Draft' }));
+    expect(lastCall()).toMatchObject({ status: 'Draft' });
+    fireEvent.click(screen.getByRole('button', { name: 'Cancelled' }));
+    expect(lastCall()).toMatchObject({ status: 'Voided' });
+
+    fireEvent.click(screen.getByRole('button', { name: 'View Transfer ST-2026-0001' }));
+    expect(screen.getByRole('button', { name: 'Post' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Cancel Draft' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Open Draft' }));
+    expect(onOpenDraft).toHaveBeenCalledWith(expect.objectContaining({ id: 't1', status: 'Draft' }));
+  });
+
+  it('hides the Draft actions from roles that may not save transfers, and for posted transfers', () => {
+    detailStatus = 'Draft';
+    listResult = { isLoading: false, error: null, data: { data: [row('t1', 'ST-2026-0001', 'WAREHOUSE', 'BRANCH')] } };
+    const { unmount } = render(<TransferList empty={empty} onOpenDraft={jest.fn()} canChangeDrafts={false} />);
+    fireEvent.click(screen.getByRole('button', { name: 'View Transfer ST-2026-0001' }));
+    expect(screen.queryByRole('button', { name: 'Open Draft' })).not.toBeInTheDocument();
+    unmount();
+
+    detailStatus = 'Posted';
+    render(<TransferList empty={empty} onOpenDraft={jest.fn()} canChangeDrafts />);
+    fireEvent.click(screen.getByRole('button', { name: 'View Transfer ST-2026-0001' }));
+    expect(screen.queryByRole('button', { name: 'Open Draft' })).not.toBeInTheDocument();
   });
 });

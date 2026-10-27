@@ -1,10 +1,8 @@
 'use client';
 
 import { useState, type ReactNode } from 'react';
-import { useSession } from 'next-auth/react';
 import { IconEye, IconSearch } from '@tabler/icons-react';
 import { formatDate, formatNumber, type AppFormatSettingsSource } from '@/lib/app-settings';
-import { hasPermission } from '@/lib/auth/session-user';
 import {
   useCancelStockTransferDraft,
   useInvalidateStockTransferQueries,
@@ -34,16 +32,16 @@ const DIRECTION_FILTERS: Array<{ value: DirectionFilter; label: string }> = [
  * Stock Transfer shows every transfer the user can see and, with `onOpenDraft`, a Status filter and the Draft
  * actions; Stock Received passes `incoming` to show only posted stock delivered to the user's own place.
  */
-export function TransferList({ incoming = false, settings, empty, onOpenDraft }: {
+export function TransferList({ incoming = false, settings, empty, onOpenDraft, canChangeDrafts = false }: {
   incoming?: boolean;
   settings?: AppFormatSettingsSource | null;
   /** Shown when there are no transfers at all (no filter applied). */
   empty: { title: string; description: string; action?: ReactNode };
   /** Opens a saved Draft in the entry form; when set, the list also shows Drafts and Cancelled transfers. */
   onOpenDraft?: (detail: Record<string, any>) => void;
+  /** True for roles that may save Stock Transfers: they see Open Draft, Post and Cancel Draft. */
+  canChangeDrafts?: boolean;
 }) {
-  const { data: session } = useSession();
-  const canChangeDrafts = Boolean(onOpenDraft) && hasPermission(session?.user.role, 'stock_transfers.edit');
   const postDraft = usePostStockTransferDraft();
   const cancelDraft = useCancelStockTransferDraft();
   const invalidate = useInvalidateStockTransferQueries();
