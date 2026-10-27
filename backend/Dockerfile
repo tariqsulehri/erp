@@ -30,11 +30,13 @@ ENV PRISMA_CMD="node node_modules/prisma/build/index.js"
 RUN apk add --no-cache curl postgresql17-client
 
 COPY package*.json ./
-RUN npm ci --omit=dev && npm cache clean --force
+# Runtime packages, plus the Prisma CLI (a dev dependency) with all of its own dependencies so
+# migrations can run from this image. The CLI version is the exact one from package-lock.json.
+RUN npm ci --omit=dev \
+  && npm install --no-save --omit=dev "prisma@$(node -p "require('./package-lock.json').packages['node_modules/prisma'].version")" \
+  && npm cache clean --force
 
-# Prisma CLI and engines (a dev dependency) so migrations can run from this image.
-COPY --from=builder /app/node_modules/prisma ./node_modules/prisma
-COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
+# Generated Prisma client for this schema.
 COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 COPY --from=builder /app/prisma ./prisma
 COPY --from=builder /app/dist ./dist
