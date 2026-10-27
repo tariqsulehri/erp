@@ -4,6 +4,7 @@ import type { ReactNode } from 'react';
 import { IconX } from '@tabler/icons-react';
 import { Button } from '@/components/ui/Button';
 import { InlineAlert } from '@/components/ui/InlineAlert';
+import { LoadingState } from '@/components/ui/LoadingSpinner';
 import styles from './documents.module.css';
 
 /** Side panel beside a posted-document list: header with actions and Close, then the detail. */
@@ -34,9 +35,9 @@ export function DocumentDetailPanel({
         </span>
       </div>
       <div className="panel-body">
-        {loading && <p className="form-hint" role="status">{loadingText}</p>}
+        {loading && <LoadingState message={loadingText} minHeight={140} />}
         {error && <InlineAlert tone="danger">{error}</InlineAlert>}
-        {children}
+        {!loading && children}
       </div>
     </aside>
   );

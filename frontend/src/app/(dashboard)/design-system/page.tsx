@@ -23,6 +23,7 @@ import { Skeleton } from '@/components/ui/Skeleton';
 import { StatGrid, StatTile } from '@/components/ui/StatTile';
 import { StatusChip } from '@/components/ui/StatusChip';
 import { Tabs } from '@/components/ui/Tabs';
+import { Spinner, LoadingState } from '@/components/ui/LoadingSpinner';
 import { useToast } from '@/components/ui/Toast';
 import { Toolbar } from '@/components/ui/Toolbar';
 
@@ -180,6 +181,39 @@ export default function DesignSystemPage() {
         <InlineAlert tone="success">Success message.</InlineAlert>
         <InlineAlert tone="warning">Warning message.</InlineAlert>
         <InlineAlert tone="danger">Error message with what to do next.</InlineAlert>
+      </Card>
+
+      <Card title="Standard Loading Spinners & States" help="Universal loaders for page routing, data queries, tables, and button actions.">
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <div>
+            <div style={{ fontSize: 'var(--font-size-xs)', fontWeight: 600, color: 'var(--color-text-muted)', marginBottom: 8, textTransform: 'uppercase' }}>
+              Spinner Sizes (xs, sm, md, lg, xl)
+            </div>
+            <div className="ds-row" style={{ alignItems: 'center', gap: 20 }}>
+              <Spinner size="xs" />
+              <Spinner size="sm" />
+              <Spinner size="md" />
+              <Spinner size="lg" />
+              <Spinner size="xl" />
+              <div style={{ display: 'inline-flex', padding: '6px 12px', background: 'var(--color-primary)', borderRadius: 'var(--radius)' }}>
+                <Spinner size="sm" color="white" />
+              </div>
+            </div>
+          </div>
+          <div>
+            <div style={{ fontSize: 'var(--font-size-xs)', fontWeight: 600, color: 'var(--color-text-muted)', marginBottom: 8, textTransform: 'uppercase' }}>
+              Inline & Container Loading States
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 12 }}>
+              <div style={{ border: '1px solid var(--color-border)', borderRadius: 'var(--radius)', padding: 12, background: 'var(--color-surface)' }}>
+                <LoadingState inline message="Saving line item changes…" />
+              </div>
+              <div style={{ border: '1px solid var(--color-border)', borderRadius: 'var(--radius)', padding: 12, background: 'var(--color-surface)' }}>
+                <LoadingState message="Fetching Ledger Entries…" description="Computing running balances across periods" minHeight={120} />
+              </div>
+            </div>
+          </div>
+        </div>
       </Card>
 
       <Card title="Form Fields" help="Label above the field, required mark, errors under the field.">

@@ -21,4 +21,5 @@ stopwords = [
   "Api-Test-Pass-123",
   "erp_ci_password",
   "test-secret-key-for-testing-only",
+  "admin123",
 ]

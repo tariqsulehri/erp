@@ -10,6 +10,7 @@ import { AppSidebar } from '@/components/shell/AppSidebar';
 import { ModuleTabs } from '@/components/shell/ModuleTabs';
 import { navSectionsFor, resolveRoute } from '@/components/shell/nav-config';
 import { canManageUsers } from '@/lib/auth/session-user';
+import { LoadingScreen } from '@/components/ui/LoadingSpinner';
 
 const COLLAPSED_KEY = 'erp-sidebar-collapsed';
 
@@ -49,12 +50,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
   }
 
   if (status === 'loading') {
-    return (
-      <div className="loading-overlay" style={{ minHeight: '100vh', flexDirection: 'column', gap: 12 }}>
-        <div className="spinner" style={{ width: 24, height: 24 }} />
-        <p style={{ color: 'var(--color-text-muted)', fontSize: 'var(--font-size-md)' }}>Loading Workspace…</p>
-      </div>
-    );
+    return <LoadingScreen message="Loading Workspace…" description="Verifying credentials and access permissions" fullScreen />;
   }
 
   if (!session) return null;

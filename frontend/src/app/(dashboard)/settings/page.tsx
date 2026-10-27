@@ -23,6 +23,7 @@ import {
   IconWorld,
 } from '@tabler/icons-react';
 import { Badge } from '@/components/ui/Badge';
+import { LoadingState } from '@/components/ui/LoadingSpinner';
 import { Button } from '@/components/ui/Button';
 import { InlineAlert } from '@/components/ui/InlineAlert';
 import { PageHeader } from '@/components/ui/PageHeader';
@@ -150,12 +151,7 @@ function SettingsPanel({
 }
 
 function PanelLoading() {
-  return (
-    <div className="empty-state" style={{ padding: '32px 16px' }}>
-      <span className="spinner" aria-hidden />
-      <div className="empty-title">Loading Settings…</div>
-    </div>
-  );
+  return <LoadingState message="Loading Settings…" minHeight={160} />;
 }
 
 function selectNumericValue(event: { currentTarget: HTMLInputElement }) {

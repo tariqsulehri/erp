@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, type ReactNode } from 'react';
+import { useState, type CSSProperties, type ReactNode } from 'react';
 import { IconChartBar, IconDownload, IconTable } from '@tabler/icons-react';
 import {
   Bar,
@@ -81,6 +81,10 @@ export function ChartCard({
   help,
   metric,
   legend,
+  pillSwitch,
+  footerNote,
+  style,
+  bodyStyle,
   table,
   children,
 }: {
@@ -91,12 +95,16 @@ export function ChartCard({
   help?: ReactNode;
   metric?: { label: string; value: string };
   legend?: LegendItem[];
+  pillSwitch?: ReactNode;
+  footerNote?: ReactNode;
+  style?: CSSProperties;
+  bodyStyle?: CSSProperties;
   table: ChartTable;
   children: ReactNode;
 }) {
   const [showTable, setShowTable] = useState(false);
   return (
-    <section className="chart-card" aria-label={title}>
+    <section className="chart-card" aria-label={title} style={style}>
       <div className="chart-card-head">
         <div className="chart-card-heading">
           <h2 className="chart-card-title">
@@ -107,6 +115,7 @@ export function ChartCard({
           {headline && <p className="chart-card-headline">{headline}</p>}
         </div>
         <div className="chart-card-tools">
+          {pillSwitch}
           {metric && (
             <div className="chart-card-metric">
               <span>{metric.label}</span>
@@ -135,7 +144,7 @@ export function ChartCard({
           </button>
         </div>
       </div>
-      <div className="chart-card-body">
+      <div className="chart-card-body" style={bodyStyle}>
         {showTable ? <ChartDataTable table={table} /> : (
           <>
             {legend && legend.length > 1 && <SeriesLegend items={legend} />}
@@ -143,6 +152,7 @@ export function ChartCard({
           </>
         )}
       </div>
+      {footerNote && <div className="chart-card-foot">{footerNote}</div>}
     </section>
   );
 }
@@ -469,6 +479,347 @@ export function DonutChart({
           ))}
         </tbody>
       </table>
+    </div>
+  );
+}
+
+/* ── Modern 3D Data Visualizations ────────────────────────────── */
+
+export interface PipelineDonutItem {
+  name: string;
+  count: number;
+  share: number;
+  color: string;
+  gradient?: [string, string];
+}
+
+/** 3D Gradient Donut with center total and clean tabular legend */
+export function PipelineDonutChart({
+  items,
+  totalCount,
+  totalLabel,
+}: {
+  items: PipelineDonutItem[];
+  totalCount: number | string;
+  totalLabel: string;
+}) {
+  const radius = 70;
+  const strokeWidth = 24;
+  const circumference = 2 * Math.PI * radius;
+  const total = items.reduce((sum, item) => sum + item.count, 0);
+
+  let accumulatedPercent = 0;
+  const segments = items.map((item, idx) => {
+    const pct = total > 0 ? (item.count / total) * 100 : item.share;
+    const gap = pct > 2 && items.length > 1 ? 1.2 : 0;
+    const effectivePct = Math.max(0, pct - gap);
+    const strokeDash = (effectivePct / 100) * circumference;
+    const strokeOffset = -((accumulatedPercent + gap / 2) / 100) * circumference;
+    accumulatedPercent += pct;
+
+    const gradId = `donut-grad-${idx}`;
+    const gradStart = item.gradient ? item.gradient[0] : item.color;
+    const gradEnd = item.gradient ? item.gradient[1] : item.color;
+
+    return {
+      ...item,
+      gradId,
+      gradStart,
+      gradEnd,
+      strokeDash,
+      strokeOffset,
+      hasValue: item.count > 0,
+    };
+  });
+
+  return (
+    <div className="pipeline-donut-layout">
+      <div className="pipeline-donut-plot">
+        <svg viewBox="0 0 200 200" className="pipeline-donut-svg">
+          <defs>
+            <filter id="pipeline-3d-shadow" x="-10%" y="-10%" width="130%" height="130%">
+              <feDropShadow dx="0" dy="2" stdDeviation="3" floodOpacity="0.15" />
+            </filter>
+            {segments.map(seg => (
+              <linearGradient key={seg.gradId} id={seg.gradId} x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stopColor={seg.gradStart} />
+                <stop offset="100%" stopColor={seg.gradEnd} />
+              </linearGradient>
+            ))}
+          </defs>
+
+          <circle
+            cx="100"
+            cy="100"
+            r={radius}
+            fill="none"
+            stroke="var(--color-surface-alt, #f1f5f9)"
+            strokeWidth={strokeWidth}
+          />
+
+          {segments.map(seg => {
+            if (!seg.hasValue || seg.strokeDash <= 0) return null;
+            return (
+              <circle
+                key={seg.name}
+                cx="100"
+                cy="100"
+                r={radius}
+                fill="none"
+                stroke={`url(#${seg.gradId})`}
+                strokeWidth={strokeWidth}
+                strokeDasharray={`${seg.strokeDash} ${circumference - seg.strokeDash}`}
+                strokeDashoffset={seg.strokeOffset}
+                strokeLinecap="round"
+                filter="url(#pipeline-3d-shadow)"
+                style={{ transition: 'stroke-dasharray 0.5s ease, stroke-dashoffset 0.5s ease' }}
+              />
+            );
+          })}
+        </svg>
+
+        <div className="pipeline-donut-center" aria-hidden="true">
+          <strong>{totalCount}</strong>
+          <span>{totalLabel}</span>
+        </div>
+      </div>
+
+      <table className="pipeline-legend-table">
+        <tbody>
+          {items.map(item => (
+            <tr key={item.name} className="pipeline-legend-row">
+              <td className="pipeline-legend-label">
+                <span
+                  className="pipeline-dot"
+                  style={{
+                    background: item.gradient
+                      ? `linear-gradient(135deg, ${item.gradient[0]}, ${item.gradient[1]})`
+                      : item.color,
+                  }}
+                  aria-hidden="true"
+                />
+                <span>{item.name}</span>
+              </td>
+              <td className="pipeline-legend-count">{item.count}</td>
+              <td className="pipeline-legend-share">{item.share}%</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+export interface TargetBenchmarkRow {
+  name: string;
+  subtitle?: string;
+  achievedPercent: number;
+  targetPercent: number;
+  variancePoints: number;
+  gradient?: [string, string];
+}
+
+/** Horizontal bullet / target progress bars with target ticks and variance badges */
+export function TargetBenchmarkBars({
+  rows,
+}: {
+  rows: TargetBenchmarkRow[];
+}) {
+  return (
+    <div className="target-benchmark-container">
+      {rows.map((row, idx) => {
+        const isLast = idx === rows.length - 1;
+        const isNeg = row.variancePoints < 0;
+        const varianceText = `${row.variancePoints > 0 ? '+' : ''}${row.variancePoints.toFixed(1)} pts`;
+        const gradient = row.gradient
+          ? `linear-gradient(90deg, ${row.gradient[0]} 0%, ${row.gradient[1]} 100%)`
+          : 'linear-gradient(90deg, #1d4ed8 0%, #3b82f6 100%)';
+        const fillWidth = Math.max(0, Math.min(100, row.achievedPercent));
+        const tickLeft = Math.max(0, Math.min(100, row.targetPercent));
+
+        return (
+          <div key={row.name} className="target-benchmark-item">
+            <div className="target-benchmark-head">
+              <div>
+                <span className="target-benchmark-title">{row.name}</span>
+                {row.subtitle && <span className="target-benchmark-subtitle"> · {row.subtitle}</span>}
+              </div>
+              <div className="target-benchmark-meta">
+                <span className="target-benchmark-values">
+                  {row.achievedPercent.toFixed(1)}% / {row.targetPercent.toFixed(1)}%
+                </span>
+                <span className={`target-variance-pill ${isNeg ? 'target-variance-neg' : 'target-variance-pos'}`}>
+                  {varianceText}
+                </span>
+              </div>
+            </div>
+
+            <div className="target-track-wrapper">
+              <div
+                className="target-track-fill"
+                style={{ width: `${fillWidth}%`, background: gradient }}
+              />
+              <div
+                className="target-track-tick"
+                style={{ left: `${tickLeft}%` }}
+                title={`Target: ${row.targetPercent.toFixed(1)}%`}
+              />
+            </div>
+
+            {isLast && (
+              <div className="target-scale-axis">
+                <span>0%</span>
+                <span style={{ transform: 'translateX(-50%)' }}>50%</span>
+                <span>100%</span>
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+export interface CapsuleBenchmarkPillar {
+  count: number;
+  countUnit?: string;
+  fillPercent: number;
+  badgeLabel: string;
+  title: string;
+  subtitle: string;
+  gradient: [string, string];
+}
+
+/** 3D liquid capsule benchmark columns with internal floating pill badges */
+export function CapsuleBenchmarkChart({
+  pillars,
+  axisLeft = 'Further from target',
+  axisRight = 'Closer to target',
+  summaryNote,
+}: {
+  pillars: CapsuleBenchmarkPillar[];
+  axisLeft?: string;
+  axisRight?: string;
+  summaryNote?: ReactNode;
+}) {
+  return (
+    <div className="capsule-benchmark-wrapper">
+      <div className="capsule-benchmark-grid">
+        {pillars.map(pillar => {
+          const clamped = Math.max(0, Math.min(100, pillar.fillPercent));
+          const heightPct = Math.max(clamped, 14);
+          const grad = `linear-gradient(180deg, ${pillar.gradient[0]} 0%, ${pillar.gradient[1]} 100%)`;
+
+          return (
+            <div key={pillar.title} className="capsule-pillar-col">
+              <div className="capsule-top-count">
+                {pillar.count}
+                <span className="capsule-top-unit">{pillar.countUnit || 'accounts'}</span>
+              </div>
+
+              <div className="capsule-track">
+                <div
+                  className="capsule-liquid"
+                  style={{ height: `${heightPct}%`, background: grad }}
+                >
+                  <div className="capsule-badge">{pillar.badgeLabel}</div>
+                </div>
+              </div>
+
+              <div className="capsule-pillar-info">
+                <div className="capsule-pillar-title">{pillar.title}</div>
+                <div className="capsule-pillar-sub">{pillar.subtitle}</div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      <div>
+        <div className="capsule-axis-indicator">
+          <span>← {axisLeft}</span>
+          <span>{axisRight} →</span>
+        </div>
+        {summaryNote && (
+          <div style={{ marginTop: 6, fontSize: 'var(--font-size-xs)', color: 'var(--color-text-muted)' }}>
+            {summaryNote}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+export interface GradePillarItem {
+  id: string;
+  count: number;
+  countUnit?: string;
+  percentage: number;
+  label: string;
+  subLabel: string;
+  gradient?: [string, string];
+}
+
+/** Categorical 3D liquid capsule pillars across classifications/grades */
+export function CategoryGradePillars({
+  items,
+  axisLeft = 'Junior',
+  axisRight = 'Senior',
+  summaryNote,
+}: {
+  items: GradePillarItem[];
+  axisLeft?: string;
+  axisRight?: string;
+  summaryNote?: ReactNode;
+}) {
+  return (
+    <div className="capsule-benchmark-wrapper">
+      <div className="grade-pillars-grid">
+        {items.map(item => {
+          const clamped = Math.max(0, Math.min(100, item.percentage));
+          const heightPct = Math.max(clamped, 14);
+          const grad = item.gradient
+            ? `linear-gradient(180deg, ${item.gradient[0]} 0%, ${item.gradient[1]} 100%)`
+            : 'linear-gradient(180deg, #2563eb 0%, #1d4ed8 100%)';
+
+          return (
+            <div key={item.id} className="grade-pillar-col">
+              <div className="grade-top-count">
+                {item.count}
+                <span className="grade-top-unit">{item.countUnit || 'accounts'}</span>
+              </div>
+
+              <div className="grade-track">
+                <div
+                  className="grade-liquid"
+                  style={{ height: `${heightPct}%`, background: grad }}
+                >
+                  <div className="grade-badge">{item.percentage}%</div>
+                </div>
+              </div>
+
+              <div className="grade-bottom-label">
+                <div className="grade-id-badge">{item.label}</div>
+                <div className="grade-sub-text" title={item.subLabel}>
+                  {item.subLabel}
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      <div>
+        <div className="capsule-axis-indicator">
+          <span>← {axisLeft}</span>
+          <span>{axisRight} →</span>
+        </div>
+        {summaryNote && (
+          <div style={{ marginTop: 6, fontSize: 'var(--font-size-xs)', color: 'var(--color-text-muted)' }}>
+            {summaryNote}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

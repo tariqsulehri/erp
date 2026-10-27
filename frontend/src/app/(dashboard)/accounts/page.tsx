@@ -33,6 +33,7 @@ import { useCompanyProfile, useGeneralSettings } from '@/lib/api/settings';
 import { AccountsTable }     from '@/components/tables/AccountsTable';
 import { AccountTreeView }   from '@/components/accounts/AccountTreeView';
 import { AccountGroupView }  from '@/components/accounts/AccountGroupView';
+import { LoadingState }      from '@/components/ui/LoadingSpinner';
 import { AccountSlideOver }  from '@/components/accounts/AccountSlideOver';
 import { printChartOfAccountsReport } from '@/components/accounts/ChartOfAccountsPrintHtml';
 import { ImportTemplateModal } from '@/components/modals/ImportTemplateModal';
@@ -394,10 +395,7 @@ export default function AccountsPage() {
           {view === 'group' && (
             <div className="table-scroll">
               {groupLoading ? (
-                <div className="empty-state">
-                  <span className="spinner" aria-hidden />
-                  <div className="empty-title">Loading Groups…</div>
-                </div>
+                <LoadingState message="Loading Groups…" minHeight={200} />
               ) : (
                 <AccountGroupView accounts={groupAccounts} />
               )}

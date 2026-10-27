@@ -3,6 +3,7 @@
 import { Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { ReportsWorkspace } from '@/components/reports/ReportsWorkspace';
+import { LoadingState } from '@/components/ui/LoadingSpinner';
 
 /** Reads ?report=&account=&from=&to= so other screens can open a report directly. */
 function ReportsFromLink() {
@@ -16,7 +17,7 @@ function ReportsFromLink() {
 
 export default function ReportsPage() {
   return (
-    <Suspense fallback={null}>
+    <Suspense fallback={<LoadingState message="Loading Reports…" minHeight={320} />}>
       <ReportsFromLink />
     </Suspense>
   );
