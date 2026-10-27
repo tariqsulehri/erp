@@ -1,218 +1,224 @@
 'use client';
 
-import { useMemo } from 'react';
 import Link from 'next/link';
 import {
+  IconCircleCheck,
+  IconClipboardCheck,
   IconFileAnalytics,
+  IconPencil,
+  IconReceipt,
   IconRefresh,
 } from '@tabler/icons-react';
+import { useDashboardSummary } from '@/lib/api/dashboard';
+import { useGeneralSettings } from '@/lib/api/settings';
 import { useVouchersList } from '@/lib/api/vouchers';
+import { formatCount, formatMoney } from '@/lib/app-settings';
+import { ChartCard, DonutChart, MonthlyColumnChart, RankedBars } from '@/components/analytics/ProCharts';
+import { compactAxis } from '@/components/analytics/chart-data';
+import { useChartTheme, type ChartTheme } from '@/components/analytics/chart-palette';
 import { Button } from '@/components/ui/Button';
+import { InlineAlert } from '@/components/ui/InlineAlert';
+import { LoadingState } from '@/components/ui/LoadingSpinner';
 import { PageHeader } from '@/components/ui/PageHeader';
-import {
-  CategoryShortfallList,
-  ChartCard,
-  GapSpreadPillars,
-  PromotionFunnelChart,
-  StatusNextInLineCards,
-  TargetGapScale,
-} from '@/components/analytics/ProCharts';
+import { StatGrid, StatTile } from '@/components/ui/StatTile';
+
+const OVERVIEW_HELP = (
+  <>
+    <p>A summary of every voucher in this company, read from the ledger.</p>
+    <ul>
+      <li>Posted vouchers are in the ledger and change account balances.</li>
+      <li>Drafts and vouchers waiting for approval do not change balances until they are posted.</li>
+      <li>Use Refresh to load the latest figures.</li>
+    </ul>
+  </>
+);
+
+function statusColor(theme: ChartTheme, status: string) {
+  if (status === 'Posted') return theme.series.teal;
+  if (status === 'Draft') return theme.series.amber;
+  return theme.series.slate;
+}
+
+function EmptyNote({ children }: { children: string }) {
+  return (
+    <div className="empty-state" style={{ padding: '32px 16px' }}>
+      <div className="empty-desc">{children}</div>
+    </div>
+  );
+}
 
 export default function VouchersOverviewPage() {
-  const { data: vouchersData, isLoading, refetch } = useVouchersList({ page: 1, limit: 100 });
+  const { data, isLoading, error, refetch, isFetching } = useDashboardSummary();
+  const pendingQuery = useVouchersList({ approval_status: 'Pending', status: 'Draft', page: 1, limit: 1 });
+  const { data: settings } = useGeneralSettings();
+  const theme = useChartTheme();
 
-  const vouchers = vouchersData?.data ?? [];
-  const total = vouchers.length || 42;
+  const header = (
+    <PageHeader
+      title="Vouchers Overview"
+      description="Where all vouchers stand, and the amounts posted to the ledger."
+      help={OVERVIEW_HELP}
+      actions={(
+        <>
+          <Button
+            variant="secondary"
+            icon={<IconRefresh size={16} stroke={1.8} />}
+            onClick={() => { void refetch(); void pendingQuery.refetch(); }}
+            loading={isFetching}
+          >
+            Refresh
+          </Button>
+          <Link href="/vouchers/posted" className="btn btn-primary">
+            <IconFileAnalytics size={16} stroke={1.8} />
+            <span>Open Voucher List</span>
+          </Link>
+        </>
+      )}
+    />
+  );
 
-  // Lifecycle breakdown
-  const funnelSteps = useMemo(() => {
-    return [
-      { id: '1', label: 'All Vouchers', count: total, maxCount: total, percentage: 100 },
-      { id: '2', label: 'Drafts Saved', count: 34, maxCount: total, percentage: 81, delta: -8 },
-      { id: '3', label: 'Under Approval', count: 18, maxCount: total, percentage: 43, delta: -16 },
-      { id: '4', label: 'Manager Approved', count: 14, maxCount: total, percentage: 33, delta: -4 },
-      { id: '5', label: 'Posted To Ledger', count: 12, maxCount: total, percentage: 29, delta: -2 },
-    ];
-  }, [total]);
+  if (isLoading || error || !data) {
+    return (
+      <div className="page-shell">
+        {header}
+        {error && <InlineAlert tone="danger">Voucher figures could not be loaded. Please press Refresh to try again.</InlineAlert>}
+        {isLoading && <LoadingState message="Loading Vouchers Overview…" minHeight={280} />}
+      </div>
+    );
+  }
 
-  const gapSpread = useMemo(() => {
-    return [
-      { id: '1', label: 'Over 7 Days Below', count: 5, maxCount: 6, gradient: ['#dc2626', '#991b1b'] as [string, string] },
-      { id: '2', label: '4 to 7 Days Below', count: 0, maxCount: 6, gradient: ['#f97316', '#c2410c'] as [string, string] },
-      { id: '3', label: '1 to 3 Days Below', count: 1, maxCount: 6, gradient: ['#d97706', '#b45309'] as [string, string] },
-      { id: '4', label: 'Within 24 Hours', count: 0, maxCount: 6, gradient: ['#3b82f6', '#1d4ed8'] as [string, string] },
-      { id: '5', label: 'At or Above Target', count: 0, maxCount: 6, gradient: ['#16a34a', '#15803d'] as [string, string] },
-    ];
-  }, []);
+  const { vouchers } = data;
+  const pendingCount: number | null = pendingQuery.data?.pagination?.total ?? null;
+  const axis = compactAxis(settings);
 
-  const shortfallRows = useMemo(() => {
-    return [
-      { id: '1', label: 'Cash Payment (CPV)', belowCount: 6, metCount: 0, notAssessedCount: 3, shortfallBadge: '-28 pts avg', deficitPct: 65, metPct: 35 },
-      { id: '2', label: 'Bank Payment (BPV)', belowCount: 4, metCount: 0, notAssessedCount: 5, shortfallBadge: '-57 pts avg', deficitPct: 45, metPct: 55 },
-      { id: '3', label: 'Journal Entry (JV)', belowCount: 4, metCount: 0, notAssessedCount: 5, shortfallBadge: '-46 pts avg', deficitPct: 45, metPct: 55 },
-      { id: '4', label: 'Sales Voucher (SI)', belowCount: 3, metCount: 0, notAssessedCount: 6, shortfallBadge: '-49 pts avg', deficitPct: 35, metPct: 65 },
-    ];
-  }, []);
+  const statusData = [
+    { name: 'Posted', value: vouchers.posted },
+    { name: 'Draft', value: vouchers.draft },
+    { name: 'Voided', value: vouchers.voided },
+  ].filter(row => row.value > 0);
+  const statusHeadline = vouchers.total > 0
+    ? `${formatCount(vouchers.posted, settings)} of ${formatCount(vouchers.total, settings)} vouchers are posted${vouchers.draft > 0 ? `; ${formatCount(vouchers.draft, settings)} drafts wait to be posted.` : '.'}`
+    : undefined;
 
-  const targetScaleRows = useMemo(() => {
-    return [
-      { id: '1', label: 'FY2026-Q1', actualPct: 31, targetPct: 63, peopleCount: 5 },
-      { id: '2', label: 'FY2026-Q2', actualPct: 10, targetPct: 83, peopleCount: 1 },
-    ];
-  }, []);
+  const rankedTypes = vouchers.byType
+    .map(row => ({ name: row.type, value: Number(row.total), count: row.count }))
+    .sort((left, right) => right.value - left.value);
+  const typeTotal = rankedTypes.reduce((sum, row) => sum + row.value, 0);
+  const typeHeadline = rankedTypes[0] && typeTotal > 0
+    ? `${rankedTypes[0].name} carries the most, ${(rankedTypes[0].value / typeTotal * 100).toFixed(1)}% of the posted amount.`
+    : undefined;
 
-  const checklist = useMemo(() => {
-    return [
-      { label: 'Bank Reconciliation', count: 0, met: false },
-      { label: 'Supporting Invoices', count: 0, met: false },
-      { label: 'Needs Manager Approval', count: 0, met: false },
-    ];
-  }, []);
+  const monthlyPoints = vouchers.monthlyVolume.map(row => ({ monthKey: row.month, label: row.month, total: Number(row.total), count: row.count }));
+  const monthlyAverage = monthlyPoints.length > 0 ? monthlyPoints.reduce((sum, row) => sum + row.total, 0) / monthlyPoints.length : 0;
+  const peakMonth = monthlyPoints.reduce<(typeof monthlyPoints)[number] | null>((best, row) => (!best || row.total > best.total ? row : best), null);
+  const monthlyHeadline = peakMonth && peakMonth.total > 0
+    ? `${peakMonth.label} was the busiest month with ${formatMoney(peakMonth.total, settings)} posted in ${formatCount(peakMonth.count, settings)} vouchers.`
+    : undefined;
 
   return (
     <div className="page-shell">
-      <PageHeader
-        title="Vouchers Overview"
-        description="Live posting pipelines, stage conversion funnel, and approval shortfall telemetry."
-        actions={(
-          <>
-            <Button
-              variant="secondary"
-              icon={<IconRefresh size={16} stroke={1.8} />}
-              onClick={() => refetch()}
-              loading={isLoading}
-            >
-              Refresh
-            </Button>
-            <Link href="/vouchers/posted" className="btn btn-primary">
-              <IconFileAnalytics size={16} stroke={1.8} />
-              <span>Open Voucher List</span>
-            </Link>
-          </>
-        )}
-      />
+      {header}
 
-      {/* Top Calibr Grade & KPI Ribbon */}
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 16,
-          padding: '12px 18px',
-          background: 'var(--color-surface)',
-          border: '1px solid var(--color-border)',
-          borderRadius: 'var(--radius-lg)',
-          marginBottom: 20,
-          boxShadow: 'var(--shadow-card)',
-          flexWrap: 'wrap',
-        }}
-      >
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 140 }}>
-          <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase' }}>
-            Active Ledger
-          </span>
-          <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--color-heading)' }}>
-            Finance &amp; Treasury
-          </span>
-        </div>
-
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          <span style={{ padding: '4px 12px', background: 'var(--color-surface-alt)', border: '1px solid var(--color-border)', borderRadius: 6, fontSize: 12, fontWeight: 600 }}>
-            JV: 0 / 6
-          </span>
-          <span style={{ padding: '4px 12px', background: 'var(--color-surface-alt)', border: '1px solid var(--color-border)', borderRadius: 6, fontSize: 12, fontWeight: 600 }}>
-            BPV: 0 / 3
-          </span>
-          <span style={{ padding: '4px 12px', background: 'var(--color-surface-alt)', border: '1px solid var(--color-border)', borderRadius: 6, fontSize: 12, fontWeight: 600 }}>
-            CPV: 0 / 1
-          </span>
-        </div>
-
-        <div style={{ flex: 1, minWidth: 240, display: 'flex', alignItems: 'center', gap: 12 }}>
-          <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text-secondary)', whiteSpace: 'nowrap' }}>
-            All Vouchers
-          </span>
-          <div style={{ flex: 1, height: 12, background: 'var(--color-surface-alt)', borderRadius: 6, overflow: 'hidden', border: '1px solid var(--color-border)' }}>
-            <div style={{ width: '28%', height: '100%', background: 'linear-gradient(90deg, #b45309 0%, #3b82f6 100%)', borderRadius: 5 }} />
-          </div>
-          <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--color-heading)', whiteSpace: 'nowrap' }}>
-            12 of 42
-          </span>
-        </div>
-      </div>
-
-      {/* 2×2 Static Height Balanced Analytics Grid */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(460px, 1fr))', gap: 20 }}>
-        {/* Promotion Funnel */}
-        <ChartCard
-          title="Posting Funnel"
-          subtitle="Conversion rates at each step from entry to general ledger posting"
-          headline="29% of created vouchers are fully posted to the General Ledger."
-          help="Vouchers must be verified and approved before posting. Drop-offs identify approvals pending with branch managers."
-          metric={{ label: 'GL Posted', value: '12 Vouchers' }}
-          style={{ height: 380 }}
-          bodyStyle={{ height: 260, overflowY: 'auto' }}
-        >
-          <PromotionFunnelChart steps={funnelSteps} />
-        </ChartCard>
-
-        {/* Technical Gap Spread */}
-        <ChartCard
-          title="Approval Aging Spread"
-          subtitle="Distribution of pending approval turnaround vs SLA target"
-          headline="5 vouchers exceed standard turnaround by more than 7 days."
-          help="Vouchers aging over 7 days are flagged in red and need management escalation to avoid period closing delays."
-          metric={{ label: 'Critical Gap', value: '5 Vouchers' }}
-          style={{ height: 380 }}
-          bodyStyle={{ height: 260 }}
-        >
-          <GapSpreadPillars columns={gapSpread} />
-        </ChartCard>
-
-        {/* Top Categories Blocking Posting */}
-        <ChartCard
-          title="Top Types In Approval Queue"
-          subtitle="Voucher categories with greatest deficit against monthly target"
-          headline="Cash and Bank Payments account for 71% of pending approvals."
-          help="Most of these entries have pending receipts or require treasury signoff before final ledger entry."
-          metric={{ label: 'Total In Queue', value: '30 Vouchers' }}
-          style={{ height: 380 }}
-          bodyStyle={{ height: 260, overflowY: 'auto' }}
-        >
-          <CategoryShortfallList rows={shortfallRows} />
-        </ChartCard>
-
-        {/* Next in Line */}
-        <ChartCard
-          title="Next in Line"
-          subtitle="Vouchers closest to posting and prerequisite checklist"
-          headline="12 vouchers ready to post; 4 awaiting final sign-off."
-          help="Ready vouchers can be posted immediately in a single batch from the Approvals queue."
-          metric={{ label: 'Ready', value: '12 Vouchers' }}
-          style={{ height: 380 }}
-          bodyStyle={{ height: 260, display: 'flex', alignItems: 'center' }}
-        >
-          <StatusNextInLineCards
-            readyCount={12}
-            readyLabel="Ready to Post"
-            pendingCount={4}
-            pendingLabel="One check to go"
-            checklist={checklist}
+      <section aria-label="Voucher Totals" style={{ marginBottom: 20 }}>
+        <StatGrid>
+          <StatTile
+            label="All Vouchers" tone="blue" icon={<IconReceipt />}
+            value={formatCount(vouchers.total, settings)}
+            help="Every voucher in this company: Posted, Draft, and Voided."
+            href="/vouchers/posted"
           />
+          <StatTile
+            label="Posted" tone="teal" icon={<IconCircleCheck />}
+            value={formatCount(vouchers.posted, settings)}
+            help="Vouchers in the ledger. They change account balances."
+          />
+          <StatTile
+            label="Drafts" tone="amber" icon={<IconPencil />}
+            value={formatCount(vouchers.draft, settings)}
+            help="Saved but not posted. Drafts do not change balances."
+          />
+          <StatTile
+            label="Waiting For Approval" tone="violet" icon={<IconClipboardCheck />}
+            value={pendingCount === null ? '—' : formatCount(pendingCount, settings)}
+            help="Draft vouchers sent for approval. A manager must approve them before they can be posted."
+            href="/approvals"
+          />
+        </StatGrid>
+      </section>
+
+      <div className="analytics-row-main">
+        <ChartCard
+          title="Posted Amount By Month"
+          subtitle="Last 6 months; the dashed line is the monthly average"
+          headline={monthlyHeadline}
+          help="Total amount of vouchers posted in each of the last 6 months."
+          metric={{ label: 'Monthly Average', value: formatMoney(monthlyAverage, settings) }}
+          table={{
+            columns: [{ key: 'month', label: 'Month' }, { key: 'count', label: 'Vouchers', numeric: true }, { key: 'total', label: 'Posted Amount', numeric: true }],
+            rows: vouchers.monthlyVolume.map(row => ({ month: row.month, count: formatCount(row.count, settings), total: formatMoney(row.total, settings) })),
+          }}
+        >
+          {monthlyPoints.length === 0 ? (
+            <EmptyNote>No posted vouchers in the last 6 months.</EmptyNote>
+          ) : (
+            <MonthlyColumnChart
+              data={monthlyPoints}
+              dataKey="total"
+              seriesName="Posted Amount"
+              average={monthlyAverage}
+              format={value => formatMoney(value, settings)}
+              axis={axis}
+              tooltipTitle={point => String(point.label)}
+              height={230}
+            />
+          )}
+        </ChartCard>
+
+        <ChartCard
+          title="Voucher Status"
+          subtitle="All vouchers by where they stand"
+          headline={statusHeadline}
+          help="Posted vouchers are in the ledger. Drafts do not affect balances until they are posted. Voided vouchers are cancelled."
+          table={{
+            columns: [{ key: 'status', label: 'Status' }, { key: 'count', label: 'Vouchers', numeric: true }, { key: 'share', label: 'Share', numeric: true }],
+            rows: statusData.map(row => ({ status: row.name, count: formatCount(row.value, settings), share: `${vouchers.total > 0 ? Math.round(row.value / vouchers.total * 100) : 0}%` })),
+          }}
+        >
+          {statusData.length === 0 ? (
+            <EmptyNote>No vouchers yet.</EmptyNote>
+          ) : (
+            <DonutChart
+              items={statusData.map(row => ({ name: row.name, value: row.value, color: statusColor(theme, row.name) }))}
+              centerValue={formatCount(vouchers.total, settings)}
+              centerLabel="vouchers"
+              format={value => formatCount(value, settings)}
+            />
+          )}
         </ChartCard>
       </div>
 
-      {/* Bottom Target Attainment Scale */}
       <div style={{ marginTop: 20 }}>
         <ChartCard
-          title="Posting Target Attainment by Fiscal Quarter"
-          subtitle="Actual posting rate (dot) vs Budgeted target (ring). The connecting line is the gap."
-          headline="Quarterly posting target shortfall is 32% below budget."
-          help="Shows target attainment tracking across fiscal quarters. Dots show actual postings; rings show targets."
-          style={{ height: 240 }}
-          bodyStyle={{ height: 140 }}
+          title="Posted Amount By Voucher Type"
+          subtitle="Amount and share of all posted vouchers"
+          headline={typeHeadline}
+          help="Posted voucher amounts grouped by voucher type, largest first."
+          table={{
+            columns: [{ key: 'type', label: 'Voucher Type' }, { key: 'count', label: 'Vouchers', numeric: true }, { key: 'total', label: 'Posted Amount', numeric: true }],
+            rows: rankedTypes.map(row => ({ type: row.name, count: formatCount(row.count, settings), total: formatMoney(row.value, settings) })),
+          }}
         >
-          <TargetGapScale rows={targetScaleRows} />
+          {rankedTypes.length === 0 ? (
+            <EmptyNote>No posted vouchers yet.</EmptyNote>
+          ) : (
+            <RankedBars
+              items={rankedTypes}
+              total={typeTotal}
+              format={value => formatMoney(value, settings)}
+              limit={10}
+              countLabel={value => `${formatCount(value, settings)} Vouchers`}
+            />
+          )}
         </ChartCard>
       </div>
     </div>
