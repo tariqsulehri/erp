@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { currentUserId, resolveAccessScope } from '../http/access-context.js';
+import { currentUserId, resolveAccessScope, requirePermission } from '../http/access-context.js';
 import { assertWarehouseDocumentAccess, purchaseWarehouseFilter, requireAllBranchAccess, resolvePurchasingWarehouseId } from '../modules/inventory/stock-holder-access.js';
 import { PurchaseReturnDetailService } from '../modules/purchase-returns/purchase-return-detail.service.js';
 import { PurchaseReturnDraftService } from '../modules/purchase-returns/purchase-return-draft.service.js';
@@ -41,7 +41,7 @@ purchaseReturnsRouter.get('/support-data', async (req, res, next) => {
   }
 });
 
-purchaseReturnsRouter.post('/validate', async (req, res, next) => {
+purchaseReturnsRouter.post('/validate', requirePermission('purchases.edit'), async (req, res, next) => {
   try {
     const scope = resolveAccessScope(req);
     const companyId = scope.companyId;
@@ -54,7 +54,7 @@ purchaseReturnsRouter.post('/validate', async (req, res, next) => {
   }
 });
 
-purchaseReturnsRouter.post('/drafts', async (req, res, next) => {
+purchaseReturnsRouter.post('/drafts', requirePermission('purchases.edit'), async (req, res, next) => {
   try {
     const scope = resolveAccessScope(req);
     const companyId = scope.companyId;
@@ -67,7 +67,7 @@ purchaseReturnsRouter.post('/drafts', async (req, res, next) => {
   }
 });
 
-purchaseReturnsRouter.post('/create-and-post', async (req, res, next) => {
+purchaseReturnsRouter.post('/create-and-post', requirePermission('purchases.edit'), async (req, res, next) => {
   try {
     const scope = resolveAccessScope(req);
     const companyId = scope.companyId;
@@ -83,7 +83,7 @@ purchaseReturnsRouter.post('/create-and-post', async (req, res, next) => {
   }
 });
 
-purchaseReturnsRouter.post('/:id/post', async (req, res, next) => {
+purchaseReturnsRouter.post('/:id/post', requirePermission('purchases.edit'), async (req, res, next) => {
   try {
     const scope = resolveAccessScope(req);
     const companyId = scope.companyId;

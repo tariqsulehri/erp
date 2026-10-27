@@ -36,6 +36,16 @@ export const PERMISSION_ROLES = {
   'locations.manage': ['admin', 'top_management', 'manager'],
   /** Open Ledger, Trial Balance, Profit And Loss and Balance Sheet. */
   'reports.financial': ['admin', 'top_management', 'manager', 'accountant'],
+  /** Save and post Sale Vouchers and Sale Returns (only at a Branch, by the access scope). */
+  'sales.edit': ['admin', 'top_management', 'manager', 'accountant', 'sales_staff'],
+  /** Save and post Purchase Vouchers and Purchase Returns (only at a Warehouse, by the access scope). */
+  'purchases.edit': ['admin', 'top_management', 'manager', 'accountant', 'warehouse_staff'],
+  /** Save and post Stock Transfers. */
+  'stock_transfers.edit': ['admin', 'top_management', 'manager', 'sales_staff', 'warehouse_staff'],
+  /** Save and post Stock Adjustments. */
+  'stock_adjustments.edit': ['admin', 'top_management', 'manager'],
+  /** Add, change and delete Products and their setup lists (categories, brands, sizes, colours, units...). */
+  'products.manage': ['admin', 'top_management', 'manager'],
 } as const satisfies Record<string, readonly UserRole[]>;
 
 export type Permission = keyof typeof PERMISSION_ROLES;

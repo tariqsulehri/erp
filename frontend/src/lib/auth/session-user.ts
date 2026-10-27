@@ -53,6 +53,11 @@ export const PERMISSION_ROLES = {
   'organization.manage': ['admin', 'top_management'],
   'locations.manage': ['admin', 'top_management', 'manager'],
   'reports.financial': ['admin', 'top_management', 'manager', 'accountant'],
+  'sales.edit': ['admin', 'top_management', 'manager', 'accountant', 'sales_staff'],
+  'purchases.edit': ['admin', 'top_management', 'manager', 'accountant', 'warehouse_staff'],
+  'stock_transfers.edit': ['admin', 'top_management', 'manager', 'sales_staff', 'warehouse_staff'],
+  'stock_adjustments.edit': ['admin', 'top_management', 'manager'],
+  'products.manage': ['admin', 'top_management', 'manager'],
 } as const satisfies Record<string, readonly UserRole[]>;
 
 export type Permission = keyof typeof PERMISSION_ROLES;

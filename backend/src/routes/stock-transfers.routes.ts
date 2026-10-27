@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import type { Request } from 'express';
-import { currentUserId, resolveAccessScope } from '../http/access-context.js';
+import { currentUserId, resolveAccessScope, requirePermission } from '../http/access-context.js';
 import { holderFromColumns } from '../modules/inventory/stock-holder.js';
 import { StockTransferService } from '../modules/stock-transfers/stock-transfer.service.js';
 import {
@@ -49,7 +49,7 @@ stockTransfersRouter.get('/', async (req, res, next) => {
   }
 });
 
-stockTransfersRouter.post('/validate', async (req, res, next) => {
+stockTransfersRouter.post('/validate', requirePermission('stock_transfers.edit'), async (req, res, next) => {
   try {
     const service = serviceFor(req);
     const input = ValidateStockTransferInput.parse(req.body);
@@ -59,7 +59,7 @@ stockTransfersRouter.post('/validate', async (req, res, next) => {
   }
 });
 
-stockTransfersRouter.post('/drafts', async (req, res, next) => {
+stockTransfersRouter.post('/drafts', requirePermission('stock_transfers.edit'), async (req, res, next) => {
   try {
     const service = serviceFor(req);
     const input = ValidateStockTransferInput.parse(req.body);
@@ -69,7 +69,7 @@ stockTransfersRouter.post('/drafts', async (req, res, next) => {
   }
 });
 
-stockTransfersRouter.post('/create-and-post', async (req, res, next) => {
+stockTransfersRouter.post('/create-and-post', requirePermission('stock_transfers.edit'), async (req, res, next) => {
   try {
     const service = serviceFor(req);
     const input = ValidateStockTransferInput.parse(req.body);
@@ -79,7 +79,7 @@ stockTransfersRouter.post('/create-and-post', async (req, res, next) => {
   }
 });
 
-stockTransfersRouter.post('/:id/post', async (req, res, next) => {
+stockTransfersRouter.post('/:id/post', requirePermission('stock_transfers.edit'), async (req, res, next) => {
   try {
     const service = serviceFor(req);
     const { id } = idParams.parse(req.params);

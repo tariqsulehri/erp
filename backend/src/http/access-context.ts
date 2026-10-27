@@ -41,6 +41,11 @@ const permissionActionText: Record<Permission, string> = {
   'organization.manage': 'change branches and warehouses',
   'locations.manage': 'change states, cities and areas',
   'reports.financial': 'open financial reports',
+  'sales.edit': 'save or post sales and sale returns',
+  'purchases.edit': 'save or post purchases and purchase returns',
+  'stock_transfers.edit': 'save or post stock transfers',
+  'stock_adjustments.edit': 'save or post stock adjustments',
+  'products.manage': 'add or change products and product setup lists',
 };
 
 /** Route middleware: stops the request with 403 when the signed-in user's role may not do this action. */

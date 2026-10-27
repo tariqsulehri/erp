@@ -19,6 +19,21 @@ describe('Role permissions', () => {
     expect(hasPermission('warehouse_staff', 'vouchers.post')).toBe(false);
   });
 
+  it('lets each role save and post only the business documents that fit its work', () => {
+    const expected = {
+      'sales.edit': ['admin', 'top_management', 'manager', 'accountant', 'sales_staff'],
+      'purchases.edit': ['admin', 'top_management', 'manager', 'accountant', 'warehouse_staff'],
+      'stock_transfers.edit': ['admin', 'top_management', 'manager', 'sales_staff', 'warehouse_staff'],
+      'stock_adjustments.edit': ['admin', 'top_management', 'manager'],
+      'products.manage': ['admin', 'top_management', 'manager'],
+    } as const;
+    for (const [permission, roles] of Object.entries(expected)) {
+      for (const role of USER_ROLES) {
+        expect(hasPermission(role, permission as keyof typeof expected), `${role} ${permission}`).toBe((roles as readonly string[]).includes(role));
+      }
+    }
+  });
+
   it('gives Viewers no change permissions and no financial reports', () => {
     expect(permissionsForRole('viewer')).toEqual([]);
   });

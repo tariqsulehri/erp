@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { currentUserId, resolveAccessScope } from '../http/access-context.js';
+import { currentUserId, resolveAccessScope, requirePermission } from '../http/access-context.js';
 import { resolveSellingBranchId } from '../modules/inventory/stock-holder-access.js';
 import { SaleReturnDetailService } from '../modules/sale-returns/sale-return-detail.service.js';
 import { SaleReturnDraftService } from '../modules/sale-returns/sale-return-draft.service.js';
@@ -48,7 +48,7 @@ saleReturnsRouter.get('/support-data', async (req, res, next) => {
   }
 });
 
-saleReturnsRouter.post('/validate', async (req, res, next) => {
+saleReturnsRouter.post('/validate', requirePermission('sales.edit'), async (req, res, next) => {
   try {
     const { scope, input } = saleReturnInputFor(req);
     const service = new SaleReturnValidationService(scope.companyId);
@@ -58,7 +58,7 @@ saleReturnsRouter.post('/validate', async (req, res, next) => {
   }
 });
 
-saleReturnsRouter.post('/drafts', async (req, res, next) => {
+saleReturnsRouter.post('/drafts', requirePermission('sales.edit'), async (req, res, next) => {
   try {
     const { scope, input } = saleReturnInputFor(req);
     const service = new SaleReturnDraftService(scope.companyId);
@@ -68,7 +68,7 @@ saleReturnsRouter.post('/drafts', async (req, res, next) => {
   }
 });
 
-saleReturnsRouter.post('/create-and-post', async (req, res, next) => {
+saleReturnsRouter.post('/create-and-post', requirePermission('sales.edit'), async (req, res, next) => {
   try {
     const { scope, input } = saleReturnInputFor(req);
     const userId = currentUserId(req);
@@ -81,7 +81,7 @@ saleReturnsRouter.post('/create-and-post', async (req, res, next) => {
   }
 });
 
-saleReturnsRouter.post('/:id/post', async (req, res, next) => {
+saleReturnsRouter.post('/:id/post', requirePermission('sales.edit'), async (req, res, next) => {
   try {
     const scope = resolveAccessScope(req);
     const { id } = saleReturnIdParams.parse(req.params);

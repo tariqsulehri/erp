@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { currentUserId, resolveAccessScope } from '../http/access-context.js';
+import { currentUserId, resolveAccessScope, requirePermission } from '../http/access-context.js';
 import { resolveSellingBranchId } from '../modules/inventory/stock-holder-access.js';
 import { SaleDetailService } from '../modules/sales/sale-detail.service.js';
 import { SaleDraftService } from '../modules/sales/sale-draft.service.js';
@@ -48,7 +48,7 @@ salesRouter.get('/support-data', async (req, res, next) => {
   }
 });
 
-salesRouter.post('/validate', async (req, res, next) => {
+salesRouter.post('/validate', requirePermission('sales.edit'), async (req, res, next) => {
   try {
     const { scope, input } = saleInputFor(req);
     const service = new SaleValidationService(scope.companyId);
@@ -58,7 +58,7 @@ salesRouter.post('/validate', async (req, res, next) => {
   }
 });
 
-salesRouter.post('/drafts', async (req, res, next) => {
+salesRouter.post('/drafts', requirePermission('sales.edit'), async (req, res, next) => {
   try {
     const { scope, input } = saleInputFor(req);
     const service = new SaleDraftService(scope.companyId);
@@ -68,7 +68,7 @@ salesRouter.post('/drafts', async (req, res, next) => {
   }
 });
 
-salesRouter.post('/create-and-post', async (req, res, next) => {
+salesRouter.post('/create-and-post', requirePermission('sales.edit'), async (req, res, next) => {
   try {
     const { scope, input } = saleInputFor(req);
     const userId = currentUserId(req);
@@ -81,7 +81,7 @@ salesRouter.post('/create-and-post', async (req, res, next) => {
   }
 });
 
-salesRouter.post('/:id/post', async (req, res, next) => {
+salesRouter.post('/:id/post', requirePermission('sales.edit'), async (req, res, next) => {
   try {
     const scope = resolveAccessScope(req);
     const { id } = saleIdParams.parse(req.params);

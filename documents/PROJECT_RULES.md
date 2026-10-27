@@ -113,6 +113,17 @@ New frontend modules must follow the same structure established in the Purchase 
 - Admin and Top Management users see All Branches and all Warehouses, and can manage users.
 - Sales Staff must be assigned to a Branch; Warehouse Staff must be assigned to a Warehouse.
 - Branch users cannot open purchases. Warehouse users cannot create sales.
+- On top of the Branch or Warehouse limit, each role may save and post only these documents:
+
+  | Action | Roles |
+  |---|---|
+  | Sales and Sale Returns | Admin, Top Management, Manager, Accountant, Sales Staff |
+  | Purchases and Purchase Returns | Admin, Top Management, Manager, Accountant, Warehouse Staff |
+  | Stock Transfers | Admin, Top Management, Manager, Sales Staff, Warehouse Staff |
+  | Stock Adjustments | Admin, Top Management, Manager |
+  | Products and product setup lists | Admin, Top Management, Manager |
+
+  Viewers can read but never save or post. The list lives in `PERMISSION_ROLES` in `backend/src/modules/auth/access-rules.ts`.
 - The backend enforces these rules on every request. Hiding a screen in the frontend is not enough.
 
 ## Rule Ownership

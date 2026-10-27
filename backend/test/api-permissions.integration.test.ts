@@ -277,6 +277,61 @@ describe.skipIf(!databaseUrl)('HTTP API permissions (database)', () => {
       expect(missingDate.status).toBe(400);
     });
 
+    it('POST /sales/drafts: 403 for roles that may not sell, allowed roles reach validation (400)', async () => {
+      for (const role of ['warehouse_staff', 'viewer'] as Role[]) {
+        const response = await request('POST', '/api/v1/sales/drafts', { token: tokens[role], body: {} });
+        expect(response.status, role).toBe(403);
+        expect(response.body.error.message).toMatch(/save or post sales/);
+      }
+      for (const role of ['sales_staff', 'accountant'] as Role[]) {
+        const response = await request('POST', '/api/v1/sales/drafts', { token: tokens[role], body: {} });
+        expect(response.status, role).toBe(400);
+        expect(response.body.error.code).toBe('VALIDATION_ERROR');
+      }
+    });
+
+    it('POST /purchases/drafts and /purchase-returns/drafts: 403 for Sales Staff and Viewers', async () => {
+      for (const path of ['/api/v1/purchases/drafts', '/api/v1/purchase-returns/drafts']) {
+        for (const role of ['sales_staff', 'viewer'] as Role[]) {
+          const response = await request('POST', path, { token: tokens[role], body: {} });
+          expect(response.status, `${role} ${path}`).toBe(403);
+          expect(response.body.error.message).toMatch(/save or post purchases/);
+        }
+        const allowed = await request('POST', path, { token: tokens.warehouse_staff, body: {} });
+        expect(allowed.status, path).toBe(400);
+      }
+    });
+
+    it('POST /stock-adjustments/drafts: only Admin, Top Management and Managers', async () => {
+      for (const role of ['accountant', 'sales_staff', 'warehouse_staff', 'viewer'] as Role[]) {
+        const response = await request('POST', '/api/v1/stock-adjustments/drafts', { token: tokens[role], body: {} });
+        expect(response.status, role).toBe(403);
+        expect(response.body.error.message).toMatch(/save or post stock adjustments/);
+      }
+      expect((await request('POST', '/api/v1/stock-adjustments/drafts', { token: tokens.manager, body: {} })).status).toBe(400);
+    });
+
+    it('POST /stock-transfers/drafts: 403 for Accountants and Viewers', async () => {
+      for (const role of ['accountant', 'viewer'] as Role[]) {
+        const response = await request('POST', '/api/v1/stock-transfers/drafts', { token: tokens[role], body: {} });
+        expect(response.status, role).toBe(403);
+        expect(response.body.error.message).toMatch(/save or post stock transfers/);
+      }
+      expect((await request('POST', '/api/v1/stock-transfers/drafts', { token: tokens.warehouse_staff, body: {} })).status).toBe(400);
+    });
+
+    it('product setup lists: only Admin, Top Management and Managers can change them; everyone can read them', async () => {
+      for (const role of ['accountant', 'sales_staff', 'warehouse_staff', 'viewer'] as Role[]) {
+        const created = await request('POST', '/api/v1/products/brands', { token: tokens[role], body: { code: 'API', name: 'Api Brand' } });
+        expect(created.status, role).toBe(403);
+        expect(created.body.error.message).toMatch(/add or change products/);
+        expect((await request('DELETE', `/api/v1/products/brands/${randomUUID()}`, { token: tokens[role] })).status, role).toBe(403);
+      }
+      expect(await prisma.brand.count({ where: { companyId } })).toBe(0);
+      expect((await request('POST', '/api/v1/products/brands', { token: tokens.manager, body: {} })).status).toBe(400);
+      expect((await request('GET', '/api/v1/products/brands', { token: tokens.viewer })).status).toBe(200);
+    });
+
     it('does not let a permission check leak another company: allowed role with foreign company gets 403', async () => {
       const response = await request('GET', '/api/v1/reports/trial-balance?date_to=2025-12-31', {
         token: tokens.accountant, companyId: otherCompany.companyId,

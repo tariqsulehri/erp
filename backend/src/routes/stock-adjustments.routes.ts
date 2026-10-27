@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import type { Request } from 'express';
-import { currentUserId, resolveAccessScope } from '../http/access-context.js';
+import { currentUserId, resolveAccessScope, requirePermission } from '../http/access-context.js';
 import { StockAdjustmentService } from '../modules/stock-adjustments/stock-adjustment.service.js';
 import { idParams, ListStockAdjustmentsQuery, ValidateStockAdjustmentInput } from '../modules/stock-adjustments/stock-adjustment.schema.js';
 
@@ -31,7 +31,7 @@ stockAdjustmentsRouter.get('/', async (req, res, next) => {
   }
 });
 
-stockAdjustmentsRouter.post('/validate', async (req, res, next) => {
+stockAdjustmentsRouter.post('/validate', requirePermission('stock_adjustments.edit'), async (req, res, next) => {
   try {
     const service = serviceFor(req);
     const input = ValidateStockAdjustmentInput.parse(req.body);
@@ -41,7 +41,7 @@ stockAdjustmentsRouter.post('/validate', async (req, res, next) => {
   }
 });
 
-stockAdjustmentsRouter.post('/drafts', async (req, res, next) => {
+stockAdjustmentsRouter.post('/drafts', requirePermission('stock_adjustments.edit'), async (req, res, next) => {
   try {
     const service = serviceFor(req);
     const input = ValidateStockAdjustmentInput.parse(req.body);
@@ -51,7 +51,7 @@ stockAdjustmentsRouter.post('/drafts', async (req, res, next) => {
   }
 });
 
-stockAdjustmentsRouter.post('/create-and-post', async (req, res, next) => {
+stockAdjustmentsRouter.post('/create-and-post', requirePermission('stock_adjustments.edit'), async (req, res, next) => {
   try {
     const service = serviceFor(req);
     const input = ValidateStockAdjustmentInput.parse(req.body);
@@ -61,7 +61,7 @@ stockAdjustmentsRouter.post('/create-and-post', async (req, res, next) => {
   }
 });
 
-stockAdjustmentsRouter.post('/:id/post', async (req, res, next) => {
+stockAdjustmentsRouter.post('/:id/post', requirePermission('stock_adjustments.edit'), async (req, res, next) => {
   try {
     const service = serviceFor(req);
     const { id } = idParams.parse(req.params);

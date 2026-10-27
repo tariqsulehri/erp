@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { currentUserId, resolveAccessScope } from '../http/access-context.js';
+import { currentUserId, resolveAccessScope, requirePermission } from '../http/access-context.js';
 import { assertWarehouseDocumentAccess, purchaseWarehouseFilter, requireAllBranchAccess, resolvePurchasingWarehouseId } from '../modules/inventory/stock-holder-access.js';
 import { PurchaseAnalyticsQuery, PurchaseAnalyticsService } from '../modules/purchases/purchase-analytics.service.js';
 import { PurchaseDetailService } from '../modules/purchases/purchase-detail.service.js';
@@ -55,7 +55,7 @@ purchasesRouter.get('/support-data', async (req, res, next) => {
   }
 });
 
-purchasesRouter.post('/validate', async (req, res, next) => {
+purchasesRouter.post('/validate', requirePermission('purchases.edit'), async (req, res, next) => {
   try {
     const scope = resolveAccessScope(req);
     const companyId = scope.companyId;
@@ -68,7 +68,7 @@ purchasesRouter.post('/validate', async (req, res, next) => {
   }
 });
 
-purchasesRouter.post('/drafts', async (req, res, next) => {
+purchasesRouter.post('/drafts', requirePermission('purchases.edit'), async (req, res, next) => {
   try {
     const scope = resolveAccessScope(req);
     const companyId = scope.companyId;
@@ -81,7 +81,7 @@ purchasesRouter.post('/drafts', async (req, res, next) => {
   }
 });
 
-purchasesRouter.post('/create-and-post', async (req, res, next) => {
+purchasesRouter.post('/create-and-post', requirePermission('purchases.edit'), async (req, res, next) => {
   try {
     const scope = resolveAccessScope(req);
     const companyId = scope.companyId;
@@ -97,7 +97,7 @@ purchasesRouter.post('/create-and-post', async (req, res, next) => {
   }
 });
 
-purchasesRouter.post('/:id/post', async (req, res, next) => {
+purchasesRouter.post('/:id/post', requirePermission('purchases.edit'), async (req, res, next) => {
   try {
     const scope = resolveAccessScope(req);
     const companyId = scope.companyId;

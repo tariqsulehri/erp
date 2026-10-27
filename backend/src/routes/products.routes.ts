@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { resolveAccessScope } from '../http/access-context.js';
+import { resolveAccessScope, requirePermission } from '../http/access-context.js';
 import { ProductService } from '../modules/inventory/product.service.js';
 import {
   createBrandSchema,
@@ -50,7 +50,7 @@ productsRouter.get('/categories', async (req, res, next) => {
   }
 });
 
-productsRouter.post('/categories', async (req, res, next) => {
+productsRouter.post('/categories', requirePermission('products.manage'), async (req, res, next) => {
   try {
     const scope = resolveAccessScope(req);
     const companyId = scope.companyId;
@@ -62,7 +62,7 @@ productsRouter.post('/categories', async (req, res, next) => {
   }
 });
 
-productsRouter.patch('/categories/:id', async (req, res, next) => {
+productsRouter.patch('/categories/:id', requirePermission('products.manage'), async (req, res, next) => {
   try {
     const scope = resolveAccessScope(req);
     const companyId = scope.companyId;
@@ -75,7 +75,7 @@ productsRouter.patch('/categories/:id', async (req, res, next) => {
   }
 });
 
-productsRouter.delete('/categories/:id', async (req, res, next) => {
+productsRouter.delete('/categories/:id', requirePermission('products.manage'), async (req, res, next) => {
   try {
     const scope = resolveAccessScope(req);
     const companyId = scope.companyId;
@@ -100,7 +100,7 @@ productsRouter.get('/brands', async (req, res, next) => {
   }
 });
 
-productsRouter.post('/brands', async (req, res, next) => {
+productsRouter.post('/brands', requirePermission('products.manage'), async (req, res, next) => {
   try {
     const scope = resolveAccessScope(req);
     const companyId = scope.companyId;
@@ -112,7 +112,7 @@ productsRouter.post('/brands', async (req, res, next) => {
   }
 });
 
-productsRouter.patch('/brands/:id', async (req, res, next) => {
+productsRouter.patch('/brands/:id', requirePermission('products.manage'), async (req, res, next) => {
   try {
     const scope = resolveAccessScope(req);
     const companyId = scope.companyId;
@@ -125,7 +125,7 @@ productsRouter.patch('/brands/:id', async (req, res, next) => {
   }
 });
 
-productsRouter.delete('/brands/:id', async (req, res, next) => {
+productsRouter.delete('/brands/:id', requirePermission('products.manage'), async (req, res, next) => {
   try {
     const scope = resolveAccessScope(req);
     const companyId = scope.companyId;
@@ -150,7 +150,7 @@ productsRouter.get('/product-types', async (req, res, next) => {
   }
 });
 
-productsRouter.post('/product-types', async (req, res, next) => {
+productsRouter.post('/product-types', requirePermission('products.manage'), async (req, res, next) => {
   try {
     const scope = resolveAccessScope(req);
     const companyId = scope.companyId;
@@ -162,7 +162,7 @@ productsRouter.post('/product-types', async (req, res, next) => {
   }
 });
 
-productsRouter.patch('/product-types/:id', async (req, res, next) => {
+productsRouter.patch('/product-types/:id', requirePermission('products.manage'), async (req, res, next) => {
   try {
     const scope = resolveAccessScope(req);
     const companyId = scope.companyId;
@@ -175,7 +175,7 @@ productsRouter.patch('/product-types/:id', async (req, res, next) => {
   }
 });
 
-productsRouter.delete('/product-types/:id', async (req, res, next) => {
+productsRouter.delete('/product-types/:id', requirePermission('products.manage'), async (req, res, next) => {
   try {
     const scope = resolveAccessScope(req);
     const companyId = scope.companyId;
@@ -200,7 +200,7 @@ productsRouter.get('/sizes', async (req, res, next) => {
   }
 });
 
-productsRouter.post('/sizes', async (req, res, next) => {
+productsRouter.post('/sizes', requirePermission('products.manage'), async (req, res, next) => {
   try {
     const scope = resolveAccessScope(req);
     const companyId = scope.companyId;
@@ -212,7 +212,7 @@ productsRouter.post('/sizes', async (req, res, next) => {
   }
 });
 
-productsRouter.patch('/sizes/:id', async (req, res, next) => {
+productsRouter.patch('/sizes/:id', requirePermission('products.manage'), async (req, res, next) => {
   try {
     const scope = resolveAccessScope(req);
     const companyId = scope.companyId;
@@ -225,7 +225,7 @@ productsRouter.patch('/sizes/:id', async (req, res, next) => {
   }
 });
 
-productsRouter.delete('/sizes/:id', async (req, res, next) => {
+productsRouter.delete('/sizes/:id', requirePermission('products.manage'), async (req, res, next) => {
   try {
     const scope = resolveAccessScope(req);
     const companyId = scope.companyId;
@@ -250,7 +250,7 @@ productsRouter.get('/colors', async (req, res, next) => {
   }
 });
 
-productsRouter.post('/colors', async (req, res, next) => {
+productsRouter.post('/colors', requirePermission('products.manage'), async (req, res, next) => {
   try {
     const scope = resolveAccessScope(req);
     const companyId = scope.companyId;
@@ -262,7 +262,7 @@ productsRouter.post('/colors', async (req, res, next) => {
   }
 });
 
-productsRouter.patch('/colors/:id', async (req, res, next) => {
+productsRouter.patch('/colors/:id', requirePermission('products.manage'), async (req, res, next) => {
   try {
     const scope = resolveAccessScope(req);
     const companyId = scope.companyId;
@@ -275,7 +275,7 @@ productsRouter.patch('/colors/:id', async (req, res, next) => {
   }
 });
 
-productsRouter.delete('/colors/:id', async (req, res, next) => {
+productsRouter.delete('/colors/:id', requirePermission('products.manage'), async (req, res, next) => {
   try {
     const scope = resolveAccessScope(req);
     const companyId = scope.companyId;
@@ -300,7 +300,7 @@ productsRouter.get('/origins', async (req, res, next) => {
   }
 });
 
-productsRouter.post('/origins', async (req, res, next) => {
+productsRouter.post('/origins', requirePermission('products.manage'), async (req, res, next) => {
   try {
     const scope = resolveAccessScope(req);
     const companyId = scope.companyId;
@@ -312,7 +312,7 @@ productsRouter.post('/origins', async (req, res, next) => {
   }
 });
 
-productsRouter.patch('/origins/:id', async (req, res, next) => {
+productsRouter.patch('/origins/:id', requirePermission('products.manage'), async (req, res, next) => {
   try {
     const scope = resolveAccessScope(req);
     const companyId = scope.companyId;
@@ -325,7 +325,7 @@ productsRouter.patch('/origins/:id', async (req, res, next) => {
   }
 });
 
-productsRouter.delete('/origins/:id', async (req, res, next) => {
+productsRouter.delete('/origins/:id', requirePermission('products.manage'), async (req, res, next) => {
   try {
     const scope = resolveAccessScope(req);
     const companyId = scope.companyId;
@@ -350,7 +350,7 @@ productsRouter.get('/units-of-measure', async (req, res, next) => {
   }
 });
 
-productsRouter.post('/units-of-measure', async (req, res, next) => {
+productsRouter.post('/units-of-measure', requirePermission('products.manage'), async (req, res, next) => {
   try {
     const scope = resolveAccessScope(req);
     const companyId = scope.companyId;
@@ -362,7 +362,7 @@ productsRouter.post('/units-of-measure', async (req, res, next) => {
   }
 });
 
-productsRouter.patch('/units-of-measure/:id', async (req, res, next) => {
+productsRouter.patch('/units-of-measure/:id', requirePermission('products.manage'), async (req, res, next) => {
   try {
     const scope = resolveAccessScope(req);
     const companyId = scope.companyId;
@@ -375,7 +375,7 @@ productsRouter.patch('/units-of-measure/:id', async (req, res, next) => {
   }
 });
 
-productsRouter.delete('/units-of-measure/:id', async (req, res, next) => {
+productsRouter.delete('/units-of-measure/:id', requirePermission('products.manage'), async (req, res, next) => {
   try {
     const scope = resolveAccessScope(req);
     const companyId = scope.companyId;
@@ -401,7 +401,7 @@ productsRouter.get('/', async (req, res, next) => {
   }
 });
 
-productsRouter.post('/', async (req, res, next) => {
+productsRouter.post('/', requirePermission('products.manage'), async (req, res, next) => {
   try {
     const scope = resolveAccessScope(req);
     const companyId = scope.companyId;
@@ -432,7 +432,7 @@ productsRouter.get('/:id', async (req, res, next) => {
   }
 });
 
-productsRouter.patch('/:id', async (req, res, next) => {
+productsRouter.patch('/:id', requirePermission('products.manage'), async (req, res, next) => {
   try {
     const scope = resolveAccessScope(req);
     const companyId = scope.companyId;
@@ -445,7 +445,7 @@ productsRouter.patch('/:id', async (req, res, next) => {
   }
 });
 
-productsRouter.patch('/:id/archive', async (req, res, next) => {
+productsRouter.patch('/:id/archive', requirePermission('products.manage'), async (req, res, next) => {
   try {
     const scope = resolveAccessScope(req);
     const companyId = scope.companyId;
@@ -458,7 +458,7 @@ productsRouter.patch('/:id/archive', async (req, res, next) => {
   }
 });
 
-productsRouter.delete('/:id', async (req, res, next) => {
+productsRouter.delete('/:id', requirePermission('products.manage'), async (req, res, next) => {
   try {
     const scope = resolveAccessScope(req);
     const companyId = scope.companyId;
