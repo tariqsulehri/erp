@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { formatMoney } from '@/lib/app-settings';
+import { roleCannotSave, usePermission } from '@/lib/auth/use-permission';
 import { useGeneralSettings } from '@/lib/api/settings';
 import { usePostingDateGuard } from '@/lib/api/fiscal-years';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
@@ -91,8 +92,9 @@ export default function SaleReturnPage() {
   const totals = usePurchaseTotals(lines, freightAmount, paymentType);
   const generatedVoucherDetails = buildSaleReturnDetails(selectedCustomer, customerReturnNumber, lines.length);
   const dateStatusMessage = postingDateGuard.isChecking ? 'Checking Sale Return Date...' : postingDateGuard.statusMessage;
-  const newDisabled = postingDateGuard.disabled;
-  const newDisabledReason = dateStatusMessage || 'Sale Return Date is being checked.';
+  const canSave = usePermission('sales.edit');
+  const newDisabled = postingDateGuard.disabled || !canSave;
+  const newDisabledReason = !canSave ? roleCannotSave('Sale Returns') : dateStatusMessage || 'Sale Return Date is being checked.';
 
   useEffect(() => {
     const pending = pendingLocationId.current;
@@ -236,7 +238,7 @@ export default function SaleReturnPage() {
     setViewMode('entry');
   }
 
-  const actionDisabled = saving || supportQuery.isLoading || supportQuery.isError || postingDateGuard.disabled;
+  const actionDisabled = !canSave || saving || supportQuery.isLoading || supportQuery.isError || postingDateGuard.disabled;
   const lineKeyboard = useLineEntryKeyboard({
     enabled: viewMode === 'entry',
     onSave: () => saveSaleReturn(false),

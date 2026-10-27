@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { formatMoney } from '@/lib/app-settings';
+import { roleCannotSave, usePermission } from '@/lib/auth/use-permission';
 import { useGeneralSettings } from '@/lib/api/settings';
 import { usePostingDateGuard } from '@/lib/api/fiscal-years';
 import {
@@ -97,8 +98,9 @@ export default function PurchaseVoucherPage() {
   const generatedVoucherDetails = buildPurchaseDetails(selectedSupplier, supplierInvoiceNumber, lines.length);
 
   const dateStatusMessage = postingDateGuard.isChecking ? 'Checking Purchase Date...' : postingDateGuard.statusMessage;
-  const newDisabled = postingDateGuard.disabled;
-  const newDisabledReason = dateStatusMessage || 'Purchase Date is being checked.';
+  const canSave = usePermission('purchases.edit');
+  const newDisabled = postingDateGuard.disabled || !canSave;
+  const newDisabledReason = !canSave ? roleCannotSave('Purchase Vouchers') : dateStatusMessage || 'Purchase Date is being checked.';
 
   useEffect(() => {
     if (!warehouseId && warehouses.length > 0) {
@@ -276,7 +278,7 @@ export default function PurchaseVoucherPage() {
     setViewMode('entry');
   }
 
-  const actionDisabled = saving || supportQuery.isLoading || supportQuery.isError || postingDateGuard.disabled;
+  const actionDisabled = !canSave || saving || supportQuery.isLoading || supportQuery.isError || postingDateGuard.disabled;
   const lineKeyboard = useLineEntryKeyboard({
     enabled: viewMode === 'entry',
     onSave: () => savePurchase(false),

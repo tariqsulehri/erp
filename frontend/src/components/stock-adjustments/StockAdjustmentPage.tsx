@@ -32,6 +32,7 @@ import {
   useUpdateStockAdjustmentDraft,
 } from '@/lib/api/stock-adjustments';
 import { hasPermission } from '@/lib/auth/session-user';
+import { roleCannotSave } from '@/lib/auth/use-permission';
 import { usePostingDateGuard } from '@/lib/api/fiscal-years';
 import { friendlyErrorMessage, numericValue } from '@/lib/erp-utils';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
@@ -124,9 +125,10 @@ export default function StockAdjustmentPage({ documentKind = 'Adjustment' }: { d
   const postingDateGuard = usePostingDateGuard(adjustmentDate, 'Adjustment Date');
   const newAdjustmentGuard = usePostingDateGuard(today(), 'Adjustment Date');
   const saving = createDraft.isPending || createAndPost.isPending || updateDraft.isPending || updateAndPost.isPending;
-  const actionDisabled = saving || postingDateGuard.disabled;
+  const newAdjustmentDisabled = newAdjustmentGuard.disabled || !canChangeDrafts;
+  const actionDisabled = !canChangeDrafts || saving || postingDateGuard.disabled;
   const dateStatusMessage = postingDateGuard.isChecking ? 'Checking Adjustment Date...' : postingDateGuard.statusMessage;
-  const newAdjustmentDisabledReason = newAdjustmentGuard.isChecking ? 'Checking Adjustment Date...' : newAdjustmentGuard.statusMessage;
+  const newAdjustmentDisabledReason = !canChangeDrafts ? roleCannotSave(words.plural) : newAdjustmentGuard.isChecking ? 'Checking Adjustment Date...' : newAdjustmentGuard.statusMessage;
   const listQuery = useStockAdjustmentsList({ page: 1, limit: 50, status: statusFilter, document_kind: documentKind });
   const detailQuery = useStockAdjustmentDetail(selectedAdjustmentId);
 
@@ -243,7 +245,7 @@ export default function StockAdjustmentPage({ documentKind = 'Adjustment' }: { d
   }
 
   function openNewAdjustment() {
-    if (newAdjustmentGuard.disabled) {
+    if (newAdjustmentDisabled) {
       setMessage({ kind: 'error', text: newAdjustmentDisabledReason || 'You cannot post on this Adjustment Date. Choose another date.' });
       return;
     }
@@ -400,7 +402,7 @@ export default function StockAdjustmentPage({ documentKind = 'Adjustment' }: { d
           actions={(
             <>
               <Button variant="secondary" icon={<IconRefresh size={16} stroke={1.8} />} onClick={() => listQuery.refetch()} loading={listQuery.isFetching && !listQuery.isLoading}>Refresh</Button>
-              <Button variant="primary" icon={<IconFilePlus size={16} stroke={1.8} />} disabled={newAdjustmentGuard.disabled} title={newAdjustmentDisabledReason} onClick={openNewAdjustment}>{words.newLabel}</Button>
+              <Button variant="primary" icon={<IconFilePlus size={16} stroke={1.8} />} disabled={newAdjustmentDisabled} title={newAdjustmentDisabledReason} onClick={openNewAdjustment}>{words.newLabel}</Button>
             </>
           )}
         />
@@ -434,7 +436,7 @@ export default function StockAdjustmentPage({ documentKind = 'Adjustment' }: { d
                   {listQuery.isLoading && <TableMessageRow colSpan={8} title={`Loading ${words.plural}…`} loading />}
                   {!listQuery.isLoading && rows.length === 0 && (
                     statusFilter === 'Posted'
-                      ? <TableMessageRow colSpan={8} title={`No Posted ${words.plural} Yet`} description={isOpeningStock ? 'Enter the stock you already have at each Branch and Warehouse.' : 'Record a stock count difference, damage, or loss with a new adjustment.'} action={<Button variant="primary" icon={<IconFilePlus size={16} stroke={1.8} />} disabled={newAdjustmentGuard.disabled} onClick={openNewAdjustment}>{words.newLabel}</Button>} />
+                      ? <TableMessageRow colSpan={8} title={`No Posted ${words.plural} Yet`} description={isOpeningStock ? 'Enter the stock you already have at each Branch and Warehouse.' : 'Record a stock count difference, damage, or loss with a new adjustment.'} action={<Button variant="primary" icon={<IconFilePlus size={16} stroke={1.8} />} disabled={newAdjustmentDisabled} title={newAdjustmentDisabledReason} onClick={openNewAdjustment}>{words.newLabel}</Button>} />
                       : <TableMessageRow colSpan={8} title={statusFilter === 'Draft' ? `No Draft ${words.plural}` : `No Cancelled Or Reversed ${words.plural}`} description="Choose another Status to see more." />
                   )}
                   {!listQuery.isLoading && rows.map((row: any) => (

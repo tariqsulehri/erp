@@ -11,6 +11,7 @@ import {
 } from '@tabler/icons-react';
 import { formatNumber } from '@/lib/app-settings';
 import { hasPermission } from '@/lib/auth/session-user';
+import { roleCannotSave } from '@/lib/auth/use-permission';
 import { useGeneralSettings } from '@/lib/api/settings';
 import {
   placeFields,
@@ -108,9 +109,11 @@ export default function StockTransferPage() {
   const postingDateGuard = usePostingDateGuard(transferDate, 'Transfer Date');
   const newTransferGuard = usePostingDateGuard(today(), 'Transfer Date');
   const saving = createDraft.isPending || createAndPost.isPending || updateDraft.isPending || updateAndPost.isPending;
-  const actionDisabled = saving || postingDateGuard.disabled;
+  const canSave = hasPermission(session?.user.role, 'stock_transfers.edit');
+  const newTransferDisabled = newTransferGuard.disabled || !canSave;
+  const actionDisabled = !canSave || saving || postingDateGuard.disabled;
   const dateStatusMessage = postingDateGuard.isChecking ? 'Checking the Transfer Date…' : postingDateGuard.statusMessage;
-  const newTransferDisabledReason = newTransferGuard.isChecking ? 'Checking the Transfer Date…' : newTransferGuard.statusMessage;
+  const newTransferDisabledReason = !canSave ? roleCannotSave('Stock Transfers') : newTransferGuard.isChecking ? 'Checking the Transfer Date…' : newTransferGuard.statusMessage;
   // The direction (e.g. Warehouse → Branch) sets the kind of place on each side.
   const directionChoices = directionsFor(lockedSource?.kind);
   const direction = directionOf(source.kind, to.kind);
@@ -254,7 +257,7 @@ export default function StockTransferPage() {
   }
 
   function openNewTransfer() {
-    if (newTransferGuard.disabled) {
+    if (newTransferDisabled) {
       setMessage({ kind: 'error', text: newTransferDisabledReason || 'You cannot post on this Transfer Date. Choose another date.' });
       return;
     }
@@ -389,7 +392,7 @@ export default function StockTransferPage() {
               <p>A posted transfer cannot be changed. A Manager can Reverse it: the items go back to the From place on the Reversal Date.</p>
             </>
           )}
-          actions={<Button variant="primary" icon={<IconFilePlus size={16} stroke={1.8} />} disabled={newTransferGuard.disabled} title={newTransferDisabledReason || 'New Transfer'} onClick={openNewTransfer}>New Transfer</Button>}
+          actions={<Button variant="primary" icon={<IconFilePlus size={16} stroke={1.8} />} disabled={newTransferDisabled} title={newTransferDisabledReason || 'New Transfer'} onClick={openNewTransfer}>New Transfer</Button>}
         />
         {message && <InlineAlert tone={message.kind === 'success' ? 'success' : 'danger'}>{message.text}</InlineAlert>}
         <TransferList
@@ -400,7 +403,7 @@ export default function StockTransferPage() {
           empty={{
             title: 'No Posted Stock Transfers Yet',
             description: 'Move stock from a Warehouse to a Branch, or between any two places.',
-            action: <Button variant="primary" icon={<IconFilePlus size={16} stroke={1.8} />} disabled={newTransferGuard.disabled} title="New Transfer" onClick={openNewTransfer}>New Transfer</Button>,
+            action: <Button variant="primary" icon={<IconFilePlus size={16} stroke={1.8} />} disabled={newTransferDisabled} title={newTransferDisabledReason || 'New Transfer'} onClick={openNewTransfer}>New Transfer</Button>,
           }}
         />
       </main>

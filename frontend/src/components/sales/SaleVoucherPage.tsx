@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { formatMoney } from '@/lib/app-settings';
+import { roleCannotSave, usePermission } from '@/lib/auth/use-permission';
 import { useGeneralSettings } from '@/lib/api/settings';
 import { usePostingDateGuard } from '@/lib/api/fiscal-years';
 import {
@@ -94,8 +95,9 @@ export default function SaleVoucherPage() {
   const totals = usePurchaseTotals(lines, freightAmount, paymentType);
   const generatedVoucherDetails = buildSaleDetails(selectedCustomer, customerReferenceNumber, lines.length);
   const dateStatusMessage = postingDateGuard.isChecking ? 'Checking Sale Date...' : postingDateGuard.statusMessage;
-  const newDisabled = postingDateGuard.disabled;
-  const newDisabledReason = dateStatusMessage || 'Sale Date is being checked.';
+  const canSave = usePermission('sales.edit');
+  const newDisabled = postingDateGuard.disabled || !canSave;
+  const newDisabledReason = !canSave ? roleCannotSave('Sale Vouchers') : dateStatusMessage || 'Sale Date is being checked.';
 
   useEffect(() => {
     if (!customerId || !selectedCustomer || paymentType !== 'Credit' || !isSaleDateValid) return;
@@ -254,7 +256,7 @@ export default function SaleVoucherPage() {
     setViewMode('entry');
   }
 
-  const actionDisabled = saving || supportQuery.isLoading || supportQuery.isError || postingDateGuard.disabled;
+  const actionDisabled = !canSave || saving || supportQuery.isLoading || supportQuery.isError || postingDateGuard.disabled;
   const lineKeyboard = useLineEntryKeyboard({
     enabled: viewMode === 'entry',
     onSave: () => saveSale(false),
