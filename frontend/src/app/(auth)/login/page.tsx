@@ -1,23 +1,15 @@
 'use client';
 
+import Image from 'next/image';
 import { signIn } from 'next-auth/react';
 import { useEffect, useRef, useState } from 'react';
-import { IconCheck, IconLogin } from '@tabler/icons-react';
-import { Button } from '@/components/ui/Button';
-import { FieldLabel } from '@/components/ui/FieldLabel';
+import { IconClock, IconDots, IconEye, IconEyeOff, IconLock } from '@tabler/icons-react';
 import { InlineAlert } from '@/components/ui/InlineAlert';
-
-const FEATURES = [
-  'Chart Of Accounts With 10-Digit Account Codes',
-  'Fiscal Years And Accounting Periods',
-  'Journal Vouchers Posted To The General Ledger',
-  'Trial Balance And Financial Statements',
-  'Several Companies In One System',
-];
 
 export default function LoginPage() {
   const [email, setEmail] = useState('admin@example.com');
   const [password, setPassword] = useState('admin123');
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const emailRef = useRef<HTMLInputElement | null>(null);
@@ -26,7 +18,6 @@ export default function LoginPage() {
   useEffect(() => {
     const reason = new URLSearchParams(window.location.search).get('reason');
     if (reason) setError(reason);
-    // Signing in is the only task here, so start in the email field.
     emailRef.current?.focus();
   }, []);
 
@@ -43,7 +34,6 @@ export default function LoginPage() {
         callbackUrl: '/accounts',
       });
       if (result?.error) {
-        // Wrong email or password comes back as CredentialsSignin; other problems carry the backend message.
         setError(result.error === 'CredentialsSignin' ? 'Email or Password is not correct. Please try again.' : result.error);
       } else if (result?.ok) {
         window.location.href = result.url || '/accounts';
@@ -58,71 +48,125 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="login-page">
-      {/* Left: product summary on the solid navy login panel */}
-      <div className="login-left">
-        <div style={{ maxWidth: 400 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 40 }}>
-            <span className="sidebar-brand-mark" aria-hidden>
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-                <rect x="3" y="3" width="18" height="4" rx="1" fill="currentColor" />
-                <rect x="3" y="9" width="11" height="4" rx="1" fill="currentColor" opacity="0.8" />
-                <rect x="3" y="15" width="14" height="4" rx="1" fill="currentColor" opacity="0.6" />
-              </svg>
+    <div className="login-page-split">
+      {/* Left royal blue branding panel */}
+      <aside className="login-brand-panel" aria-label="ERP Branding">
+        <div className="login-brand-top">
+          <div className="login-brand-logo">
+            <span className="brand-logo-name">tkxel</span>
+            <span className="brand-logo-divider" aria-hidden>|</span>
+            <span className="brand-logo-sub">
+              <span className="brand-logo-icon" aria-hidden>
+                <IconClock size={16} stroke={2.2} />
+              </span>
+              <span>Calibr</span>
             </span>
-            <span style={{ fontSize: 'var(--font-size-lg)', fontWeight: 600, color: 'var(--color-login-text)' }}>ERP Finance</span>
           </div>
 
-          <h1 style={{ margin: '0 0 12px', fontSize: 'var(--font-size-3xl)', fontWeight: 600, lineHeight: 1.2, letterSpacing: '-0.02em', color: 'var(--color-login-text)' }}>
-            Complete Financial Control For Your Business
-          </h1>
-          <p style={{ margin: '0 0 28px', fontSize: 'var(--font-size-md)', lineHeight: 1.6, color: 'var(--color-login-muted)' }}>
-            One system for several companies. Double-entry accounting, live reports, and IFRS and GAAP support.
-          </p>
+          <div className="login-hero-copy">
+            <span className="login-eyebrow">WE ENGINEER SOFTWARE SOLUTIONS</span>
+            <h1 className="login-headline">
+              Calibr – capability, calibrated<span className="login-dot">.</span>
+            </h1>
+            <p className="login-tagline">Grow on evidence, not opinion.</p>
+          </div>
 
-          <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {FEATURES.map(feature => (
-              <li key={feature} style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 'var(--font-size-md)', color: 'var(--color-login-muted)' }}>
-                <IconCheck size={16} stroke={1.8} aria-hidden style={{ color: 'var(--color-login-accent)', flexShrink: 0 }} />
-                <span>{feature}</span>
-              </li>
-            ))}
-          </ul>
+          <div className="login-mascot-wrap">
+            <Image
+              src="/images/login-mascot.jpg"
+              alt="Calibr ERP Intelligent Analytics Owl"
+              width={320}
+              height={320}
+              priority
+              className="login-mascot-img"
+            />
+          </div>
         </div>
-      </div>
 
-      {/* Right: sign-in form */}
-      <div className="login-right">
-        <h2 style={{ margin: '0 0 4px', fontSize: 'var(--font-size-xl)', fontWeight: 600, color: 'var(--color-heading)' }}>Sign In To Your Account</h2>
-        <p style={{ margin: '0 0 24px', fontSize: 'var(--font-size-md)', color: 'var(--color-text-muted)' }}>Enter your email address and password to continue.</p>
+        <div className="login-brand-footer">
+          <span>Enterprise Resource Planning &amp; Finance App</span>
+        </div>
+      </aside>
 
-        {error && <div style={{ marginBottom: 16 }}><InlineAlert tone="danger">{error}</InlineAlert></div>}
+      {/* Right sign-in form panel */}
+      <main className="login-form-panel">
+        <div className="login-form-card">
+          <header className="login-card-header">
+            <h2 className="login-card-title">Welcome back</h2>
+            <p className="login-card-subtitle">Sign in to continue</p>
+          </header>
 
-        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-          <FieldLabel label="Email Address" htmlFor="email" required>
-            <input
-              ref={emailRef}
-              id="email" type="email" className="form-input"
-              placeholder="you@company.com" value={email}
-              onChange={(e) => setEmail(e.target.value)} required
-              autoComplete="email"
-            />
-          </FieldLabel>
-          <FieldLabel label="Password" htmlFor="password" required>
-            <input
-              id="password" type="password" className="form-input"
-              placeholder="Enter your password" value={password}
-              onChange={(e) => setPassword(e.target.value)} required
-              autoComplete="current-password"
-            />
-          </FieldLabel>
+          {error && (
+            <div style={{ marginBottom: 18 }}>
+              <InlineAlert tone="danger">{error}</InlineAlert>
+            </div>
+          )}
 
-          <Button type="submit" variant="primary" size="lg" loading={loading} icon={<IconLogin size={16} stroke={1.8} />} style={{ width: '100%', marginTop: 4 }}>
-            {loading ? 'Signing In…' : 'Sign In'}
-          </Button>
-        </form>
+          <form onSubmit={handleSubmit} className="login-form-body">
+            {/* Username / Email field */}
+            <div className="login-field-group">
+              <label htmlFor="login-username" className="login-field-label">
+                USERNAME
+              </label>
+              <div className="login-input-wrap">
+                <input
+                  ref={emailRef}
+                  id="login-username"
+                  type="email"
+                  className="login-input"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="admin@example.com"
+                  required
+                  autoComplete="email"
+                />
+                <span className="login-input-adornment" aria-hidden>
+                  <IconDots size={16} stroke={1.8} />
+                </span>
+              </div>
+            </div>
 
-      </div>
+            {/* Password field */}
+            <div className="login-field-group">
+              <label htmlFor="login-password" className="login-field-label">
+                PASSWORD
+              </label>
+              <div className="login-input-wrap has-lead">
+                <span className="login-input-lead-icon" aria-hidden>
+                  <IconLock size={16} stroke={1.8} />
+                </span>
+                <input
+                  id="login-password"
+                  type={showPassword ? 'text' : 'password'}
+                  className="login-input with-lead"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="Enter your password"
+                  required
+                  autoComplete="current-password"
+                />
+                <button
+                  type="button"
+                  className="login-password-toggle"
+                  onClick={() => setShowPassword(v => !v)}
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  title={showPassword ? 'Hide password' : 'Show password'}
+                >
+                  {showPassword ? <IconEyeOff size={16} stroke={1.8} /> : <IconEye size={16} stroke={1.8} />}
+                </button>
+              </div>
+            </div>
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="login-submit-button"
+            >
+              {loading ? 'Signing in…' : 'Sign in'}
+            </button>
+          </form>
+        </div>
+      </main>
     </div>
   );
 }

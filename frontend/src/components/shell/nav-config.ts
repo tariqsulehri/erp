@@ -7,6 +7,7 @@ import {
   IconBuildingWarehouse,
   IconCalendarStats,
   IconCategory2,
+  IconChartBar,
   IconClipboardCheck,
   IconColorFilter,
   IconCube,
@@ -92,6 +93,7 @@ export const NAV_SECTIONS: NavSection[] = [
         label: 'Vouchers',
         icon: IconReceipt,
         items: [
+          { label: 'Overview', href: '/vouchers/overview', icon: IconChartBar, moduleKey: 'finance', featureKey: 'vouchers-overview', permissionKey: 'finance.vouchers.posted.view' },
           { label: 'Voucher List', href: '/vouchers/posted', icon: IconFileAnalytics, moduleKey: 'finance', featureKey: 'posted-vouchers', permissionKey: 'finance.vouchers.posted.view' },
           { label: 'Bank Receipt', href: '/vouchers/bank-receipt', icon: IconBuildingBank, code: 'BRV', moduleKey: 'finance', featureKey: 'bank-receipt', permissionKey: 'finance.vouchers.bank_receipt.view', requiresPosting: true, permission: 'vouchers.edit' },
           { label: 'Bank Payment', href: '/vouchers/bank-payment', icon: IconBuildingBank, code: 'BPV', moduleKey: 'finance', featureKey: 'bank-payment', permissionKey: 'finance.vouchers.bank_payment.view', requiresPosting: true, permission: 'vouchers.edit' },
@@ -112,6 +114,7 @@ export const NAV_SECTIONS: NavSection[] = [
         label: 'Inventory',
         icon: IconCube,
         items: [
+          { label: 'Overview', href: '/inventory/overview', icon: IconChartBar, moduleKey: 'inventory', featureKey: 'inventory-overview', permissionKey: 'inventory.stock_transfer.view' },
           { label: 'Stock Transfer', href: '/inventory/stock-transfers', icon: IconArrowsExchange, code: 'ST', moduleKey: 'inventory', featureKey: 'stock-transfer', permissionKey: 'inventory.stock_transfer.view', requiresPosting: true },
           { label: 'Stock Received', href: '/inventory/stock-received', icon: IconPackageImport, moduleKey: 'inventory', featureKey: 'stock-received', permissionKey: 'inventory.stock_received.view' },
           { label: 'Stock Adjustment', href: '/inventory/stock-adjustments', icon: IconAdjustmentsHorizontal, code: 'SA', moduleKey: 'inventory', featureKey: 'stock-adjustment', permissionKey: 'inventory.stock_adjustment.view', requiresPosting: true },

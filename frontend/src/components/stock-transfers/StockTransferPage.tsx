@@ -58,6 +58,15 @@ export default function StockTransferPage() {
   const createAndPost = useCreateAndPostStockTransfer();
   const invalidate = useInvalidateStockTransferQueries();
   const [viewMode, setViewMode] = useState<'list' | 'entry'>('list');
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('new') === 'true') {
+        setViewMode('entry');
+      }
+    }
+  }, []);
   const { data: session } = useSession();
   // Branch and Warehouse users always send from their own place; All Branches users choose both sides.
   const lockedSource = useMemo<TransferPlace | null>(() => {

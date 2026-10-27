@@ -1,6 +1,8 @@
 'use client';
 
+import Link from 'next/link';
 import { useSession } from 'next-auth/react';
+import { IconFilePlus } from '@tabler/icons-react';
 import { useGeneralSettings } from '@/lib/api/settings';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { TransferList } from './TransferList';
@@ -25,11 +27,17 @@ export default function StockReceivedPage() {
       <PageHeader
         title="Stock Received"
         description={place ? `Stock delivered to ${place}.` : 'Stock delivered to every Branch and Warehouse.'}
+        actions={(
+          <Link href="/inventory/stock-transfers?new=true" className="btn btn-primary" title="Create a new stock transfer or receive">
+            <IconFilePlus size={16} stroke={1.8} aria-hidden />
+            <span>New Stock Receive</span>
+          </Link>
+        )}
         help={(
           <>
             <p>This list shows stock that arrived at {place ? 'your place' : 'a Branch or Warehouse'} by a posted Stock Transfer.</p>
             <p>Use the direction buttons to see one kind of delivery, for example Warehouse → Branch.</p>
-            <p>Select a row to see the items and quantities. To send stock, use the Stock Transfer tab.</p>
+            <p>Select a row to see the items and quantities. To send or receive stock, click New Stock Receive.</p>
           </>
         )}
       />

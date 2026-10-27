@@ -72,8 +72,8 @@ describe('AppSidebar', () => {
   it('shows each group as one link to its first page, with its page count', () => {
     render(<AppSidebar {...props} />);
     const inventory = screen.getByRole('link', { name: /Inventory/ });
-    expect(inventory).toHaveAttribute('href', '/inventory/stock-transfers');
-    expect(inventory).toHaveTextContent('3');
+    expect(inventory).toHaveAttribute('href', '/inventory/overview');
+    expect(inventory).toHaveTextContent('4');
     expect(screen.getByRole('link', { name: /Company & Finance/ })).toHaveAttribute('href', '/settings');
     expect(screen.getByRole('link', { name: /Places & Facilities/ })).toHaveAttribute('href', '/inventory/branches');
     expect(screen.getByRole('link', { name: /Product Management/ })).toHaveAttribute('href', '/inventory/products');

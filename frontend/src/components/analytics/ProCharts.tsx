@@ -99,7 +99,7 @@ export function ChartCard({
   footerNote?: ReactNode;
   style?: CSSProperties;
   bodyStyle?: CSSProperties;
-  table: ChartTable;
+  table?: ChartTable;
   children: ReactNode;
 }) {
   const [showTable, setShowTable] = useState(false);
@@ -122,30 +122,34 @@ export function ChartCard({
               <strong>{metric.value}</strong>
             </div>
           )}
-          <button
-            type="button"
-            className="chart-card-tool"
-            aria-pressed={showTable}
-            aria-label={showTable ? `Show ${title} Chart` : `Show ${title} Table`}
-            title={showTable ? 'Show Chart' : 'Show Table'}
-            onClick={() => setShowTable(value => !value)}
-          >
-            {showTable ? <IconChartBar size={16} stroke={1.8} aria-hidden /> : <IconTable size={16} stroke={1.8} aria-hidden />}
-          </button>
-          <button
-            type="button"
-            className="chart-card-tool"
-            aria-label={`Download ${title} As CSV`}
-            title="Download CSV"
-            disabled={table.rows.length === 0}
-            onClick={() => downloadTable(title, table)}
-          >
-            <IconDownload size={16} stroke={1.8} aria-hidden />
-          </button>
+          {table && (
+            <>
+              <button
+                type="button"
+                className="chart-card-tool"
+                aria-pressed={showTable}
+                aria-label={showTable ? `Show ${title} Chart` : `Show ${title} Table`}
+                title={showTable ? 'Show Chart' : 'Show Table'}
+                onClick={() => setShowTable(value => !value)}
+              >
+                {showTable ? <IconChartBar size={16} stroke={1.8} aria-hidden /> : <IconTable size={16} stroke={1.8} aria-hidden />}
+              </button>
+              <button
+                type="button"
+                className="chart-card-tool"
+                aria-label={`Download ${title} As CSV`}
+                title="Download CSV"
+                disabled={table.rows.length === 0}
+                onClick={() => downloadTable(title, table)}
+              >
+                <IconDownload size={16} stroke={1.8} aria-hidden />
+              </button>
+            </>
+          )}
         </div>
       </div>
       <div className="chart-card-body" style={bodyStyle}>
-        {showTable ? <ChartDataTable table={table} /> : (
+        {showTable && table ? <ChartDataTable table={table} /> : (
           <>
             {legend && legend.length > 1 && <SeriesLegend items={legend} />}
             {children}
@@ -823,3 +827,229 @@ export function CategoryGradePillars({
     </div>
   );
 }
+
+/* ── High-fidelity Calibr / 3D Pipeline & Funnel components ──────── */
+
+export interface FunnelStep {
+  id: string;
+  label: string;
+  count: number;
+  maxCount: number;
+  percentage: number;
+  delta?: number;
+}
+
+export function PromotionFunnelChart({ steps }: { steps: FunnelStep[] }) {
+  return (
+    <div className="funnel-container">
+      {steps.map(step => {
+        const pct = step.maxCount > 0 ? Math.min(100, Math.max(0, (step.count / step.maxCount) * 100)) : 0;
+        return (
+          <div key={step.id} className="funnel-row">
+            <span className="funnel-label" title={step.label}>{step.label}</span>
+            <div className="funnel-track">
+              {step.count > 0 ? (
+                <div
+                  className="funnel-fill-3d"
+                  style={{ width: `${Math.max(pct, 12)}%` }}
+                >
+                  <span className="funnel-fill-count">{step.count}</span>
+                </div>
+              ) : (
+                <div className="funnel-fill-empty" />
+              )}
+            </div>
+            <div className="funnel-stat">
+              <span className="funnel-pct">{step.percentage}%</span>
+              {step.delta !== undefined && step.delta !== 0 && (
+                <span className="funnel-delta">{step.delta > 0 ? `+${step.delta}` : step.delta}</span>
+              )}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+export interface GapSpreadColumn {
+  id: string;
+  label: string;
+  count: number;
+  maxCount: number;
+  gradient: [string, string];
+}
+
+export function GapSpreadPillars({ columns }: { columns: GapSpreadColumn[] }) {
+  const max = Math.max(...columns.map(c => c.count), 1);
+  return (
+    <div className="gap-spread-container">
+      <div className="gap-spread-grid">
+        {columns.map(col => {
+          const heightPct = col.count > 0 ? Math.max(12, Math.round((col.count / max) * 100)) : 0;
+          return (
+            <div key={col.id} className="gap-spread-col">
+              <span className="gap-spread-count">{col.count}</span>
+              <div className="gap-spread-track">
+                {col.count > 0 && (
+                  <div
+                    className="gap-spread-pillar-3d"
+                    style={{
+                      height: `${heightPct}%`,
+                      background: `linear-gradient(180deg, ${col.gradient[0]} 0%, ${col.gradient[1]} 100%)`,
+                    }}
+                  />
+                )}
+              </div>
+              <span className="gap-spread-label">{col.label}</span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+export interface ShortfallRow {
+  id: string;
+  label: string;
+  belowCount: number;
+  metCount: number;
+  notAssessedCount: number;
+  shortfallBadge: string;
+  deficitPct: number;
+  metPct: number;
+}
+
+export function CategoryShortfallList({ rows }: { rows: ShortfallRow[] }) {
+  return (
+    <div className="shortfall-list">
+      <div className="shortfall-header">
+        <span className="shortfall-col-title">Skill / Category</span>
+        <div className="shortfall-header-counts">
+          <span>Below</span>
+          <span>Met</span>
+          <span>Unposted</span>
+          <span>Deficit</span>
+        </div>
+      </div>
+      {rows.map(row => (
+        <div key={row.id} className="shortfall-row">
+          <span className="shortfall-name" title={row.label}>{row.label}</span>
+          <div className="shortfall-bar-track">
+            <div
+              className="shortfall-bar-deficit"
+              style={{ width: `${Math.min(row.deficitPct, 100)}%` }}
+            />
+            <div
+              className="shortfall-bar-met"
+              style={{ width: `${Math.min(row.metPct, 100)}%` }}
+            />
+          </div>
+          <div className="shortfall-counts">
+            <span className="shortfall-num-below">{row.belowCount}</span>
+            <span className="shortfall-num-met">{row.metCount}</span>
+            <span className="shortfall-num-unposted">{row.notAssessedCount}</span>
+            <span className="shortfall-badge">{row.shortfallBadge}</span>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+export function StatusNextInLineCards({
+  readyCount,
+  readyLabel,
+  pendingCount,
+  pendingLabel,
+  checklist,
+}: {
+  readyCount: number;
+  readyLabel: string;
+  pendingCount: number;
+  pendingLabel: string;
+  checklist: Array<{ label: string; count: number; met: boolean }>;
+}) {
+  return (
+    <div className="next-in-line-container">
+      <div className="next-in-line-tiles">
+        <div className="next-tile ready-tile">
+          <span className="next-tile-num">{readyCount}</span>
+          <span className="next-tile-label">{readyLabel}</span>
+        </div>
+        <div className="next-tile pending-tile">
+          <span className="next-tile-num">{pendingCount}</span>
+          <span className="next-tile-label">{pendingLabel}</span>
+        </div>
+      </div>
+      <div className="next-in-line-checklist">
+        {checklist.map((item, idx) => (
+          <div key={idx} className="checklist-row">
+            <span className="checklist-label">{item.label}</span>
+            <div className="checklist-track">
+              <div
+                className={`checklist-fill ${item.met ? 'is-met' : 'is-pending'}`}
+                style={{ width: `${item.met ? 100 : 35}%` }}
+              />
+            </div>
+            <span className="checklist-count">{item.count}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+export interface TargetScaleRow {
+  id: string;
+  label: string;
+  actualPct: number;
+  targetPct: number;
+  peopleCount: number;
+}
+
+export function TargetGapScale({ rows }: { rows: TargetScaleRow[] }) {
+  return (
+    <div className="target-gap-scale-container">
+      {rows.map(row => {
+        const left = Math.min(row.actualPct, row.targetPct);
+        const right = Math.max(row.actualPct, row.targetPct);
+        const width = right - left;
+        return (
+          <div key={row.id} className="target-gap-row">
+            <span className="target-gap-label">{row.label}</span>
+            <div className="target-gap-track">
+              <div
+                className="target-gap-line"
+                style={{ left: `${left}%`, width: `${Math.max(width, 2)}%` }}
+              />
+              <div
+                className="target-gap-dot"
+                style={{ left: `${row.actualPct}%` }}
+                title={`Actual: ${row.actualPct}%`}
+              />
+              <div
+                className="target-gap-ring"
+                style={{ left: `${row.targetPct}%` }}
+                title={`Target: ${row.targetPct}%`}
+              />
+            </div>
+            <div className="target-gap-stats">
+              <span className="target-gap-actual">{row.actualPct}%</span>
+              <span className="target-gap-sep">/</span>
+              <span className="target-gap-target">{row.targetPct}%</span>
+              <span className="target-gap-people">· {row.peopleCount} vouchers</span>
+            </div>
+          </div>
+        );
+      })}
+      <div className="target-gap-legend">
+        <span>0%</span>
+        <span>45%</span>
+        <span>90%</span>
+      </div>
+    </div>
+  );
+}
+

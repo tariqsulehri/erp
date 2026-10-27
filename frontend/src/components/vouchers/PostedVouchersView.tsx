@@ -440,9 +440,8 @@ export function PostedVouchersView({ initialStatus = 'Draft', initialVoucherId }
         table={(
           <table className="data-table" style={{ tableLayout: 'fixed', minWidth: 900 }}>
             <colgroup>
-              <col style={{ width: 136 }} />
+              <col style={{ width: 220 }} />
               <col style={{ width: 104 }} />
-              <col style={{ width: 128 }} />
               <col style={{ width: 128 }} />
               <col />
               <col style={{ width: 120 }} />
@@ -452,9 +451,8 @@ export function PostedVouchersView({ initialStatus = 'Draft', initialVoucherId }
             </colgroup>
             <thead>
               <tr>
-                <th>Voucher Number</th>
+                <th>Voucher &amp; Type</th>
                 <th>Date</th>
-                <th>Type</th>
                 <th>Reference</th>
                 <th>Description</th>
                 <th className="num">Debit</th>
@@ -464,21 +462,23 @@ export function PostedVouchersView({ initialStatus = 'Draft', initialVoucherId }
               </tr>
             </thead>
             <tbody>
-              {listQuery.isLoading && <TableMessageRow colSpan={9} title="Loading Vouchers…" loading />}
+              {listQuery.isLoading && <TableMessageRow colSpan={8} title="Loading Vouchers…" loading />}
               {listQuery.error && (
-                <TableMessageRow colSpan={9} title="Could Not Load Vouchers" description={friendlyErrorMessage(listQuery.error, 'Could not load Vouchers. Please try again.')} />
+                <TableMessageRow colSpan={8} title="Could Not Load Vouchers" description={friendlyErrorMessage(listQuery.error, 'Could not load Vouchers. Please try again.')} />
               )}
               {!listQuery.isLoading && !listQuery.error && rows.length === 0 && (
-                <TableMessageRow colSpan={9} title="No Vouchers Found" description="Change or clear the filters to see more vouchers." />
+                <TableMessageRow colSpan={8} title="No Vouchers Found" description="Change or clear the filters to see more vouchers." />
               )}
               {rows.map(row => {
                 const editPath = voucherEditPath(row);
                 const lifecycle = voucherLifecycleLabel(row);
                 return (
                   <tr key={row.id} className={`${postedListRowClass}${selectedId === row.id ? ' is-selected' : ''}`} onClick={() => setSelectedId(row.id)}>
-                    <td className="cell-strong">{row.voucher_number}</td>
+                    <td className="cell-strong" style={{ whiteSpace: 'nowrap' }}>
+                      <span>{row.voucher_number}</span>
+                      <span className="cell-muted" style={{ fontWeight: 400, marginLeft: 6 }}>· {voucherTypeLabel(row.voucher_type)}</span>
+                    </td>
                     <td>{formatDate(row.voucher_date, generalSettings)}</td>
-                    <td>{voucherTypeLabel(row.voucher_type)}</td>
                     <td className={row.reference ? undefined : 'cell-muted'}>{row.reference || 'Not Set'}</td>
                     <td className={row.narration ? undefined : 'cell-muted'} title={row.narration ?? undefined}>{row.narration || 'Not Set'}</td>
                     <td className="num">{money(row.total_debit)}</td>
