@@ -45,7 +45,7 @@ and pushes each image as `<version>` and `latest`. The server address defaults t
    ```
 5. Create the first Admin user (one time), then remove `INITIAL_ADMIN_*` from `.env.backend`:
    ```bash
-   docker compose run --rm -e INITIAL_ADMIN_EMAIL=admin@company.com -e INITIAL_ADMIN_PASSWORD='a-long-password' \
+   docker compose run --rm -e INITIAL_ADMIN_EMAIL=admin@company.com -e INITIAL_ADMIN_PASSWORD='<a-long-password>' \
      backend node dist/scripts/seed-admin.js
    ```
 6. Sign in, open **Settings → Posting Accounts**, check every account (including **Year-End Closing Account**), and set up the Fiscal Year.

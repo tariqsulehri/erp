@@ -9,6 +9,14 @@ Each app has its own `package.json`, `package-lock.json` and `Dockerfile`. Use N
 
 ## Local Development
 
+First, once per clone, turn on the git hook that blocks keys and passwords from being committed:
+
+```bash
+npm run setup:hooks
+```
+
+Never commit a secret (keys, tokens, passwords, `.env` files), not even in a comment. See `AGENTS.md` → "No Secrets In Git".
+
 You need Node.js 22 and PostgreSQL 16 or newer running locally.
 
 **Backend** (http://localhost:4000):
@@ -19,7 +27,7 @@ npm install
 cp .env.example .env              # set DATABASE_URL and JWT_SECRET (openssl rand -hex 32)
 npm run prisma:generate
 npm run db:fresh-install          # new, empty database only; for an existing one: npm run prisma:deploy
-INITIAL_ADMIN_EMAIL=you@company.com INITIAL_ADMIN_PASSWORD='a-long-password' npm run seed:admin
+INITIAL_ADMIN_EMAIL=you@company.com INITIAL_ADMIN_PASSWORD='<a-long-password>' npm run seed:admin
 npm run dev
 ```
 
@@ -33,6 +41,8 @@ npm run dev
 ```
 
 ## Checks Before Handing Over
+
+From the repository root: `npm run check:secrets` (no keys or passwords anywhere in git).
 
 ```bash
 cd frontend && npm run type-check

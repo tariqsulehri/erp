@@ -71,9 +71,24 @@ Use backend `.env` values for database connections. Do not hardcode database use
 
 The frontend calls backend REST endpoints through focused API client files. Avoid reintroducing frontend-hosted business APIs, frontend ORM entities, or local business routers.
 
+## Secrets
+
+Never commit any key, token, password, connection string with a password, private key, or `.env` file to git,
+in any file, even commented out or in tests and docs. Use git-ignored `.env` files and CI secrets; examples use
+placeholders such as `CHANGE_ME`. The pre-commit hook (`npm run setup:hooks`) and CI enforce this with
+`scripts/check-secrets.mjs` and gitleaks. Full rule: `AGENTS.md` → "No Secrets In Git".
+
+## Design
+
+All UI must follow documents/design/DESIGN_STANDARDS.md (fonts, themes, colour tokens, charts, layout).
+No raw hex colours in components. Use the tokens only.
+
 ## UI Rules
 
-- Every screen follows `DESIGN.md` (Calm Ledger). Tokens live in `frontend/src/app/design-tokens.css`; build from the shared components in `frontend/src/components/ui/`. Reference screens: Branches and Areas.
+- Every screen follows `documents/design/DESIGN_STANDARDS.md` (fonts, themes, colour tokens, charts, layout) and `DESIGN.md` (component usage). Build from the shared components listed in `frontend/src/components/COMPONENT_CATALOG.md`; see them live on `/design-system`.
+- Colours: raw values only in `frontend/src/styles/themes/brand-palette.css`; components use the tokens (`npm run check:colors` enforces it). Charts take colours from `useChartTheme()`.
+- Every screen, chart, and summary tile has a help button (ⓘ) with plain-words help. Text is never below 12px.
+- Menu groups show their pages as tabs (`ModuleTabs`); add a page to a group in `components/shell/nav-config.ts`.
 - Use Title Case labels.
 - Use clear words that non-native English speakers and less technical staff can understand.
 - Numeric and amount fields must be right aligned.

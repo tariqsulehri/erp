@@ -1,0 +1,24 @@
+# gitleaks settings for this repo: the built-in rules plus the same reviewed allowlist as
+# scripts/check-secrets.mjs (.secrets-allowlist). Keep the two in step.
+title = "ERP secret scan"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Throwaway test values and example files, never real secrets"
+paths = [
+  '''(^|/)\.secrets-allowlist$''',
+  '''\.example$''',
+  '''(^|/)node_modules/''',
+  '''(^|/)\.next/''',
+  '''package-lock\.json$''',
+]
+stopwords = [
+  "Strong-Pass-123",
+  "Wrong-Pass-123",
+  "New-Pass-456",
+  "Api-Test-Pass-123",
+  "erp_ci_password",
+  "test-secret-key-for-testing-only",
+]

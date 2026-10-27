@@ -46,7 +46,10 @@ End-to-end browser checks run before a release, when the release owner asks for 
 
 ## 5. Interface
 
-- Follows `DESIGN.md`: shared components from `components/ui/` (StatTile, ChartCard, ScreenHeader, SummaryCard, FormDialog), tokens from `design-tokens.css`, Poppins at the token sizes.
+- Follows `documents/design/DESIGN_STANDARDS.md` and `DESIGN.md`: shared components from `src/components/COMPONENT_CATALOG.md`, colours only through tokens (`npm run check:colors` passes), Poppins for text and JetBrains Mono for numbers, nothing below 12px.
+- Every screen, chart, and summary tile has a help button with plain-words help; every icon button has a title.
+- Words are plain English for non-native speakers (no developer words such as payload, ID, or validation).
+- Token contrast stays at WCAG AA (`tests/unit/design/contrast.test.ts`) and `eslint-plugin-jsx-a11y` reports nothing.
 - Title Case labels; required fields show `*`; amounts and numbers are right-aligned and use company settings for date, currency, and number format.
 - Every chart has a Table view and one value axis; every tile figure shows in full (no "…").
 - Works with the keyboard, has visible focus, and every icon-only button has an accessible name.
@@ -58,8 +61,9 @@ Run from the repository root before handing over:
 
 ```bash
 cd backend  && npm run type-check && npm test
-cd frontend && npm run type-check && npm run lint && npm test
+cd frontend && npm run type-check && npm run lint && npm run check:colors && npm test
 deployment/tests/lib.test.sh
+npm run check:secrets && npm run test:secrets   # from the repository root
 ```
 
 CI runs the same checks plus the frontend build and both Docker images; a red CI run is not done.
@@ -77,7 +81,13 @@ CI runs the same checks plus the frontend build and both Docker images; a red CI
 - The previous version stays available as `previous` for `./rollback.sh previous`.
 - No secrets in git: `.env*` files stay on the server; examples use placeholders.
 
-## 9. Documentation
+## 9. No Secrets
+
+- No key, token, password, private key, connection string with a password, or `.env` file is committed — not even in a comment, test, doc, or example.
+- `npm run check:secrets` passes and the pre-commit hook is on (`npm run setup:hooks`).
+- Any new throwaway test value in `.secrets-allowlist` is explained in the pull request.
+
+## 10. Documentation
 
 - `DESIGN.md`, `DEPLOYMENT.md`, `documents/PROJECT_RULES.md`, or `README.md` are updated when the change alters a rule, a component, a command, or a setting.
 - The pull request explains what changed, why, and how it was tested.

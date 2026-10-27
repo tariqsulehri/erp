@@ -28,6 +28,26 @@ For database, Prisma, inventory, stock, accounting, posting, or reporting work, 
 
 ## Non-Negotiable Rules
 
+### No Secrets In Git
+
+Nothing secret is ever committed, in any file, not even in a comment, a test, a doc, or an example:
+API keys, tokens, passwords, connection strings with a password, JWT or session secrets, private keys,
+certificates, `.env` files (other than `*.example`), credentials files, and database dumps.
+
+- Secrets live in git-ignored `.env` files on each machine or server, and in CI secrets.
+- Examples use placeholders only: `CHANGE_ME`, `<a long password>`, `${JWT_SECRET}`, or an empty value.
+- Code reads secrets from the environment (`process.env…`), never from a literal.
+- Enforced automatically:
+  - before every commit by `.githooks/pre-commit` (turn it on once per clone: `npm run setup:hooks`);
+  - on every push and pull request by the CI job "No Keys Or Passwords In Git".
+  Both run `scripts/check-secrets.mjs` (every line, comments included) and gitleaks.
+- Never bypass the check with `git commit --no-verify` to get a secret in.
+- A throwaway test value that is not a real secret may be added to `.secrets-allowlist` (and the stopwords in
+  `.gitleaks.toml`); every addition is reviewed like code.
+- If a secret is ever committed or pushed, treat it as leaked: rotate it at once, then remove it.
+  Removing it from the file does not remove it from git history.
+
+
 ### Simple Naming
 
 Use clear, descriptive names that are easy for non-native English speakers and less technical staff to understand.

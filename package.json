@@ -8,6 +8,9 @@
     "dev:backend": "npm --prefix backend run dev",
     "build:frontend": "npm --prefix frontend run build",
     "build:backend": "npm --prefix backend run build",
-    "type-check": "npm --prefix frontend run type-check && npm --prefix backend run type-check"
+    "type-check": "npm --prefix frontend run type-check && npm --prefix backend run type-check",
+    "setup:hooks": "scripts/setup-git-hooks.sh",
+    "check:secrets": "node scripts/check-secrets.mjs --all",
+    "test:secrets": "node --test scripts/check-secrets.test.mjs"
   }
 }
