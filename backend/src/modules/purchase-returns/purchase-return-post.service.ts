@@ -6,6 +6,8 @@ import { insertPostedVoucher, type PostingLine } from '../vouchers/voucher-posti
 
 type TransactionClient = Prisma.TransactionClient;
 
+export const POSTING_TRANSACTION_OPTIONS = { maxWait: 10_000, timeout: 30_000 };
+
 function businessError(message: string) {
   const error = new Error(message);
   Object.assign(error, { statusCode: 400 });
@@ -152,137 +154,143 @@ export class PurchaseReturnPostService {
   }
 
   async post(id: string, userId?: string | null) {
-    return prisma.$transaction(async transaction => {
-      const returnRows = await transaction.$queryRaw<PurchaseReturnForPost[]>`
-        SELECT *
-        FROM purchase_returns
-        WHERE company_id = CAST(${this.companyId} AS uuid)
-          AND id = CAST(${id} AS uuid)
-        FOR UPDATE
-      `;
-      const purchaseReturn = returnRows[0];
-      if (!purchaseReturn) {
-        const error = new Error('Purchase Return was not found.');
-        Object.assign(error, { statusCode: 404 });
-        throw error;
-      }
-      if (purchaseReturn.status !== 'Draft') {
-        const error = new Error('Only Draft purchase returns can be posted.');
-        Object.assign(error, { statusCode: 400 });
-        throw error;
-      }
+    return prisma.$transaction(transaction => this.postInTransaction(transaction, id, userId), POSTING_TRANSACTION_OPTIONS);
+  }
 
-      const returnDateText = this.databaseDateText(purchaseReturn.purchase_return_date);
-      await this.assertDateInOpenPeriod(transaction, returnDateText);
+  /**
+   * Posts a Draft purchase return inside the caller's transaction, so saving and posting can be one unit:
+   * if posting fails, the saved draft is rolled back too.
+   */
+  async postInTransaction(transaction: TransactionClient, id: string, userId?: string | null) {
+    const returnRows = await transaction.$queryRaw<PurchaseReturnForPost[]>`
+      SELECT *
+      FROM purchase_returns
+      WHERE company_id = CAST(${this.companyId} AS uuid)
+        AND id = CAST(${id} AS uuid)
+      FOR UPDATE
+    `;
+    const purchaseReturn = returnRows[0];
+    if (!purchaseReturn) {
+      const error = new Error('Purchase Return was not found.');
+      Object.assign(error, { statusCode: 404 });
+      throw error;
+    }
+    if (purchaseReturn.status !== 'Draft') {
+      const error = new Error('Only Draft purchase returns can be posted.');
+      Object.assign(error, { statusCode: 400 });
+      throw error;
+    }
 
-      const settings = await this.getPurchaseSettings(transaction);
-      const inventoryAccount = await this.getAccount(transaction, settings.default_inventory_account_id, 'Default Inventory Account');
-      const cashAccount = await this.getAccount(transaction, settings.default_cash_account_id, 'Default Cash Account');
-      const supplierAccount = await this.getAccount(transaction, purchaseReturn.supplier_account_id, 'Supplier Linked Account');
-      const taxAccount = settings.purchase_tax_account_id
-        ? await this.getAccount(transaction, settings.purchase_tax_account_id, 'Purchase Tax Account')
-        : null;
-      const freightAccount = settings.freight_account_id
-        ? await this.getAccount(transaction, settings.freight_account_id, 'Freight Account')
-        : null;
-      const discountAccount = settings.purchase_discount_account_id
-        ? await this.getAccount(transaction, settings.purchase_discount_account_id, 'Purchase Discount Received Account')
-        : null;
+    const returnDateText = this.databaseDateText(purchaseReturn.purchase_return_date);
+    await this.assertDateInOpenPeriod(transaction, returnDateText);
 
-      const lines = await transaction.$queryRaw<PurchaseReturnLineForPost[]>`
-        SELECT *
-        FROM purchase_return_lines
-        WHERE company_id = CAST(${this.companyId} AS uuid)
-          AND purchase_return_id = CAST(${id} AS uuid)
-          AND is_active = true
-        ORDER BY line_number ASC
-      `;
-      if (lines.length === 0) {
-        const error = new Error('Purchase Return has no items.');
-        Object.assign(error, { statusCode: 400 });
-        throw error;
-      }
+    const settings = await this.getPurchaseSettings(transaction);
+    const inventoryAccount = await this.getAccount(transaction, settings.default_inventory_account_id, 'Default Inventory Account');
+    const cashAccount = await this.getAccount(transaction, settings.default_cash_account_id, 'Default Cash Account');
+    const supplierAccount = await this.getAccount(transaction, purchaseReturn.supplier_account_id, 'Supplier Linked Account');
+    const taxAccount = settings.purchase_tax_account_id
+      ? await this.getAccount(transaction, settings.purchase_tax_account_id, 'Purchase Tax Account')
+      : null;
+    const freightAccount = settings.freight_account_id
+      ? await this.getAccount(transaction, settings.freight_account_id, 'Freight Account')
+      : null;
+    const discountAccount = settings.purchase_discount_account_id
+      ? await this.getAccount(transaction, settings.purchase_discount_account_id, 'Purchase Discount Received Account')
+      : null;
 
-      const netAmount = this.money(purchaseReturn.net_amount);
-      const discountAmount = this.money(purchaseReturn.discount_amount);
-      const taxAmount = this.money(purchaseReturn.tax_amount);
-      const freightAmount = this.money(purchaseReturn.freight_amount);
-      if (taxAmount.gt(0) && !taxAccount) throw businessError('Purchase Tax Account is not set.');
-      if (freightAmount.gt(0) && !freightAccount) throw businessError('Freight Account is not set.');
-      if (discountAmount.gt(0) && !discountAccount) throw businessError('Purchase Discount Received Account is not set.');
+    const lines = await transaction.$queryRaw<PurchaseReturnLineForPost[]>`
+      SELECT *
+      FROM purchase_return_lines
+      WHERE company_id = CAST(${this.companyId} AS uuid)
+        AND purchase_return_id = CAST(${id} AS uuid)
+        AND is_active = true
+      ORDER BY line_number ASC
+    `;
+    if (lines.length === 0) {
+      const error = new Error('Purchase Return has no items.');
+      Object.assign(error, { statusCode: 400 });
+      throw error;
+    }
 
-      const postedBy = this.userIdOrNull(userId);
-      // Inventory is credited with the same before-discount line cost removed from stock.
-      let inventoryAmount = new Decimal(0);
-      for (const line of [...lines].sort((a, b) => a.item_id.localeCompare(b.item_id))) {
-        inventoryAmount = inventoryAmount.plus(await this.postStockLine(transaction, purchaseReturn, line, postedBy));
-      }
+    const netAmount = this.money(purchaseReturn.net_amount);
+    const discountAmount = this.money(purchaseReturn.discount_amount);
+    const taxAmount = this.money(purchaseReturn.tax_amount);
+    const freightAmount = this.money(purchaseReturn.freight_amount);
+    if (taxAmount.gt(0) && !taxAccount) throw businessError('Purchase Tax Account is not set.');
+    if (freightAmount.gt(0) && !freightAccount) throw businessError('Freight Account is not set.');
+    if (discountAmount.gt(0) && !discountAccount) throw businessError('Purchase Discount Received Account is not set.');
 
-      const voucherLines: PostingLine[] = [
-        {
-          account: purchaseReturn.payment_type === 'Cash' ? cashAccount : supplierAccount,
-          debit: netAmount,
-          credit: new Decimal(0),
-          narration: purchaseReturn.payment_type === 'Cash'
-            ? `Cash received for ${purchaseReturn.purchase_return_number}`
-            : `Supplier payable reduced for ${purchaseReturn.purchase_return_number}`,
-        },
-        ...(discountAmount.gt(0) && discountAccount ? [{
-          account: discountAccount,
-          debit: discountAmount,
-          credit: new Decimal(0),
-          narration: `Reverse purchase discount ${purchaseReturn.purchase_return_number}`,
-        }] : []),
-        {
-          account: inventoryAccount,
-          debit: new Decimal(0),
-          credit: inventoryAmount,
-          narration: `Inventory returned ${purchaseReturn.purchase_return_number}`,
-        },
-        ...(taxAmount.gt(0) && taxAccount ? [{
-          account: taxAccount,
-          debit: new Decimal(0),
-          credit: taxAmount,
-          narration: `Reverse purchase tax ${purchaseReturn.purchase_return_number}`,
-        }] : []),
-        ...(freightAmount.gt(0) && freightAccount ? [{
-          account: freightAccount,
-          debit: new Decimal(0),
-          credit: freightAmount,
-          narration: `Reverse purchase freight ${purchaseReturn.purchase_return_number}`,
-        }] : []),
-      ];
+    const postedBy = this.userIdOrNull(userId);
+    // Inventory is credited with the same before-discount line cost removed from stock.
+    let inventoryAmount = new Decimal(0);
+    for (const line of [...lines].sort((a, b) => a.item_id.localeCompare(b.item_id))) {
+      inventoryAmount = inventoryAmount.plus(await this.postStockLine(transaction, purchaseReturn, line, postedBy));
+    }
 
-      const voucherId = await insertPostedVoucher(transaction, {
-        companyId: this.companyId,
-        voucherNumber: purchaseReturn.purchase_return_number,
-        voucherType: 'PR',
-        voucherDate: returnDateText,
-        reference: purchaseReturn.reference_number,
-        narration: purchaseReturn.description || 'Purchase Return',
-        userId: postedBy,
-        lines: voucherLines,
-      });
+    const voucherLines: PostingLine[] = [
+      {
+        account: purchaseReturn.payment_type === 'Cash' ? cashAccount : supplierAccount,
+        debit: netAmount,
+        credit: new Decimal(0),
+        narration: purchaseReturn.payment_type === 'Cash'
+          ? `Cash received for ${purchaseReturn.purchase_return_number}`
+          : `Supplier payable reduced for ${purchaseReturn.purchase_return_number}`,
+      },
+      ...(discountAmount.gt(0) && discountAccount ? [{
+        account: discountAccount,
+        debit: discountAmount,
+        credit: new Decimal(0),
+        narration: `Reverse purchase discount ${purchaseReturn.purchase_return_number}`,
+      }] : []),
+      {
+        account: inventoryAccount,
+        debit: new Decimal(0),
+        credit: inventoryAmount,
+        narration: `Inventory returned ${purchaseReturn.purchase_return_number}`,
+      },
+      ...(taxAmount.gt(0) && taxAccount ? [{
+        account: taxAccount,
+        debit: new Decimal(0),
+        credit: taxAmount,
+        narration: `Reverse purchase tax ${purchaseReturn.purchase_return_number}`,
+      }] : []),
+      ...(freightAmount.gt(0) && freightAccount ? [{
+        account: freightAccount,
+        debit: new Decimal(0),
+        credit: freightAmount,
+        narration: `Reverse purchase freight ${purchaseReturn.purchase_return_number}`,
+      }] : []),
+    ];
 
-      await transaction.$queryRaw`
-        UPDATE purchase_returns
-        SET status = 'Posted',
-            accounting_voucher_id = CAST(${voucherId} AS uuid),
-            posted_by_id = ${postedBy}::uuid,
-            posted_at = now(),
-            updated_by_id = ${postedBy}::uuid,
-            updated_at = now()
-        WHERE company_id = CAST(${this.companyId} AS uuid)
-          AND id = CAST(${id} AS uuid)
-      `;
-
-      return {
-        id,
-        purchase_return_number: purchaseReturn.purchase_return_number,
-        accounting_voucher_id: voucherId,
-        status: 'Posted',
-      };
+    const voucherId = await insertPostedVoucher(transaction, {
+      companyId: this.companyId,
+      voucherNumber: purchaseReturn.purchase_return_number,
+      voucherType: 'PR',
+      voucherDate: returnDateText,
+      reference: purchaseReturn.reference_number,
+      narration: purchaseReturn.description || 'Purchase Return',
+      userId: postedBy,
+      lines: voucherLines,
     });
+
+    await transaction.$queryRaw`
+      UPDATE purchase_returns
+      SET status = 'Posted',
+          accounting_voucher_id = CAST(${voucherId} AS uuid),
+          posted_by_id = ${postedBy}::uuid,
+          posted_at = now(),
+          updated_by_id = ${postedBy}::uuid,
+          updated_at = now()
+      WHERE company_id = CAST(${this.companyId} AS uuid)
+        AND id = CAST(${id} AS uuid)
+    `;
+
+    return {
+      id,
+      purchase_return_number: purchaseReturn.purchase_return_number,
+      accounting_voucher_id: voucherId,
+      status: 'Posted',
+    };
   }
 
   private async postStockLine(

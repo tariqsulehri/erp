@@ -376,4 +376,88 @@ describe.skipIf(!databaseUrl)('Purchase Returns (database)', () => {
     expect(await balanceOf(itemB)).toEqual({ quantity: '8.0000', value: '320.00', average: '40.0000' });
     await expect(createDraft({ purchase_return_date: '2025-10-06' })).rejects.toThrow(/is closed/);
   });
+
+  /** Makes posting fail after validation has passed, by making the Default Inventory Account Inactive for the callback. */
+  async function withInactiveInventoryAccount(callback: () => Promise<void>) {
+    await prisma.account.update({ where: { id: settings.inventory }, data: { isActive: false } });
+    try {
+      await callback();
+    } finally {
+      await prisma.account.update({ where: { id: settings.inventory }, data: { isActive: true } });
+    }
+  }
+
+  const oneItemB = (price = 40) => [{ item_id: itemB, quantity: 1, purchase_price: price, discount_amount: 0, tax_amount: 0 }];
+
+  describe('Draft lifecycle: save and post together, edit, cancel', () => {
+    it('saves and posts in one step, and leaves no draft behind when posting is refused', async () => {
+      const service = new m.PurchaseReturnDraftService(companyId);
+      const posted = await service.createAndPost(returnInput({ purchase_return_date: '2025-11-01', lines: oneItemB() }), userId);
+      expect(posted.status).toBe('Posted');
+      expect(await balanceOf(itemB)).toEqual({ quantity: '7.0000', value: '280.00', average: '40.0000' });
+
+      const returnsBefore = await companyCount('purchase_returns');
+      await withInactiveInventoryAccount(async () => {
+        await expect(service.createAndPost(returnInput({ purchase_return_date: '2025-11-02', lines: oneItemB() }), userId))
+          .rejects.toThrow(/Default Inventory Account is not set up or is Inactive/);
+      });
+      expect(await companyCount('purchase_returns')).toBe(returnsBefore);
+      expect(await balanceOf(itemB)).toEqual({ quantity: '7.0000', value: '280.00', average: '40.0000' });
+    });
+
+    it('edits a draft (same number, new lines), but not a posted or missing return', async () => {
+      const service = new m.PurchaseReturnDraftService(companyId);
+      const draft = await createDraft({ purchase_return_date: '2025-11-03', supplier_return_number: 'SRN-EDIT', lines: oneItemB() });
+      const updated = await service.updateDraft(draft.id, returnInput({
+        purchase_return_date: '2025-11-04', supplier_return_number: 'srn-edit', lines: [{ item_id: itemB, quantity: 2, purchase_price: 40, discount_amount: 0, tax_amount: 0 }],
+      }), userId);
+      expect(updated).toEqual({ id: draft.id, purchase_return_number: draft.purchase_return_number });
+      const row = await returnRow(draft.id);
+      expect(row.status).toBe('Draft');
+      expect(new Decimal(row.net_amount).toFixed(2)).toBe('80.00');
+      expect(await balanceOf(itemB)).toEqual({ quantity: '7.0000', value: '280.00', average: '40.0000' });
+
+      await expect(service.updateDraft('00000000-0000-4000-8000-000000000000', returnInput({ purchase_return_date: '2025-11-04', lines: oneItemB() }), userId))
+        .rejects.toMatchObject({ statusCode: 404 });
+      const posted = await service.createAndPost(returnInput({ purchase_return_date: '2025-11-05', lines: oneItemB() }), userId);
+      await expect(service.updateDraft(posted.id, returnInput({ purchase_return_date: '2025-11-05', lines: oneItemB() }), userId))
+        .rejects.toMatchObject({ statusCode: 400, message: expect.stringMatching(/Only Draft purchase returns can be changed/) });
+      await expect(createDraft({ purchase_return_date: '2025-11-05', supplier_return_number: 'SRN-EDIT', lines: oneItemB() }))
+        .rejects.toThrow(/Supplier Return No\. is already used on/);
+    });
+
+    it('saves changes and posts in one step, keeping the old values when posting is refused', async () => {
+      const service = new m.PurchaseReturnDraftService(companyId);
+      const draft = await createDraft({ purchase_return_date: '2025-11-06', lines: oneItemB() });
+      const stockBefore = await balanceOf(itemB);
+      await withInactiveInventoryAccount(async () => {
+        await expect(service.updateAndPost(draft.id, returnInput({ purchase_return_date: '2025-11-06', lines: oneItemB(35) }), userId))
+          .rejects.toThrow(/Default Inventory Account is not set up or is Inactive/);
+      });
+      const kept = await returnRow(draft.id);
+      expect(kept.status).toBe('Draft');
+      expect(new Decimal(kept.net_amount).toFixed(2)).toBe('40.00');
+      expect(await balanceOf(itemB)).toEqual(stockBefore);
+
+      const posted = await service.updateAndPost(draft.id, returnInput({ purchase_return_date: '2025-11-06', lines: oneItemB(35) }), userId);
+      expect(posted).toMatchObject({ id: draft.id, status: 'Posted' });
+      expect(amountOn(await voucherFor(draft.id), supplierAccountId)).toEqual({ debit: '35.00', credit: '0.00' });
+    });
+
+    it('cancels a draft: kept as Voided with the reason; it can no longer be posted, edited or cancelled', async () => {
+      const service = new m.PurchaseReturnDraftService(companyId);
+      const draft = await createDraft({ purchase_return_date: '2025-11-07', lines: oneItemB() });
+      expect(await service.cancelDraft(draft.id, { reason: 'Supplier took it back' }, userId))
+        .toEqual({ id: draft.id, purchase_return_number: draft.purchase_return_number, status: 'Voided' });
+      const rows = await prisma.$queryRaw<{ status: string; void_reason: string }[]>`
+        SELECT status, void_reason FROM purchase_returns WHERE id = CAST(${draft.id} AS uuid)
+      `;
+      expect(rows[0]).toEqual({ status: 'Voided', void_reason: 'Supplier took it back' });
+      await expect(post(draft.id)).rejects.toThrow(/Only Draft/);
+      await expect(service.updateDraft(draft.id, returnInput({ purchase_return_date: '2025-11-07', lines: oneItemB() }), userId)).rejects.toThrow(/Only Draft purchase returns can be changed/);
+      await expect(service.cancelDraft(draft.id, { reason: 'Again' }, userId)).rejects.toThrow(/Only Draft purchase returns can be cancelled/);
+      const voided = await new m.PurchaseReturnListService(companyId).list(m.ListPurchaseReturnsQuery.parse({ status: 'Voided' }));
+      expect((voided.data as Array<{ id: string }>).map(row => row.id)).toContain(draft.id);
+    });
+  });
 });

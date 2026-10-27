@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { currentUserId, resolveAccessScope, requirePermission } from '../http/access-context.js';
 import { resolveSellingBranchId } from '../modules/inventory/stock-holder-access.js';
 import { SaleReturnDetailService } from '../modules/sale-returns/sale-return-detail.service.js';
-import { SaleReturnDraftService } from '../modules/sale-returns/sale-return-draft.service.js';
+import { CancelSaleReturnDraftInput, SaleReturnDraftService } from '../modules/sale-returns/sale-return-draft.service.js';
 import { ListSaleReturnsQuery, SaleReturnListService } from '../modules/sale-returns/sale-return-list.service.js';
 import { SaleReturnPostService } from '../modules/sale-returns/sale-return-post.service.js';
 import { SaleReturnValidationService, ValidateSaleReturnInput } from '../modules/sale-returns/sale-return-validation.service.js';
@@ -71,11 +71,42 @@ saleReturnsRouter.post('/drafts', requirePermission('sales.edit'), async (req, r
 saleReturnsRouter.post('/create-and-post', requirePermission('sales.edit'), async (req, res, next) => {
   try {
     const { scope, input } = saleReturnInputFor(req);
-    const userId = currentUserId(req);
-    const draftService = new SaleReturnDraftService(scope.companyId);
-    const postService = new SaleReturnPostService(scope.companyId);
-    const draft = await draftService.createDraft(input, userId);
-    res.status(201).json(await postService.post(draft.id, userId, scope));
+    const service = new SaleReturnDraftService(scope.companyId);
+    res.status(201).json(await service.createAndPost(input, currentUserId(req), scope));
+  } catch (error) {
+    next(error);
+  }
+});
+
+saleReturnsRouter.put('/:id', requirePermission('sales.edit'), async (req, res, next) => {
+  try {
+    const { id } = saleReturnIdParams.parse(req.params);
+    const { scope, input } = saleReturnInputFor(req);
+    const service = new SaleReturnDraftService(scope.companyId);
+    res.json(await service.updateDraft(id, input, currentUserId(req), scope));
+  } catch (error) {
+    next(error);
+  }
+});
+
+saleReturnsRouter.post('/:id/update-and-post', requirePermission('sales.edit'), async (req, res, next) => {
+  try {
+    const { id } = saleReturnIdParams.parse(req.params);
+    const { scope, input } = saleReturnInputFor(req);
+    const service = new SaleReturnDraftService(scope.companyId);
+    res.json(await service.updateAndPost(id, input, currentUserId(req), scope));
+  } catch (error) {
+    next(error);
+  }
+});
+
+saleReturnsRouter.post('/:id/cancel', requirePermission('sales.edit'), async (req, res, next) => {
+  try {
+    const scope = resolveAccessScope(req);
+    const { id } = saleReturnIdParams.parse(req.params);
+    const input = CancelSaleReturnDraftInput.parse(req.body);
+    const service = new SaleReturnDraftService(scope.companyId);
+    res.json(await service.cancelDraft(id, input, currentUserId(req), scope));
   } catch (error) {
     next(error);
   }

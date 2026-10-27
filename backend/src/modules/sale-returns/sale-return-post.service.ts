@@ -10,6 +10,8 @@ import { insertPostedVoucher, type PostingLine } from '../vouchers/voucher-posti
 
 type TransactionClient = Prisma.TransactionClient;
 
+export const POSTING_TRANSACTION_OPTIONS = { maxWait: 10_000, timeout: 30_000 };
+
 function businessError(message: string) {
   const error = new Error(message);
   Object.assign(error, { statusCode: 400 });
@@ -162,154 +164,160 @@ export class SaleReturnPostService {
   }
 
   async post(id: string, userId?: string | null, scope?: AccessScope) {
-    return prisma.$transaction(async transaction => {
-      const returnRows = await transaction.$queryRaw<SaleReturnForPost[]>`
-        SELECT *
-        FROM sale_returns
-        WHERE company_id = CAST(${this.companyId} AS uuid)
-          AND id = CAST(${id} AS uuid)
-        FOR UPDATE
-      `;
-      const saleReturn = returnRows[0];
-      if (!saleReturn) {
-        const error = new Error('Sale Return was not found.');
-        Object.assign(error, { statusCode: 404 });
-        throw error;
-      }
-      if (scope) assertCanUseHolder(scope, holderFromColumns(saleReturn.branch_id, saleReturn.warehouse_id), 'post Sale Returns');
-      if (saleReturn.status !== 'Draft') {
-        const error = new Error('Only Draft sale returns can be posted.');
-        Object.assign(error, { statusCode: 400 });
-        throw error;
-      }
+    return prisma.$transaction(transaction => this.postInTransaction(transaction, id, userId, scope), POSTING_TRANSACTION_OPTIONS);
+  }
 
-      const returnDateText = this.databaseDateText(saleReturn.sale_return_date);
-      await this.assertDateInOpenPeriod(transaction, returnDateText);
+  /**
+   * Posts a Draft sale return inside the caller's transaction, so saving and posting can be one unit:
+   * if posting fails, the saved draft is rolled back too.
+   */
+  async postInTransaction(transaction: TransactionClient, id: string, userId?: string | null, scope?: AccessScope) {
+    const returnRows = await transaction.$queryRaw<SaleReturnForPost[]>`
+      SELECT *
+      FROM sale_returns
+      WHERE company_id = CAST(${this.companyId} AS uuid)
+        AND id = CAST(${id} AS uuid)
+      FOR UPDATE
+    `;
+    const saleReturn = returnRows[0];
+    if (!saleReturn) {
+      const error = new Error('Sale Return was not found.');
+      Object.assign(error, { statusCode: 404 });
+      throw error;
+    }
+    if (scope) assertCanUseHolder(scope, holderFromColumns(saleReturn.branch_id, saleReturn.warehouse_id), 'post Sale Returns');
+    if (saleReturn.status !== 'Draft') {
+      const error = new Error('Only Draft sale returns can be posted.');
+      Object.assign(error, { statusCode: 400 });
+      throw error;
+    }
 
-      const settings = await this.getSaleSettings(transaction);
-      const cashAccount = await this.getAccount(transaction, settings.default_cash_account_id, 'Default Cash Account');
-      const customerAccount = await this.getAccount(transaction, saleReturn.customer_account_id, 'Customer Linked Account');
-      const inventoryAccount = await this.getAccount(transaction, settings.default_inventory_account_id, 'Default Inventory Account');
-      const revenueAccount = await this.getAccount(transaction, settings.sales_revenue_account_id, 'Sales Revenue Account');
-      const cogsAccount = await this.getAccount(transaction, settings.cost_of_goods_sold_account_id, 'Cost Of Goods Sold Account');
-      const taxAccount = settings.sales_tax_account_id
-        ? await this.getAccount(transaction, settings.sales_tax_account_id, 'Sales Tax Account')
-        : null;
-      const discountAccount = settings.sales_discount_account_id
-        ? await this.getAccount(transaction, settings.sales_discount_account_id, 'Sales Discount Account')
-        : null;
-      const freightAccount = settings.freight_income_account_id
-        ? await this.getAccount(transaction, settings.freight_income_account_id, 'Freight Income Account')
-        : null;
+    const returnDateText = this.databaseDateText(saleReturn.sale_return_date);
+    await this.assertDateInOpenPeriod(transaction, returnDateText);
 
-      const lines = await transaction.$queryRaw<SaleReturnLineForPost[]>`
-        SELECT *
-        FROM sale_return_lines
-        WHERE company_id = CAST(${this.companyId} AS uuid)
-          AND sale_return_id = CAST(${id} AS uuid)
-          AND is_active = true
-        ORDER BY line_number ASC
-      `;
-      if (lines.length === 0) {
-        const error = new Error('Sale Return has no items.');
-        Object.assign(error, { statusCode: 400 });
-        throw error;
-      }
+    const settings = await this.getSaleSettings(transaction);
+    const cashAccount = await this.getAccount(transaction, settings.default_cash_account_id, 'Default Cash Account');
+    const customerAccount = await this.getAccount(transaction, saleReturn.customer_account_id, 'Customer Linked Account');
+    const inventoryAccount = await this.getAccount(transaction, settings.default_inventory_account_id, 'Default Inventory Account');
+    const revenueAccount = await this.getAccount(transaction, settings.sales_revenue_account_id, 'Sales Revenue Account');
+    const cogsAccount = await this.getAccount(transaction, settings.cost_of_goods_sold_account_id, 'Cost Of Goods Sold Account');
+    const taxAccount = settings.sales_tax_account_id
+      ? await this.getAccount(transaction, settings.sales_tax_account_id, 'Sales Tax Account')
+      : null;
+    const discountAccount = settings.sales_discount_account_id
+      ? await this.getAccount(transaction, settings.sales_discount_account_id, 'Sales Discount Account')
+      : null;
+    const freightAccount = settings.freight_income_account_id
+      ? await this.getAccount(transaction, settings.freight_income_account_id, 'Freight Income Account')
+      : null;
 
-      const netAmount = this.money(saleReturn.net_amount);
-      const revenueAmount = this.money(saleReturn.gross_amount);
-      const discountAmount = this.money(saleReturn.discount_amount);
-      const taxAmount = this.money(saleReturn.tax_amount);
-      const freightAmount = this.money(saleReturn.freight_amount);
-      if (taxAmount.gt(0) && !taxAccount) throw businessError('Sales Tax Account is not set.');
-      if (discountAmount.gt(0) && !discountAccount) throw businessError('Sales Discount Account is not set.');
-      if (freightAmount.gt(0) && !freightAccount) throw businessError('Freight Income Account is not set.');
+    const lines = await transaction.$queryRaw<SaleReturnLineForPost[]>`
+      SELECT *
+      FROM sale_return_lines
+      WHERE company_id = CAST(${this.companyId} AS uuid)
+        AND sale_return_id = CAST(${id} AS uuid)
+        AND is_active = true
+      ORDER BY line_number ASC
+    `;
+    if (lines.length === 0) {
+      const error = new Error('Sale Return has no items.');
+      Object.assign(error, { statusCode: 400 });
+      throw error;
+    }
 
-      const postedBy = this.userIdOrNull(userId);
-      // Returned stock is valued line by line at posting time; the voucher uses the same total.
-      let costAmount = new Decimal(0);
-      for (const line of [...lines].sort((a, b) => a.item_id.localeCompare(b.item_id))) {
-        costAmount = costAmount.plus(await this.postStockLine(transaction, saleReturn, line, postedBy));
-      }
+    const netAmount = this.money(saleReturn.net_amount);
+    const revenueAmount = this.money(saleReturn.gross_amount);
+    const discountAmount = this.money(saleReturn.discount_amount);
+    const taxAmount = this.money(saleReturn.tax_amount);
+    const freightAmount = this.money(saleReturn.freight_amount);
+    if (taxAmount.gt(0) && !taxAccount) throw businessError('Sales Tax Account is not set.');
+    if (discountAmount.gt(0) && !discountAccount) throw businessError('Sales Discount Account is not set.');
+    if (freightAmount.gt(0) && !freightAccount) throw businessError('Freight Income Account is not set.');
 
-      const voucherLines: PostingLine[] = [
-        {
-          account: revenueAccount,
-          debit: revenueAmount,
-          credit: new Decimal(0),
-          narration: `Reverse sales revenue ${saleReturn.sale_return_number}`,
-        },
-        ...(taxAmount.gt(0) && taxAccount ? [{
-          account: taxAccount,
-          debit: taxAmount,
-          credit: new Decimal(0),
-          narration: `Reverse sales tax ${saleReturn.sale_return_number}`,
-        }] : []),
-        ...(freightAmount.gt(0) && freightAccount ? [{
-          account: freightAccount,
-          debit: freightAmount,
-          credit: new Decimal(0),
-          narration: `Reverse sale freight ${saleReturn.sale_return_number}`,
-        }] : []),
-        {
-          account: inventoryAccount,
-          debit: costAmount,
-          credit: new Decimal(0),
-          narration: `Inventory returned from customer ${saleReturn.sale_return_number}`,
-        },
-        {
-          account: saleReturn.payment_type === 'Cash' ? cashAccount : customerAccount,
-          debit: new Decimal(0),
-          credit: netAmount,
-          narration: saleReturn.payment_type === 'Cash'
-            ? `Cash refund for ${saleReturn.sale_return_number}`
-            : `Customer receivable reduced for ${saleReturn.sale_return_number}`,
-        },
-        ...(discountAmount.gt(0) && discountAccount ? [{
-          account: discountAccount,
-          debit: new Decimal(0),
-          credit: discountAmount,
-          narration: `Reverse sales discount ${saleReturn.sale_return_number}`,
-        }] : []),
-        {
-          account: cogsAccount,
-          debit: new Decimal(0),
-          credit: costAmount,
-          narration: `Reverse cost of goods sold ${saleReturn.sale_return_number}`,
-        },
-      ];
+    const postedBy = this.userIdOrNull(userId);
+    // Returned stock is valued line by line at posting time; the voucher uses the same total.
+    let costAmount = new Decimal(0);
+    for (const line of [...lines].sort((a, b) => a.item_id.localeCompare(b.item_id))) {
+      costAmount = costAmount.plus(await this.postStockLine(transaction, saleReturn, line, postedBy));
+    }
 
-      const voucherId = await insertPostedVoucher(transaction, {
-        companyId: this.companyId,
-        voucherNumber: saleReturn.sale_return_number,
-        voucherType: 'SR',
-        voucherDate: returnDateText,
-        reference: saleReturn.reference_number,
-        narration: saleReturn.description || 'Sale Return',
-        userId: postedBy,
-        lines: voucherLines,
-      });
+    const voucherLines: PostingLine[] = [
+      {
+        account: revenueAccount,
+        debit: revenueAmount,
+        credit: new Decimal(0),
+        narration: `Reverse sales revenue ${saleReturn.sale_return_number}`,
+      },
+      ...(taxAmount.gt(0) && taxAccount ? [{
+        account: taxAccount,
+        debit: taxAmount,
+        credit: new Decimal(0),
+        narration: `Reverse sales tax ${saleReturn.sale_return_number}`,
+      }] : []),
+      ...(freightAmount.gt(0) && freightAccount ? [{
+        account: freightAccount,
+        debit: freightAmount,
+        credit: new Decimal(0),
+        narration: `Reverse sale freight ${saleReturn.sale_return_number}`,
+      }] : []),
+      {
+        account: inventoryAccount,
+        debit: costAmount,
+        credit: new Decimal(0),
+        narration: `Inventory returned from customer ${saleReturn.sale_return_number}`,
+      },
+      {
+        account: saleReturn.payment_type === 'Cash' ? cashAccount : customerAccount,
+        debit: new Decimal(0),
+        credit: netAmount,
+        narration: saleReturn.payment_type === 'Cash'
+          ? `Cash refund for ${saleReturn.sale_return_number}`
+          : `Customer receivable reduced for ${saleReturn.sale_return_number}`,
+      },
+      ...(discountAmount.gt(0) && discountAccount ? [{
+        account: discountAccount,
+        debit: new Decimal(0),
+        credit: discountAmount,
+        narration: `Reverse sales discount ${saleReturn.sale_return_number}`,
+      }] : []),
+      {
+        account: cogsAccount,
+        debit: new Decimal(0),
+        credit: costAmount,
+        narration: `Reverse cost of goods sold ${saleReturn.sale_return_number}`,
+      },
+    ];
 
-      await transaction.$queryRaw`
-        UPDATE sale_returns
-        SET status = 'Posted',
-            cost_amount = CAST(${costAmount.toFixed(2)} AS numeric),
-            accounting_voucher_id = CAST(${voucherId} AS uuid),
-            posted_by_id = ${postedBy}::uuid,
-            posted_at = now(),
-            updated_by_id = ${postedBy}::uuid,
-            updated_at = now()
-        WHERE company_id = CAST(${this.companyId} AS uuid)
-          AND id = CAST(${id} AS uuid)
-      `;
-
-      return {
-        id,
-        sale_return_number: saleReturn.sale_return_number,
-        accounting_voucher_id: voucherId,
-        status: 'Posted',
-      };
+    const voucherId = await insertPostedVoucher(transaction, {
+      companyId: this.companyId,
+      voucherNumber: saleReturn.sale_return_number,
+      voucherType: 'SR',
+      voucherDate: returnDateText,
+      reference: saleReturn.reference_number,
+      narration: saleReturn.description || 'Sale Return',
+      userId: postedBy,
+      lines: voucherLines,
     });
+
+    await transaction.$queryRaw`
+      UPDATE sale_returns
+      SET status = 'Posted',
+          cost_amount = CAST(${costAmount.toFixed(2)} AS numeric),
+          accounting_voucher_id = CAST(${voucherId} AS uuid),
+          posted_by_id = ${postedBy}::uuid,
+          posted_at = now(),
+          updated_by_id = ${postedBy}::uuid,
+          updated_at = now()
+      WHERE company_id = CAST(${this.companyId} AS uuid)
+        AND id = CAST(${id} AS uuid)
+    `;
+
+    return {
+      id,
+      sale_return_number: saleReturn.sale_return_number,
+      accounting_voucher_id: voucherId,
+      status: 'Posted',
+    };
   }
 
   private async postStockLine(

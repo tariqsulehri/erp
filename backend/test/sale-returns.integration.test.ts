@@ -345,4 +345,89 @@ describe.skipIf(!databaseUrl)('Sale Returns (database)', () => {
     expect(await balance()).toBe('10.0000 @ 1000.00');
     await expect(createDraft({ sale_return_date: '2026-01-11' })).rejects.toThrow(/is closed/);
   });
+
+  /** Makes posting fail after validation has passed, by making the Sales Revenue Account Inactive for the callback. */
+  async function withInactiveRevenueAccount(callback: () => Promise<void>) {
+    await prisma.account.update({ where: { id: settings.revenue }, data: { isActive: false } });
+    try {
+      await callback();
+    } finally {
+      await prisma.account.update({ where: { id: settings.revenue }, data: { isActive: true } });
+    }
+  }
+
+  describe('Draft lifecycle: save and post together, edit, cancel', () => {
+    it('saves and posts in one step, and leaves no draft behind when posting is refused', async () => {
+      const service = new m.SaleReturnDraftService(companyId);
+      const posted = await service.createAndPost(returnInput({ sale_return_date: '2025-10-01' }), userId, allBranches());
+      expect(posted.status).toBe('Posted');
+      expect(await balance()).toBe('11.0000 @ 1100.00');
+
+      const returnsBefore = await companyCount('sale_returns');
+      const movementsBefore = await companyCount('inventory_stock_movements');
+      await withInactiveRevenueAccount(async () => {
+        await expect(service.createAndPost(returnInput({ sale_return_date: '2025-10-02' }), userId))
+          .rejects.toThrow(/Sales Revenue Account is not set up or is Inactive/);
+      });
+      expect(await companyCount('sale_returns')).toBe(returnsBefore);
+      expect(await companyCount('inventory_stock_movements')).toBe(movementsBefore);
+    });
+
+    it('edits a draft (same number, new lines), but not a posted, missing or other-Branch return', async () => {
+      const service = new m.SaleReturnDraftService(companyId);
+      const draft = await createDraft({ sale_return_date: '2025-10-03', customer_return_number: 'RET-EDIT' });
+      const updated = await service.updateDraft(draft.id, returnInput({
+        sale_return_date: '2025-10-04', customer_return_number: 'ret-edit', lines: [{ item_id: itemA, quantity: 2, sale_price: 140 }],
+      }), userId, branchUser(branchOne));
+      expect(updated).toEqual({ id: draft.id, sale_return_number: draft.sale_return_number });
+      const row = await returnRow(draft.id);
+      expect(row.status).toBe('Draft');
+      expect(new Decimal(row.cost_amount).toFixed(2)).toBe('200.00');
+      expect(await balance()).toBe('11.0000 @ 1100.00');
+
+      await expect(service.updateDraft(draft.id, returnInput({ sale_return_date: '2025-10-04' }), userId, branchUser(branchTwo)))
+        .rejects.toMatchObject({ statusCode: 403, message: 'You can only change Sale Returns for your own Branch.' });
+      await expect(service.updateDraft('00000000-0000-4000-8000-000000000000', returnInput({ sale_return_date: '2025-10-04' }), userId))
+        .rejects.toMatchObject({ statusCode: 404 });
+      const posted = await service.createAndPost(returnInput({ sale_return_date: '2025-10-05' }), userId);
+      await expect(service.updateDraft(posted.id, returnInput({ sale_return_date: '2025-10-05' }), userId))
+        .rejects.toMatchObject({ statusCode: 400, message: expect.stringMatching(/Only Draft sale returns can be changed/) });
+      await expect(createDraft({ sale_return_date: '2025-10-05', customer_return_number: 'RET-EDIT' }))
+        .rejects.toThrow(/Customer Return No\. is already used on/);
+    });
+
+    it('saves changes and posts in one step, keeping the old values when posting is refused', async () => {
+      const service = new m.SaleReturnDraftService(companyId);
+      const draft = await createDraft({ sale_return_date: '2025-10-06' });
+      const stockBefore = await balance();
+      await withInactiveRevenueAccount(async () => {
+        await expect(service.updateAndPost(draft.id, returnInput({ sale_return_date: '2025-10-06', lines: [{ item_id: itemA, quantity: 3, sale_price: 150 }] }), userId))
+          .rejects.toThrow(/Sales Revenue Account is not set up or is Inactive/);
+      });
+      expect((await returnRow(draft.id)).status).toBe('Draft');
+      expect(await balance()).toBe(stockBefore);
+
+      const posted = await service.updateAndPost(draft.id, returnInput({ sale_return_date: '2025-10-06', lines: [{ item_id: itemA, quantity: 1, sale_price: 120 }] }), userId, branchUser(branchOne));
+      expect(posted).toMatchObject({ id: draft.id, status: 'Posted' });
+      expect(amountOn(await voucherFor(draft.id), customerAccountId)).toEqual({ debit: '0.00', credit: '120.00' });
+    });
+
+    it('cancels a draft: kept as Voided with the reason; it can no longer be posted, edited or cancelled', async () => {
+      const service = new m.SaleReturnDraftService(companyId);
+      const draft = await createDraft({ sale_return_date: '2025-10-07' });
+      await expect(service.cancelDraft(draft.id, { reason: 'Wrong customer' }, userId, branchUser(branchTwo)))
+        .rejects.toMatchObject({ statusCode: 403, message: 'You can only cancel Sale Returns for your own Branch.' });
+      expect(await service.cancelDraft(draft.id, { reason: 'Wrong customer' }, userId, branchUser(branchOne)))
+        .toEqual({ id: draft.id, sale_return_number: draft.sale_return_number, status: 'Voided' });
+      const rows = await prisma.$queryRaw<{ status: string; void_reason: string }[]>`
+        SELECT status, void_reason FROM sale_returns WHERE id = CAST(${draft.id} AS uuid)
+      `;
+      expect(rows[0]).toEqual({ status: 'Voided', void_reason: 'Wrong customer' });
+      await expect(new m.SaleReturnPostService(companyId).post(draft.id, userId)).rejects.toThrow(/Only Draft/);
+      await expect(service.updateDraft(draft.id, returnInput({ sale_return_date: '2025-10-07' }), userId)).rejects.toThrow(/Only Draft sale returns can be changed/);
+      await expect(service.cancelDraft(draft.id, { reason: 'Again' }, userId)).rejects.toThrow(/Only Draft sale returns can be cancelled/);
+      const voided = await new m.SaleReturnListService(companyId, allBranches()).list(m.ListSaleReturnsQuery.parse({ status: 'Voided' }));
+      expect((voided.data as Array<{ id: string }>).map(row => row.id)).toContain(draft.id);
+    });
+  });
 });

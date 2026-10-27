@@ -342,6 +342,29 @@ describe.skipIf(!databaseUrl)('HTTP API permissions (database)', () => {
       expect(missing.body.error.message).toMatch(/Sale Voucher was not found/);
     });
 
+    it('return draft routes (edit, update-and-post, cancel): refused for roles that may not save them', async () => {
+      const id = randomUUID();
+      const cases: Array<[string, Role[], RegExp]> = [
+        ['sale-returns', ['warehouse_staff', 'viewer'], /save or post sales/],
+        ['purchase-returns', ['sales_staff', 'viewer'], /save or post purchases/],
+      ];
+      for (const [base, roles, message] of cases) {
+        for (const [method, path, body] of [
+          ['PUT', `/api/v1/${base}/${id}`, {}],
+          ['POST', `/api/v1/${base}/${id}/update-and-post`, {}],
+          ['POST', `/api/v1/${base}/${id}/cancel`, { reason: 'Test' }],
+        ] as Array<[string, string, unknown]>) {
+          for (const role of roles) {
+            const response = await request(method, path, { token: tokens[role], body });
+            expect(response.status, `${role} ${method} ${path}`).toBe(403);
+            expect(response.body.error.message).toMatch(message);
+          }
+        }
+      }
+      expect((await request('POST', `/api/v1/sale-returns/${id}/cancel`, { token: tokens.sales_staff, body: { reason: 'Test' } })).status).toBe(404);
+      expect((await request('POST', `/api/v1/purchase-returns/${id}/cancel`, { token: tokens.warehouse_staff, body: { reason: 'Test' } })).status).toBe(404);
+    });
+
     it('POST /stock-adjustments/drafts: only Admin, Top Management and Managers', async () => {
       for (const role of ['accountant', 'sales_staff', 'warehouse_staff', 'viewer'] as Role[]) {
         const response = await request('POST', '/api/v1/stock-adjustments/drafts', { token: tokens[role], body: {} });

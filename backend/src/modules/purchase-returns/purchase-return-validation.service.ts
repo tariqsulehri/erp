@@ -120,7 +120,8 @@ export class PurchaseReturnValidationService {
     return fiscalPeriod;
   }
 
-  async validate(input: ValidatePurchaseReturnInput) {
+  /** `options.excludeId` is the draft being edited, so its own Supplier Return No. is not reported as a duplicate. */
+  async validate(input: ValidatePurchaseReturnInput, options: { excludeId?: string } = {}) {
     const errors: string[] = [];
     const warnings: string[] = [];
     const returnDate = this.databaseDate(input.purchase_return_date);
@@ -196,6 +197,7 @@ export class PurchaseReturnValidationService {
           AND supplier_id = CAST(${supplier.id} AS uuid)
           AND LOWER(supplier_return_number) = LOWER(${input.supplier_return_number.trim()})
           AND status <> 'Voided'
+          AND id IS DISTINCT FROM ${options.excludeId ?? null}::uuid
         LIMIT 1
       `;
       if (duplicateRows[0]) {
