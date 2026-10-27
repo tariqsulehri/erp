@@ -390,7 +390,7 @@ CREATE TABLE public.bank_deposit_types (
     updated_by_id uuid,
     created_at timestamp(6) with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
     updated_at timestamp(6) with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    CONSTRAINT bank_deposit_types_deposit_kind_check CHECK (((deposit_kind)::text = ANY (ARRAY[('CASH'::character varying)::text, ('CHEQUE'::character varying)::text, ('BANK_TRANSFER'::character varying)::text, ('OTHER'::character varying)::text])))
+    CONSTRAINT bank_deposit_types_deposit_kind_check CHECK (((deposit_kind)::text = ANY ((ARRAY['CASH'::character varying, 'CHEQUE'::character varying, 'BANK_TRANSFER'::character varying, 'OTHER'::character varying])::text[])))
 );
 
 
@@ -586,9 +586,9 @@ CREATE TABLE public.customers (
     CONSTRAINT chk_customer_currency CHECK ((char_length(currency_code) = 3)),
     CONSTRAINT chk_customer_limit CHECK ((credit_limit >= (0)::numeric)),
     CONSTRAINT chk_customer_terms CHECK (((payment_terms_days >= 0) AND (payment_terms_days <= 365))),
-    CONSTRAINT chk_customer_type CHECK (((customer_type)::text = ANY (ARRAY[('individual'::character varying)::text, ('company'::character varying)::text, ('government'::character varying)::text]))),
+    CONSTRAINT chk_customer_type CHECK (((customer_type)::text = ANY ((ARRAY['individual'::character varying, 'company'::character varying, 'government'::character varying])::text[]))),
     CONSTRAINT chk_customers_main_role CHECK (((main_role)::text = 'Customer'::text)),
-    CONSTRAINT chk_customers_party_type CHECK (((party_type)::text = ANY (ARRAY[('Customer'::character varying)::text, ('Customer And Supplier'::character varying)::text])))
+    CONSTRAINT chk_customers_party_type CHECK (((party_type)::text = ANY ((ARRAY['Customer'::character varying, 'Customer And Supplier'::character varying])::text[])))
 );
 
 
@@ -951,10 +951,10 @@ CREATE TABLE public.general_settings (
     created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
     updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
     currency_position character varying(10) DEFAULT 'prefix'::character varying NOT NULL,
-    CONSTRAINT chk_general_settings_currency_position CHECK (((currency_position)::text = ANY (ARRAY[('prefix'::character varying)::text, ('suffix'::character varying)::text]))),
+    CONSTRAINT chk_general_settings_currency_position CHECK (((currency_position)::text = ANY ((ARRAY['prefix'::character varying, 'suffix'::character varying])::text[]))),
     CONSTRAINT chk_general_settings_decimal_places CHECK (((decimal_places >= 0) AND (decimal_places <= 6))),
     CONSTRAINT chk_general_settings_separators CHECK (((thousand_separator)::text <> (decimal_separator)::text)),
-    CONSTRAINT chk_general_settings_time_format CHECK (((time_format)::text = ANY (ARRAY[('12-hour'::character varying)::text, ('24-hour'::character varying)::text])))
+    CONSTRAINT chk_general_settings_time_format CHECK (((time_format)::text = ANY ((ARRAY['12-hour'::character varying, '24-hour'::character varying])::text[])))
 );
 
 
@@ -971,7 +971,8 @@ CREATE TABLE public.inventory_brands (
     sort_order integer DEFAULT 0 NOT NULL,
     is_active boolean DEFAULT true NOT NULL,
     created_at timestamp(3) without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    updated_at timestamp(3) without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+    updated_at timestamp(3) without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    notes text
 );
 
 
@@ -991,7 +992,8 @@ CREATE TABLE public.inventory_categories (
     sort_order integer DEFAULT 0 NOT NULL,
     is_active boolean DEFAULT true NOT NULL,
     created_at timestamp(3) without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    updated_at timestamp(3) without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+    updated_at timestamp(3) without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    notes text
 );
 
 
@@ -1022,6 +1024,25 @@ CREATE TABLE public.inventory_item_barcodes (
     barcode character varying(100) NOT NULL,
     label character varying(120),
     is_primary boolean DEFAULT false NOT NULL,
+    is_active boolean DEFAULT true NOT NULL,
+    created_at timestamp(3) without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at timestamp(3) without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
+
+--
+-- Name: inventory_item_colors; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.inventory_item_colors (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    company_id uuid NOT NULL,
+    code character varying(30) NOT NULL,
+    name character varying(120) NOT NULL,
+    hex_code character varying(20),
+    description text,
+    notes text,
+    sort_order integer DEFAULT 0 NOT NULL,
     is_active boolean DEFAULT true NOT NULL,
     created_at timestamp(3) without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
     updated_at timestamp(3) without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
@@ -1096,7 +1117,8 @@ CREATE TABLE public.inventory_item_sizes (
     sort_order integer DEFAULT 0 NOT NULL,
     is_active boolean DEFAULT true NOT NULL,
     created_at timestamp(3) without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    updated_at timestamp(3) without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+    updated_at timestamp(3) without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    notes text
 );
 
 
@@ -1159,7 +1181,9 @@ CREATE TABLE public.inventory_items (
     created_by_id uuid,
     updated_by_id uuid,
     created_at timestamp(3) without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    updated_at timestamp(3) without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+    updated_at timestamp(3) without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    notes text,
+    color_id uuid
 );
 
 
@@ -1176,7 +1200,8 @@ CREATE TABLE public.inventory_origins (
     sort_order integer DEFAULT 0 NOT NULL,
     is_active boolean DEFAULT true NOT NULL,
     created_at timestamp(3) without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    updated_at timestamp(3) without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+    updated_at timestamp(3) without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    notes text
 );
 
 
@@ -1193,7 +1218,8 @@ CREATE TABLE public.inventory_product_types (
     sort_order integer DEFAULT 0 NOT NULL,
     is_active boolean DEFAULT true NOT NULL,
     created_at timestamp(3) without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    updated_at timestamp(3) without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+    updated_at timestamp(3) without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    notes text
 );
 
 
@@ -1216,6 +1242,7 @@ CREATE TABLE public.inventory_stock_balances (
     created_at timestamp(3) without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
     updated_at timestamp(3) without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
     branch_id uuid,
+    version integer DEFAULT 1 NOT NULL,
     CONSTRAINT inventory_stock_balances_holder_check CHECK (((branch_id IS NULL) <> (warehouse_id IS NULL)))
 );
 
@@ -1438,9 +1465,10 @@ CREATE TABLE public.purchase_invoices (
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
     location_id uuid,
+    version integer DEFAULT 1 NOT NULL,
     CONSTRAINT chk_purchase_invoices_amounts CHECK (((gross_amount >= (0)::numeric) AND (discount_amount >= (0)::numeric) AND (tax_amount >= (0)::numeric) AND (freight_amount >= (0)::numeric) AND (net_amount >= (0)::numeric))),
-    CONSTRAINT chk_purchase_invoices_payment_type CHECK (((payment_type)::text = ANY (ARRAY[('Cash'::character varying)::text, ('Credit'::character varying)::text]))),
-    CONSTRAINT chk_purchase_invoices_status CHECK (((status)::text = ANY (ARRAY[('Draft'::character varying)::text, ('Posted'::character varying)::text, ('Voided'::character varying)::text])))
+    CONSTRAINT chk_purchase_invoices_payment_type CHECK (((payment_type)::text = ANY ((ARRAY['Cash'::character varying, 'Credit'::character varying])::text[]))),
+    CONSTRAINT chk_purchase_invoices_status CHECK (((status)::text = ANY ((ARRAY['Draft'::character varying, 'Posted'::character varying, 'Voided'::character varying])::text[])))
 );
 
 
@@ -1508,8 +1536,8 @@ CREATE TABLE public.purchase_returns (
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
     location_id uuid,
     CONSTRAINT chk_purchase_returns_amounts CHECK (((gross_amount >= (0)::numeric) AND (discount_amount >= (0)::numeric) AND (tax_amount >= (0)::numeric) AND (freight_amount >= (0)::numeric) AND (net_amount >= (0)::numeric))),
-    CONSTRAINT chk_purchase_returns_payment_type CHECK (((payment_type)::text = ANY (ARRAY[('Cash'::character varying)::text, ('Credit'::character varying)::text]))),
-    CONSTRAINT chk_purchase_returns_status CHECK (((status)::text = ANY (ARRAY[('Draft'::character varying)::text, ('Posted'::character varying)::text, ('Voided'::character varying)::text])))
+    CONSTRAINT chk_purchase_returns_payment_type CHECK (((payment_type)::text = ANY ((ARRAY['Cash'::character varying, 'Credit'::character varying])::text[]))),
+    CONSTRAINT chk_purchase_returns_status CHECK (((status)::text = ANY ((ARRAY['Draft'::character varying, 'Posted'::character varying, 'Voided'::character varying])::text[])))
 );
 
 
@@ -1601,9 +1629,10 @@ CREATE TABLE public.sale_invoices (
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
     location_id uuid,
     branch_id uuid,
+    version integer DEFAULT 1 NOT NULL,
     CONSTRAINT chk_sale_invoices_amounts CHECK (((gross_amount >= (0)::numeric) AND (discount_amount >= (0)::numeric) AND (tax_amount >= (0)::numeric) AND (freight_amount >= (0)::numeric) AND (net_amount >= (0)::numeric) AND (cost_amount >= (0)::numeric))),
-    CONSTRAINT chk_sale_invoices_payment_type CHECK (((payment_type)::text = ANY (ARRAY[('Cash'::character varying)::text, ('Credit'::character varying)::text]))),
-    CONSTRAINT chk_sale_invoices_status CHECK (((status)::text = ANY (ARRAY[('Draft'::character varying)::text, ('Posted'::character varying)::text, ('Voided'::character varying)::text]))),
+    CONSTRAINT chk_sale_invoices_payment_type CHECK (((payment_type)::text = ANY ((ARRAY['Cash'::character varying, 'Credit'::character varying])::text[]))),
+    CONSTRAINT chk_sale_invoices_status CHECK (((status)::text = ANY ((ARRAY['Draft'::character varying, 'Posted'::character varying, 'Voided'::character varying])::text[]))),
     CONSTRAINT sale_invoices_holder_check CHECK (((branch_id IS NULL) <> (warehouse_id IS NULL)))
 );
 
@@ -1678,8 +1707,8 @@ CREATE TABLE public.sale_returns (
     location_id uuid,
     branch_id uuid,
     CONSTRAINT chk_sale_returns_amounts CHECK (((gross_amount >= (0)::numeric) AND (discount_amount >= (0)::numeric) AND (tax_amount >= (0)::numeric) AND (freight_amount >= (0)::numeric) AND (net_amount >= (0)::numeric) AND (cost_amount >= (0)::numeric))),
-    CONSTRAINT chk_sale_returns_payment_type CHECK (((payment_type)::text = ANY (ARRAY[('Cash'::character varying)::text, ('Credit'::character varying)::text]))),
-    CONSTRAINT chk_sale_returns_status CHECK (((status)::text = ANY (ARRAY[('Draft'::character varying)::text, ('Posted'::character varying)::text, ('Voided'::character varying)::text]))),
+    CONSTRAINT chk_sale_returns_payment_type CHECK (((payment_type)::text = ANY ((ARRAY['Cash'::character varying, 'Credit'::character varying])::text[]))),
+    CONSTRAINT chk_sale_returns_status CHECK (((status)::text = ANY ((ARRAY['Draft'::character varying, 'Posted'::character varying, 'Voided'::character varying])::text[]))),
     CONSTRAINT sale_returns_holder_check CHECK (((branch_id IS NULL) <> (warehouse_id IS NULL)))
 );
 
@@ -1739,7 +1768,7 @@ CREATE TABLE public.stock_adjustment_lines (
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
     is_active boolean DEFAULT true NOT NULL,
-    CONSTRAINT stock_adjustment_lines_adjustment_type_check CHECK (((adjustment_type)::text = ANY (ARRAY[('Increase'::character varying)::text, ('Decrease'::character varying)::text]))),
+    CONSTRAINT stock_adjustment_lines_adjustment_type_check CHECK (((adjustment_type)::text = ANY ((ARRAY['Increase'::character varying, 'Decrease'::character varying])::text[]))),
     CONSTRAINT stock_adjustment_lines_quantity_check CHECK ((quantity > (0)::numeric)),
     CONSTRAINT stock_adjustment_lines_unit_cost_check CHECK ((unit_cost >= (0)::numeric))
 );
@@ -1789,8 +1818,12 @@ CREATE TABLE public.stock_adjustments (
     is_active boolean DEFAULT true NOT NULL,
     accounting_voucher_id uuid,
     branch_id uuid,
+    version integer DEFAULT 1 NOT NULL,
+    voided_by_id uuid,
+    voided_at timestamp(6) with time zone,
+    void_reason text,
     CONSTRAINT stock_adjustments_holder_check CHECK (((branch_id IS NULL) <> (warehouse_id IS NULL))),
-    CONSTRAINT stock_adjustments_status_check CHECK (((status)::text = ANY (ARRAY[('Draft'::character varying)::text, ('Posted'::character varying)::text, ('Voided'::character varying)::text])))
+    CONSTRAINT stock_adjustments_status_check CHECK (((status)::text = ANY ((ARRAY['Draft'::character varying, 'Posted'::character varying, 'Voided'::character varying])::text[])))
 );
 
 
@@ -1845,8 +1878,11 @@ CREATE TABLE public.stock_transfers (
     is_active boolean DEFAULT true NOT NULL,
     from_branch_id uuid,
     to_branch_id uuid,
+    voided_by_id uuid,
+    voided_at timestamp(6) with time zone,
+    void_reason text,
     CONSTRAINT stock_transfers_from_holder_check CHECK (((from_branch_id IS NULL) <> (from_warehouse_id IS NULL))),
-    CONSTRAINT stock_transfers_status_check CHECK (((status)::text = ANY (ARRAY[('Draft'::character varying)::text, ('Posted'::character varying)::text, ('Voided'::character varying)::text]))),
+    CONSTRAINT stock_transfers_status_check CHECK (((status)::text = ANY ((ARRAY['Draft'::character varying, 'Posted'::character varying, 'Voided'::character varying])::text[]))),
     CONSTRAINT stock_transfers_to_holder_check CHECK (((to_branch_id IS NULL) <> (to_warehouse_id IS NULL)))
 );
 
@@ -1886,9 +1922,29 @@ CREATE TABLE public.suppliers (
     main_role character varying(20) DEFAULT 'Supplier'::character varying NOT NULL,
     CONSTRAINT chk_supplier_currency CHECK ((char_length(currency_code) = 3)),
     CONSTRAINT chk_supplier_terms CHECK (((payment_terms_days >= 0) AND (payment_terms_days <= 365))),
-    CONSTRAINT chk_supplier_type CHECK (((supplier_type)::text = ANY (ARRAY[('individual'::character varying)::text, ('company'::character varying)::text, ('government'::character varying)::text]))),
+    CONSTRAINT chk_supplier_type CHECK (((supplier_type)::text = ANY ((ARRAY['individual'::character varying, 'company'::character varying, 'government'::character varying])::text[]))),
     CONSTRAINT chk_suppliers_main_role CHECK (((main_role)::text = 'Supplier'::text)),
-    CONSTRAINT chk_suppliers_party_type CHECK (((party_type)::text = ANY (ARRAY[('Supplier'::character varying)::text, ('Customer And Supplier'::character varying)::text])))
+    CONSTRAINT chk_suppliers_party_type CHECK (((party_type)::text = ANY ((ARRAY['Supplier'::character varying, 'Customer And Supplier'::character varying])::text[])))
+);
+
+
+--
+-- Name: system_audit_logs; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.system_audit_logs (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    company_id uuid NOT NULL,
+    user_id uuid,
+    user_name character varying(150) NOT NULL,
+    user_email character varying(150),
+    action character varying(50) NOT NULL,
+    entity_name character varying(100) NOT NULL,
+    entity_id character varying(100),
+    description character varying(500),
+    details jsonb,
+    ip_address character varying(45),
+    created_at timestamp(6) with time zone DEFAULT now() NOT NULL
 );
 
 
@@ -1908,7 +1964,7 @@ CREATE TABLE public.user_company_access (
     updated_by_id uuid,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
-    CONSTRAINT user_company_access_level_check CHECK (((access_level)::text = ANY (ARRAY[('ALL_BRANCHES'::character varying)::text, ('BRANCH'::character varying)::text, ('WAREHOUSE'::character varying)::text]))),
+    CONSTRAINT user_company_access_level_check CHECK (((access_level)::text = ANY ((ARRAY['ALL_BRANCHES'::character varying, 'BRANCH'::character varying, 'WAREHOUSE'::character varying])::text[]))),
     CONSTRAINT user_company_access_scope_check CHECK (((((access_level)::text = 'ALL_BRANCHES'::text) AND (branch_id IS NULL) AND (warehouse_id IS NULL)) OR (((access_level)::text = 'BRANCH'::text) AND (branch_id IS NOT NULL) AND (warehouse_id IS NULL)) OR (((access_level)::text = 'WAREHOUSE'::text) AND (warehouse_id IS NOT NULL) AND (branch_id IS NULL))))
 );
 
@@ -1930,7 +1986,8 @@ CREATE TABLE public.users (
     updated_by_id uuid,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
-    CONSTRAINT users_role_check CHECK (((role)::text = ANY (ARRAY[('admin'::character varying)::text, ('top_management'::character varying)::text, ('manager'::character varying)::text, ('accountant'::character varying)::text, ('sales_staff'::character varying)::text, ('warehouse_staff'::character varying)::text, ('viewer'::character varying)::text])))
+    is_system boolean DEFAULT false NOT NULL,
+    CONSTRAINT users_role_check CHECK (((role)::text = ANY ((ARRAY['admin'::character varying, 'top_management'::character varying, 'manager'::character varying, 'accountant'::character varying, 'sales_staff'::character varying, 'warehouse_staff'::character varying, 'viewer'::character varying])::text[])))
 );
 
 
@@ -1994,7 +2051,8 @@ CREATE TABLE public.vouchers (
     reversed_by uuid,
     reversed_at timestamp with time zone,
     reversal_reason text,
-    CONSTRAINT vouchers_approval_status_check CHECK (((approval_status)::text = ANY (ARRAY[('Not Required'::character varying)::text, ('Pending'::character varying)::text, ('Approved'::character varying)::text, ('Rejected'::character varying)::text]))),
+    version integer DEFAULT 1 NOT NULL,
+    CONSTRAINT vouchers_approval_status_check CHECK (((approval_status)::text = ANY ((ARRAY['Not Required'::character varying, 'Pending'::character varying, 'Approved'::character varying, 'Rejected'::character varying])::text[]))),
     CONSTRAINT vouchers_voucher_type_check CHECK (((voucher_type)::text = ANY ((ARRAY['BRV'::character varying, 'BPV'::character varying, 'CRV'::character varying, 'CPV'::character varying, 'JV'::character varying, 'CV'::character varying, 'DN'::character varying, 'CN'::character varying, 'PI'::character varying, 'PR'::character varying, 'SI'::character varying, 'SR'::character varying, 'SA'::character varying, 'RV'::character varying, 'CL'::character varying])::text[])))
 );
 
@@ -2277,6 +2335,14 @@ ALTER TABLE ONLY public.inventory_item_barcodes
 
 
 --
+-- Name: inventory_item_colors inventory_item_colors_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.inventory_item_colors
+    ADD CONSTRAINT inventory_item_colors_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: inventory_item_groups inventory_item_groups_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -2530,6 +2596,14 @@ ALTER TABLE ONLY public.stock_transfers
 
 ALTER TABLE ONLY public.suppliers
     ADD CONSTRAINT suppliers_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: system_audit_logs system_audit_logs_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.system_audit_logs
+    ADD CONSTRAINT system_audit_logs_pkey PRIMARY KEY (id);
 
 
 --
@@ -3095,6 +3169,13 @@ CREATE INDEX idx_purchase_invoices_company_status ON public.purchase_invoices US
 
 
 --
+-- Name: idx_purchase_invoices_doc_numbering; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_purchase_invoices_doc_numbering ON public.purchase_invoices USING btree (company_id, "substring"((purchase_number)::text, '^[A-Z]+-[0-9]+-([0-9]+)$'::text));
+
+
+--
 -- Name: idx_purchase_invoices_supplier; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -3165,6 +3246,13 @@ CREATE INDEX idx_sale_invoices_customer_date ON public.sale_invoices USING btree
 
 
 --
+-- Name: idx_sale_invoices_doc_numbering; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_sale_invoices_doc_numbering ON public.sale_invoices USING btree (company_id, "substring"((sale_number)::text, '^[A-Z]+-[0-9]+-([0-9]+)$'::text));
+
+
+--
 -- Name: idx_sale_return_lines_item; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -3190,6 +3278,27 @@ CREATE INDEX idx_sale_returns_company_status_date ON public.sale_returns USING b
 --
 
 CREATE INDEX idx_sale_returns_customer_date ON public.sale_returns USING btree (company_id, customer_id, sale_return_date DESC);
+
+
+--
+-- Name: idx_stock_adjustments_doc_numbering; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_stock_adjustments_doc_numbering ON public.stock_adjustments USING btree (company_id, "substring"((adjustment_number)::text, '^[A-Z]+-[0-9]+-([0-9]+)$'::text));
+
+
+--
+-- Name: idx_stock_balances_lookup; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_stock_balances_lookup ON public.inventory_stock_balances USING btree (company_id, item_id, warehouse_id);
+
+
+--
+-- Name: idx_stock_movements_comp_item_wh_date; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_stock_movements_comp_item_wh_date ON public.inventory_stock_movements USING btree (company_id, item_id, warehouse_id, movement_date);
 
 
 --
@@ -3228,10 +3337,59 @@ CREATE INDEX idx_suppliers_party_type ON public.suppliers USING btree (company_i
 
 
 --
+-- Name: idx_system_audit_logs_company_action; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_system_audit_logs_company_action ON public.system_audit_logs USING btree (company_id, action);
+
+
+--
+-- Name: idx_system_audit_logs_company_created; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_system_audit_logs_company_created ON public.system_audit_logs USING btree (company_id, created_at DESC);
+
+
+--
+-- Name: idx_system_audit_logs_company_entity; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_system_audit_logs_company_entity ON public.system_audit_logs USING btree (company_id, entity_name);
+
+
+--
+-- Name: idx_system_audit_logs_company_user; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_system_audit_logs_company_user ON public.system_audit_logs USING btree (company_id, user_id);
+
+
+--
+-- Name: idx_user_company_access_user_active; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_user_company_access_user_active ON public.user_company_access USING btree (user_id, is_active);
+
+
+--
+-- Name: idx_users_is_system; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_users_is_system ON public.users USING btree (is_system);
+
+
+--
 -- Name: idx_voucher_lines_account; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX idx_voucher_lines_account ON public.voucher_lines USING btree (account_id);
+
+
+--
+-- Name: idx_voucher_lines_company_account_code; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_voucher_lines_company_account_code ON public.voucher_lines USING btree (company_id, account_code);
 
 
 --
@@ -3270,6 +3428,13 @@ CREATE INDEX idx_voucher_lines_voucher ON public.voucher_lines USING btree (vouc
 
 
 --
+-- Name: idx_voucher_lines_voucher_line_no; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_voucher_lines_voucher_line_no ON public.voucher_lines USING btree (voucher_id, line_no);
+
+
+--
 -- Name: idx_vouchers_approval_status; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -3281,6 +3446,13 @@ CREATE INDEX idx_vouchers_approval_status ON public.vouchers USING btree (compan
 --
 
 CREATE INDEX idx_vouchers_company_approval_date ON public.vouchers USING btree (company_id, approval_status, voucher_date);
+
+
+--
+-- Name: idx_vouchers_company_created_at; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_vouchers_company_created_at ON public.vouchers USING btree (company_id, created_at);
 
 
 --
@@ -3302,6 +3474,20 @@ CREATE INDEX idx_vouchers_company_status ON public.vouchers USING btree (company
 --
 
 CREATE INDEX idx_vouchers_company_status_date_id ON public.vouchers USING btree (company_id, status, voucher_date, id);
+
+
+--
+-- Name: idx_vouchers_company_type_number; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_vouchers_company_type_number ON public.vouchers USING btree (company_id, voucher_type, voucher_number);
+
+
+--
+-- Name: idx_vouchers_doc_numbering; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_vouchers_doc_numbering ON public.vouchers USING btree (company_id, "substring"((voucher_number)::text, '^[A-Z]+-[0-9]+-([0-9]+)$'::text));
 
 
 --
@@ -3382,6 +3568,20 @@ CREATE INDEX inventory_item_barcodes_company_id_item_id_idx ON public.inventory_
 
 
 --
+-- Name: inventory_item_colors_company_id_code_key; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX inventory_item_colors_company_id_code_key ON public.inventory_item_colors USING btree (company_id, code);
+
+
+--
+-- Name: inventory_item_colors_company_id_is_active_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX inventory_item_colors_company_id_is_active_idx ON public.inventory_item_colors USING btree (company_id, is_active);
+
+
+--
 -- Name: inventory_item_groups_company_id_code_key; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -3449,6 +3649,13 @@ CREATE INDEX inventory_items_company_id_brand_id_idx ON public.inventory_items U
 --
 
 CREATE INDEX inventory_items_company_id_category_id_idx ON public.inventory_items USING btree (company_id, category_id);
+
+
+--
+-- Name: inventory_items_company_id_color_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX inventory_items_company_id_color_id_idx ON public.inventory_items USING btree (company_id, color_id);
 
 
 --
@@ -4641,6 +4848,14 @@ ALTER TABLE ONLY public.inventory_item_barcodes
 
 
 --
+-- Name: inventory_item_colors inventory_item_colors_company_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.inventory_item_colors
+    ADD CONSTRAINT inventory_item_colors_company_id_fkey FOREIGN KEY (company_id) REFERENCES public.companies(id) ON UPDATE CASCADE ON DELETE RESTRICT;
+
+
+--
 -- Name: inventory_item_groups inventory_item_groups_company_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -4694,6 +4909,14 @@ ALTER TABLE ONLY public.inventory_items
 
 ALTER TABLE ONLY public.inventory_items
     ADD CONSTRAINT inventory_items_category_id_fkey FOREIGN KEY (category_id) REFERENCES public.inventory_categories(id) ON UPDATE CASCADE ON DELETE SET NULL;
+
+
+--
+-- Name: inventory_items inventory_items_color_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.inventory_items
+    ADD CONSTRAINT inventory_items_color_id_fkey FOREIGN KEY (color_id) REFERENCES public.inventory_item_colors(id) ON UPDATE CASCADE ON DELETE SET NULL;
 
 
 --
@@ -5198,6 +5421,22 @@ ALTER TABLE ONLY public.stock_transfers
 
 ALTER TABLE ONLY public.stock_transfers
     ADD CONSTRAINT stock_transfers_to_warehouse_id_fkey FOREIGN KEY (to_warehouse_id) REFERENCES public.inventory_warehouses(id);
+
+
+--
+-- Name: system_audit_logs system_audit_logs_company_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.system_audit_logs
+    ADD CONSTRAINT system_audit_logs_company_id_fkey FOREIGN KEY (company_id) REFERENCES public.companies(id) ON DELETE CASCADE;
+
+
+--
+-- Name: system_audit_logs system_audit_logs_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.system_audit_logs
+    ADD CONSTRAINT system_audit_logs_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE SET NULL;
 
 
 --

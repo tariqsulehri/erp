@@ -994,6 +994,9 @@ model StockTransfer {
   updatedById     String?             @map("updated_by_id") @db.Uuid
   postedById      String?             @map("posted_by_id") @db.Uuid
   postedAt        DateTime?           @map("posted_at") @db.Timestamptz(6)
+  voidedById      String?             @map("voided_by_id") @db.Uuid
+  voidedAt        DateTime?           @map("voided_at") @db.Timestamptz(6)
+  voidReason      String?             @map("void_reason")
   createdAt       DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt       DateTime            @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
   isActive        Boolean             @default(true) @map("is_active")
@@ -1053,6 +1056,9 @@ model StockAdjustment {
   updatedById         String?               @map("updated_by_id") @db.Uuid
   postedById          String?               @map("posted_by_id") @db.Uuid
   postedAt            DateTime?             @map("posted_at") @db.Timestamptz(6)
+  voidedById          String?               @map("voided_by_id") @db.Uuid
+  voidedAt            DateTime?             @map("voided_at") @db.Timestamptz(6)
+  voidReason          String?               @map("void_reason")
   createdAt           DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt           DateTime              @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
   version             Int                   @default(1)
