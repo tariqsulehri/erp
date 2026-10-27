@@ -8,6 +8,7 @@ import { useBankAccountsList } from '@/lib/api/bank-accounts';
 import { usePostingDateGuard } from '@/lib/api/fiscal-years';
 import { useGeneralSettings } from '@/lib/api/settings';
 import { useCreateVoucher, useUpdateVoucher, useVoucherDetail } from '@/lib/api/vouchers';
+import { Button } from '@/components/ui/Button';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { FieldLabel } from '@/components/ui/FieldLabel';
 import { DateField, NumericField, TextField } from '@/components/ui/FormFields';
@@ -38,6 +39,9 @@ import {
   today,
   type VoucherMessageKind,
 } from './VoucherShared';
+
+import { AccountSearchDialog } from '@/components/search/AccountSearchDialog';
+import { IconSearch } from '@tabler/icons-react';
 
 type VoucherKind = 'BPV' | 'CPV' | 'CRV';
 type MessageKind = VoucherMessageKind;
@@ -116,7 +120,7 @@ const voucherConfigs: Record<VoucherKind, VoucherConfig> = {
   },
 };
 
-const INITIAL_LINE_COUNT = 12;
+const INITIAL_LINE_COUNT = 1;
 const blankLine = (id: number): CashBankLine => ({
   id,
   accountId: '',
@@ -126,7 +130,7 @@ const blankLine = (id: number): CashBankLine => ({
   clearingDate: '',
   amount: '',
 });
-const initialLines = () => Array.from({ length: INITIAL_LINE_COUNT }, (_, index) => blankLine(index + 1));
+const initialLines = () => [blankLine(1)];
 
 export default function CashBankVoucherPage({ voucherType }: { voucherType: VoucherKind }) {
   const config = voucherConfigs[voucherType];
@@ -140,8 +144,9 @@ export default function CashBankVoucherPage({ voucherType }: { voucherType: Vouc
   const [referenceNumber, setReferenceNumber] = useState('');
   const [description, setDescription] = useState('');
   const [primaryAccountId, setPrimaryAccountId] = useState('');
+  const [primaryAccountSearchOpen, setPrimaryAccountSearchOpen] = useState(false);
   const [lines, setLines] = useState<CashBankLine[]>(initialLines);
-  const [nextLineId, setNextLineId] = useState(INITIAL_LINE_COUNT + 1);
+  const [nextLineId, setNextLineId] = useState(2);
   const [message, setMessage] = useState<{ kind: MessageKind; text: string } | null>(null);
   const [processConfirmOpen, setProcessConfirmOpen] = useState(false);
   const postingDateGuard = usePostingDateGuard(voucherDate, config.dateLabel);
@@ -245,17 +250,14 @@ export default function CashBankVoucherPage({ voucherType }: { voucherType: Vouc
       clearingDate: '',
       amount: config.direction === 'payment' ? String(line.dr_amount ?? '') : String(line.cr_amount ?? ''),
     }));
-    const paddedLines = [...detailLines];
-    while (paddedLines.length < INITIAL_LINE_COUNT) {
-      paddedLines.push(blankLine(paddedLines.length + 1));
-    }
+    const initialLoadedLines = detailLines.length > 0 ? detailLines : [blankLine(1)];
 
     setVoucherDate(String(voucher.voucher_date ?? '').slice(0, 10));
     setReferenceNumber(voucher.reference || '');
     setDescription(voucher.narration || '');
     setPrimaryAccountId(primaryLine?.account_id || '');
-    setLines(paddedLines);
-    setNextLineId(paddedLines.length + 1);
+    setLines(initialLoadedLines);
+    setNextLineId(initialLoadedLines.length + 1);
     setMessage(null);
   }, [config.direction, config.title, config.voucherType, detailQuery.data, editingVoucherId]);
 
@@ -451,13 +453,25 @@ export default function CashBankVoucherPage({ voucherType }: { voucherType: Vouc
         <TextField label="Reference Number" value={referenceNumber} onChange={setReferenceNumber} placeholder="Reference, Note, or Document No." />
         <div className="span-2">
           <FieldLabel label={config.primaryAccountLabel} required>
-            <SearchableSelect
-              value={primaryAccountId}
-              options={primaryAccountOptions}
-              onChange={setPrimaryAccountId}
-              placeholder={primaryAccountsLoading ? 'Loading Accounts' : primaryAccountsError ? 'Accounts Not Loaded' : config.primaryAccountPlaceholder}
-              disabled={primaryAccountsLoading || Boolean(primaryAccountsError)}
-            />
+            <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <SearchableSelect
+                  value={primaryAccountId}
+                  options={primaryAccountOptions}
+                  onChange={setPrimaryAccountId}
+                  placeholder={primaryAccountsLoading ? 'Loading Accounts' : primaryAccountsError ? 'Accounts Not Loaded' : config.primaryAccountPlaceholder}
+                  disabled={primaryAccountsLoading || Boolean(primaryAccountsError)}
+                />
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                icon={<IconSearch size={16} stroke={1.8} />}
+                onClick={() => setPrimaryAccountSearchOpen(true)}
+                title={`Advanced ${config.primaryAccountKind} Lookup`}
+                aria-label={`Search ${config.primaryAccountLabel}`}
+              />
+            </div>
           </FieldLabel>
         </div>
         <NumericField label="Current Balance" value={money(currentBalance)} disabled />
@@ -487,11 +501,35 @@ export default function CashBankVoucherPage({ voucherType }: { voucherType: Vouc
           accountOptions={lineAccountOptions}
           accountsLoading={accountsLoading}
           accountsError={Boolean(accountsError)}
+          bankAccountId={config.primaryAccountKind === 'Bank' ? primaryAccountId : undefined}
+          bankAccountTitle={selectedPrimaryAccount?.label}
+          voucherDate={voucherDate}
           generalSettings={generalSettings}
           onUpdateLine={updateLine}
           onRemoveLine={removeLine}
+          onAddLine={addLine}
         />
       </LinesPanel>
+
+      {/* Primary Account Advanced Search Modal */}
+      {primaryAccountSearchOpen && (
+        <AccountSearchDialog
+          open={true}
+          title={`Select ${config.primaryAccountKind} Account`}
+          options={primaryAccountOptions.map(opt => ({
+            value: opt.value,
+            label: opt.label,
+            code: opt.code,
+            name: opt.name,
+            searchText: opt.searchText,
+          }))}
+          onSelect={opt => {
+            setPrimaryAccountId(opt.value);
+            setPrimaryAccountSearchOpen(false);
+          }}
+          onClose={() => setPrimaryAccountSearchOpen(false)}
+        />
+      )}
 
       <ConfirmDialog
         open={processConfirmOpen}

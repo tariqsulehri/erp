@@ -97,30 +97,26 @@ export function UserForm({ editId, form, setForm, notice, saving, canAssignAdmin
 
           <div className="form-section">
             <h2 className="form-section-title">Role And Access</h2>
-            <div className="form-grid">
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '14px 20px', alignItems: 'start' }}>
               <SelectField label="Role" required value={form.role} options={roleOptions} placeholder="Select Role" disabled={form.is_system} onChange={value => setForm(current => withRole(current, value as UserRole | ''))} />
               <SelectField label="Access Level" required value={form.access_level} options={accessLevelOptions} placeholder={form.role ? 'Select Access Level' : 'Select a Role First'} disabled={form.is_system || accessLevelOptions.length <= 1} onChange={value => setField('access_level', value as UserFormState['access_level'])} />
               {form.access_level === 'BRANCH' && (
-                <div className="span-2">
-                  <FieldLabel label="Branch" required>
-                    <SearchableSelect value={form.branch_id} options={branchOptions} onChange={value => setField('branch_id', value)} placeholder={branchesQuery.isLoading ? 'Loading Branches' : 'Search Branch'} disabled={branchesQuery.isLoading} />
-                  </FieldLabel>
-                </div>
+                <FieldLabel label="Branch" required>
+                  <SearchableSelect value={form.branch_id} options={branchOptions} onChange={value => setField('branch_id', value)} placeholder={branchesQuery.isLoading ? 'Loading Branches' : 'Search Branch'} disabled={branchesQuery.isLoading} />
+                </FieldLabel>
               )}
               {form.access_level === 'WAREHOUSE' && (
-                <div className="span-2">
-                  <FieldLabel label="Warehouse" required>
-                    <SearchableSelect value={form.warehouse_id} options={warehouseOptions} onChange={value => setField('warehouse_id', value)} placeholder={warehousesQuery.isLoading ? 'Loading Warehouses' : 'Search Warehouse'} disabled={warehousesQuery.isLoading} />
-                  </FieldLabel>
-                </div>
+                <FieldLabel label="Warehouse" required>
+                  <SearchableSelect value={form.warehouse_id} options={warehouseOptions} onChange={value => setField('warehouse_id', value)} placeholder={warehousesQuery.isLoading ? 'Loading Warehouses' : 'Search Warehouse'} disabled={warehousesQuery.isLoading} />
+                </FieldLabel>
               )}
             </div>
             {form.is_system ? (
-              <p className="form-hint" style={{ color: 'var(--color-primary)' }}>
+              <p className="form-hint" style={{ color: 'var(--color-primary)', marginTop: 8 }}>
                 System Super-Admin has permanent All Branches administrative access and cannot be demoted.
               </p>
             ) : (
-              <p className="form-hint">
+              <p className="form-hint" style={{ marginTop: 8 }}>
                 Branch users see and sell only their Branch stock. Warehouse users see only their Warehouse stock.
                 Admin and Top Management always have All Branches access.
               </p>
@@ -164,12 +160,20 @@ function ResetPasswordSection({ userId }: { userId: string }) {
     <div className="form-section">
       <h2 className="form-section-title">Reset Password</h2>
       {notice && <div style={{ marginBottom: 12 }}><InlineAlert tone={notice.tone}>{notice.text}</InlineAlert></div>}
-      <div className="form-grid">
-        <div className="span-2">
-          <TextField label="New Password" value={newPassword} onChange={setNewPassword} inputProps={{ type: 'password', autoComplete: 'new-password' }} hint={`At least ${PASSWORD_MIN_LENGTH} characters. The user is signed out everywhere.`} />
+      <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start', maxWidth: 640 }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <TextField
+            label="New Password"
+            value={newPassword}
+            onChange={setNewPassword}
+            inputProps={{ type: 'password', autoComplete: 'new-password' }}
+            hint={`At least ${PASSWORD_MIN_LENGTH} characters. The user is signed out everywhere.`}
+          />
         </div>
-        <div style={{ alignSelf: 'end' }}>
-          <Button variant="secondary" icon={<IconKey size={16} stroke={1.8} />} onClick={reset} loading={resetPassword.isPending}>Reset Password</Button>
+        <div style={{ paddingTop: 26, flexShrink: 0 }}>
+          <Button variant="secondary" icon={<IconKey size={16} stroke={1.8} />} onClick={reset} loading={resetPassword.isPending}>
+            Reset Password
+          </Button>
         </div>
       </div>
     </div>
