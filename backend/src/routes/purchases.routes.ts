@@ -3,7 +3,7 @@ import { currentUserId, resolveAccessScope, requirePermission } from '../http/ac
 import { assertWarehouseDocumentAccess, purchaseWarehouseFilter, requireAllBranchAccess, resolvePurchasingWarehouseId } from '../modules/inventory/stock-holder-access.js';
 import { PurchaseAnalyticsQuery, PurchaseAnalyticsService } from '../modules/purchases/purchase-analytics.service.js';
 import { PurchaseDetailService } from '../modules/purchases/purchase-detail.service.js';
-import { PurchaseDraftService } from '../modules/purchases/purchase-draft.service.js';
+import { CancelPurchaseDraftInput, PurchaseDraftService } from '../modules/purchases/purchase-draft.service.js';
 import { ListPurchaseInvoicesQuery, PurchaseListService } from '../modules/purchases/purchase-list.service.js';
 import { PurchasePostService } from '../modules/purchases/purchase-post.service.js';
 import { PurchaseSupportService } from '../modules/purchases/purchase-support.service.js';
@@ -87,11 +87,52 @@ purchasesRouter.post('/create-and-post', requirePermission('purchases.edit'), as
     const companyId = scope.companyId;
     const parsed = ValidatePurchaseInvoiceInput.parse(req.body);
     const input = { ...parsed, warehouse_id: resolvePurchasingWarehouseId(scope, parsed.warehouse_id, 'Purchase Voucher') };
-    const userId = currentUserId(req);
-    const draftService = new PurchaseDraftService(companyId);
-    const postService = new PurchasePostService(companyId);
-    const draft = await draftService.createDraft(input, userId);
-    res.status(201).json(await postService.post(draft.id, userId));
+    const service = new PurchaseDraftService(companyId);
+    res.status(201).json(await service.createAndPost(input, currentUserId(req)));
+  } catch (error) {
+    next(error);
+  }
+});
+
+purchasesRouter.put('/:id', requirePermission('purchases.edit'), async (req, res, next) => {
+  try {
+    const scope = resolveAccessScope(req);
+    const companyId = scope.companyId;
+    const { id } = purchaseIdParams.parse(req.params);
+    await assertWarehouseDocumentAccess(scope, 'purchase_invoices', id);
+    const parsed = ValidatePurchaseInvoiceInput.parse(req.body);
+    const input = { ...parsed, warehouse_id: resolvePurchasingWarehouseId(scope, parsed.warehouse_id, 'Purchase Voucher') };
+    const service = new PurchaseDraftService(companyId);
+    res.json(await service.updateDraft(id, input, currentUserId(req)));
+  } catch (error) {
+    next(error);
+  }
+});
+
+purchasesRouter.post('/:id/update-and-post', requirePermission('purchases.edit'), async (req, res, next) => {
+  try {
+    const scope = resolveAccessScope(req);
+    const companyId = scope.companyId;
+    const { id } = purchaseIdParams.parse(req.params);
+    await assertWarehouseDocumentAccess(scope, 'purchase_invoices', id);
+    const parsed = ValidatePurchaseInvoiceInput.parse(req.body);
+    const input = { ...parsed, warehouse_id: resolvePurchasingWarehouseId(scope, parsed.warehouse_id, 'Purchase Voucher') };
+    const service = new PurchaseDraftService(companyId);
+    res.json(await service.updateAndPost(id, input, currentUserId(req)));
+  } catch (error) {
+    next(error);
+  }
+});
+
+purchasesRouter.post('/:id/cancel', requirePermission('purchases.edit'), async (req, res, next) => {
+  try {
+    const scope = resolveAccessScope(req);
+    const companyId = scope.companyId;
+    const { id } = purchaseIdParams.parse(req.params);
+    await assertWarehouseDocumentAccess(scope, 'purchase_invoices', id);
+    const input = CancelPurchaseDraftInput.parse(req.body);
+    const service = new PurchaseDraftService(companyId);
+    res.json(await service.cancelDraft(id, input, currentUserId(req)));
   } catch (error) {
     next(error);
   }

@@ -6,6 +6,8 @@ import { PurchaseSupportService } from './purchase-support.service.js';
 
 type TransactionClient = Prisma.TransactionClient;
 
+export const POSTING_TRANSACTION_OPTIONS = { maxWait: 10_000, timeout: 30_000 };
+
 function businessError(message: string) {
   const error = new Error(message);
   Object.assign(error, { statusCode: 400 });
@@ -152,133 +154,139 @@ export class PurchasePostService {
   }
 
   async post(id: string, userId?: string | null) {
-    return prisma.$transaction(async transaction => {
-      const invoiceRows = await transaction.$queryRaw<PurchaseInvoiceForPost[]>`
-        SELECT *
-        FROM purchase_invoices
-        WHERE company_id = CAST(${this.companyId} AS uuid)
-          AND id = CAST(${id} AS uuid)
-        FOR UPDATE
-      `;
-      const invoice = invoiceRows[0];
-      if (!invoice) {
-        const error = new Error('Purchase Voucher was not found.');
-        Object.assign(error, { statusCode: 404 });
-        throw error;
-      }
-      if (invoice.status !== 'Draft') {
-        const error = new Error('Only Draft purchase vouchers can be posted.');
-        Object.assign(error, { statusCode: 400 });
-        throw error;
-      }
+    return prisma.$transaction(transaction => this.postInTransaction(transaction, id, userId), POSTING_TRANSACTION_OPTIONS);
+  }
 
-      const purchaseDateText = this.databaseDateText(invoice.purchase_date);
-      await this.assertDateInOpenPeriod(transaction, purchaseDateText);
+  /**
+   * Posts a Draft purchase inside the caller's transaction, so saving and posting can be one unit:
+   * if posting fails, the saved draft is rolled back too.
+   */
+  async postInTransaction(transaction: TransactionClient, id: string, userId?: string | null) {
+    const invoiceRows = await transaction.$queryRaw<PurchaseInvoiceForPost[]>`
+      SELECT *
+      FROM purchase_invoices
+      WHERE company_id = CAST(${this.companyId} AS uuid)
+        AND id = CAST(${id} AS uuid)
+      FOR UPDATE
+    `;
+    const invoice = invoiceRows[0];
+    if (!invoice) {
+      const error = new Error('Purchase Voucher was not found.');
+      Object.assign(error, { statusCode: 404 });
+      throw error;
+    }
+    if (invoice.status !== 'Draft') {
+      const error = new Error('Only Draft purchase vouchers can be posted.');
+      Object.assign(error, { statusCode: 400 });
+      throw error;
+    }
 
-      const settings = await this.getPurchaseSettings(transaction);
-      const inventoryAccount = await this.getAccount(transaction, settings.default_inventory_account_id, 'Default Inventory Account');
-      const cashAccount = await this.getAccount(transaction, settings.default_cash_account_id, 'Default Cash Account');
-      const supplierAccount = await this.getAccount(transaction, invoice.supplier_account_id, 'Supplier Linked Account');
-      const taxAccount = settings.purchase_tax_account_id
-        ? await this.getAccount(transaction, settings.purchase_tax_account_id, 'Purchase Tax Account')
-        : null;
-      const freightAccount = settings.freight_account_id
-        ? await this.getAccount(transaction, settings.freight_account_id, 'Freight Account')
-        : null;
-      const discountAccount = settings.purchase_discount_account_id
-        ? await this.getAccount(transaction, settings.purchase_discount_account_id, 'Purchase Discount Received Account')
-        : null;
+    const purchaseDateText = this.databaseDateText(invoice.purchase_date);
+    await this.assertDateInOpenPeriod(transaction, purchaseDateText);
 
-      const lines = await transaction.$queryRaw<PurchaseLineForPost[]>`
-        SELECT *
-        FROM purchase_invoice_lines
-        WHERE company_id = CAST(${this.companyId} AS uuid)
-          AND purchase_invoice_id = CAST(${id} AS uuid)
-          AND is_active = true
-        ORDER BY line_number ASC
-      `;
-      if (lines.length === 0) {
-        const error = new Error('Purchase Voucher has no items.');
-        Object.assign(error, { statusCode: 400 });
-        throw error;
-      }
+    const settings = await this.getPurchaseSettings(transaction);
+    const inventoryAccount = await this.getAccount(transaction, settings.default_inventory_account_id, 'Default Inventory Account');
+    const cashAccount = await this.getAccount(transaction, settings.default_cash_account_id, 'Default Cash Account');
+    const supplierAccount = await this.getAccount(transaction, invoice.supplier_account_id, 'Supplier Linked Account');
+    const taxAccount = settings.purchase_tax_account_id
+      ? await this.getAccount(transaction, settings.purchase_tax_account_id, 'Purchase Tax Account')
+      : null;
+    const freightAccount = settings.freight_account_id
+      ? await this.getAccount(transaction, settings.freight_account_id, 'Freight Account')
+      : null;
+    const discountAccount = settings.purchase_discount_account_id
+      ? await this.getAccount(transaction, settings.purchase_discount_account_id, 'Purchase Discount Received Account')
+      : null;
 
-      const netAmount = this.money(invoice.net_amount);
-      const discountAmount = this.money(invoice.discount_amount);
-      const taxAmount = this.money(invoice.tax_amount);
-      const freightAmount = this.money(invoice.freight_amount);
-      if (taxAmount.gt(0) && !taxAccount) throw businessError('Purchase Tax Account is not set.');
-      if (freightAmount.gt(0) && !freightAccount) throw businessError('Freight Account is not set.');
-      if (discountAmount.gt(0) && !discountAccount) throw businessError('Purchase Discount Received Account is not set.');
+    const lines = await transaction.$queryRaw<PurchaseLineForPost[]>`
+      SELECT *
+      FROM purchase_invoice_lines
+      WHERE company_id = CAST(${this.companyId} AS uuid)
+        AND purchase_invoice_id = CAST(${id} AS uuid)
+        AND is_active = true
+      ORDER BY line_number ASC
+    `;
+    if (lines.length === 0) {
+      const error = new Error('Purchase Voucher has no items.');
+      Object.assign(error, { statusCode: 400 });
+      throw error;
+    }
 
-      const postedBy = this.userIdOrNull(userId);
-      // Inventory is debited with the same before-discount line cost written to stock, so the
-      // Inventory account always equals stock value; the discount is credited to its own account.
-      let inventoryAmount = new Decimal(0);
-      for (const line of [...lines].sort((a, b) => a.item_id.localeCompare(b.item_id))) {
-        inventoryAmount = inventoryAmount.plus(await this.postStockLine(transaction, invoice, line, postedBy));
-      }
+    const netAmount = this.money(invoice.net_amount);
+    const discountAmount = this.money(invoice.discount_amount);
+    const taxAmount = this.money(invoice.tax_amount);
+    const freightAmount = this.money(invoice.freight_amount);
+    if (taxAmount.gt(0) && !taxAccount) throw businessError('Purchase Tax Account is not set.');
+    if (freightAmount.gt(0) && !freightAccount) throw businessError('Freight Account is not set.');
+    if (discountAmount.gt(0) && !discountAccount) throw businessError('Purchase Discount Received Account is not set.');
 
-      const voucherLines: PostingLine[] = [
-        {
-          account: inventoryAccount,
-          debit: inventoryAmount,
-          credit: new Decimal(0),
-          narration: `Inventory purchase ${invoice.purchase_number}`,
-        },
-        ...(taxAmount.gt(0) && taxAccount ? [{
-          account: taxAccount,
-          debit: taxAmount,
-          credit: new Decimal(0),
-          narration: `Purchase tax ${invoice.purchase_number}`,
-        }] : []),
-        ...(freightAmount.gt(0) && freightAccount ? [{
-          account: freightAccount,
-          debit: freightAmount,
-          credit: new Decimal(0),
-          narration: `Purchase freight ${invoice.purchase_number}`,
-        }] : []),
-        ...(discountAmount.gt(0) && discountAccount ? [{
-          account: discountAccount,
-          debit: new Decimal(0),
-          credit: discountAmount,
-          narration: `Purchase discount received ${invoice.purchase_number}`,
-        }] : []),
-        {
-          account: invoice.payment_type === 'Cash' ? cashAccount : supplierAccount,
-          debit: new Decimal(0),
-          credit: netAmount,
-          narration: invoice.payment_type === 'Cash'
-            ? `Cash paid for ${invoice.purchase_number}`
-            : `Supplier payable for ${invoice.purchase_number}`,
-        },
-      ];
+    const postedBy = this.userIdOrNull(userId);
+    // Inventory is debited with the same before-discount line cost written to stock, so the
+    // Inventory account always equals stock value; the discount is credited to its own account.
+    let inventoryAmount = new Decimal(0);
+    for (const line of [...lines].sort((a, b) => a.item_id.localeCompare(b.item_id))) {
+      inventoryAmount = inventoryAmount.plus(await this.postStockLine(transaction, invoice, line, postedBy));
+    }
 
-      const voucherId = await insertPostedVoucher(transaction, {
-        companyId: this.companyId,
-        voucherNumber: invoice.purchase_number,
-        voucherType: 'PI',
-        voucherDate: purchaseDateText,
-        reference: invoice.reference_number,
-        narration: invoice.description || 'Purchase Voucher',
-        userId: postedBy,
-        lines: voucherLines,
-      });
+    const voucherLines: PostingLine[] = [
+      {
+        account: inventoryAccount,
+        debit: inventoryAmount,
+        credit: new Decimal(0),
+        narration: `Inventory purchase ${invoice.purchase_number}`,
+      },
+      ...(taxAmount.gt(0) && taxAccount ? [{
+        account: taxAccount,
+        debit: taxAmount,
+        credit: new Decimal(0),
+        narration: `Purchase tax ${invoice.purchase_number}`,
+      }] : []),
+      ...(freightAmount.gt(0) && freightAccount ? [{
+        account: freightAccount,
+        debit: freightAmount,
+        credit: new Decimal(0),
+        narration: `Purchase freight ${invoice.purchase_number}`,
+      }] : []),
+      ...(discountAmount.gt(0) && discountAccount ? [{
+        account: discountAccount,
+        debit: new Decimal(0),
+        credit: discountAmount,
+        narration: `Purchase discount received ${invoice.purchase_number}`,
+      }] : []),
+      {
+        account: invoice.payment_type === 'Cash' ? cashAccount : supplierAccount,
+        debit: new Decimal(0),
+        credit: netAmount,
+        narration: invoice.payment_type === 'Cash'
+          ? `Cash paid for ${invoice.purchase_number}`
+          : `Supplier payable for ${invoice.purchase_number}`,
+      },
+    ];
 
-      await transaction.$queryRaw`
-        UPDATE purchase_invoices
-        SET status = 'Posted',
-            accounting_voucher_id = CAST(${voucherId} AS uuid),
-            posted_by_id = ${postedBy}::uuid,
-            posted_at = now(),
-            updated_by_id = ${postedBy}::uuid,
-            updated_at = now()
-        WHERE company_id = CAST(${this.companyId} AS uuid)
-          AND id = CAST(${id} AS uuid)
-      `;
-
-      return { id, purchase_number: invoice.purchase_number, accounting_voucher_id: voucherId, status: 'Posted' };
+    const voucherId = await insertPostedVoucher(transaction, {
+      companyId: this.companyId,
+      voucherNumber: invoice.purchase_number,
+      voucherType: 'PI',
+      voucherDate: purchaseDateText,
+      reference: invoice.reference_number,
+      narration: invoice.description || 'Purchase Voucher',
+      userId: postedBy,
+      lines: voucherLines,
     });
+
+    await transaction.$queryRaw`
+      UPDATE purchase_invoices
+      SET status = 'Posted',
+          accounting_voucher_id = CAST(${voucherId} AS uuid),
+          posted_by_id = ${postedBy}::uuid,
+          posted_at = now(),
+          updated_by_id = ${postedBy}::uuid,
+          updated_at = now()
+      WHERE company_id = CAST(${this.companyId} AS uuid)
+        AND id = CAST(${id} AS uuid)
+    `;
+
+    return { id, purchase_number: invoice.purchase_number, accounting_voucher_id: voucherId, status: 'Posted' };
   }
 
   private async postStockLine(

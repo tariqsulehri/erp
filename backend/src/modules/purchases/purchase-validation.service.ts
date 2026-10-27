@@ -122,7 +122,8 @@ export class PurchaseValidationService {
     return fiscalPeriod;
   }
 
-  async validate(input: ValidatePurchaseInvoiceInput) {
+  /** `options.excludeId` is the draft being edited, so its own Supplier Bill No. is not reported as a duplicate. */
+  async validate(input: ValidatePurchaseInvoiceInput, options: { excludeId?: string } = {}) {
     const errors: string[] = [];
     const warnings: string[] = [];
     const purchaseDate = this.databaseDate(input.purchase_date);
@@ -218,6 +219,7 @@ export class PurchaseValidationService {
           AND supplier_id = CAST(${supplier.id} AS uuid)
           AND LOWER(supplier_invoice_number) = LOWER(${input.supplier_invoice_number.trim()})
           AND status <> 'Voided'
+          AND id IS DISTINCT FROM ${options.excludeId ?? null}::uuid
         LIMIT 1
       `;
       if (duplicateRows[0]) {

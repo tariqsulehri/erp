@@ -447,4 +447,138 @@ describe.skipIf(!databaseUrl)('Purchase Vouchers (database)', () => {
     expect(result.errors.join(' ')).toMatch(/Period "September 2025" is closed/);
     await expect(createDraft({ purchase_date: '2025-09-12', due_date: '2025-09-30' })).rejects.toThrow(/is closed/);
   });
+
+  /** Makes posting fail after validation has passed, by making the Default Inventory Account Inactive for the callback. */
+  async function withInactiveInventoryAccount(callback: () => Promise<void>) {
+    await prisma.account.update({ where: { id: settings.inventory }, data: { isActive: false } });
+    try {
+      await callback();
+    } finally {
+      await prisma.account.update({ where: { id: settings.inventory }, data: { isActive: true } });
+    }
+  }
+
+  describe('Draft lifecycle: save and post together, edit, cancel', () => {
+    it('saves and posts in one step', async () => {
+      const posted = await new m.PurchaseDraftService(companyId).createAndPost(purchaseInput({ purchase_date: '2025-10-01', due_date: '2025-10-31' }), userId);
+      expect(posted.status).toBe('Posted');
+      expect((await invoiceRow(posted.id)).status).toBe('Posted');
+      expect(await movementsOf(posted.id)).toHaveLength(1);
+    });
+
+    it('leaves no draft behind when Save And Post is refused at posting', async () => {
+      const invoicesBefore = await companyCount('purchase_invoices');
+      const movementsBefore = await companyCount('inventory_stock_movements');
+      await withInactiveInventoryAccount(async () => {
+        await expect(new m.PurchaseDraftService(companyId).createAndPost(purchaseInput({ purchase_date: '2025-10-02', due_date: '2025-10-31' }), userId))
+          .rejects.toThrow(/Default Inventory Account is not set up or is Inactive/);
+      });
+      expect(await companyCount('purchase_invoices')).toBe(invoicesBefore);
+      expect(await companyCount('inventory_stock_movements')).toBe(movementsBefore);
+    });
+
+    it('edits a draft: same number, new header and lines, totals recalculated, stock and ledger untouched', async () => {
+      const draft = await createDraft({ purchase_date: '2025-10-03', due_date: '2025-10-31', supplier_invoice_number: 'BILL-EDIT' });
+      const movementsBefore = await companyCount('inventory_stock_movements');
+      const vouchersBefore = await companyCount('vouchers');
+
+      const updated = await new m.PurchaseDraftService(companyId).updateDraft(draft.id, purchaseInput({
+        purchase_date: '2025-10-04',
+        due_date: '2025-11-03',
+        supplier_invoice_number: 'BILL-EDIT',
+        reference_number: 'REF-2',
+        freight_amount: 5,
+        lines: [
+          { item_id: itemB, quantity: 2, purchase_price: 40, discount_amount: 0, tax_amount: 0 },
+          { item_id: itemA, quantity: 1, purchase_price: 10, discount_amount: 0, tax_amount: 0 },
+        ],
+      }), userId);
+
+      expect(updated).toEqual({ id: draft.id, purchase_number: draft.purchase_number });
+      const saved = await invoiceRow(draft.id);
+      expect(saved.status).toBe('Draft');
+      expect(new Decimal(saved.net_amount).toFixed(2)).toBe('95.00');
+      const detail = await new m.PurchaseDetailService(companyId).getById(draft.id);
+      expect(detail.reference_number).toBe('REF-2');
+      expect(String(detail.purchase_date instanceof Date ? detail.purchase_date.toISOString() : detail.purchase_date)).toMatch(/2025-10-0[34]/);
+      expect(detail.lines.map((line: { item_id: string; line_number: number }) => [line.line_number, line.item_id])).toEqual([[1, itemB], [2, itemA]]);
+      expect(await companyCount('inventory_stock_movements')).toBe(movementsBefore);
+      expect(await companyCount('vouchers')).toBe(vouchersBefore);
+    });
+
+    it('does not report a draft\'s own Supplier Bill No. as a duplicate, but still stops another purchase using it', async () => {
+      const draft = await createDraft({ purchase_date: '2025-10-05', due_date: '2025-10-31', supplier_invoice_number: 'BILL-OWN' });
+      await expect(new m.PurchaseDraftService(companyId).updateDraft(draft.id, purchaseInput({ purchase_date: '2025-10-05', due_date: '2025-10-31', supplier_invoice_number: 'bill-own' }), userId))
+        .resolves.toMatchObject({ id: draft.id });
+      await expect(createDraft({ purchase_date: '2025-10-05', due_date: '2025-10-31', supplier_invoice_number: 'BILL-OWN' }))
+        .rejects.toThrow(/Supplier Bill No\. is already used on/);
+    });
+
+    it('refuses to edit a posted purchase or a missing one', async () => {
+      const posted = await new m.PurchaseDraftService(companyId).createAndPost(purchaseInput({ purchase_date: '2025-10-06', due_date: '2025-10-31' }), userId);
+      await expect(new m.PurchaseDraftService(companyId).updateDraft(posted.id, purchaseInput({ purchase_date: '2025-10-06', due_date: '2025-10-31' }), userId))
+        .rejects.toMatchObject({ statusCode: 400, message: expect.stringMatching(/Only Draft purchase vouchers can be changed/) });
+      await expect(new m.PurchaseDraftService(companyId).updateDraft('00000000-0000-4000-8000-000000000000', purchaseInput({ purchase_date: '2025-10-06', due_date: '2025-10-31' }), userId))
+        .rejects.toMatchObject({ statusCode: 404 });
+    });
+
+    it('saves changes and posts a draft in one step, posting the new values', async () => {
+      const draft = await createDraft({ purchase_date: '2025-10-07', due_date: '2025-10-31' });
+      const posted = await new m.PurchaseDraftService(companyId).updateAndPost(draft.id, purchaseInput({
+        purchase_date: '2025-10-07', due_date: '2025-10-31',
+        lines: [{ item_id: itemB, quantity: 3, purchase_price: 20, discount_amount: 0, tax_amount: 0 }],
+      }), userId);
+      expect(posted).toMatchObject({ id: draft.id, purchase_number: draft.purchase_number, status: 'Posted' });
+      const voucher = await voucherFor(draft.id);
+      expect(amountOn(voucher, supplierAccountId)).toEqual({ debit: '0.00', credit: '60.00' });
+      const movements = await movementsOf(draft.id);
+      expect(movements.map(movement => [movement.item_id, new Decimal(movement.quantity_in).toFixed(4)])).toEqual([[itemB, '3.0000']]);
+    });
+
+    it('keeps the old draft values when Save And Post of an edited draft is refused at posting', async () => {
+      const draft = await createDraft({ purchase_date: '2025-10-08', due_date: '2025-10-31' });
+      await withInactiveInventoryAccount(async () => {
+        await expect(new m.PurchaseDraftService(companyId).updateAndPost(draft.id, purchaseInput({
+          purchase_date: '2025-10-08', due_date: '2025-10-31',
+          lines: [{ item_id: itemB, quantity: 7, purchase_price: 20, discount_amount: 0, tax_amount: 0 }],
+        }), userId)).rejects.toThrow(/Default Inventory Account is not set up or is Inactive/);
+      });
+      const saved = await invoiceRow(draft.id);
+      expect(saved.status).toBe('Draft');
+      expect(new Decimal(saved.net_amount).toFixed(2)).toBe('1000.00');
+      expect(await movementsOf(draft.id)).toHaveLength(0);
+    });
+
+    it('cancels a draft: kept as Voided with who, when and why; it can no longer be posted or edited', async () => {
+      const draft = await createDraft({ purchase_date: '2025-10-09', due_date: '2025-10-31', supplier_invoice_number: 'BILL-CANCEL' });
+      const service = new m.PurchaseDraftService(companyId);
+      const cancelled = await service.cancelDraft(draft.id, { reason: 'Entered twice' }, userId);
+      expect(cancelled).toEqual({ id: draft.id, purchase_number: draft.purchase_number, status: 'Voided' });
+
+      const rows = await prisma.$queryRaw<{ status: string; void_reason: string; voided_at: Date | null; voided_by_id: string | null }[]>`
+        SELECT status, void_reason, voided_at, voided_by_id::text FROM purchase_invoices WHERE id = CAST(${draft.id} AS uuid)
+      `;
+      expect(rows[0]).toMatchObject({ status: 'Voided', void_reason: 'Entered twice' });
+      expect(rows[0].voided_at).not.toBeNull();
+
+      await expect(new m.PurchasePostService(companyId).post(draft.id, userId)).rejects.toThrow(/Only Draft purchase vouchers can be posted/);
+      await expect(service.updateDraft(draft.id, purchaseInput({ purchase_date: '2025-10-09', due_date: '2025-10-31' }), userId)).rejects.toThrow(/Only Draft purchase vouchers can be changed/);
+      await expect(service.cancelDraft(draft.id, { reason: 'Again' }, userId)).rejects.toThrow(/Only Draft purchase vouchers can be cancelled/);
+
+      // A cancelled purchase does not block its Supplier Bill No. from being used again.
+      await expect(createDraft({ purchase_date: '2025-10-09', due_date: '2025-10-31', supplier_invoice_number: 'BILL-CANCEL' })).resolves.toMatchObject({ id: expect.any(String) });
+
+      const voided = await new m.PurchaseListService(companyId).list(m.ListPurchaseInvoicesQuery.parse({ status: 'Voided' }));
+      expect((voided.data as Array<{ id: string }>).map(row => row.id)).toContain(draft.id);
+    });
+
+    it('refuses to cancel a posted purchase and needs a reason', async () => {
+      const posted = await new m.PurchaseDraftService(companyId).createAndPost(purchaseInput({ purchase_date: '2025-10-10', due_date: '2025-10-31' }), userId);
+      await expect(new m.PurchaseDraftService(companyId).cancelDraft(posted.id, { reason: 'Wrong supplier' }, userId))
+        .rejects.toMatchObject({ statusCode: 400, message: expect.stringMatching(/Only Draft purchase vouchers can be cancelled/) });
+      const { CancelPurchaseDraftInput } = await import('../src/modules/purchases/purchase-draft.service.js');
+      expect(CancelPurchaseDraftInput.safeParse({ reason: ' ' }).success).toBe(false);
+      expect(CancelPurchaseDraftInput.safeParse({}).success).toBe(false);
+    });
+  });
 });
