@@ -10,11 +10,13 @@ import {
   useCreatePurchaseReturnDraft,
   useInvalidatePurchaseReturnQueries,
   usePurchaseReturnSupportData,
+  useUpdateAndPostPurchaseReturn,
+  useUpdatePurchaseReturnDraft,
 } from '@/lib/api/purchase-returns';
 import { friendlyErrorMessage } from '@/lib/erp-utils';
 import { PostedPurchaseReturnsView } from './PostedPurchaseReturnsView';
 import { PurchaseReturnAnalyticsView } from './PurchaseReturnAnalyticsView';
-import { buildPurchaseReturnDetails, buildPurchaseReturnPayload, validatePurchaseReturnVoucher } from './PurchaseReturnBusiness';
+import { buildPurchaseReturnDetails, buildPurchaseReturnPayload, purchaseReturnFormFromDetail, validatePurchaseReturnVoucher } from './PurchaseReturnBusiness';
 import {
   PurchaseHeaderForm,
   PurchaseLineEntry,
@@ -34,7 +36,11 @@ export default function PurchaseReturnPage() {
   const supportQuery = usePurchaseReturnSupportData();
   const createDraft = useCreatePurchaseReturnDraft();
   const createAndPost = useCreateAndPostPurchaseReturn();
+  const updateDraft = useUpdatePurchaseReturnDraft();
+  const updateAndPost = useUpdateAndPostPurchaseReturn();
   const invalidateReturnQueries = useInvalidatePurchaseReturnQueries();
+  /** The saved Draft open in the form, or null for a new return. */
+  const [openDraft, setOpenDraft] = useState<{ id: string; purchaseReturnNumber: string } | null>(null);
 
   const [viewMode, setViewMode] = useState<'posted' | 'entry' | 'analytics'>('analytics');
   const [purchaseReturnDate, setPurchaseReturnDate] = useState(today());
@@ -49,7 +55,7 @@ export default function PurchaseReturnPage() {
   const [message, setMessage] = useState<{ kind: PurchaseMessageKind; text: string } | null>(null);
   const [processConfirmOpen, setProcessConfirmOpen] = useState(false);
 
-  const saving = createDraft.isPending || createAndPost.isPending;
+  const saving = createDraft.isPending || createAndPost.isPending || updateDraft.isPending || updateAndPost.isPending;
   const postingDateGuard = usePostingDateGuard(purchaseReturnDate, 'Purchase Return Date');
   const isPurchaseReturnDateValid = postingDateGuard.dateIsValid;
   const money = useMemo(() => (value: number) => formatMoney(value, generalSettings), [generalSettings]);
@@ -70,6 +76,7 @@ export default function PurchaseReturnPage() {
     cancelLineEdit,
     moveLine,
     resetLineEditor,
+    loadLines,
   } = usePurchaseLineEditor({
     items,
     onDefaultWarehouseChange: setWarehouseId,
@@ -120,7 +127,26 @@ export default function PurchaseReturnPage() {
     setReferenceNumber('');
     setFreightAmount('');
     resetLineEditor();
+    setOpenDraft(null);
     if (clearMessage) setMessage(null);
+  }
+
+  /** Opens a saved Draft in the entry form so it can be changed, saved again, or posted. */
+  function openSavedDraft(detail: Record<string, any>) {
+    const form = purchaseReturnFormFromDetail(detail);
+    setPurchaseReturnDate(form.purchaseReturnDate);
+    setSupplierId(form.supplierId);
+    setPaymentType(form.paymentType);
+    setSupplierReturnNumber(form.supplierReturnNumber);
+    setSupplierReturnDate(form.supplierReturnDate);
+    setWarehouseId(form.warehouseId);
+    setLocationId(form.locationId);
+    setReferenceNumber(form.referenceNumber);
+    setFreightAmount(form.freightAmount);
+    loadLines(form.lines);
+    setOpenDraft({ id: form.id, purchaseReturnNumber: form.purchaseReturnNumber });
+    setMessage(null);
+    setViewMode('entry');
   }
 
   function validateForm() {
@@ -188,9 +214,13 @@ export default function PurchaseReturnPage() {
     });
 
     try {
-      const purchaseReturn = postNow
-        ? await createAndPost.mutateAsync(payload)
-        : await createDraft.mutateAsync(payload);
+      const purchaseReturn = openDraft
+        ? postNow
+          ? await updateAndPost.mutateAsync({ id: openDraft.id, input: payload })
+          : await updateDraft.mutateAsync({ id: openDraft.id, input: payload })
+        : postNow
+          ? await createAndPost.mutateAsync(payload)
+          : await createDraft.mutateAsync(payload);
       await invalidateReturnQueries();
       resetForm(false);
       setMessage({
@@ -242,6 +272,7 @@ export default function PurchaseReturnPage() {
         generalSettings={generalSettings}
         onNewReturn={openNewReturn}
         onAnalytics={() => setViewMode('analytics')}
+        onOpenDraft={openSavedDraft}
         newDisabled={newDisabled}
         newDisabledReason={newDisabledReason}
       />
@@ -263,9 +294,10 @@ export default function PurchaseReturnPage() {
   return (
     <DocumentPage>
       <PurchaseToolbar
-        title="Purchase Return"
+        title={openDraft ? `Purchase Return ${openDraft.purchaseReturnNumber}` : 'Purchase Return'}
+        mode={openDraft ? 'Edit' : 'Add'}
         documentCode="PR"
-        postedListLabel="Posted Returns"
+        postedListLabel="Purchase Return List"
         analyticsLabel="Analysis"
         showAnalytics
         actionDisabled={actionDisabled}
@@ -285,8 +317,8 @@ export default function PurchaseReturnPage() {
             <p>Use this screen to send goods back to a Supplier.</p>
             <ul>
               <li>Fill in the Supplier, dates and Warehouse, then add one line for each item you return.</li>
-              <li>Save Draft keeps the return so you can finish it later.</li>
-              <li>Process saves and posts it. Stock goes down and the Supplier balance is updated.</li>
+              <li>Save Draft keeps the return so you can finish it later. Find it in the Purchase Return List with Status Draft and select Open Draft.</li>
+              <li>Process saves and posts it. Stock goes down and the Supplier balance is updated. If posting is refused, nothing is saved.</li>
             </ul>
             <p>A posted return cannot be changed.</p>
           </>

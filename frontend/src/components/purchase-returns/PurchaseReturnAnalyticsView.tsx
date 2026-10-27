@@ -34,12 +34,12 @@ export function PurchaseReturnAnalyticsView({ settings, onNewReturn, onPostedRet
       help={(
         <>
           <p>This screen shows charts and totals for posted purchase returns. Draft documents are not counted.</p>
-          <p>See totals by month, cash and credit, and your top Suppliers. Select Posted Returns to see the full list, or New to enter one.</p>
+          <p>See totals by month, cash and credit, and your top Suppliers. Select Purchase Return List to see all returns and saved drafts, or New to enter one.</p>
         </>
       )}
       documentLabel="Purchase Returns"
       partyLabel="Supplier"
-      postedListLabel="Posted Returns"
+      postedListLabel="Purchase Return List"
       rows={rows}
       totalRecords={query.data?.total ?? 0}
       loading={query.isLoading}

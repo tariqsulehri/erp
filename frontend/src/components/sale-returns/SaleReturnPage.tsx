@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { formatMoney } from '@/lib/app-settings';
 import { useGeneralSettings } from '@/lib/api/settings';
 import { usePostingDateGuard } from '@/lib/api/fiscal-years';
@@ -10,9 +10,11 @@ import {
   useCreateSaleReturnDraft,
   useInvalidateSaleReturnQueries,
   useSaleReturnSupportData,
+  useUpdateAndPostSaleReturn,
+  useUpdateSaleReturnDraft,
 } from '@/lib/api/sale-returns';
 import { friendlyErrorMessage } from '@/lib/erp-utils';
-import { buildSaleReturnDetails, buildSaleReturnPayload, validateSaleReturnVoucher } from './SaleReturnBusiness';
+import { buildSaleReturnDetails, buildSaleReturnPayload, saleReturnFormFromDetail, validateSaleReturnVoucher } from './SaleReturnBusiness';
 import { PostedSaleReturnsView } from './PostedSaleReturnsView';
 import { SaleReturnAnalyticsView } from './SaleReturnAnalyticsView';
 import {
@@ -36,7 +38,13 @@ export default function SaleReturnPage() {
   const supportQuery = useSaleReturnSupportData(branch.branchId || undefined);
   const createDraft = useCreateSaleReturnDraft();
   const createAndPost = useCreateAndPostSaleReturn();
+  const updateDraft = useUpdateSaleReturnDraft();
+  const updateAndPost = useUpdateAndPostSaleReturn();
   const invalidateReturnQueries = useInvalidateSaleReturnQueries();
+  /** The saved Draft open in the form, or null for a new return. */
+  const [openDraft, setOpenDraft] = useState<{ id: string; saleReturnNumber: string } | null>(null);
+  /** An opened Draft's shelf Location, applied once that Branch's Locations have loaded. */
+  const pendingLocationId = useRef<string | null>(null);
 
   const [viewMode, setViewMode] = useState<'posted' | 'entry' | 'analytics'>('analytics');
   const [saleReturnDate, setSaleReturnDate] = useState(today());
@@ -49,7 +57,7 @@ export default function SaleReturnPage() {
   const [message, setMessage] = useState<{ kind: SaleMessageKind; text: string } | null>(null);
   const [processConfirmOpen, setProcessConfirmOpen] = useState(false);
 
-  const saving = createDraft.isPending || createAndPost.isPending;
+  const saving = createDraft.isPending || createAndPost.isPending || updateDraft.isPending || updateAndPost.isPending;
   const postingDateGuard = usePostingDateGuard(saleReturnDate, 'Sale Return Date');
   const isSaleReturnDateValid = postingDateGuard.dateIsValid;
   const money = useMemo(() => (value: number) => formatMoney(value, generalSettings), [generalSettings]);
@@ -71,6 +79,7 @@ export default function SaleReturnPage() {
     cancelLineEdit,
     moveLine,
     resetLineEditor,
+    loadLines,
   } = usePurchaseLineEditor({
     items,
     // Sale items are always taken from the selected Branch, so an item's default Warehouse is ignored.
@@ -84,6 +93,14 @@ export default function SaleReturnPage() {
   const dateStatusMessage = postingDateGuard.isChecking ? 'Checking Sale Return Date...' : postingDateGuard.statusMessage;
   const newDisabled = postingDateGuard.disabled;
   const newDisabledReason = dateStatusMessage || 'Sale Return Date is being checked.';
+
+  useEffect(() => {
+    const pending = pendingLocationId.current;
+    if (pending && branchLocations.some(location => location.value === pending)) {
+      pendingLocationId.current = null;
+      setLocationId(pending);
+    }
+  }, [branchLocations, setLocationId]);
 
   useEffect(() => {
     if (supportQuery.error) {
@@ -104,7 +121,28 @@ export default function SaleReturnPage() {
     setReferenceNumber('');
     setFreightAmount('');
     resetLineEditor();
+    setOpenDraft(null);
+    pendingLocationId.current = null;
     if (clearMessage) setMessage(null);
+  }
+
+  /** Opens a saved Draft in the entry form so it can be changed, saved again, or posted. */
+  function openSavedDraft(detail: Record<string, any>) {
+    const form = saleReturnFormFromDetail(detail);
+    setSaleReturnDate(form.saleReturnDate);
+    setCustomerId(form.customerId);
+    setPaymentType(form.paymentType);
+    setCustomerReturnNumber(form.customerReturnNumber);
+    setCustomerReturnDate(form.customerReturnDate);
+    changeBranch(form.branchId);
+    setLocationId(form.locationId);
+    pendingLocationId.current = form.locationId || null;
+    setReferenceNumber(form.referenceNumber);
+    setFreightAmount(form.freightAmount);
+    loadLines(form.lines);
+    setOpenDraft({ id: form.id, saleReturnNumber: form.saleReturnNumber });
+    setMessage(null);
+    setViewMode('entry');
   }
 
   function validateForm() {
@@ -162,9 +200,13 @@ export default function SaleReturnPage() {
     });
 
     try {
-      const saleReturn = postNow
-        ? await createAndPost.mutateAsync(payload)
-        : await createDraft.mutateAsync(payload);
+      const saleReturn = openDraft
+        ? postNow
+          ? await updateAndPost.mutateAsync({ id: openDraft.id, input: payload })
+          : await updateDraft.mutateAsync({ id: openDraft.id, input: payload })
+        : postNow
+          ? await createAndPost.mutateAsync(payload)
+          : await createDraft.mutateAsync(payload);
       await invalidateReturnQueries();
       resetForm(false);
       setMessage({
@@ -214,6 +256,7 @@ export default function SaleReturnPage() {
         generalSettings={generalSettings}
         onNewReturn={openNewReturn}
         onAnalytics={() => setViewMode('analytics')}
+        onOpenDraft={openSavedDraft}
         newDisabled={newDisabled}
         newDisabledReason={newDisabledReason}
       />
@@ -235,9 +278,10 @@ export default function SaleReturnPage() {
   return (
     <DocumentPage>
       <PurchaseToolbar
-        title="Sale Return"
+        title={openDraft ? `Sale Return ${openDraft.saleReturnNumber}` : 'Sale Return'}
+        mode={openDraft ? 'Edit' : 'Add'}
         documentCode="SR"
-        postedListLabel="Posted Returns"
+        postedListLabel="Sale Return List"
         analyticsLabel="Analysis"
         showAnalytics
         actionDisabled={actionDisabled}
@@ -257,8 +301,8 @@ export default function SaleReturnPage() {
             <p>Use this screen to take back goods that a Customer returns to a Branch.</p>
             <ul>
               <li>Fill in the Customer, dates and Branch, then add one line for each item returned.</li>
-              <li>Save Draft keeps the return so you can finish it later.</li>
-              <li>Process saves and posts it. Stock goes up and the Customer balance is updated.</li>
+              <li>Save Draft keeps the return so you can finish it later. Find it in the Sale Return List with Status Draft and select Open Draft.</li>
+              <li>Process saves and posts it. Stock goes up and the Customer balance is updated. If posting is refused, nothing is saved.</li>
             </ul>
             <p>A posted return cannot be changed.</p>
           </>

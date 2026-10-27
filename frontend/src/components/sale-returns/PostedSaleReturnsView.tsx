@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useSession } from 'next-auth/react';
 import {
   IconChartBar,
   IconEye,
@@ -9,13 +10,16 @@ import {
 } from '@tabler/icons-react';
 import { formatDate, formatNumber } from '@/lib/app-settings';
 import { friendlyErrorMessage, numericValue } from '@/lib/erp-utils';
-import { useSaleReturnDetail, useSaleReturnsList } from '@/lib/api/sale-returns';
+import { hasPermission } from '@/lib/auth/session-user';
+import { useCancelSaleReturnDraft, useInvalidateSaleReturnQueries, usePostSaleReturnDraft, useSaleReturnDetail, useSaleReturnsList } from '@/lib/api/sale-returns';
 import { SearchableSelect } from '@/components/ui/SearchableSelect';
 import { PaginationBar } from '@/components/ui/PaginationBar';
 import { DateField, NumericField, SelectField, TextField } from '@/components/ui/FormFields';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { FieldLabel } from '@/components/ui/FieldLabel';
+import { InlineAlert } from '@/components/ui/InlineAlert';
+import { StatusChip } from '@/components/ui/StatusChip';
 import { TableMessageRow } from '@/components/ui/TableMessageRow';
 import {
   DetailFields,
@@ -24,9 +28,13 @@ import {
   DocumentDetailPanel,
   DocumentHeader,
   DocumentPage,
+  DOCUMENT_STATUS_OPTIONS,
+  documentStatusLabel,
+  DraftDocumentActions,
   PostedListFilters,
   PostedListPanel,
   postedListRowClass,
+  type DraftActionMessage,
 } from '@/components/documents';
 import type { CustomerOption, SalePaymentType, BranchOption } from '@/components/sales/SaleVoucherTypes';
 
@@ -39,10 +47,13 @@ interface PostedSaleReturnsViewProps {
   generalSettings: Parameters<typeof formatNumber>[1];
   onNewReturn: () => void;
   onAnalytics: () => void;
+  /** Opens a saved Draft in the entry form. */
+  onOpenDraft: (detail: Record<string, any>) => void;
   newDisabled?: boolean;
   newDisabledReason?: string;
 }
 
+/** Sale Return List: posted returns by default, and saved Drafts and Cancelled drafts through the Status filter. */
 export function PostedSaleReturnsView({
   customers,
   branches,
@@ -51,9 +62,17 @@ export function PostedSaleReturnsView({
   generalSettings,
   onNewReturn,
   onAnalytics,
+  onOpenDraft,
   newDisabled = false,
   newDisabledReason,
 }: PostedSaleReturnsViewProps) {
+  const { data: session } = useSession();
+  const canChangeDrafts = hasPermission(session?.user.role, 'sales.edit');
+  const postDraft = usePostSaleReturnDraft();
+  const cancelDraft = useCancelSaleReturnDraft();
+  const invalidateQueries = useInvalidateSaleReturnQueries();
+  const [status, setStatus] = useState('Posted');
+  const [actionMessage, setActionMessage] = useState<DraftActionMessage | null>(null);
   const [searchText, setSearchText] = useState('');
   const [search, setSearch] = useState('');
   const [customerId, setCustomerId] = useState('');
@@ -70,7 +89,7 @@ export function PostedSaleReturnsView({
   const listQuery = useSaleReturnsList({
     page,
     limit: pageSize,
-    status: 'Posted',
+    status: (status || undefined) as 'Draft' | 'Posted' | 'Voided' | undefined,
     search: search || undefined,
     customer_id: customerId || undefined,
     payment_type: paymentType as SalePaymentType || undefined,
@@ -92,6 +111,8 @@ export function PostedSaleReturnsView({
   }
 
   function resetFilters() {
+    setStatus('Posted');
+    setActionMessage(null);
     setSearchText('');
     setSearch('');
     setCustomerId('');
@@ -118,21 +139,23 @@ export function PostedSaleReturnsView({
 
   const iconProps = { size: 16, stroke: 1.8, 'aria-hidden': true } as const;
   const detail = detailQuery.data;
+  const statusFilterLabel = status ? documentStatusLabel(status) : 'All Statuses';
 
   return (
     <DocumentPage>
       <DocumentHeader
-        title="Posted Sale Returns"
+        title="Sale Return List"
         help={(
           <>
-            <p>This list shows all posted sale returns. Drafts are not shown here.</p>
+            <p>This list shows posted sale returns. Change the Status filter to see saved Drafts or Cancelled drafts.</p>
             <p>Use the filters to find a return. Select a row to see its lines and totals, or to print it.</p>
+            <p>A Draft can be opened and changed, posted, or cancelled. A cancelled Draft stays in the list with its reason.</p>
             <p>Posted returns cannot be changed.</p>
           </>
         )}
         badges={(
           <>
-            <Badge variant="success">Posted Only</Badge>
+            <Badge variant={status === 'Posted' ? 'success' : 'neutral'}>{statusFilterLabel}</Badge>
             <Badge variant="neutral">{total} Record{total === 1 ? '' : 's'}</Badge>
           </>
         )}
@@ -145,9 +168,12 @@ export function PostedSaleReturnsView({
         )}
       />
 
+      {actionMessage && <InlineAlert tone={actionMessage.tone} onDismiss={() => setActionMessage(null)}>{actionMessage.text}</InlineAlert>}
+
       <PostedListPanel
         filters={(
-          <PostedListFilters label="Posted Sale Returns Filters">
+          <PostedListFilters label="Sale Return List Filters">
+            <SelectField label="Status" value={status} onChange={value => updateFilter(() => setStatus(value))} options={DOCUMENT_STATUS_OPTIONS} placeholder="All Statuses" />
             <TextField label="Search" value={searchText} onChange={setSearchText} placeholder="Return No., Customer, Reference" inputProps={{ onKeyDown: event => { if (event.key === 'Enter') applySearch(); } }} />
             <Button variant="secondary" onClick={applySearch} loading={listQuery.isFetching}>Search</Button>
             <Button variant="ghost" onClick={clearSearch} disabled={listQuery.isFetching || (!search && !searchText)}>Clear</Button>
@@ -168,10 +194,11 @@ export function PostedSaleReturnsView({
           </PostedListFilters>
         )}
         table={(
-          <table className="data-table" style={{ tableLayout: 'fixed', minWidth: 1000 }}>
+          <table className="data-table" style={{ tableLayout: 'fixed', minWidth: 1096 }}>
             <colgroup>
               <col style={{ width: 128 }} />
               <col style={{ width: 104 }} />
+              <col style={{ width: 96 }} />
               <col style={{ width: 190 }} />
               <col style={{ width: 124 }} />
               <col style={{ width: 80 }} />
@@ -186,6 +213,7 @@ export function PostedSaleReturnsView({
               <tr>
                 <th>Return No.</th>
                 <th>Date</th>
+                <th>Status</th>
                 <th>Customer</th>
                 <th>Reference</th>
                 <th>Type</th>
@@ -198,17 +226,18 @@ export function PostedSaleReturnsView({
               </tr>
             </thead>
             <tbody>
-              {listQuery.isLoading && <TableMessageRow colSpan={11} title="Loading Posted Sale Returns…" loading />}
+              {listQuery.isLoading && <TableMessageRow colSpan={12} title="Loading Sale Returns…" loading />}
               {listQuery.error && (
-                <TableMessageRow colSpan={11} title="Could Not Load Posted Sale Returns" description={friendlyErrorMessage(listQuery.error, 'Could not load Posted Sale Returns. Please try again.')} />
+                <TableMessageRow colSpan={12} title="Could Not Load Sale Returns" description={friendlyErrorMessage(listQuery.error, 'Could not load the Sale Return List. Please try again.')} />
               )}
               {!listQuery.isLoading && !listQuery.error && rows.length === 0 && (
-                <TableMessageRow colSpan={11} title="No Posted Sale Returns Found" description="Change or clear the filters to see more records." />
+                <TableMessageRow colSpan={12} title={`No ${statusFilterLabel === 'All Statuses' ? '' : `${statusFilterLabel} `}Sale Returns Found`} description="Change or clear the filters to see more records." />
               )}
               {rows.map(row => (
                 <tr key={row.id} className={`${postedListRowClass}${selectedId === row.id ? ' is-selected' : ''}`} onClick={() => setSelectedId(row.id)}>
                   <td className="cell-strong">{row.sale_return_number}</td>
                   <td>{formatDate(row.sale_return_date, generalSettings)}</td>
+                  <td><StatusChip status={row.status} label={documentStatusLabel(row.status)} /></td>
                   <td>{row.customer_code ? `${row.customer_code} - ${row.customer_name}` : row.customer_name}</td>
                   <td className={(row.reference_number || row.customer_return_number) ? undefined : 'cell-muted'}>{(row.reference_number || row.customer_return_number) || 'Not Set'}</td>
                   <td>{row.payment_type}</td>
@@ -235,9 +264,35 @@ export function PostedSaleReturnsView({
           >
             {detail && (
               <>
+                {detail.status === 'Draft' && canChangeDrafts && (
+                  <DraftDocumentActions
+                    documentName="Sale Return"
+                    documentNumber={detail.sale_return_number}
+                    postEffect="Stock goes up and the Customer balance is updated."
+                    onOpen={() => onOpenDraft(detail)}
+                    onPost={async () => {
+                      const result = await postDraft.mutateAsync(detail.id);
+                      await invalidateQueries();
+                      return result.sale_return_number;
+                    }}
+                    onCancel={async reason => {
+                      const result = await cancelDraft.mutateAsync({ id: detail.id, reason });
+                      await invalidateQueries();
+                      return result.sale_return_number;
+                    }}
+                    onMessage={setActionMessage}
+                  />
+                )}
                 <DetailFields
                   items={[
                     ['Return No.', detail.sale_return_number],
+                    ['Status', documentStatusLabel(detail.status)],
+                    ...(detail.status === 'Voided'
+                      ? [
+                        ['Cancelled Reason', detail.void_reason] as [string, string],
+                        ['Cancelled At', detail.voided_at ? formatDate(detail.voided_at, generalSettings) : ''] as [string, string],
+                      ]
+                      : []),
                     ['Date', formatDate(detail.sale_return_date, generalSettings)],
                     ['Customer', `${detail.customer_code} - ${detail.customer_name}`],
                     ['Payment Type', detail.payment_type],

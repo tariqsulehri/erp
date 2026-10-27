@@ -1,7 +1,7 @@
 'use client';
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { backendGet, backendPost } from './backend-client';
+import { backendGet, backendPost, backendPut } from './backend-client';
 import type { DocumentListTotals } from './document-totals';
 import type { PaymentType, PurchaseListRow } from '@/components/purchases/PurchaseVoucherTypes';
 import type { PurchaseSupportData } from './purchases';
@@ -87,6 +87,34 @@ export function useCreatePurchaseReturnDraft() {
 export function useCreateAndPostPurchaseReturn() {
   return useMutation({
     mutationFn: (input: unknown) => backendPost<any, unknown>('/purchase-returns/create-and-post', input),
+  });
+}
+
+/** Saves changes to a Draft purchase return. The return number stays the same. */
+export function useUpdatePurchaseReturnDraft() {
+  return useMutation({
+    mutationFn: ({ id, input }: { id: string; input: unknown }) => backendPut<any, unknown>(`/purchase-returns/${id}`, input),
+  });
+}
+
+/** Saves changes to a Draft purchase return and posts it in one step. */
+export function useUpdateAndPostPurchaseReturn() {
+  return useMutation({
+    mutationFn: ({ id, input }: { id: string; input: unknown }) => backendPost<any, unknown>(`/purchase-returns/${id}/update-and-post`, input),
+  });
+}
+
+/** Posts a saved Draft purchase return as it is. */
+export function usePostPurchaseReturnDraft() {
+  return useMutation({
+    mutationFn: (id: string) => backendPost<any, Record<string, never>>(`/purchase-returns/${id}/post`, {}),
+  });
+}
+
+/** Cancels a Draft purchase return. It stays on file as Cancelled with the reason. */
+export function useCancelPurchaseReturnDraft() {
+  return useMutation({
+    mutationFn: ({ id, reason }: { id: string; reason: string }) => backendPost<any, { reason: string }>(`/purchase-returns/${id}/cancel`, { reason }),
   });
 }
 

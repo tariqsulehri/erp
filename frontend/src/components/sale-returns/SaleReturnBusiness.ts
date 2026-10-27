@@ -1,5 +1,6 @@
 import { numericValue } from '@/lib/erp-utils';
 import { validMoneyPattern } from '@/components/purchases/PurchaseVoucherHelpers';
+import { dateOnly, documentLinesFromDetail, textOrEmpty } from '@/components/purchases/PurchaseVoucherBusiness';
 import type { BranchOption, CustomerOption, SaleLine, SalePaymentType } from '@/components/sales/SaleVoucherTypes';
 
 interface SaleReturnValidationInput {
@@ -76,5 +77,40 @@ export function buildSaleReturnPayload(input: SaleReturnPayloadInput) {
       tax_amount: numericValue(line.taxAmount),
       description: line.description || undefined,
     })),
+  };
+}
+
+/** The entry form values for a saved Draft sale return, so it can be opened, changed and posted. */
+export interface SaleReturnDraftForm {
+  id: string;
+  saleReturnNumber: string;
+  saleReturnDate: string;
+  customerId: string;
+  paymentType: SalePaymentType;
+  customerReturnNumber: string;
+  customerReturnDate: string;
+  branchId: string;
+  locationId: string;
+  referenceNumber: string;
+  freightAmount: string;
+  lines: SaleLine[];
+}
+
+/** Maps the sale return detail from GET /sale-returns/:id to the entry form. */
+export function saleReturnFormFromDetail(detail: Record<string, any>): SaleReturnDraftForm {
+  const freight = Number(detail.freight_amount ?? 0);
+  return {
+    id: String(detail.id),
+    saleReturnNumber: String(detail.sale_return_number),
+    saleReturnDate: dateOnly(detail.sale_return_date),
+    customerId: textOrEmpty(detail.customer_id),
+    paymentType: detail.payment_type === 'Cash' ? 'Cash' : 'Credit',
+    customerReturnNumber: textOrEmpty(detail.customer_return_number),
+    customerReturnDate: dateOnly(detail.customer_return_date),
+    branchId: textOrEmpty(detail.branch_id),
+    locationId: textOrEmpty(detail.location_id),
+    referenceNumber: textOrEmpty(detail.reference_number),
+    freightAmount: freight > 0 ? freight.toFixed(2) : '',
+    lines: documentLinesFromDetail(detail.lines, 'sale_price'),
   };
 }

@@ -1,5 +1,6 @@
 import type { PaymentType, PurchaseLine, SupplierOption, WarehouseOption } from '@/components/purchases/PurchaseVoucherTypes';
 import { validMoneyPattern } from '@/components/purchases/PurchaseVoucherHelpers';
+import { dateOnly, documentLinesFromDetail, textOrEmpty } from '@/components/purchases/PurchaseVoucherBusiness';
 
 interface PurchaseReturnValidationInput {
   purchaseReturnDate: string;
@@ -78,5 +79,40 @@ export function buildPurchaseReturnPayload(input: PurchaseReturnPayloadInput) {
       tax_amount: Number(line.taxAmount.replace(/,/g, '') || 0),
       description: line.description || undefined,
     })),
+  };
+}
+
+/** The entry form values for a saved Draft purchase return, so it can be opened, changed and posted. */
+export interface PurchaseReturnDraftForm {
+  id: string;
+  purchaseReturnNumber: string;
+  purchaseReturnDate: string;
+  supplierId: string;
+  paymentType: PaymentType;
+  supplierReturnNumber: string;
+  supplierReturnDate: string;
+  warehouseId: string;
+  locationId: string;
+  referenceNumber: string;
+  freightAmount: string;
+  lines: PurchaseLine[];
+}
+
+/** Maps the purchase return detail from GET /purchase-returns/:id to the entry form. */
+export function purchaseReturnFormFromDetail(detail: Record<string, any>): PurchaseReturnDraftForm {
+  const freight = Number(detail.freight_amount ?? 0);
+  return {
+    id: String(detail.id),
+    purchaseReturnNumber: String(detail.purchase_return_number),
+    purchaseReturnDate: dateOnly(detail.purchase_return_date),
+    supplierId: textOrEmpty(detail.supplier_id),
+    paymentType: detail.payment_type === 'Cash' ? 'Cash' : 'Credit',
+    supplierReturnNumber: textOrEmpty(detail.supplier_return_number),
+    supplierReturnDate: dateOnly(detail.supplier_return_date),
+    warehouseId: textOrEmpty(detail.warehouse_id),
+    locationId: textOrEmpty(detail.location_id),
+    referenceNumber: textOrEmpty(detail.reference_number),
+    freightAmount: freight > 0 ? freight.toFixed(2) : '',
+    lines: documentLinesFromDetail(detail.lines, 'purchase_price'),
   };
 }
