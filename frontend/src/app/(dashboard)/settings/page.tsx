@@ -31,6 +31,7 @@ import { SearchableSelect, type SelectOption } from '@/components/ui/SearchableS
 import { SegmentedControl } from '@/components/ui/SegmentedControl';
 import { TableMessageRow } from '@/components/ui/TableMessageRow';
 import { useAccountsList, type AccountListItem } from '@/lib/api/accounts';
+import { useRoles } from '@/lib/api/roles';
 import {
   useCompanyProfile,
   useGeneralSettings,
@@ -1069,11 +1070,8 @@ function COATab({ generalSettings }: { generalSettings: any }) {
 
 /* ── Security tab ───────────────────────────────────────────────────── */
 function SecurityTab() {
-  const [sessionTimeout, setSessionTimeout] = useState('30');
-  const [singleSession, setSingleSession] = useState(true);
-  const [lockoutAttempts, setLockoutAttempts] = useState('5');
-  const [minPasswordLength, setMinPasswordLength] = useState('8');
-  const [savedSuccess, setSavedSuccess] = useState(false);
+  const rolesQuery = useRoles();
+  const roleCount = rolesQuery.data?.data.length;
 
   const featuredCards = [
     {
@@ -1088,7 +1086,7 @@ function SecurityTab() {
     {
       title: 'Role-Based Access Control',
       desc: 'Enforce principle of least privilege with granular capability matrices for Admins, Managers, Accountants, and Viewers.',
-      badge: '4 Roles Configured',
+      badge: roleCount === undefined ? 'Roles' : `${roleCount} Roles`,
       badgeVariant: 'info' as const,
       href: '/settings/roles',
       actionLabel: 'View Roles Matrix',
@@ -1096,19 +1094,14 @@ function SecurityTab() {
     },
     {
       title: 'Audit Log & Activity Trail',
-      desc: 'Full chronological record tracking user events, password resets, product master edits, and voucher postings.',
-      badge: 'Immutable Log',
+      desc: 'A dated record of who created or changed users and products, and who reset a password.',
+      badge: 'Read Only',
       badgeVariant: 'neutral' as const,
       href: '/settings/audit-logs',
       actionLabel: 'Inspect Audit Logs',
       icon: <IconHistory size={22} stroke={1.8} style={{ color: 'var(--color-primary)' }} />,
     },
   ];
-
-  function handleSavePolicies() {
-    setSavedSuccess(true);
-    setTimeout(() => setSavedSuccess(false), 3000);
-  }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
@@ -1161,80 +1154,23 @@ function SecurityTab() {
         </div>
       </section>
 
-      {/* ── Configurable Enterprise Security Policies ── */}
+      {/* ── Sign-in rules the backend enforces today (read only) ── */}
       <SettingsPanel
-        title="Enterprise Session & Security Policies"
-        description="Configure organization-wide authentication timeouts, concurrency limits, and password enforcement."
+        title="How Sign-In Is Protected"
+        description="These rules are built into the system and apply to every user. They cannot be changed on this screen."
       >
-        {savedSuccess && (
-          <div style={{ marginBottom: 16 }}>
-            <InlineAlert tone="success">Security policies successfully updated.</InlineAlert>
-          </div>
-        )}
-
-        <FormRow label="Session Inactivity Timeout" hint="Automatically lock inactive sessions to protect confidential financial information.">
-          <select
-            className="form-input"
-            value={sessionTimeout}
-            onChange={e => setSessionTimeout(e.target.value)}
-            style={{ width: '100%', maxWidth: 280 }}
-          >
-            <option value="15">15 Minutes</option>
-            <option value="30">30 Minutes (Recommended)</option>
-            <option value="60">1 Hour</option>
-            <option value="240">4 Hours</option>
-            <option value="480">8 Hours</option>
-          </select>
+        <FormRow label="Minimum Password Length" hint="Applies when a user is created, a password is reset, or a user changes their own password.">
+          <div style={{ paddingTop: 6 }}>8 Characters</div>
         </FormRow>
-
-        <FormRow label="Single Active Session" hint="Terminate older browser sessions when a user signs in from another machine or device.">
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, paddingTop: 6 }}>
-            <input
-              type="checkbox"
-              id="single-session-toggle"
-              checked={singleSession}
-              onChange={e => setSingleSession(e.target.checked)}
-              style={{ width: 16, height: 16, cursor: 'pointer' }}
-            />
-            <label htmlFor="single-session-toggle" style={{ fontSize: 'var(--font-size-sm)', cursor: 'pointer' }}>
-              Enforce single active session per user account
-            </label>
-          </div>
+        <FormRow label="Failed Sign-In Limit" hint="Sign-in is blocked for 15 minutes after too many wrong passwords.">
+          <div style={{ paddingTop: 6 }}>10 tries for one email from one computer, or 30 tries from one computer</div>
         </FormRow>
-
-        <FormRow label="Account Lockout Threshold" hint="Temporarily suspend sign-in for 15 minutes after repeated failed authentication attempts.">
-          <select
-            className="form-input"
-            value={lockoutAttempts}
-            onChange={e => setLockoutAttempts(e.target.value)}
-            style={{ width: '100%', maxWidth: 280 }}
-          >
-            <option value="3">3 Consecutive Failed Attempts</option>
-            <option value="5">5 Consecutive Failed Attempts (Standard)</option>
-            <option value="10">10 Consecutive Failed Attempts</option>
-            <option value="0">Disabled (Not Recommended)</option>
-          </select>
+        <FormRow label="Session Length" hint="Users must sign in again when their session ends. The server administrator can change this.">
+          <div style={{ paddingTop: 6 }}>12 Hours</div>
         </FormRow>
-
-        <FormRow label="Minimum Password Length" hint="Global policy enforced on user creation and self-service password changes.">
-          <select
-            className="form-input"
-            value={minPasswordLength}
-            onChange={e => setMinPasswordLength(e.target.value)}
-            style={{ width: '100%', maxWidth: 280 }}
-          >
-            <option value="8">8 Characters (Standard)</option>
-            <option value="10">10 Characters</option>
-            <option value="12">12 Characters (High Security)</option>
-            <option value="16">16 Characters (Maximum Security)</option>
-          </select>
+        <FormRow label="After A Password Change" hint="Protects the account if a password was shared or stolen.">
+          <div style={{ paddingTop: 6 }}>Every other session of that user is signed out</div>
         </FormRow>
-
-        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 16, paddingTop: 16, borderTop: '1px solid var(--color-border-subtle)' }}>
-          <Button variant="primary" onClick={handleSavePolicies}>
-            Save Security Policies
-          </Button>
-        </div>
       </SettingsPanel>
     </div>
   );
