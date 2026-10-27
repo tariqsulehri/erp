@@ -122,6 +122,7 @@ New frontend modules must follow the same structure established in the Purchase 
   | Stock Transfers | Admin, Top Management, Manager, Sales Staff, Warehouse Staff |
   | Stock Adjustments | Admin, Top Management, Manager |
   | Products and product setup lists | Admin, Top Management, Manager |
+  | Reverse posted Stock Transfers and Stock Adjustments | Admin, Top Management, Manager |
 
   Viewers can read but never save or post. The list lives in `PERMISSION_ROLES` in `backend/src/modules/auth/access-rules.ts`.
 - The backend enforces these rules on every request. Hiding a screen in the frontend is not enough.

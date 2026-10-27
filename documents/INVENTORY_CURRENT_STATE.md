@@ -10,7 +10,11 @@ Snapshot date: 2026-09-30, branch `feature/inventory-professional`. Line numbers
 - **F1 fixed:** Stock Transfer and Stock Adjustment lists have a Status filter (Posted, Draft, Cancelled). Drafts can be opened, changed, posted, or cancelled with a reason.
 - **New columns:** `voided_by_id`, `voided_at` and `void_reason` on `stock_transfers` and `stock_adjustments`. A cancelled Draft has status `Voided`.
 - **Same draft workflow for trade documents:** Purchases, Sales, Sale Returns and Purchase Returns now have it too, and their Save And Post also runs in one transaction.
-- **Still open:** D6 (void or reversal of *posted* stock documents).
+- **D6 fixed (branch `feature/stock-reversal`):** posted Stock Transfers and Stock Adjustments can be reversed (`POST /:id/reverse`, permission `stock.reverse`: Admin, Top Management, Manager).
+  - Each line goes back at its exact posted cost, on a Reversal Date in an open period.
+  - An adjustment also gets a Reversal Voucher (RV) that mirrors its SA voucher.
+  - The document becomes `Voided` with a posted date, shown as Reversed.
+  - The reversal is refused when the place no longer holds the stock or value to give back.
 
 ---
 
