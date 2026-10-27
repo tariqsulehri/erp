@@ -120,7 +120,8 @@ export class SaleValidationService {
     return fiscalPeriod;
   }
 
-  async validate(input: ValidateSaleInvoiceInput) {
+  /** `options.excludeId` is the draft being edited, so its own Customer Reference No. is not reported as a duplicate. */
+  async validate(input: ValidateSaleInvoiceInput, options: { excludeId?: string } = {}) {
     const errors: string[] = [];
     const warnings: string[] = [];
     const saleDate = this.databaseDate(input.sale_date);
@@ -172,6 +173,7 @@ export class SaleValidationService {
           AND customer_id = CAST(${customer.id} AS uuid)
           AND LOWER(customer_reference_number) = LOWER(${input.customer_reference_number.trim()})
           AND status <> 'Voided'
+          AND id IS DISTINCT FROM ${options.excludeId ?? null}::uuid
         LIMIT 1
       `;
       if (duplicateRows[0]) {

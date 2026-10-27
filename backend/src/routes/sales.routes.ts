@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { currentUserId, resolveAccessScope, requirePermission } from '../http/access-context.js';
 import { resolveSellingBranchId } from '../modules/inventory/stock-holder-access.js';
 import { SaleDetailService } from '../modules/sales/sale-detail.service.js';
-import { SaleDraftService } from '../modules/sales/sale-draft.service.js';
+import { CancelSaleDraftInput, SaleDraftService } from '../modules/sales/sale-draft.service.js';
 import { ListSaleInvoicesQuery, SaleListService } from '../modules/sales/sale-list.service.js';
 import { SalePostService } from '../modules/sales/sale-post.service.js';
 import { SaleSupportService } from '../modules/sales/sale-support.service.js';
@@ -71,11 +71,42 @@ salesRouter.post('/drafts', requirePermission('sales.edit'), async (req, res, ne
 salesRouter.post('/create-and-post', requirePermission('sales.edit'), async (req, res, next) => {
   try {
     const { scope, input } = saleInputFor(req);
-    const userId = currentUserId(req);
-    const draftService = new SaleDraftService(scope.companyId);
-    const postService = new SalePostService(scope.companyId);
-    const draft = await draftService.createDraft(input, userId);
-    res.status(201).json(await postService.post(draft.id, userId, scope));
+    const service = new SaleDraftService(scope.companyId);
+    res.status(201).json(await service.createAndPost(input, currentUserId(req), scope));
+  } catch (error) {
+    next(error);
+  }
+});
+
+salesRouter.put('/:id', requirePermission('sales.edit'), async (req, res, next) => {
+  try {
+    const { id } = saleIdParams.parse(req.params);
+    const { scope, input } = saleInputFor(req);
+    const service = new SaleDraftService(scope.companyId);
+    res.json(await service.updateDraft(id, input, currentUserId(req), scope));
+  } catch (error) {
+    next(error);
+  }
+});
+
+salesRouter.post('/:id/update-and-post', requirePermission('sales.edit'), async (req, res, next) => {
+  try {
+    const { id } = saleIdParams.parse(req.params);
+    const { scope, input } = saleInputFor(req);
+    const service = new SaleDraftService(scope.companyId);
+    res.json(await service.updateAndPost(id, input, currentUserId(req), scope));
+  } catch (error) {
+    next(error);
+  }
+});
+
+salesRouter.post('/:id/cancel', requirePermission('sales.edit'), async (req, res, next) => {
+  try {
+    const scope = resolveAccessScope(req);
+    const { id } = saleIdParams.parse(req.params);
+    const input = CancelSaleDraftInput.parse(req.body);
+    const service = new SaleDraftService(scope.companyId);
+    res.json(await service.cancelDraft(id, input, currentUserId(req), scope));
   } catch (error) {
     next(error);
   }

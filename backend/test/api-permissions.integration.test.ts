@@ -323,6 +323,25 @@ describe.skipIf(!databaseUrl)('HTTP API permissions (database)', () => {
       expect(noReason.status).toBe(400);
     });
 
+    it('PUT /sales/:id, /update-and-post and /cancel: 403 for Warehouse Staff and Viewers, 404 for a missing draft', async () => {
+      const id = randomUUID();
+      const routes: Array<[string, string, unknown]> = [
+        ['PUT', `/api/v1/sales/${id}`, {}],
+        ['POST', `/api/v1/sales/${id}/update-and-post`, {}],
+        ['POST', `/api/v1/sales/${id}/cancel`, { reason: 'Test' }],
+      ];
+      for (const [method, path, body] of routes) {
+        for (const role of ['warehouse_staff', 'viewer'] as Role[]) {
+          const response = await request(method, path, { token: tokens[role], body });
+          expect(response.status, `${role} ${method} ${path}`).toBe(403);
+          expect(response.body.error.message).toMatch(/save or post sales/);
+        }
+      }
+      const missing = await request('POST', `/api/v1/sales/${id}/cancel`, { token: tokens.sales_staff, body: { reason: 'Test' } });
+      expect(missing.status).toBe(404);
+      expect(missing.body.error.message).toMatch(/Sale Voucher was not found/);
+    });
+
     it('POST /stock-adjustments/drafts: only Admin, Top Management and Managers', async () => {
       for (const role of ['accountant', 'sales_staff', 'warehouse_staff', 'viewer'] as Role[]) {
         const response = await request('POST', '/api/v1/stock-adjustments/drafts', { token: tokens[role], body: {} });

@@ -422,4 +422,108 @@ describe.skipIf(!databaseUrl)('Sale Vouchers (database)', () => {
     expect(await balance(itemA)).toBe('3.0000 @ 300.00');
     await expect(createDraft({ sale_date: '2025-12-03', due_date: '2025-12-31' })).rejects.toThrow(/is closed/);
   });
+
+  /** Makes posting fail after validation has passed, by making the Sales Revenue Account Inactive for the callback. */
+  async function withInactiveRevenueAccount(callback: () => Promise<void>) {
+    await prisma.account.update({ where: { id: settings.revenue }, data: { isActive: false } });
+    try {
+      await callback();
+    } finally {
+      await prisma.account.update({ where: { id: settings.revenue }, data: { isActive: true } });
+    }
+  }
+
+  const oneItemB = (price = 60) => [{ item_id: itemB, quantity: 1, sale_price: price, discount_amount: 0, tax_amount: 0 }];
+
+  describe('Draft lifecycle: save and post together, edit, cancel', () => {
+    it('saves and posts in one step', async () => {
+      const posted = await new m.SaleDraftService(companyId).createAndPost(saleInput({ sale_date: '2025-10-01', due_date: '2025-10-31', lines: oneItemB() }), userId, allBranches());
+      expect(posted.status).toBe('Posted');
+      expect((await saleRow(posted.id)).status).toBe('Posted');
+      expect(await balance(itemB)).toBe('6.0000 @ 180.00');
+    });
+
+    it('leaves no draft behind when Save And Post is refused at posting', async () => {
+      const salesBefore = await companyCount('sale_invoices');
+      const movementsBefore = await companyCount('inventory_stock_movements');
+      await withInactiveRevenueAccount(async () => {
+        await expect(new m.SaleDraftService(companyId).createAndPost(saleInput({ sale_date: '2025-10-02', due_date: '2025-10-31', lines: oneItemB() }), userId))
+          .rejects.toThrow(/Sales Revenue Account is not set up or is Inactive/);
+      });
+      expect(await companyCount('sale_invoices')).toBe(salesBefore);
+      expect(await companyCount('inventory_stock_movements')).toBe(movementsBefore);
+      expect(await balance(itemB)).toBe('6.0000 @ 180.00');
+    });
+
+    it('edits a draft: same number, new lines and cost, stock and ledger untouched', async () => {
+      const draft = await createDraft({ sale_date: '2025-10-03', due_date: '2025-10-31', customer_reference_number: 'CUST-EDIT' });
+      const vouchersBefore = await companyCount('vouchers');
+      const updated = await new m.SaleDraftService(companyId).updateDraft(draft.id, saleInput({
+        sale_date: '2025-10-04', due_date: '2025-11-03', customer_reference_number: 'cust-edit', lines: [{ item_id: itemB, quantity: 2, sale_price: 70, discount_amount: 0, tax_amount: 0 }],
+      }), userId, allBranches());
+      expect(updated).toEqual({ id: draft.id, sale_number: draft.sale_number });
+      const row = await saleRow(draft.id);
+      expect(row.status).toBe('Draft');
+      expect(new Decimal(row.net_amount).toFixed(2)).toBe('140.00');
+      // Cost is 2 x the Branch average of item B (30.00).
+      expect(new Decimal(row.cost_amount).toFixed(2)).toBe('60.00');
+      expect(await companyCount('vouchers')).toBe(vouchersBefore);
+      expect(await balance(itemB)).toBe('6.0000 @ 180.00');
+
+      // Another sale still cannot use the same Customer Reference No.
+      await expect(createDraft({ sale_date: '2025-10-04', due_date: '2025-10-31', customer_reference_number: 'CUST-EDIT' }))
+        .rejects.toThrow(/Customer Reference No\. is already used on/);
+    });
+
+    it('refuses to edit a posted or missing sale, and a draft of another Branch', async () => {
+      const service = new m.SaleDraftService(companyId);
+      const posted = await service.createAndPost(saleInput({ sale_date: '2025-10-05', due_date: '2025-10-31', lines: oneItemB() }), userId);
+      await expect(service.updateDraft(posted.id, saleInput({ sale_date: '2025-10-05', due_date: '2025-10-31' }), userId))
+        .rejects.toMatchObject({ statusCode: 400, message: expect.stringMatching(/Only Draft sale vouchers can be changed/) });
+      await expect(service.updateDraft('00000000-0000-4000-8000-000000000000', saleInput({ sale_date: '2025-10-05', due_date: '2025-10-31' }), userId))
+        .rejects.toMatchObject({ statusCode: 404 });
+
+      const draft = await createDraft({ sale_date: '2025-10-05', due_date: '2025-10-31' });
+      await expect(service.updateDraft(draft.id, saleInput({ sale_date: '2025-10-05', due_date: '2025-10-31' }), userId, branchUser(branchTwo)))
+        .rejects.toMatchObject({ statusCode: 403, message: 'You can only change Sale Vouchers for your own Branch.' });
+      await expect(service.cancelDraft(draft.id, { reason: 'Not mine' }, userId, branchUser(branchTwo)))
+        .rejects.toMatchObject({ statusCode: 403, message: 'You can only cancel Sale Vouchers for your own Branch.' });
+      expect((await saleRow(draft.id)).status).toBe('Draft');
+    });
+
+    it('saves changes and posts a draft in one step, and keeps the old values when posting is refused', async () => {
+      const service = new m.SaleDraftService(companyId);
+      const refused = await createDraft({ sale_date: '2025-10-06', due_date: '2025-10-31', lines: oneItemB() });
+      await withInactiveRevenueAccount(async () => {
+        await expect(service.updateAndPost(refused.id, saleInput({ sale_date: '2025-10-06', due_date: '2025-10-31', lines: oneItemB(99) }), userId))
+          .rejects.toThrow(/Sales Revenue Account is not set up or is Inactive/);
+      });
+      const kept = await saleRow(refused.id);
+      expect(kept.status).toBe('Draft');
+      expect(new Decimal(kept.net_amount).toFixed(2)).toBe('60.00');
+
+      const posted = await service.updateAndPost(refused.id, saleInput({ sale_date: '2025-10-06', due_date: '2025-10-31', lines: oneItemB(80) }), userId, branchUser(branchOne));
+      expect(posted).toMatchObject({ id: refused.id, status: 'Posted' });
+      expect(amountOn(await voucherFor(refused.id), customerAccountId)).toEqual({ debit: '80.00', credit: '0.00' });
+    });
+
+    it('cancels a draft: kept as Voided with the reason; it can no longer be posted, edited or cancelled', async () => {
+      const service = new m.SaleDraftService(companyId);
+      const draft = await createDraft({ sale_date: '2025-10-07', due_date: '2025-10-31' });
+      expect(await service.cancelDraft(draft.id, { reason: 'Customer changed mind' }, userId, branchUser(branchOne)))
+        .toEqual({ id: draft.id, sale_number: draft.sale_number, status: 'Voided' });
+      const rows = await prisma.$queryRaw<{ status: string; void_reason: string; voided_at: Date | null }[]>`
+        SELECT status, void_reason, voided_at FROM sale_invoices WHERE id = CAST(${draft.id} AS uuid)
+      `;
+      expect(rows[0]).toMatchObject({ status: 'Voided', void_reason: 'Customer changed mind' });
+      expect(rows[0].voided_at).not.toBeNull();
+
+      await expect(new m.SalePostService(companyId).post(draft.id, userId)).rejects.toThrow(/Only Draft sale vouchers can be posted/);
+      await expect(service.updateDraft(draft.id, saleInput({ sale_date: '2025-10-07', due_date: '2025-10-31' }), userId)).rejects.toThrow(/Only Draft sale vouchers can be changed/);
+      await expect(service.cancelDraft(draft.id, { reason: 'Again' }, userId)).rejects.toThrow(/Only Draft sale vouchers can be cancelled/);
+
+      const voided = await new m.SaleListService(companyId, allBranches()).list(m.ListSaleInvoicesQuery.parse({ status: 'Voided' }));
+      expect((voided.data as Array<{ id: string }>).map(row => row.id)).toContain(draft.id);
+    });
+  });
 });
