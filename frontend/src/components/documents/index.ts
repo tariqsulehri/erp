@@ -8,3 +8,5 @@ export { DocumentReviewDialog } from './DocumentReviewDialog';
 export { useLineEntryKeyboard, useSaveShortcutLabel } from './useLineEntryKeyboard';
 export type { LineEntryKeyboardOptions } from './useLineEntryKeyboard';
 export { PostedListPanel, PostedListFilters, postedListRowClass } from './PostedList';
+export { DraftDocumentActions, documentStatusLabel, DOCUMENT_STATUS_OPTIONS } from './DraftDocumentActions';
+export type { DraftActionMessage } from './DraftDocumentActions';

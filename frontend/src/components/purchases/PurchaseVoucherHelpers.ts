@@ -7,16 +7,7 @@ export const validQuantityPattern = /^\d+(\.\d{1,4})?$/;
 
 export const today = () => new Date().toISOString().slice(0, 10);
 
-/** A cancelled Draft is stored as Voided; staff see it as Cancelled. */
-export function purchaseStatusLabel(status: string) {
-  return status === 'Voided' ? 'Cancelled' : status;
-}
-
-export const PURCHASE_STATUS_OPTIONS = [
-  { value: 'Posted', label: 'Posted' },
-  { value: 'Draft', label: 'Draft' },
-  { value: 'Voided', label: 'Cancelled' },
-];
+export { documentStatusLabel as purchaseStatusLabel, DOCUMENT_STATUS_OPTIONS as PURCHASE_STATUS_OPTIONS } from '@/components/documents/DraftDocumentActions';
 
 export const initialPurchaseLineDraft = (): AddLineDraft => ({
   itemId: '',

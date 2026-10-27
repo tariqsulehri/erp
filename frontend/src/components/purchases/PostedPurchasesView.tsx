@@ -3,12 +3,9 @@
 import { useState } from 'react';
 import { useSession } from 'next-auth/react';
 import {
-  IconBan,
   IconChartBar,
   IconEye,
-  IconFileCheck,
   IconFilePlus,
-  IconPencil,
   IconPrinter,
   IconRefresh,
 } from '@tabler/icons-react';
@@ -29,9 +26,6 @@ import { PostedPurchasesFilters } from './components';
 import { purchaseStatusLabel } from './PurchaseVoucherHelpers';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
-import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
-import { FormDialog } from '@/components/ui/FormDialog';
-import { TextField } from '@/components/ui/FormFields';
 import { InlineAlert } from '@/components/ui/InlineAlert';
 import { StatusChip } from '@/components/ui/StatusChip';
 import { TableMessageRow } from '@/components/ui/TableMessageRow';
@@ -42,8 +36,10 @@ import {
   DocumentDetailPanel,
   DocumentHeader,
   DocumentPage,
+  DraftDocumentActions,
   PostedListPanel,
   postedListRowClass,
+  type DraftActionMessage,
 } from '@/components/documents';
 import type { PaymentType, PurchaseListRow, SupplierOption, WarehouseOption } from './PurchaseVoucherTypes';
 
@@ -78,11 +74,7 @@ export function PostedPurchasesView({
   const cancelDraft = useCancelPurchaseDraft();
   const invalidatePurchaseQueries = useInvalidatePurchaseQueries();
   const [status, setStatus] = useState('Posted');
-  const [actionMessage, setActionMessage] = useState<{ tone: 'success' | 'danger'; text: string } | null>(null);
-  const [postConfirmOpen, setPostConfirmOpen] = useState(false);
-  const [cancelOpen, setCancelOpen] = useState(false);
-  const [cancelReason, setCancelReason] = useState('');
-  const [cancelReasonError, setCancelReasonError] = useState('');
+  const [actionMessage, setActionMessage] = useState<DraftActionMessage | null>(null);
   const [searchText, setSearchText] = useState('');
   const [search, setSearch] = useState('');
   const [supplierId, setSupplierId] = useState('');
@@ -159,43 +151,6 @@ export function PostedPurchasesView({
   const statusFilterLabel = status ? purchaseStatusLabel(status) : 'All Statuses';
   const selectedIsDraft = detail?.status === 'Draft';
 
-  async function postSelectedDraft() {
-    if (!detail) return;
-    setActionMessage(null);
-    try {
-      const result = await postDraft.mutateAsync(detail.id);
-      await invalidatePurchaseQueries();
-      setPostConfirmOpen(false);
-      setActionMessage({ tone: 'success', text: `${result.purchase_number} posted. Stock and the Supplier balance are updated.` });
-    } catch (error) {
-      setPostConfirmOpen(false);
-      setActionMessage({ tone: 'danger', text: friendlyErrorMessage(error, 'Could not post the Purchase Voucher. Please try again.') });
-    }
-  }
-
-  function openCancelDialog() {
-    setCancelReason('');
-    setCancelReasonError('');
-    setCancelOpen(true);
-  }
-
-  async function cancelSelectedDraft() {
-    if (!detail) return;
-    const reason = cancelReason.trim();
-    if (reason.length < 3) {
-      setCancelReasonError('Enter a reason of at least 3 characters.');
-      return;
-    }
-    setActionMessage(null);
-    try {
-      const result = await cancelDraft.mutateAsync({ id: detail.id, reason });
-      await invalidatePurchaseQueries();
-      setCancelOpen(false);
-      setActionMessage({ tone: 'success', text: `${result.purchase_number} cancelled. It stays in the list with Status Cancelled.` });
-    } catch (error) {
-      setCancelReasonError(friendlyErrorMessage(error, 'Could not cancel the Draft. Please try again.'));
-    }
-  }
 
   return (
     <DocumentPage>
@@ -345,11 +300,23 @@ export function PostedPurchasesView({
             {detail && (
               <>
                 {selectedIsDraft && canChangeDrafts && (
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
-                    <Button variant="primary" size="sm" icon={<IconPencil {...iconProps} />} onClick={() => onOpenDraft(detail)}>Open Draft</Button>
-                    <Button variant="secondary" size="sm" icon={<IconFileCheck {...iconProps} />} onClick={() => { setActionMessage(null); setPostConfirmOpen(true); }}>Post</Button>
-                    <Button variant="danger" size="sm" icon={<IconBan {...iconProps} />} onClick={openCancelDialog}>Cancel Draft</Button>
-                  </div>
+                  <DraftDocumentActions
+                    documentName="Purchase Voucher"
+                    documentNumber={detail.purchase_number}
+                    postEffect="Stock and the Supplier balance are updated."
+                    onOpen={() => onOpenDraft(detail)}
+                    onPost={async () => {
+                      const result = await postDraft.mutateAsync(detail.id);
+                      await invalidatePurchaseQueries();
+                      return result.purchase_number;
+                    }}
+                    onCancel={async reason => {
+                      const result = await cancelDraft.mutateAsync({ id: detail.id, reason });
+                      await invalidatePurchaseQueries();
+                      return result.purchase_number;
+                    }}
+                    onMessage={setActionMessage}
+                  />
                 )}
                 <DetailFields
                   items={[
@@ -418,38 +385,6 @@ export function PostedPurchasesView({
           />
         )}
       />
-
-      <ConfirmDialog
-        open={postConfirmOpen}
-        title="Post Purchase Voucher?"
-        message={`This posts ${detail?.purchase_number ?? 'the Draft'} as it was saved. Stock and the Supplier balance are updated, and you cannot change it after it is posted.`}
-        confirmLabel="Yes, Post"
-        cancelLabel="No"
-        variant="warning"
-        loading={postDraft.isPending}
-        onConfirm={postSelectedDraft}
-        onCancel={() => setPostConfirmOpen(false)}
-      />
-
-      <FormDialog
-        open={cancelOpen}
-        title={`Cancel Draft ${detail?.purchase_number ?? ''}`.trim()}
-        saveLabel="Cancel Draft"
-        cancelLabel="Keep Draft"
-        saving={cancelDraft.isPending}
-        onSave={cancelSelectedDraft}
-        onCancel={() => setCancelOpen(false)}
-      >
-        <p style={{ marginTop: 0 }}>The Draft stays in the Purchase List with Status Cancelled. It cannot be posted or changed after this.</p>
-        <TextField
-          label="Reason"
-          value={cancelReason}
-          onChange={value => { setCancelReason(value); setCancelReasonError(''); }}
-          required
-          placeholder="Why is this Draft cancelled?"
-          error={cancelReasonError || undefined}
-        />
-      </FormDialog>
 
       {printPreviewInvoice && (
         <PurchaseInvoicePrintPreview
