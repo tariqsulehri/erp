@@ -4,6 +4,14 @@ This document records how inventory and warehousing are defined and how stock mo
 
 Snapshot date: 2026-09-30, branch `feature/inventory-professional`. Line numbers drift; search by function name if a reference is off.
 
+**Update 2026-10-28 (branch `feature/document-drafts`):**
+
+- **D1 fixed:** Stock Adjustment Save And Post now runs in one transaction.
+- **F1 fixed:** Stock Transfer and Stock Adjustment lists have a Status filter (Posted, Draft, Cancelled). Drafts can be opened, changed, posted, or cancelled with a reason.
+- **New columns:** `voided_by_id`, `voided_at` and `void_reason` on `stock_transfers` and `stock_adjustments`. A cancelled Draft has status `Voided`.
+- **Same draft workflow for trade documents:** Purchases, Sales, Sale Returns and Purchase Returns now have it too, and their Save And Post also runs in one transaction.
+- **Still open:** D6 (void or reversal of *posted* stock documents).
+
 ---
 
 ## 1. Definition
