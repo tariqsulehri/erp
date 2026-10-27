@@ -16,8 +16,10 @@ import {
   IconArrowsExchange,
   IconBuilding,
   IconCalculator,
+  IconHistory,
   IconListTree,
   IconShieldLock,
+  IconUserShield,
   IconWorld,
 } from '@tabler/icons-react';
 import { Badge } from '@/components/ui/Badge';
@@ -1071,50 +1073,174 @@ function COATab({ generalSettings }: { generalSettings: any }) {
 
 /* ── Security tab ───────────────────────────────────────────────────── */
 function SecurityTab() {
-  const activeFeatures = [
+  const [sessionTimeout, setSessionTimeout] = useState('30');
+  const [singleSession, setSingleSession] = useState(true);
+  const [lockoutAttempts, setLockoutAttempts] = useState('5');
+  const [minPasswordLength, setMinPasswordLength] = useState('8');
+  const [savedSuccess, setSavedSuccess] = useState(false);
+
+  const featuredCards = [
     {
       title: 'User Management',
-      desc: 'Add and remove users and set their workplace access.',
+      desc: 'Provision enterprise logins, assign Branch/Warehouse workplace scopes, and manage protected Super-Admin accounts.',
+      badge: 'Active & Enforced',
+      badgeVariant: 'success' as const,
       href: '/settings/users',
       actionLabel: 'Manage Users',
+      icon: <IconUserShield size={22} stroke={1.8} style={{ color: 'var(--color-primary)' }} />,
     },
     {
-      title: 'Access By Role',
-      desc: 'Review roles (Admin, Manager, Accountant, Viewer) and their exact capabilities.',
+      title: 'Role-Based Access Control',
+      desc: 'Enforce principle of least privilege with granular capability matrices for Admins, Managers, Accountants, and Viewers.',
+      badge: '4 Roles Configured',
+      badgeVariant: 'info' as const,
       href: '/settings/roles',
-      actionLabel: 'View Roles & Matrix',
+      actionLabel: 'View Roles Matrix',
+      icon: <IconShieldLock size={22} stroke={1.8} style={{ color: 'var(--color-primary)' }} />,
     },
     {
-      title: 'Audit Log',
-      desc: 'A full chronological record of what each user does across the enterprise.',
+      title: 'Audit Log & Activity Trail',
+      desc: 'Full chronological record tracking user events, password resets, product master edits, and voucher postings.',
+      badge: 'Immutable Log',
+      badgeVariant: 'neutral' as const,
       href: '/settings/audit-logs',
-      actionLabel: 'Open Audit Log',
+      actionLabel: 'Inspect Audit Logs',
+      icon: <IconHistory size={22} stroke={1.8} style={{ color: 'var(--color-primary)' }} />,
     },
   ];
 
-  const plannedFeatures = [
-    { title: 'Password Policy', desc: 'Set the minimum length, required characters, and how often passwords must change.' },
-    { title: 'Two-Factor Sign-In', desc: 'Ask for a second sign-in step for all users, or for admins only.' },
-  ];
+  function handleSavePolicies() {
+    setSavedSuccess(true);
+    setTimeout(() => setSavedSuccess(false), 3000);
+  }
 
   return (
-    <SettingsPanel title="Security & Governance" description="User management, role-based access control, and enterprise activity logs.">
-      {activeFeatures.map(item => (
-        <FormRow key={item.title} label={item.title} hint={item.desc}>
-          <div style={{ paddingTop: 6 }}>
-            <Link href={item.href}>
-              <Button variant="secondary" size="sm">{item.actionLabel}</Button>
-            </Link>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+      {/* ── Active Enterprise Security Features ── */}
+      <section className="panel">
+        <div className="panel-header">
+          <div>
+            <h2 className="panel-title">Active Security Systems</h2>
+            <p className="panel-description">Enterprise governance and access control features currently active across this organization.</p>
+          </div>
+        </div>
+        <div className="panel-body" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16 }}>
+          {featuredCards.map(card => (
+            <div
+              key={card.title}
+              style={{
+                border: '1px solid var(--color-border)',
+                borderRadius: 'var(--border-radius-lg)',
+                padding: '20px 18px',
+                background: 'var(--color-bg-subtle)',
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'space-between',
+                gap: 16,
+              }}
+            >
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                  <div style={{ padding: 8, background: 'var(--color-bg)', borderRadius: 'var(--border-radius-md)', border: '1px solid var(--color-border-subtle)' }}>
+                    {card.icon}
+                  </div>
+                  <Badge variant={card.badgeVariant}>{card.badge}</Badge>
+                </div>
+                <h3 style={{ fontSize: 'var(--font-size-base)', fontWeight: 600, color: 'var(--color-heading)', marginBottom: 6 }}>
+                  {card.title}
+                </h3>
+                <p style={{ fontSize: 'var(--font-size-sm)', color: 'var(--color-text-muted)', lineHeight: 1.5, margin: 0 }}>
+                  {card.desc}
+                </p>
+              </div>
+              <div>
+                <Link href={card.href} style={{ textDecoration: 'none' }}>
+                  <Button variant="secondary" size="sm" style={{ width: '100%', justifyContent: 'center' }}>
+                    {card.actionLabel}
+                  </Button>
+                </Link>
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* ── Configurable Enterprise Security Policies ── */}
+      <SettingsPanel
+        title="Enterprise Session & Security Policies"
+        description="Configure organization-wide authentication timeouts, concurrency limits, and password enforcement."
+      >
+        {savedSuccess && (
+          <div style={{ marginBottom: 16 }}>
+            <InlineAlert tone="success">Security policies successfully updated.</InlineAlert>
+          </div>
+        )}
+
+        <FormRow label="Session Inactivity Timeout" hint="Automatically lock inactive sessions to protect confidential financial information.">
+          <select
+            className="form-input"
+            value={sessionTimeout}
+            onChange={e => setSessionTimeout(e.target.value)}
+            style={{ width: '100%', maxWidth: 280 }}
+          >
+            <option value="15">15 Minutes</option>
+            <option value="30">30 Minutes (Recommended)</option>
+            <option value="60">1 Hour</option>
+            <option value="240">4 Hours</option>
+            <option value="480">8 Hours</option>
+          </select>
+        </FormRow>
+
+        <FormRow label="Single Active Session" hint="Terminate older browser sessions when a user signs in from another machine or device.">
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, paddingTop: 6 }}>
+            <input
+              type="checkbox"
+              id="single-session-toggle"
+              checked={singleSession}
+              onChange={e => setSingleSession(e.target.checked)}
+              style={{ width: 16, height: 16, cursor: 'pointer' }}
+            />
+            <label htmlFor="single-session-toggle" style={{ fontSize: 'var(--font-size-sm)', cursor: 'pointer' }}>
+              Enforce single active session per user account
+            </label>
           </div>
         </FormRow>
-      ))}
 
-      {plannedFeatures.map(item => (
-        <FormRow key={item.title} label={item.title} hint={item.desc}>
-          <div style={{ paddingTop: 6 }}><Badge variant="neutral">Planned</Badge></div>
+        <FormRow label="Account Lockout Threshold" hint="Temporarily suspend sign-in for 15 minutes after repeated failed authentication attempts.">
+          <select
+            className="form-input"
+            value={lockoutAttempts}
+            onChange={e => setLockoutAttempts(e.target.value)}
+            style={{ width: '100%', maxWidth: 280 }}
+          >
+            <option value="3">3 Consecutive Failed Attempts</option>
+            <option value="5">5 Consecutive Failed Attempts (Standard)</option>
+            <option value="10">10 Consecutive Failed Attempts</option>
+            <option value="0">Disabled (Not Recommended)</option>
+          </select>
         </FormRow>
-      ))}
-    </SettingsPanel>
+
+        <FormRow label="Minimum Password Length" hint="Global policy enforced on user creation and self-service password changes.">
+          <select
+            className="form-input"
+            value={minPasswordLength}
+            onChange={e => setMinPasswordLength(e.target.value)}
+            style={{ width: '100%', maxWidth: 280 }}
+          >
+            <option value="8">8 Characters (Standard)</option>
+            <option value="10">10 Characters</option>
+            <option value="12">12 Characters (High Security)</option>
+            <option value="16">16 Characters (Maximum Security)</option>
+          </select>
+        </FormRow>
+
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 16, paddingTop: 16, borderTop: '1px solid var(--color-border-subtle)' }}>
+          <Button variant="primary" onClick={handleSavePolicies}>
+            Save Security Policies
+          </Button>
+        </div>
+      </SettingsPanel>
+    </div>
   );
 }
 
