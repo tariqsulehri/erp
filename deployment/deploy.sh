@@ -51,7 +51,8 @@ step_done "Docker, settings and secrets look right"
 step "Keeping the running version for rollback"
 remember_previous
 if docker image inspect "${BACKEND_IMAGE}:previous" >/dev/null 2>&1; then
-  step_done "Saved as :previous ($(image_label "${BACKEND_IMAGE}:previous" org.opencontainers.image.version || true))"
+  previous_version="$(image_label "${BACKEND_IMAGE}:previous" org.opencontainers.image.version || true)"
+  step_done "Saved as :previous (${previous_version:-a build without a version stamp})"
 else
   step_done "Nothing running yet (first install)"
 fi

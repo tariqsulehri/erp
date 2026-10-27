@@ -120,7 +120,7 @@ status_report() { # status_report [result text]
   rule
   [ -n "$result" ] && { printf '%s\n' "$result"; rule; }
 
-  printf '%s%-10s %-26s %-12s %-9s %-17s %-10s %s%s\n' "$BOLD" "Service" "Image" "Version" "Commit" "Started" "Health" "Uptime" "$RESET"
+  printf '%s%-10s %-34s %-14s %-9s %-17s %-10s %s%s\n' "$BOLD" "Service" "Image" "Version" "Commit" "Started" "Health" "Uptime" "$RESET"
   local name label container image_ref image_id version commit started health uptime color
   for pair in "Frontend:$FRONTEND_CONTAINER" "Backend:$BACKEND_CONTAINER"; do
     label="${pair%%:*}"; container="${pair#*:}"
@@ -132,7 +132,7 @@ status_report() { # status_report [result text]
     health="$(health_of "$container")"
     uptime="$(docker ps --filter "name=^${container}$" --format '{{.RunningFor}}' 2>/dev/null | sed 's/ ago//')"
     case "$health" in healthy) color="$GREEN" ;; starting) color="$YELLOW" ;; *) color="$RED" ;; esac
-    printf '%-10s %-26s %-12s %-9s %-17s %s%-10s%s %s\n' "$label" "${image_ref:-missing}" "${version:--}" "${commit:0:7}" "${started:--}" "$color" "$health" "$RESET" "${uptime:--}"
+    printf '%-10s %-34s %-14s %-9s %-17s %s%-10s%s %s\n' "$label" "${image_ref:-missing}" "${version:--}" "${commit:0:7}" "${started:--}" "$color" "$health" "$RESET" "${uptime:--}"
   done
 
   echo; printf '%sEndpoints%s\n' "$BOLD" "$RESET"
