@@ -1,7 +1,7 @@
 'use client';
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { backendGet, backendPost } from './backend-client';
+import { backendGet, backendPost, backendPut } from './backend-client';
 
 export const stockTransferSupportQueryKey = ['backend', 'stock-transfers', 'support-data'] as const;
 export const stockTransferListQueryKey = ['backend', 'stock-transfers', 'list'] as const;
@@ -138,11 +138,40 @@ export function useCreateAndPostStockTransfer() {
   });
 }
 
+/** Saves changes to a Draft stock transfer. Its number stays the same. */
+export function useUpdateStockTransferDraft() {
+  return useMutation({
+    mutationFn: ({ id, input }: { id: string; input: StockTransferPayload }) => backendPut<any, StockTransferPayload>(`/stock-transfers/${id}`, input),
+  });
+}
+
+/** Saves changes to a Draft stock transfer and posts it in one step. */
+export function useUpdateAndPostStockTransfer() {
+  return useMutation({
+    mutationFn: ({ id, input }: { id: string; input: StockTransferPayload }) => backendPost<any, StockTransferPayload>(`/stock-transfers/${id}/update-and-post`, input),
+  });
+}
+
+/** Posts a saved Draft stock transfer as it is. */
+export function usePostStockTransferDraft() {
+  return useMutation({
+    mutationFn: (id: string) => backendPost<any, Record<string, never>>(`/stock-transfers/${id}/post`, {}),
+  });
+}
+
+/** Cancels a Draft stock transfer. It stays on file as Cancelled with the reason. */
+export function useCancelStockTransferDraft() {
+  return useMutation({
+    mutationFn: ({ id, reason }: { id: string; reason: string }) => backendPost<any, { reason: string }>(`/stock-transfers/${id}/cancel`, { reason }),
+  });
+}
+
 export function useInvalidateStockTransferQueries() {
   const queryClient = useQueryClient();
   return () => Promise.all([
     queryClient.invalidateQueries({ queryKey: stockTransferSupportQueryKey }),
     queryClient.invalidateQueries({ queryKey: ['backend', 'stock-transfers', 'source-stock'] }),
     queryClient.invalidateQueries({ queryKey: stockTransferListQueryKey }),
+    queryClient.invalidateQueries({ queryKey: ['backend', 'stock-transfers', 'detail'] }),
   ]);
 }

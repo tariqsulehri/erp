@@ -345,6 +345,8 @@ export class StockTransferService {
         st.total_quantity::text,
         st.total_cost::text,
         st.posted_at,
+        st.void_reason,
+        st.voided_at,
         CASE WHEN st.from_branch_id IS NOT NULL THEN 'BRANCH' ELSE 'WAREHOUSE' END AS from_kind,
         COALESCE(fb.code, fw.code) AS from_code,
         COALESCE(fb.name, fw.name) AS from_name,

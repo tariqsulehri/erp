@@ -20,6 +20,8 @@ import {
   useInvalidateStockTransferQueries,
   useStockTransferSupportData,
   useStockTransferSourceStock,
+  useUpdateAndPostStockTransfer,
+  useUpdateStockTransferDraft,
 } from '@/lib/api/stock-transfers';
 import { usePostingDateGuard } from '@/lib/api/fiscal-years';
 import { friendlyErrorMessage, numericValue } from '@/lib/erp-utils';
@@ -37,6 +39,7 @@ import { TransferList } from './TransferList';
 import { TransferPlacePicker } from './TransferPlacePicker';
 import { directionOf, directionOption, directionsFor, type TransferDirection } from './transfer-directions';
 import { emptyPlace, locationOptions, PLACE_KIND_LABELS, placeOptions, samePlace } from './transfer-places';
+import { transferFormFromDetail } from './transfer-drafts';
 
 interface TransferLine {
   id: number;
@@ -56,7 +59,11 @@ export default function StockTransferPage() {
   const { data: generalSettings } = useGeneralSettings();
   const createDraft = useCreateStockTransferDraft();
   const createAndPost = useCreateAndPostStockTransfer();
+  const updateDraft = useUpdateStockTransferDraft();
+  const updateAndPost = useUpdateAndPostStockTransfer();
   const invalidate = useInvalidateStockTransferQueries();
+  /** The saved Draft open in the form, or null for a new transfer. */
+  const [openDraft, setOpenDraft] = useState<{ id: string; transferNumber: string } | null>(null);
   const [viewMode, setViewMode] = useState<'list' | 'entry'>('list');
 
   useEffect(() => {
@@ -99,7 +106,7 @@ export default function StockTransferPage() {
 
   const postingDateGuard = usePostingDateGuard(transferDate, 'Transfer Date');
   const newTransferGuard = usePostingDateGuard(today(), 'Transfer Date');
-  const saving = createDraft.isPending || createAndPost.isPending;
+  const saving = createDraft.isPending || createAndPost.isPending || updateDraft.isPending || updateAndPost.isPending;
   const actionDisabled = saving || postingDateGuard.disabled;
   const dateStatusMessage = postingDateGuard.isChecking ? 'Checking the Transfer Date…' : postingDateGuard.statusMessage;
   const newTransferDisabledReason = newTransferGuard.isChecking ? 'Checking the Transfer Date…' : newTransferGuard.statusMessage;
@@ -215,6 +222,34 @@ export default function StockTransferPage() {
     setLines([]);
     setEditingLineId(null);
     setMessage(null);
+    setOpenDraft(null);
+  }
+
+  /** Opens a saved Draft in the entry form so it can be changed, saved again, or posted. */
+  function openSavedDraft(detail: Record<string, any>) {
+    const form = transferFormFromDetail(detail);
+    setTransferDate(form.transferDate);
+    setFrom(form.from);
+    setTo(form.to);
+    setReferenceNumber(form.referenceNumber);
+    setDescription(form.description);
+    setLineItemId('');
+    setLineQuantity('');
+    setLineDescription('');
+    setEditingLineId(null);
+    // Stock figures are filled in from the From place's stock as soon as it is loaded.
+    setLines(form.lines.map((line, index) => {
+      const stock = sourceStockMap[line.itemId];
+      return {
+        ...line,
+        id: Date.now() + index,
+        stockOnHand: String(stock?.stockOnHand ?? 0),
+        availableStock: String(stock?.availableStock ?? 0),
+      };
+    }));
+    setOpenDraft({ id: form.id, transferNumber: form.transferNumber });
+    setMessage(null);
+    setViewMode('entry');
   }
 
   function openNewTransfer() {
@@ -323,9 +358,13 @@ export default function StockTransferPage() {
       return;
     }
     try {
-      const result = postNow
-        ? await createAndPost.mutateAsync(buildPayload())
-        : await createDraft.mutateAsync(buildPayload());
+      const result = openDraft
+        ? postNow
+          ? await updateAndPost.mutateAsync({ id: openDraft.id, input: buildPayload() })
+          : await updateDraft.mutateAsync({ id: openDraft.id, input: buildPayload() })
+        : postNow
+          ? await createAndPost.mutateAsync(buildPayload())
+          : await createDraft.mutateAsync(buildPayload());
       await invalidate();
       resetForm();
       setMessage({ kind: 'success', text: postNow ? `${result.transfer_number} posted.` : `${result.transfer_number} saved as Draft.` });
@@ -345,6 +384,7 @@ export default function StockTransferPage() {
             <>
               <p>A Stock Transfer moves stock from one place to another: Warehouse → Branch, Branch → Branch, Warehouse → Warehouse, or Branch → Warehouse.</p>
               <p>Posting takes the stock out of the From place and adds it to the To place at the same cost. Your total stock value does not change.</p>
+              <p>Change the Status to Draft to find saved drafts. A Draft can be opened and changed, posted, or cancelled.</p>
               <p>A posted transfer cannot be changed. To undo it, make a new transfer the other way.</p>
             </>
           )}
@@ -353,6 +393,7 @@ export default function StockTransferPage() {
         {message && <InlineAlert tone={message.kind === 'success' ? 'success' : 'danger'}>{message.text}</InlineAlert>}
         <TransferList
           settings={generalSettings}
+          onOpenDraft={openSavedDraft}
           empty={{
             title: 'No Posted Stock Transfers Yet',
             description: 'Move stock from a Warehouse to a Branch, or between any two places.',
@@ -366,14 +407,14 @@ export default function StockTransferPage() {
   return (
     <main className="page-shell">
       <PageHeader
-        title="New Stock Transfer"
+        title={openDraft ? `Stock Transfer ${openDraft.transferNumber}` : 'New Stock Transfer'}
         description="Choose the direction, the two places, and the items to move."
         help={(
           <>
             <p>1. Choose the direction, for example Warehouse → Branch.</p>
             <p>2. Choose the From place and the To place. Some Warehouses also need a Location (shelf).</p>
             <p>3. Add each item and its quantity. You cannot move more than the From place has.</p>
-            <p>Save Draft keeps it for later. Process posts it and moves the stock now.</p>
+            <p>Save Draft keeps it for later. Process posts it and moves the stock now. If posting is refused, nothing is saved.</p>
           </>
         )}
         actions={(
