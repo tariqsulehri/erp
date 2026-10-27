@@ -113,10 +113,10 @@ export function CashBankVoucherLineTable({
               <tr key={line.id} data-line-row data-line-empty={isEmptyLine(line) ? 'true' : undefined}>
                 <td className="num cell-muted" style={{ fontWeight: 600 }}>{lineNo}</td>
 
-                {/* Account Selection with Search Icon */}
+                {/* Account Selection with Integrated Search Icon */}
                 <td data-line-first>
-                  <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
-                    <div style={{ flex: 1, minWidth: 0 }}>
+                  <div className={styles.cellControlGroup}>
+                    <div>
                       <SearchableSelect
                         value={line.accountId}
                         options={accountOptions}
@@ -132,14 +132,15 @@ export function CashBankVoucherLineTable({
                         ariaLabel={`${config.lineAccountLabel}, Line ${lineNo}`}
                       />
                     </div>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      icon={<IconSearch size={15} stroke={1.8} />}
+                    <button
+                      type="button"
+                      className={styles.cellSearchBtn}
                       onClick={() => setAccountSearchLineId(line.id)}
                       title="Advanced Chart of Accounts Search"
                       aria-label={`Search Account for Line ${lineNo}`}
-                    />
+                    >
+                      <IconSearch size={15} stroke={1.8} aria-hidden />
+                    </button>
                   </div>
                 </td>
 
@@ -154,27 +155,30 @@ export function CashBankVoucherLineTable({
                   />
                 </td>
 
-                {/* Cheque Details with Search Icon */}
+                {/* Cheque Details with Integrated Search Icon */}
                 {cheque && (
                   <>
                     <td>
-                      <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
-                        <input
-                          className="form-input"
-                          value={line.chequeDetails}
-                          onChange={event => onUpdateLine(line.id, { chequeDetails: event.currentTarget.value })}
-                          placeholder="Cheque No."
-                          aria-label={`Cheque Details, Line ${lineNo}`}
-                        />
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          icon={<IconSearch size={15} stroke={1.8} />}
+                      <div className={styles.cellControlGroup}>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <input
+                            className="form-input"
+                            value={line.chequeDetails}
+                            onChange={event => onUpdateLine(line.id, { chequeDetails: event.currentTarget.value })}
+                            placeholder="Cheque No."
+                            aria-label={`Cheque Details, Line ${lineNo}`}
+                          />
+                        </div>
+                        <button
+                          type="button"
+                          className={styles.cellSearchBtn}
                           onClick={() => setChequeSearchLineId(line.id)}
                           disabled={!bankAccountId}
                           title={!bankAccountId ? 'Select a Bank Account first' : 'Find Available Cheque from Register'}
                           aria-label={`Search Cheque for Line ${lineNo}`}
-                        />
+                        >
+                          <IconSearch size={15} stroke={1.8} aria-hidden />
+                        </button>
                       </div>
                     </td>
                     <td>
