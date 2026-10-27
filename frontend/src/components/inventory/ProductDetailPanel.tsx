@@ -93,6 +93,17 @@ export function ProductDetailPanel({ id, onClose, onEdit }: {
           <DetailRow label="SKU" value={p.sku} />
           <DetailRow label="Brand" value={p.brand ? `${p.brand}${p.model ? ` · ${p.model}` : ''}` : null} />
           <DetailRow label="Category" value={p.category ? `${p.category.code} — ${p.category.name}` : null} />
+          <DetailRow label="Product Type" value={p.product_type_name || p.product_type_record?.name || null} />
+          <DetailRow label="Size" value={p.size_name || p.size_record?.name || null} />
+          <DetailRow
+            label="Color"
+            value={
+              (p.color_name || p.color_record?.name)
+                ? `${p.color_name || p.color_record?.name}${p.color_hex || p.color_record?.hex_code ? ` (${p.color_hex || p.color_record?.hex_code})` : ''}`
+                : null
+            }
+          />
+          <DetailRow label="Origin" value={p.origin_name || p.origin_record?.name || null} />
           <DetailRow label="Unit" value={p.uom ? `${p.uom.abbreviation} (${p.uom.name})` : null} />
           <DetailRow label="Barcode" value={p.barcode} />
           <DetailRow label="Tax" value={`${p.tax_category} · ${p.tax_rate}%`} />

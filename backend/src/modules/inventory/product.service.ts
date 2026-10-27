@@ -2,12 +2,22 @@ import type { Prisma } from '@prisma/client';
 import { prisma } from '../../db/prisma.js';
 import type { AccessScope } from '../auth/access-rules.js';
 import type {
+  CreateBrandInput,
   CreateCategoryInput,
+  CreateColorInput,
+  CreateOriginInput,
   CreateProductInput,
+  CreateProductTypeInput,
+  CreateSizeInput,
   CreateUomInput,
   ListProductsQuery,
+  UpdateBrandInput,
   UpdateCategoryInput,
+  UpdateColorInput,
+  UpdateOriginInput,
   UpdateProductInput,
+  UpdateProductTypeInput,
+  UpdateSizeInput,
   UpdateUomInput,
 } from './product.schema.js';
 
@@ -118,6 +128,22 @@ export class ProductService {
       params.push(query.brand_id);
       where.push(`i.brand_id = CAST($${params.length} AS uuid)`);
     }
+    if (query.product_type_id) {
+      params.push(query.product_type_id);
+      where.push(`i.product_type_id = CAST($${params.length} AS uuid)`);
+    }
+    if (query.item_size_id) {
+      params.push(query.item_size_id);
+      where.push(`i.item_size_id = CAST($${params.length} AS uuid)`);
+    }
+    if (query.color_id) {
+      params.push(query.color_id);
+      where.push(`i.color_id = CAST($${params.length} AS uuid)`);
+    }
+    if (query.origin_id) {
+      params.push(query.origin_id);
+      where.push(`i.origin_id = CAST($${params.length} AS uuid)`);
+    }
     const itemKind = toItemKind(query.product_type);
     if (itemKind) {
       params.push(itemKind);
@@ -155,6 +181,9 @@ export class ProductService {
       LEFT JOIN inventory_categories c ON c.id = i.category_id
       LEFT JOIN inventory_brands b ON b.id = i.brand_id
       LEFT JOIN inventory_product_types pt ON pt.id = i.product_type_id
+      LEFT JOIN inventory_item_sizes sz ON sz.id = i.item_size_id
+      LEFT JOIN inventory_item_colors cl ON cl.id = i.color_id
+      LEFT JOIN inventory_origins o ON o.id = i.origin_id
       LEFT JOIN inventory_units_of_measure u ON u.id = COALESCE(i.stock_uom_id, i.base_uom_id, i.sales_uom_id)
       LEFT JOIN inventory_units_of_measure wu ON wu.id = i.weight_uom_id
       LEFT JOIN LATERAL (
@@ -208,6 +237,15 @@ export class ProductService {
           i.item_name AS name,
           COALESCE(i.sale_description, i.detailed_description) AS description,
           b.name AS brand,
+          i.brand_id,
+          i.product_type_id,
+          i.item_size_id,
+          i.color_id,
+          i.origin_id,
+          sz.name AS size_name,
+          cl.name AS color_name,
+          cl.hex_code AS color_hex,
+          o.name AS origin_name,
           NULL::text AS model,
           i.category_id,
           COALESCE(i.stock_uom_id, i.base_uom_id, i.sales_uom_id) AS uom_id,
@@ -239,7 +277,7 @@ export class ProductService {
           i.width::text AS width_cm,
           i.height::text AS height_cm,
           img.image_url,
-          i.other_information AS notes,
+          COALESCE(i.notes, i.other_information) AS notes,
           NULL::text AS tags,
           0 AS sort_order,
           i.created_by_id AS created_by,
@@ -249,7 +287,10 @@ export class ProductService {
           CASE WHEN c.id IS NULL THEN NULL ELSE json_build_object('id', c.id, 'code', c.code, 'name', c.name) END AS category,
           CASE WHEN u.id IS NULL THEN NULL ELSE json_build_object('id', u.id, 'abbreviation', u.short_name, 'name', u.name, 'uom_type', 'Other') END AS uom,
           CASE WHEN b.id IS NULL THEN NULL ELSE json_build_object('id', b.id, 'code', b.code, 'name', b.name) END AS brand_record,
-          CASE WHEN pt.id IS NULL THEN NULL ELSE json_build_object('id', pt.id, 'code', pt.code, 'name', pt.name) END AS product_type_record
+          CASE WHEN pt.id IS NULL THEN NULL ELSE json_build_object('id', pt.id, 'code', pt.code, 'name', pt.name) END AS product_type_record,
+          CASE WHEN sz.id IS NULL THEN NULL ELSE json_build_object('id', sz.id, 'code', sz.code, 'name', sz.name) END AS size_record,
+          CASE WHEN cl.id IS NULL THEN NULL ELSE json_build_object('id', cl.id, 'code', cl.code, 'name', cl.name, 'hex_code', cl.hex_code) END AS color_record,
+          CASE WHEN o.id IS NULL THEN NULL ELSE json_build_object('id', o.id, 'code', o.code, 'name', o.name) END AS origin_record
         ${fromSql}
         ORDER BY ${sortColumns[query.sort_by] ?? 'i.item_name'} ${query.sort_dir}
         LIMIT $${params.length - 1}
@@ -278,6 +319,16 @@ export class ProductService {
             i.item_name AS name,
             COALESCE(i.sale_description, i.detailed_description) AS description,
             b.name AS brand,
+            i.brand_id,
+            i.product_type_id,
+            i.item_size_id,
+            i.color_id,
+            i.origin_id,
+            pt.name AS product_type_name,
+            sz.name AS size_name,
+            cl.name AS color_name,
+            cl.hex_code AS color_hex,
+            o.name AS origin_name,
             NULL::text AS model,
             i.category_id,
             COALESCE(i.stock_uom_id, i.base_uom_id, i.sales_uom_id) AS uom_id,
@@ -309,7 +360,7 @@ export class ProductService {
             i.width::text AS width_cm,
             i.height::text AS height_cm,
             img.image_url,
-            i.other_information AS notes,
+            COALESCE(i.notes, i.other_information) AS notes,
             NULL::text AS tags,
             0 AS sort_order,
             i.created_by_id AS created_by,
@@ -317,10 +368,19 @@ export class ProductService {
             i.created_at,
             i.updated_at,
             CASE WHEN c.id IS NULL THEN NULL ELSE json_build_object('id', c.id, 'code', c.code, 'name', c.name) END AS category,
-            CASE WHEN u.id IS NULL THEN NULL ELSE json_build_object('id', u.id, 'abbreviation', u.short_name, 'name', u.name, 'uom_type', 'Other') END AS uom
+            CASE WHEN u.id IS NULL THEN NULL ELSE json_build_object('id', u.id, 'abbreviation', u.short_name, 'name', u.name, 'uom_type', 'Other') END AS uom,
+            CASE WHEN b.id IS NULL THEN NULL ELSE json_build_object('id', b.id, 'code', b.code, 'name', b.name) END AS brand_record,
+            CASE WHEN pt.id IS NULL THEN NULL ELSE json_build_object('id', pt.id, 'code', pt.code, 'name', pt.name) END AS product_type_record,
+            CASE WHEN sz.id IS NULL THEN NULL ELSE json_build_object('id', sz.id, 'code', sz.code, 'name', sz.name) END AS size_record,
+            CASE WHEN cl.id IS NULL THEN NULL ELSE json_build_object('id', cl.id, 'code', cl.code, 'name', cl.name, 'hex_code', cl.hex_code) END AS color_record,
+            CASE WHEN o.id IS NULL THEN NULL ELSE json_build_object('id', o.id, 'code', o.code, 'name', o.name) END AS origin_record
           FROM inventory_items i
           LEFT JOIN inventory_categories c ON c.id = i.category_id
           LEFT JOIN inventory_brands b ON b.id = i.brand_id
+          LEFT JOIN inventory_product_types pt ON pt.id = i.product_type_id
+          LEFT JOIN inventory_item_sizes sz ON sz.id = i.item_size_id
+          LEFT JOIN inventory_item_colors cl ON cl.id = i.color_id
+          LEFT JOIN inventory_origins o ON o.id = i.origin_id
           LEFT JOIN inventory_units_of_measure u ON u.id = COALESCE(i.stock_uom_id, i.base_uom_id, i.sales_uom_id)
           LEFT JOIN inventory_units_of_measure wu ON wu.id = i.weight_uom_id
           LEFT JOIN LATERAL (
@@ -354,7 +414,7 @@ export class ProductService {
     });
     if (duplicate) throw businessError(`SKU "${input.sku}" already exists in this company.`);
 
-    const brandId = await this.findBrandId(input.brand);
+    const brandId = input.brand_id ?? (await this.findBrandId(input.brand));
     const weightUomId = await this.findUomIdByShortName(input.weight_unit);
     const status = statusFields(input.status);
 
@@ -368,6 +428,10 @@ export class ProductService {
         detailedDescription: input.description,
         categoryId: input.category_id,
         brandId,
+        productTypeId: input.product_type_id,
+        itemSizeId: input.item_size_id,
+        colorId: input.color_id,
+        originId: input.origin_id,
         baseUomId: input.uom_id,
         stockUomId: input.uom_id,
         purchaseUomId: input.uom_id,
@@ -391,6 +455,7 @@ export class ProductService {
         length: decimalText(input.length_cm),
         width: decimalText(input.width_cm),
         height: decimalText(input.height_cm),
+        notes: input.notes,
         otherInformation: input.notes,
         isActive: status.isActive,
         isBlocked: status.isBlocked,
@@ -417,7 +482,7 @@ export class ProductService {
       if (duplicate) throw businessError(`SKU "${fields.sku}" is already used.`);
     }
 
-    const brandId = fields.brand !== undefined ? await this.findBrandId(fields.brand) : undefined;
+    const brandId = fields.brand_id !== undefined ? fields.brand_id : (fields.brand !== undefined ? await this.findBrandId(fields.brand) : undefined);
     const weightUomId = fields.weight_unit !== undefined ? await this.findUomIdByShortName(fields.weight_unit) : undefined;
     const status = fields.status ? statusFields(fields.status) : {};
 
@@ -428,7 +493,11 @@ export class ProductService {
         ...(fields.name !== undefined && { itemName: fields.name }),
         ...(fields.description !== undefined && { saleDescription: fields.description, detailedDescription: fields.description }),
         ...(fields.category_id !== undefined && { categoryId: fields.category_id }),
-        ...(fields.brand !== undefined && { brandId }),
+        ...(brandId !== undefined && { brandId }),
+        ...(fields.product_type_id !== undefined && { productTypeId: fields.product_type_id }),
+        ...(fields.item_size_id !== undefined && { itemSizeId: fields.item_size_id }),
+        ...(fields.color_id !== undefined && { colorId: fields.color_id }),
+        ...(fields.origin_id !== undefined && { originId: fields.origin_id }),
         ...(fields.uom_id !== undefined && { baseUomId: fields.uom_id, stockUomId: fields.uom_id, purchaseUomId: fields.uom_id, salesUomId: fields.uom_id }),
         ...(fields.product_type !== undefined && { itemKind: toItemKind(fields.product_type) as any, isServiceItem: fields.product_type === 'Service' }),
         ...(fields.track_inventory !== undefined && { isInventoryItem: fields.track_inventory }),
@@ -446,7 +515,7 @@ export class ProductService {
         ...(fields.length_cm !== undefined && { length: decimalText(fields.length_cm) }),
         ...(fields.width_cm !== undefined && { width: decimalText(fields.width_cm) }),
         ...(fields.height_cm !== undefined && { height: decimalText(fields.height_cm) }),
-        ...(fields.notes !== undefined && { otherInformation: fields.notes }),
+        ...(fields.notes !== undefined && { notes: fields.notes, otherInformation: fields.notes }),
         ...status,
       },
     });
@@ -459,11 +528,12 @@ export class ProductService {
   }
 
   async archive(id: string) {
-    const result = await prisma.inventoryItem.updateMany({
-      where: { id, companyId: this.companyId },
-      data: { isBlocked: true, blockedReason: 'Archived from product catalogue' },
+    const item = await prisma.inventoryItem.findFirst({ where: { id, companyId: this.companyId } });
+    if (!item) throw businessError('Product not found.', 404);
+    await prisma.inventoryItem.update({
+      where: { id },
+      data: { isBlocked: true, blockedReason: 'Archived by user' },
     });
-    if (result.count === 0) throw businessError('Product not found.', 404);
   }
 
   async delete(id: string) {
@@ -473,24 +543,18 @@ export class ProductService {
     await prisma.inventoryItem.delete({ where: { id } });
   }
 
+  /* ────────────────────────── CATEGORIES ────────────────────────── */
+
   async listCategories() {
     return prisma.$queryRawUnsafe<any[]>(
       `
-        SELECT id, company_id, code, name, description, parent_id, level AS depth, path, sort_order, is_active, created_at, updated_at
+        SELECT id, company_id, code, name, description, notes, parent_id, level AS depth, path, sort_order, is_active, created_at, updated_at
         FROM inventory_categories
         WHERE company_id = CAST($1 AS uuid)
         ORDER BY path ASC, sort_order ASC, name ASC
       `,
       this.companyId,
     );
-  }
-
-  async listBrands() {
-    return prisma.brand.findMany({
-      where: { companyId: this.companyId, isActive: true },
-      select: { id: true, code: true, name: true },
-      orderBy: { name: 'asc' },
-    });
   }
 
   async createCategory(input: CreateCategoryInput) {
@@ -513,6 +577,7 @@ export class ProductService {
         code: input.code,
         name: input.name,
         description: input.description,
+        notes: input.notes,
         parentId: input.parent_id,
         sortOrder: input.sort_order,
         isActive: input.is_active,
@@ -545,6 +610,7 @@ export class ProductService {
           code: fields.code,
           name: fields.name,
           description: fields.description,
+          notes: fields.notes,
           sortOrder: fields.sort_order,
           isActive: fields.is_active,
         },
@@ -552,10 +618,6 @@ export class ProductService {
     });
   }
 
-  /**
-   * Moves a category (with its whole sub-tree) under a new parent, or to the top level when parentId is null.
-   * Level and path are recalculated for every moved category, and moving under its own descendant is refused.
-   */
   private async moveCategory(
     transaction: Prisma.TransactionClient,
     category: { id: string; level: number; path: string },
@@ -578,19 +640,19 @@ export class ProductService {
       select: { id: true, level: true, path: true },
     });
     const newLevel = parentLevel + 1;
-    const levelChange = newLevel - category.level;
-    const deepest = Math.max(category.level, ...descendants.map(row => row.level)) + levelChange;
-    if (deepest > 7) throw businessError('This move would make too many Category levels. Choose another Parent Category.');
-
     const newPath = parentPath ? `${parentPath}/${category.id}` : category.id;
+    const levelDiff = newLevel - category.level;
+
     await transaction.inventoryCategory.update({
       where: { id: category.id },
       data: { parentId, level: newLevel, path: newPath },
     });
-    for (const row of descendants) {
+
+    for (const d of descendants) {
+      const subPath = d.path.slice(category.path.length);
       await transaction.inventoryCategory.update({
-        where: { id: row.id },
-        data: { level: row.level + levelChange, path: `${newPath}${row.path.slice(category.path.length)}` },
+        where: { id: d.id },
+        data: { level: d.level + levelDiff, path: `${newPath}${subPath}` },
       });
     }
   }
@@ -602,10 +664,278 @@ export class ProductService {
     ]);
     if (itemCount > 0) throw businessError(`This Category cannot be deleted. ${itemCount} product(s) use it.`);
     if (childCount > 0) throw businessError(`This Category cannot be deleted. It has ${childCount} Sub Categor${childCount === 1 ? 'y' : 'ies'}.`);
-    // Scoped to this company: an id from another company deletes nothing and reports not found.
     const deleted = await prisma.inventoryCategory.deleteMany({ where: { id, companyId: this.companyId } });
     if (deleted.count === 0) throw businessError('Category not found.', 404);
   }
+
+  /* ────────────────────────── BRANDS ────────────────────────── */
+
+  async listBrands() {
+    return prisma.brand.findMany({
+      where: { companyId: this.companyId },
+      orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
+    });
+  }
+
+  async createBrand(input: CreateBrandInput) {
+    const duplicate = await prisma.brand.findFirst({ where: { companyId: this.companyId, code: input.code } });
+    if (duplicate) throw businessError(`Brand Code "${input.code}" already exists.`);
+    return prisma.brand.create({
+      data: {
+        companyId: this.companyId,
+        code: input.code,
+        name: input.name,
+        description: input.description,
+        notes: input.notes,
+        sortOrder: input.sort_order,
+        isActive: input.is_active,
+      },
+    });
+  }
+
+  async updateBrand(input: UpdateBrandInput) {
+    const { id, ...fields } = input;
+    const existing = await prisma.brand.findFirst({ where: { id, companyId: this.companyId } });
+    if (!existing) throw businessError('Brand not found.', 404);
+    if (fields.code && fields.code !== existing.code) {
+      const duplicate = await prisma.brand.findFirst({ where: { companyId: this.companyId, code: fields.code } });
+      if (duplicate) throw businessError(`Brand Code "${fields.code}" is already used.`);
+    }
+    return prisma.brand.update({
+      where: { id },
+      data: {
+        ...(fields.code !== undefined && { code: fields.code }),
+        ...(fields.name !== undefined && { name: fields.name }),
+        ...(fields.description !== undefined && { description: fields.description }),
+        ...(fields.notes !== undefined && { notes: fields.notes }),
+        ...(fields.sort_order !== undefined && { sortOrder: fields.sort_order }),
+        ...(fields.is_active !== undefined && { isActive: fields.is_active }),
+      },
+    });
+  }
+
+  async deleteBrand(id: string) {
+    const count = await prisma.inventoryItem.count({ where: { companyId: this.companyId, brandId: id } });
+    if (count > 0) throw businessError(`This Brand cannot be deleted. ${count} product(s) use it.`);
+    const deleted = await prisma.brand.deleteMany({ where: { id, companyId: this.companyId } });
+    if (deleted.count === 0) throw businessError('Brand not found.', 404);
+  }
+
+  /* ────────────────────────── PRODUCT TYPES ────────────────────────── */
+
+  async listProductTypes() {
+    return prisma.productType.findMany({
+      where: { companyId: this.companyId },
+      orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
+    });
+  }
+
+  async createProductType(input: CreateProductTypeInput) {
+    const duplicate = await prisma.productType.findFirst({ where: { companyId: this.companyId, code: input.code } });
+    if (duplicate) throw businessError(`Product Type Code "${input.code}" already exists.`);
+    return prisma.productType.create({
+      data: {
+        companyId: this.companyId,
+        code: input.code,
+        name: input.name,
+        description: input.description,
+        notes: input.notes,
+        sortOrder: input.sort_order,
+        isActive: input.is_active,
+      },
+    });
+  }
+
+  async updateProductType(input: UpdateProductTypeInput) {
+    const { id, ...fields } = input;
+    const existing = await prisma.productType.findFirst({ where: { id, companyId: this.companyId } });
+    if (!existing) throw businessError('Product Type not found.', 404);
+    if (fields.code && fields.code !== existing.code) {
+      const duplicate = await prisma.productType.findFirst({ where: { companyId: this.companyId, code: fields.code } });
+      if (duplicate) throw businessError(`Product Type Code "${fields.code}" is already used.`);
+    }
+    return prisma.productType.update({
+      where: { id },
+      data: {
+        ...(fields.code !== undefined && { code: fields.code }),
+        ...(fields.name !== undefined && { name: fields.name }),
+        ...(fields.description !== undefined && { description: fields.description }),
+        ...(fields.notes !== undefined && { notes: fields.notes }),
+        ...(fields.sort_order !== undefined && { sortOrder: fields.sort_order }),
+        ...(fields.is_active !== undefined && { isActive: fields.is_active }),
+      },
+    });
+  }
+
+  async deleteProductType(id: string) {
+    const count = await prisma.inventoryItem.count({ where: { companyId: this.companyId, productTypeId: id } });
+    if (count > 0) throw businessError(`This Product Type cannot be deleted. ${count} product(s) use it.`);
+    const deleted = await prisma.productType.deleteMany({ where: { id, companyId: this.companyId } });
+    if (deleted.count === 0) throw businessError('Product Type not found.', 404);
+  }
+
+  /* ────────────────────────── ITEM SIZES ────────────────────────── */
+
+  async listSizes() {
+    return prisma.itemSize.findMany({
+      where: { companyId: this.companyId },
+      orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
+    });
+  }
+
+  async createSize(input: CreateSizeInput) {
+    const duplicate = await prisma.itemSize.findFirst({ where: { companyId: this.companyId, code: input.code } });
+    if (duplicate) throw businessError(`Size Code "${input.code}" already exists.`);
+    return prisma.itemSize.create({
+      data: {
+        companyId: this.companyId,
+        code: input.code,
+        name: input.name,
+        description: input.description,
+        notes: input.notes,
+        sortOrder: input.sort_order,
+        isActive: input.is_active,
+      },
+    });
+  }
+
+  async updateSize(input: UpdateSizeInput) {
+    const { id, ...fields } = input;
+    const existing = await prisma.itemSize.findFirst({ where: { id, companyId: this.companyId } });
+    if (!existing) throw businessError('Size not found.', 404);
+    if (fields.code && fields.code !== existing.code) {
+      const duplicate = await prisma.itemSize.findFirst({ where: { companyId: this.companyId, code: fields.code } });
+      if (duplicate) throw businessError(`Size Code "${fields.code}" is already used.`);
+    }
+    return prisma.itemSize.update({
+      where: { id },
+      data: {
+        ...(fields.code !== undefined && { code: fields.code }),
+        ...(fields.name !== undefined && { name: fields.name }),
+        ...(fields.description !== undefined && { description: fields.description }),
+        ...(fields.notes !== undefined && { notes: fields.notes }),
+        ...(fields.sort_order !== undefined && { sortOrder: fields.sort_order }),
+        ...(fields.is_active !== undefined && { isActive: fields.is_active }),
+      },
+    });
+  }
+
+  async deleteSize(id: string) {
+    const count = await prisma.inventoryItem.count({ where: { companyId: this.companyId, itemSizeId: id } });
+    if (count > 0) throw businessError(`This Size cannot be deleted. ${count} product(s) use it.`);
+    const deleted = await prisma.itemSize.deleteMany({ where: { id, companyId: this.companyId } });
+    if (deleted.count === 0) throw businessError('Size not found.', 404);
+  }
+
+  /* ────────────────────────── ITEM COLORS ────────────────────────── */
+
+  async listColors() {
+    return prisma.itemColor.findMany({
+      where: { companyId: this.companyId },
+      orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
+    });
+  }
+
+  async createColor(input: CreateColorInput) {
+    const duplicate = await prisma.itemColor.findFirst({ where: { companyId: this.companyId, code: input.code } });
+    if (duplicate) throw businessError(`Color Code "${input.code}" already exists.`);
+    return prisma.itemColor.create({
+      data: {
+        companyId: this.companyId,
+        code: input.code,
+        name: input.name,
+        hexCode: input.hex_code,
+        description: input.description,
+        notes: input.notes,
+        sortOrder: input.sort_order,
+        isActive: input.is_active,
+      },
+    });
+  }
+
+  async updateColor(input: UpdateColorInput) {
+    const { id, ...fields } = input;
+    const existing = await prisma.itemColor.findFirst({ where: { id, companyId: this.companyId } });
+    if (!existing) throw businessError('Color not found.', 404);
+    if (fields.code && fields.code !== existing.code) {
+      const duplicate = await prisma.itemColor.findFirst({ where: { companyId: this.companyId, code: fields.code } });
+      if (duplicate) throw businessError(`Color Code "${fields.code}" is already used.`);
+    }
+    return prisma.itemColor.update({
+      where: { id },
+      data: {
+        ...(fields.code !== undefined && { code: fields.code }),
+        ...(fields.name !== undefined && { name: fields.name }),
+        ...(fields.hex_code !== undefined && { hexCode: fields.hex_code }),
+        ...(fields.description !== undefined && { description: fields.description }),
+        ...(fields.notes !== undefined && { notes: fields.notes }),
+        ...(fields.sort_order !== undefined && { sortOrder: fields.sort_order }),
+        ...(fields.is_active !== undefined && { isActive: fields.is_active }),
+      },
+    });
+  }
+
+  async deleteColor(id: string) {
+    const count = await prisma.inventoryItem.count({ where: { companyId: this.companyId, colorId: id } });
+    if (count > 0) throw businessError(`This Color cannot be deleted. ${count} product(s) use it.`);
+    const deleted = await prisma.itemColor.deleteMany({ where: { id, companyId: this.companyId } });
+    if (deleted.count === 0) throw businessError('Color not found.', 404);
+  }
+
+  /* ────────────────────────── ORIGINS ────────────────────────── */
+
+  async listOrigins() {
+    return prisma.origin.findMany({
+      where: { companyId: this.companyId },
+      orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
+    });
+  }
+
+  async createOrigin(input: CreateOriginInput) {
+    const duplicate = await prisma.origin.findFirst({ where: { companyId: this.companyId, code: input.code } });
+    if (duplicate) throw businessError(`Origin Code "${input.code}" already exists.`);
+    return prisma.origin.create({
+      data: {
+        companyId: this.companyId,
+        code: input.code,
+        name: input.name,
+        description: input.description,
+        notes: input.notes,
+        sortOrder: input.sort_order,
+        isActive: input.is_active,
+      },
+    });
+  }
+
+  async updateOrigin(input: UpdateOriginInput) {
+    const { id, ...fields } = input;
+    const existing = await prisma.origin.findFirst({ where: { id, companyId: this.companyId } });
+    if (!existing) throw businessError('Origin not found.', 404);
+    if (fields.code && fields.code !== existing.code) {
+      const duplicate = await prisma.origin.findFirst({ where: { companyId: this.companyId, code: fields.code } });
+      if (duplicate) throw businessError(`Origin Code "${fields.code}" is already used.`);
+    }
+    return prisma.origin.update({
+      where: { id },
+      data: {
+        ...(fields.code !== undefined && { code: fields.code }),
+        ...(fields.name !== undefined && { name: fields.name }),
+        ...(fields.description !== undefined && { description: fields.description }),
+        ...(fields.notes !== undefined && { notes: fields.notes }),
+        ...(fields.sort_order !== undefined && { sortOrder: fields.sort_order }),
+        ...(fields.is_active !== undefined && { isActive: fields.is_active }),
+      },
+    });
+  }
+
+  async deleteOrigin(id: string) {
+    const count = await prisma.inventoryItem.count({ where: { companyId: this.companyId, originId: id } });
+    if (count > 0) throw businessError(`This Origin cannot be deleted. ${count} product(s) use it.`);
+    const deleted = await prisma.origin.deleteMany({ where: { id, companyId: this.companyId } });
+    if (deleted.count === 0) throw businessError('Origin not found.', 404);
+  }
+
+  /* ────────────────────────── UNITS OF MEASURE ────────────────────────── */
 
   async listUom() {
     const rows = await prisma.unitOfMeasure.findMany({
@@ -711,4 +1041,3 @@ export class ProductService {
     }
   }
 }
-

@@ -35,7 +35,7 @@ describe('navigation config', () => {
     const items = groupByKey('config-item-masters');
     expect(items.numbered).toBe(true);
     expect(items.items.map(item => item.label)).toEqual([
-      'Categories', 'Units of Measure',
+      'Categories', 'Brands', 'Product Types', 'Sizes', 'Colors', 'Origins', 'Units of Measure',
     ]);
   });
 

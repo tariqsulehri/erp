@@ -11,6 +11,10 @@ export interface ListProductsParams {
   search?: string;
   category_id?: string;
   brand_id?: string;
+  product_type_id?: string;
+  item_size_id?: string;
+  color_id?: string;
+  origin_id?: string;
   product_type?: string;
   status?: string;
   is_sellable?: boolean;
@@ -69,6 +73,38 @@ export function useProductBrands() {
   });
 }
 
+export function useProductTypes() {
+  return useQuery<any[]>({
+    queryKey: [...productsQueryKey, 'product-types'],
+    queryFn: () => backendGet<any[]>('/products/product-types'),
+    retry: false,
+  });
+}
+
+export function useProductSizes() {
+  return useQuery<any[]>({
+    queryKey: [...productsQueryKey, 'sizes'],
+    queryFn: () => backendGet<any[]>('/products/sizes'),
+    retry: false,
+  });
+}
+
+export function useProductColors() {
+  return useQuery<any[]>({
+    queryKey: [...productsQueryKey, 'colors'],
+    queryFn: () => backendGet<any[]>('/products/colors'),
+    retry: false,
+  });
+}
+
+export function useProductOrigins() {
+  return useQuery<any[]>({
+    queryKey: [...productsQueryKey, 'origins'],
+    queryFn: () => backendGet<any[]>('/products/origins'),
+    retry: false,
+  });
+}
+
 export function useProductUnitsOfMeasure() {
   return useQuery<any[]>({
     queryKey: [...productsQueryKey, 'units-of-measure'],
@@ -104,6 +140,13 @@ export function useArchiveProduct() {
   });
 }
 
+export function useDeleteProduct() {
+  return useMutation<{ ok: boolean }, Error, { id: string }>({
+    mutationFn: ({ id }) => backendDelete<{ ok: boolean }>(`/products/${id}`),
+  });
+}
+
+/* ── Categories mutations ── */
 export function useCreateProductCategory() {
   return useMutation<any, Error, Record<string, unknown>>({
     mutationFn: body => backendPost<any, Record<string, unknown>>('/products/categories', body),
@@ -122,6 +165,102 @@ export function useDeleteProductCategory() {
   });
 }
 
+/* ── Brands mutations ── */
+export function useCreateProductBrand() {
+  return useMutation<any, Error, Record<string, unknown>>({
+    mutationFn: body => backendPost<any, Record<string, unknown>>('/products/brands', body),
+  });
+}
+
+export function useUpdateProductBrand() {
+  return useMutation<any, Error, { id: string; data: Record<string, unknown> }>({
+    mutationFn: ({ id, data }) => backendPatch<any, Record<string, unknown>>(`/products/brands/${id}`, data),
+  });
+}
+
+export function useDeleteProductBrand() {
+  return useMutation<{ ok: boolean }, Error, { id: string }>({
+    mutationFn: ({ id }) => backendDelete<{ ok: boolean }>(`/products/brands/${id}`),
+  });
+}
+
+/* ── Product Types mutations ── */
+export function useCreateProductType() {
+  return useMutation<any, Error, Record<string, unknown>>({
+    mutationFn: body => backendPost<any, Record<string, unknown>>('/products/product-types', body),
+  });
+}
+
+export function useUpdateProductType() {
+  return useMutation<any, Error, { id: string; data: Record<string, unknown> }>({
+    mutationFn: ({ id, data }) => backendPatch<any, Record<string, unknown>>(`/products/product-types/${id}`, data),
+  });
+}
+
+export function useDeleteProductType() {
+  return useMutation<{ ok: boolean }, Error, { id: string }>({
+    mutationFn: ({ id }) => backendDelete<{ ok: boolean }>(`/products/product-types/${id}`),
+  });
+}
+
+/* ── Sizes mutations ── */
+export function useCreateProductSize() {
+  return useMutation<any, Error, Record<string, unknown>>({
+    mutationFn: body => backendPost<any, Record<string, unknown>>('/products/sizes', body),
+  });
+}
+
+export function useUpdateProductSize() {
+  return useMutation<any, Error, { id: string; data: Record<string, unknown> }>({
+    mutationFn: ({ id, data }) => backendPatch<any, Record<string, unknown>>(`/products/sizes/${id}`, data),
+  });
+}
+
+export function useDeleteProductSize() {
+  return useMutation<{ ok: boolean }, Error, { id: string }>({
+    mutationFn: ({ id }) => backendDelete<{ ok: boolean }>(`/products/sizes/${id}`),
+  });
+}
+
+/* ── Colors mutations ── */
+export function useCreateProductColor() {
+  return useMutation<any, Error, Record<string, unknown>>({
+    mutationFn: body => backendPost<any, Record<string, unknown>>('/products/colors', body),
+  });
+}
+
+export function useUpdateProductColor() {
+  return useMutation<any, Error, { id: string; data: Record<string, unknown> }>({
+    mutationFn: ({ id, data }) => backendPatch<any, Record<string, unknown>>(`/products/colors/${id}`, data),
+  });
+}
+
+export function useDeleteProductColor() {
+  return useMutation<{ ok: boolean }, Error, { id: string }>({
+    mutationFn: ({ id }) => backendDelete<{ ok: boolean }>(`/products/colors/${id}`),
+  });
+}
+
+/* ── Origins mutations ── */
+export function useCreateProductOrigin() {
+  return useMutation<any, Error, Record<string, unknown>>({
+    mutationFn: body => backendPost<any, Record<string, unknown>>('/products/origins', body),
+  });
+}
+
+export function useUpdateProductOrigin() {
+  return useMutation<any, Error, { id: string; data: Record<string, unknown> }>({
+    mutationFn: ({ id, data }) => backendPatch<any, Record<string, unknown>>(`/products/origins/${id}`, data),
+  });
+}
+
+export function useDeleteProductOrigin() {
+  return useMutation<{ ok: boolean }, Error, { id: string }>({
+    mutationFn: ({ id }) => backendDelete<{ ok: boolean }>(`/products/origins/${id}`),
+  });
+}
+
+/* ── UOM mutations ── */
 export function useCreateProductUom() {
   return useMutation<any, Error, Record<string, unknown>>({
     mutationFn: body => backendPost<any, Record<string, unknown>>('/products/units-of-measure', body),

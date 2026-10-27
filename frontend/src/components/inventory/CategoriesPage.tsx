@@ -33,6 +33,7 @@ interface CategoryRow {
   code:        string;
   name:        string;
   description: string | null;
+  notes:       string | null;
   parent_id:   string | null;
   depth:       number;
   path:        string;
@@ -43,7 +44,7 @@ interface TreeNode extends CategoryRow { children: TreeNode[]; }
 interface FlatRow   { node: TreeNode; level: number; }
 interface SelectOpt { id: string; label: string; disabled: boolean; }
 
-const EMPTY_FORM = { code: '', name: '', description: '', parent_id: '', sort_order: 0, is_active: true };
+const EMPTY_FORM = { code: '', name: '', description: '', notes: '', parent_id: '', sort_order: 0, is_active: true };
 type FormState = typeof EMPTY_FORM;
 
 /** Indentation per tree level, on the 4px spacing grid. */
@@ -148,7 +149,7 @@ export default function CategoriesPage() {
   }
   function openEdit(cat: CategoryRow) {
     setEditId(cat.id);
-    setForm({ code: cat.code, name: cat.name, description: cat.description ?? '', parent_id: cat.parent_id ?? '', sort_order: cat.sort_order, is_active: cat.is_active });
+    setForm({ code: cat.code, name: cat.name, description: cat.description ?? '', notes: cat.notes ?? '', parent_id: cat.parent_id ?? '', sort_order: cat.sort_order, is_active: cat.is_active });
     setFormError(''); setSaving(false); setShowForm(true);
   }
   function closeForm() {
@@ -165,6 +166,7 @@ export default function CategoriesPage() {
       code:        form.code.trim().toUpperCase(),
       name:        form.name.trim(),
       description: form.description.trim() || undefined,
+      notes:       form.notes.trim() || undefined,
       parent_id:   form.parent_id || undefined,
       sort_order:  Number(form.sort_order),
       is_active:   form.is_active,
@@ -342,6 +344,7 @@ export default function CategoriesPage() {
             <TextField label="Category Name" required value={form.name} onChange={value => setF('name', value)} placeholder="Electronics" inputProps={{ maxLength: 150 }} />
 
             <TextareaField label="Description" value={form.description} onChange={value => setF('description', value)} placeholder="Optional" maxLength={500} rows={2} />
+            <TextareaField label="Notes" value={form.notes} onChange={value => setF('notes', value)} placeholder="Internal notes or hierarchy guidelines" maxLength={2000} rows={2} />
 
             <div>
               <SelectField

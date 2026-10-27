@@ -10,7 +10,11 @@ import {
   useCreateProductCategory,
   useProductBrands,
   useProductCategories,
+  useProductColors,
   useProductDetail,
+  useProductOrigins,
+  useProductSizes,
+  useProductTypes,
   useProductUnitsOfMeasure,
   useSuggestedSku,
   useUpdateProduct,
@@ -62,6 +66,11 @@ export function ProductForm({ editId, onSaved, onCancel }: {
   const [name,         setName]         = useState('');
   const [description,  setDescription]  = useState('');
   const [brand,        setBrand]        = useState('');
+  const [brandId,      setBrandId]      = useState('');
+  const [productTypeId, setProductTypeId] = useState('');
+  const [itemSizeId,   setItemSizeId]   = useState('');
+  const [colorId,      setColorId]      = useState('');
+  const [originId,     setOriginId]     = useState('');
   const [model,        setModel]        = useState('');
   const [categoryId,   setCategoryId]   = useState('');
   const [uomId,        setUomId]        = useState('');
@@ -98,6 +107,10 @@ export function ProductForm({ editId, onSaved, onCancel }: {
   /* ── Reference data ── */
   const { data: rawCategories } = useProductCategories();
   const { data: brands }        = useProductBrands();
+  const { data: productTypesList } = useProductTypes();
+  const { data: sizesList }     = useProductSizes();
+  const { data: colorsList }    = useProductColors();
+  const { data: originsList }   = useProductOrigins();
   const { data: uoms }          = useProductUnitsOfMeasure();
 
   /* Build indented category options for selectors */
@@ -142,16 +155,45 @@ export function ProductForm({ editId, onSaved, onCancel }: {
     [uoms],
   );
   const brandOptions = useMemo<SelectOption[]>(() => {
-    const tableBrands = (brands ?? []).map((item: any) => ({
-      value: item.name,
+    return (brands ?? []).map((item: any) => ({
+      value: item.id,
       label: `${item.code} — ${item.name}`,
       searchText: `${item.code} ${item.name}`,
     }));
-    if (brand && !tableBrands.some(option => option.value === brand)) {
-      return [{ value: brand, label: brand, searchText: brand }, ...tableBrands];
-    }
-    return tableBrands;
-  }, [brands, brand]);
+  }, [brands]);
+
+  const productTypeRecordOptions = useMemo<SelectOption[]>(() => {
+    return (productTypesList ?? []).map((pt: any) => ({
+      value: pt.id,
+      label: `${pt.code} — ${pt.name}`,
+      searchText: `${pt.code} ${pt.name}`,
+    }));
+  }, [productTypesList]);
+
+  const sizeOptions = useMemo<SelectOption[]>(() => {
+    return (sizesList ?? []).map((s: any) => ({
+      value: s.id,
+      label: `${s.code} — ${s.name}`,
+      searchText: `${s.code} ${s.name}`,
+    }));
+  }, [sizesList]);
+
+  const colorOptions = useMemo<SelectOption[]>(() => {
+    return (colorsList ?? []).map((c: any) => ({
+      value: c.id,
+      label: `${c.code} — ${c.name}${c.hex_code || c.hexCode ? ` (${c.hex_code || c.hexCode})` : ''}`,
+      searchText: `${c.code} ${c.name} ${c.hex_code || c.hexCode || ''}`,
+    }));
+  }, [colorsList]);
+
+  const originOptions = useMemo<SelectOption[]>(() => {
+    return (originsList ?? []).map((o: any) => ({
+      value: o.id,
+      label: `${o.code} — ${o.name}`,
+      searchText: `${o.code} ${o.name}`,
+    }));
+  }, [originsList]);
+
   const weightUnitOptions = useMemo<SelectOption[]>(
     () => weightUoms.length > 0
       ? weightUoms.map(u => ({ value: u.abbreviation, label: `${u.abbreviation} — ${u.name}`, searchText: `${u.abbreviation} ${u.name}` }))
@@ -169,6 +211,11 @@ export function ProductForm({ editId, onSaved, onCancel }: {
     setName(existing.name);
     setDescription(existing.description ?? '');
     setBrand(existing.brand ?? '');
+    setBrandId(existing.brand_id ?? existing.brand_record?.id ?? '');
+    setProductTypeId(existing.product_type_id ?? existing.product_type_record?.id ?? '');
+    setItemSizeId(existing.item_size_id ?? existing.size_record?.id ?? '');
+    setColorId(existing.color_id ?? existing.color_record?.id ?? '');
+    setOriginId(existing.origin_id ?? existing.origin_record?.id ?? '');
     setModel(existing.model ?? '');
     setCategoryId(existing.category_id ?? '');
     setUomId(existing.uom_id ?? '');
@@ -252,6 +299,11 @@ export function ProductForm({ editId, onSaved, onCancel }: {
       name:         name.trim(),
       description:  description || undefined,
       brand:        brand       || undefined,
+      brand_id:     brandId     || undefined,
+      product_type_id: productTypeId || undefined,
+      item_size_id: itemSizeId  || undefined,
+      color_id:     colorId     || undefined,
+      origin_id:    originId    || undefined,
       model:        model       || undefined,
       category_id:  categoryId  || undefined,
       uom_id:       uomId       || undefined,
@@ -343,7 +395,7 @@ export function ProductForm({ editId, onSaved, onCancel }: {
               </div>
 
               <FieldLabel label="Brand">
-                <SearchableSelect value={brand} options={brandOptions} onChange={setBrand} placeholder="Select Brand" />
+                <SearchableSelect value={brandId} options={brandOptions} onChange={setBrandId} placeholder="Select Brand" />
               </FieldLabel>
               <TextField label="Model Or Part No." value={model} onChange={setModel} placeholder="For example SM-G998B" />
               <div className="span-2">
@@ -363,6 +415,22 @@ export function ProductForm({ editId, onSaved, onCancel }: {
                   </div>
                 </FieldLabel>
               </div>
+
+              <FieldLabel label="Product Type">
+                <SearchableSelect value={productTypeId} options={productTypeRecordOptions} onChange={setProductTypeId} placeholder="Select Product Type" />
+              </FieldLabel>
+
+              <FieldLabel label="Size">
+                <SearchableSelect value={itemSizeId} options={sizeOptions} onChange={setItemSizeId} placeholder="Select Size" />
+              </FieldLabel>
+
+              <FieldLabel label="Color">
+                <SearchableSelect value={colorId} options={colorOptions} onChange={setColorId} placeholder="Select Color" />
+              </FieldLabel>
+
+              <FieldLabel label="Origin">
+                <SearchableSelect value={originId} options={originOptions} onChange={setOriginId} placeholder="Select Origin" />
+              </FieldLabel>
 
               {/* ── Quick-create category ── */}
               {showCatCreate && (

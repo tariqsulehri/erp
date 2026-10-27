@@ -32,6 +32,7 @@ model Company {
   inventoryCategories     InventoryCategory[]
   inventoryItemGroups     InventoryItemGroup[]
   itemSizes               ItemSize[]
+  itemColors              ItemColor[]
   inventoryItems          InventoryItem[]
   origins                 Origin[]
   productTypes            ProductType[]
@@ -514,6 +515,7 @@ model InventoryCategory {
   code        String              @db.VarChar(30)
   name        String              @db.VarChar(150)
   description String?
+  notes       String?
   level       Int                 @default(0)
   path        String              @default("") @db.VarChar(1000)
   sortOrder   Int                 @default(0) @map("sort_order")
@@ -555,6 +557,7 @@ model ProductType {
   code        String          @db.VarChar(30)
   name        String          @db.VarChar(120)
   description String?
+  notes       String?
   sortOrder   Int             @default(0) @map("sort_order")
   isActive    Boolean         @default(true) @map("is_active")
   createdAt   DateTime        @default(now()) @map("created_at")
@@ -573,6 +576,7 @@ model Brand {
   code        String          @db.VarChar(30)
   name        String          @db.VarChar(120)
   description String?
+  notes       String?
   sortOrder   Int             @default(0) @map("sort_order")
   isActive    Boolean         @default(true) @map("is_active")
   createdAt   DateTime        @default(now()) @map("created_at")
@@ -591,6 +595,7 @@ model ItemSize {
   code        String          @db.VarChar(30)
   name        String          @db.VarChar(120)
   description String?
+  notes       String?
   sortOrder   Int             @default(0) @map("sort_order")
   isActive    Boolean         @default(true) @map("is_active")
   createdAt   DateTime        @default(now()) @map("created_at")
@@ -603,12 +608,33 @@ model ItemSize {
   @@map("inventory_item_sizes")
 }
 
+model ItemColor {
+  id          String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId   String          @map("company_id") @db.Uuid
+  code        String          @db.VarChar(30)
+  name        String          @db.VarChar(120)
+  hexCode     String?         @map("hex_code") @db.VarChar(20)
+  description String?
+  notes       String?
+  sortOrder   Int             @default(0) @map("sort_order")
+  isActive    Boolean         @default(true) @map("is_active")
+  createdAt   DateTime        @default(now()) @map("created_at")
+  updatedAt   DateTime        @default(now()) @updatedAt @map("updated_at")
+  company     Company         @relation(fields: [companyId], references: [id])
+  items       InventoryItem[]
+
+  @@unique([companyId, code])
+  @@index([companyId, isActive])
+  @@map("inventory_item_colors")
+}
+
 model Origin {
   id          String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   companyId   String          @map("company_id") @db.Uuid
   code        String          @db.VarChar(30)
   name        String          @db.VarChar(120)
   description String?
+  notes       String?
   sortOrder   Int             @default(0) @map("sort_order")
   isActive    Boolean         @default(true) @map("is_active")
   createdAt   DateTime        @default(now()) @map("created_at")
@@ -730,6 +756,7 @@ model InventoryItem {
   productTypeId            String?              @map("product_type_id") @db.Uuid
   brandId                  String?              @map("brand_id") @db.Uuid
   itemSizeId               String?              @map("item_size_id") @db.Uuid
+  colorId                  String?              @map("color_id") @db.Uuid
   originId                 String?              @map("origin_id") @db.Uuid
   baseUomId                String?              @map("base_uom_id") @db.Uuid
   stockUomId               String?              @map("stock_uom_id") @db.Uuid
@@ -766,6 +793,7 @@ model InventoryItem {
   defaultWarehouseId       String?              @map("default_warehouse_id") @db.Uuid
   defaultLocationId        String?              @map("default_location_id") @db.Uuid
   otherInformation         String?              @map("other_information")
+  notes                    String?
   isBlocked                Boolean              @default(false) @map("is_blocked")
   blockedReason            String?              @map("blocked_reason")
   isActive                 Boolean              @default(true) @map("is_active")
@@ -786,6 +814,7 @@ model InventoryItem {
   dimensionUom             UnitOfMeasure?       @relation("ItemDimensionUom", fields: [dimensionUomId], references: [id])
   itemGroup                InventoryItemGroup?  @relation(fields: [itemGroupId], references: [id])
   itemSize                 ItemSize?            @relation(fields: [itemSizeId], references: [id])
+  color                    ItemColor?           @relation(fields: [colorId], references: [id])
   origin                   Origin?              @relation(fields: [originId], references: [id])
   productType              ProductType?         @relation(fields: [productTypeId], references: [id])
   purchaseUom              UnitOfMeasure?       @relation("ItemPurchaseUom", fields: [purchaseUomId], references: [id])
@@ -800,6 +829,7 @@ model InventoryItem {
   @@index([companyId, isActive])
   @@index([companyId, categoryId])
   @@index([companyId, brandId])
+  @@index([companyId, colorId])
   @@map("inventory_items")
 }
 
