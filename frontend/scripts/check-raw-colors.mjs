@@ -8,7 +8,11 @@ import { join, relative, sep } from 'node:path';
 
 const ROOT = new URL('..', import.meta.url).pathname;
 const SRC = join(ROOT, 'src');
-const ALLOWED = new Set([join('src', 'styles', 'themes', 'brand-palette.css')]);
+const ALLOWED = new Set([
+  join('src', 'styles', 'themes', 'brand-palette.css'),
+  join('src', 'styles', 'themes', 'theme-palettes.css'),
+  join('src', 'lib', 'theme', 'theme-definitions.ts'),
+]);
 const EXTENSIONS = /\.(css|scss|ts|tsx|js|jsx|mjs)$/;
 
 const RULES = [

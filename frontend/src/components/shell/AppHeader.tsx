@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { signOut } from 'next-auth/react';
-import { IconBuildingSkyscraper, IconBuildingStore, IconBuildingWarehouse, IconCheck, IconChevronDown, IconChevronRight, IconLogout2, IconMenu2, IconMoon, IconSparkles, IconSun } from '@tabler/icons-react';
+import { IconBuildingSkyscraper, IconBuildingStore, IconBuildingWarehouse, IconCheck, IconChevronDown, IconChevronRight, IconLogout2, IconMenu2, IconSparkles } from '@tabler/icons-react';
 import { THEMES, useTheme } from '@/lib/theme/theme-provider';
 import { Button } from '@/components/ui/Button';
 import type { Session } from 'next-auth';
@@ -79,10 +79,9 @@ function UserMenu({ user }: { user: HeaderUser }) {
       </button>
       {open && (
         <div className="user-menu-popover" role="menu" aria-label="User Menu">
-          <div className="user-menu-section-label">Appearance</div>
-          {THEMES.map(option => {
-            const Icon = option.value === 'dark' ? IconMoon : IconSun;
-            return (
+          <div className="user-menu-section-label">Theme & Appearance</div>
+          <div style={{ maxHeight: 260, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 2 }}>
+            {THEMES.map(option => (
               <button
                 key={option.value}
                 type="button"
@@ -90,13 +89,39 @@ function UserMenu({ user }: { user: HeaderUser }) {
                 aria-checked={theme === option.value}
                 className="user-menu-item"
                 onClick={() => setTheme(option.value)}
+                style={{ display: 'flex', alignItems: 'center', gap: 8 }}
+                title={option.desc}
               >
-                <Icon size={16} stroke={1.8} aria-hidden />
-                {option.label}
+                <span style={{ fontSize: 13, lineHeight: 1 }} aria-hidden>{option.emoji}</span>
+                <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}>{option.label}</span>
+                <span
+                  style={{
+                    display: 'inline-flex',
+                    gap: 3,
+                    alignItems: 'center',
+                    padding: '2px 4px',
+                    borderRadius: 'var(--radius-full)',
+                    background: 'var(--color-surface-alt)',
+                  }}
+                  aria-hidden
+                >
+                  {option.preview.map((color, i) => (
+                    <span
+                      key={i}
+                      style={{
+                        width: 6,
+                        height: 6,
+                        borderRadius: '50%',
+                        backgroundColor: color,
+                        display: 'inline-block',
+                      }}
+                    />
+                  ))}
+                </span>
                 {theme === option.value && <IconCheck size={16} stroke={1.8} className="user-menu-check" aria-hidden />}
               </button>
-            );
-          })}
+            ))}
+          </div>
           <button
             type="button"
             role="menuitemcheckbox"

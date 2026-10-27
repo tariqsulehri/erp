@@ -83,13 +83,68 @@ export default function DesignSystemPage() {
         help={<p>This page shows how every part of the screens looks in the Light and Dark themes. Use it to check a change before building a real screen.</p>}
         actions={(
           <>
-            <SegmentedControl label="Theme" value={theme} options={THEMES.map(item => ({ value: item.value, label: item.label }))} onChange={setTheme} />
+            <SegmentedControl
+              label="Theme"
+              value={theme}
+              options={THEMES.map(item => ({ value: item.value, label: `${item.emoji} ${item.label}` }))}
+              onChange={setTheme}
+            />
             <Button title="Soft depth on cards and meters" onClick={() => setVivid(!vivid)}>{vivid ? 'Vivid Depth: On' : 'Vivid Depth: Off'}</Button>
           </>
         )}
       />
 
       <InlineAlert tone="info">Sample data: every amount, name and code on this page is made up and appears nowhere else.</InlineAlert>
+
+      <Card
+        title="Theme Gallery"
+        help="All themes available across the ERP platform. Click any theme to activate it live across all components, sidebars, charts, and tokens."
+      >
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 12 }}>
+          {THEMES.map(opt => {
+            const isSelected = theme === opt.value;
+            return (
+              <button
+                key={opt.value}
+                type="button"
+                onClick={() => setTheme(opt.value)}
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 8,
+                  padding: 12,
+                  borderRadius: 'var(--radius)',
+                  border: isSelected ? '2px solid var(--color-primary)' : '1px solid var(--color-border)',
+                  background: isSelected ? 'var(--color-surface-alt)' : 'var(--color-surface)',
+                  textAlign: 'left',
+                  cursor: 'pointer',
+                  transition: 'all var(--transition)',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
+                  <span style={{ fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6, color: 'var(--color-heading)' }}>
+                    <span>{opt.emoji}</span>
+                    <span>{opt.label}</span>
+                  </span>
+                  <div style={{ display: 'flex', gap: 4 }}>
+                    {opt.preview.map((col, i) => (
+                      <span key={i} style={{ width: 10, height: 10, borderRadius: '50%', backgroundColor: col, display: 'inline-block' }} />
+                    ))}
+                  </div>
+                </div>
+                <p style={{ margin: 0, fontSize: 'var(--font-size-xs)', color: 'var(--color-text-muted)' }}>
+                  {opt.desc}
+                </p>
+                {isSelected && (
+                  <span style={{ fontSize: 'var(--font-size-2xs)', fontWeight: 600, color: 'var(--color-primary-text)' }}>
+                    ✓ Active Theme
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      </Card>
 
       <Card title="Colour Tokens" help="Semantic tokens from styles/themes/light.css and dark.css. Raw colours live only in brand-palette.css.">
         <div className="ds-swatches">{SEMANTIC_TOKENS.map(token => <Swatch key={token} token={token} />)}</div>

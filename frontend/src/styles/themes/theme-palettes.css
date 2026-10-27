@@ -1,0 +1,326 @@
+/* ================================================================
+   THEME PALETTES
+   Rich modern themes extending Calm Ledger.
+   Activated via .theme-<id> class on <html>.
+   Preserves full accessibility, contrast, and component styling.
+   ================================================================ */
+
+/* ── Indigo Theme ── */
+html.theme-indigo {
+  --accent:           99 102 241;
+  --accent-h:         79 70 229;
+  --accent-soft:      238 242 255;
+  --accent-txt:       79 70 229;
+  --accent-ring:      99 102 241;
+  --accent-fg:        255 255 255;
+
+  --color-primary:        #6366f1;
+  --color-primary-hover:  #4f46e5;
+  --color-primary-dark:   #3730a3;
+  --color-primary-light:  #eef2ff;
+  --color-primary-text:   #4f46e5;
+  --color-accent-bar:     #6366f1;
+
+  --color-bg:             linear-gradient(135deg, #f0f4ff 0%, #fafafa 100%);
+  --color-topbar-bg:      rgba(255, 255, 255, 0.85);
+  --color-topbar-border:  rgba(226, 232, 240, 0.6);
+  --color-topbar-accent:  #6366f1;
+
+  --color-sidebar-bg:          linear-gradient(180deg, #0f172a 0%, #1e1b4b 60%, #0f172a 100%);
+  --color-sidebar-hover:       rgba(99, 102, 241, 0.18);
+  --color-sidebar-active:      #ffffff;
+  --color-sidebar-active-bg:   linear-gradient(135deg, rgba(99, 102, 241, 0.5), rgba(139, 92, 246, 0.3));
+  --color-sidebar-glow:        rgba(99, 102, 241, 0.25);
+  --color-sidebar-text:        #a5b4fc;
+  --color-sidebar-text-active: #ffffff;
+  --color-sidebar-border:      rgba(99, 102, 241, 0.25);
+  --color-sidebar-logo-bg:     linear-gradient(135deg, #6366f1, #8b5cf6);
+  --color-sidebar-section:     rgba(165, 180, 252, 0.6);
+  --color-sidebar-guide:       rgba(99, 102, 241, 0.4);
+}
+
+/* ── Emerald Theme ── */
+html.theme-emerald {
+  --accent:           16 185 129;
+  --accent-h:         5 150 105;
+  --accent-soft:      236 253 245;
+  --accent-txt:       5 150 105;
+  --accent-ring:      16 185 129;
+  --accent-fg:        255 255 255;
+
+  --color-primary:        #10b981;
+  --color-primary-hover:  #059669;
+  --color-primary-dark:   #064e3b;
+  --color-primary-light:  #ecfdf5;
+  --color-primary-text:   #059669;
+  --color-accent-bar:     #10b981;
+
+  --color-bg:             linear-gradient(135deg, #f0fdf4 0%, #fafafa 100%);
+  --color-topbar-bg:      rgba(255, 255, 255, 0.85);
+  --color-topbar-border:  rgba(226, 232, 240, 0.6);
+  --color-topbar-accent:  #10b981;
+
+  --color-sidebar-bg:          linear-gradient(180deg, #022c22 0%, #064e3b 60%, #022c22 100%);
+  --color-sidebar-hover:       rgba(16, 185, 129, 0.18);
+  --color-sidebar-active:      #ffffff;
+  --color-sidebar-active-bg:   linear-gradient(135deg, rgba(16, 185, 129, 0.45), rgba(20, 184, 166, 0.25));
+  --color-sidebar-glow:        rgba(16, 185, 129, 0.25);
+  --color-sidebar-text:        #6ee7b7;
+  --color-sidebar-text-active: #ffffff;
+  --color-sidebar-border:      rgba(16, 185, 129, 0.25);
+  --color-sidebar-logo-bg:     linear-gradient(135deg, #10b981, #14b8a6);
+  --color-sidebar-section:     rgba(110, 231, 183, 0.6);
+  --color-sidebar-guide:       rgba(16, 185, 129, 0.35);
+}
+
+/* ── Ocean Theme ── */
+html.theme-ocean {
+  --accent:           14 165 233;
+  --accent-h:         2 132 199;
+  --accent-soft:      240 249 255;
+  --accent-txt:       2 132 199;
+  --accent-ring:      14 165 233;
+  --accent-fg:        255 255 255;
+
+  --color-primary:        #0ea5e9;
+  --color-primary-hover:  #0284c7;
+  --color-primary-dark:   #0369a1;
+  --color-primary-light:  #f0f9ff;
+  --color-primary-text:   #0284c7;
+  --color-accent-bar:     #0ea5e9;
+
+  --color-bg:             linear-gradient(135deg, #f0f9ff 0%, #fafafa 100%);
+  --color-topbar-bg:      rgba(255, 255, 255, 0.85);
+  --color-topbar-border:  rgba(226, 232, 240, 0.6);
+  --color-topbar-accent:  #0ea5e9;
+
+  --color-sidebar-bg:          linear-gradient(180deg, #0c1a2e 0%, #0f4c81 55%, #0c1a2e 100%);
+  --color-sidebar-hover:       rgba(14, 165, 233, 0.18);
+  --color-sidebar-active:      #ffffff;
+  --color-sidebar-active-bg:   linear-gradient(135deg, rgba(14, 165, 233, 0.45), rgba(6, 182, 212, 0.25));
+  --color-sidebar-glow:        rgba(14, 165, 233, 0.25);
+  --color-sidebar-text:        #7dd3fc;
+  --color-sidebar-text-active: #ffffff;
+  --color-sidebar-border:      rgba(14, 165, 233, 0.25);
+  --color-sidebar-logo-bg:     linear-gradient(135deg, #0ea5e9, #06b6d4);
+  --color-sidebar-section:     rgba(125, 211, 252, 0.6);
+  --color-sidebar-guide:       rgba(14, 165, 233, 0.35);
+}
+
+/* ── Rose Theme ── */
+html.theme-rose {
+  --accent:           244 63 94;
+  --accent-h:         225 29 72;
+  --accent-soft:      255 241 242;
+  --accent-txt:       225 29 72;
+  --accent-ring:      244 63 94;
+  --accent-fg:        255 255 255;
+
+  --color-primary:        #f43f5e;
+  --color-primary-hover:  #e11d48;
+  --color-primary-dark:   #be123c;
+  --color-primary-light:  #fff1f2;
+  --color-primary-text:   #e11d48;
+  --color-accent-bar:     #f43f5e;
+
+  --color-bg:             linear-gradient(135deg, #fff1f2 0%, #fafafa 100%);
+  --color-topbar-bg:      rgba(255, 255, 255, 0.85);
+  --color-topbar-border:  rgba(226, 232, 240, 0.6);
+  --color-topbar-accent:  #f43f5e;
+
+  --color-sidebar-bg:          linear-gradient(180deg, #1a0a0f 0%, #4c0519 60%, #1a0a0f 100%);
+  --color-sidebar-hover:       rgba(244, 63, 94, 0.18);
+  --color-sidebar-active:      #ffffff;
+  --color-sidebar-active-bg:   linear-gradient(135deg, rgba(244, 63, 94, 0.45), rgba(251, 113, 133, 0.25));
+  --color-sidebar-glow:        rgba(244, 63, 94, 0.25);
+  --color-sidebar-text:        #fda4af;
+  --color-sidebar-text-active: #ffffff;
+  --color-sidebar-border:      rgba(244, 63, 94, 0.25);
+  --color-sidebar-logo-bg:     linear-gradient(135deg, #f43f5e, #fb7185);
+  --color-sidebar-section:     rgba(253, 164, 175, 0.6);
+  --color-sidebar-guide:       rgba(244, 63, 94, 0.35);
+}
+
+/* ── Amber Theme ── */
+html.theme-amber {
+  --accent:           245 158 11;
+  --accent-h:         217 119 6;
+  --accent-soft:      254 243 199;
+  --accent-txt:       180 83 9;
+  --accent-ring:      245 158 11;
+  --accent-fg:        255 255 255;
+
+  --color-primary:        #f59e0b;
+  --color-primary-hover:  #d97706;
+  --color-primary-dark:   #b45309;
+  --color-primary-light:  #fffbeb;
+  --color-primary-text:   #b45309;
+  --color-accent-bar:     #f59e0b;
+
+  --color-bg:             linear-gradient(135deg, #fffbeb 0%, #fafafa 100%);
+  --color-topbar-bg:      rgba(255, 255, 255, 0.85);
+  --color-topbar-border:  rgba(226, 232, 240, 0.6);
+  --color-topbar-accent:  #f59e0b;
+
+  --color-sidebar-bg:          linear-gradient(180deg, #1c1007 0%, #451a03 60%, #1c1007 100%);
+  --color-sidebar-hover:       rgba(245, 158, 11, 0.18);
+  --color-sidebar-active:      #ffffff;
+  --color-sidebar-active-bg:   linear-gradient(135deg, rgba(245, 158, 11, 0.45), rgba(251, 191, 36, 0.25));
+  --color-sidebar-glow:        rgba(245, 158, 11, 0.25);
+  --color-sidebar-text:        #fcd34d;
+  --color-sidebar-text-active: #ffffff;
+  --color-sidebar-border:      rgba(245, 158, 11, 0.25);
+  --color-sidebar-logo-bg:     linear-gradient(135deg, #f59e0b, #fbbf24);
+  --color-sidebar-section:     rgba(252, 211, 77, 0.6);
+  --color-sidebar-guide:       rgba(245, 158, 11, 0.35);
+}
+
+/* ── Corporate Slate Theme ── */
+html.theme-slate {
+  --accent:           100 116 139;
+  --accent-h:         71 85 105;
+  --accent-soft:      241 245 249;
+  --accent-txt:       51 65 85;
+  --accent-ring:      100 116 139;
+  --accent-fg:        255 255 255;
+
+  --color-primary:        #64748b;
+  --color-primary-hover:  #475569;
+  --color-primary-dark:   #334155;
+  --color-primary-light:  #f8fafc;
+  --color-primary-text:   #334155;
+  --color-accent-bar:     #64748b;
+
+  --color-bg:             linear-gradient(135deg, #f8fafc 0%, #fafafa 100%);
+  --color-topbar-bg:      rgba(255, 255, 255, 0.85);
+  --color-topbar-border:  rgba(226, 232, 240, 0.6);
+  --color-topbar-accent:  #64748b;
+
+  --color-sidebar-bg:          linear-gradient(180deg, #0f172a 0%, #1e293b 60%, #0f172a 100%);
+  --color-sidebar-hover:       rgba(100, 116, 139, 0.18);
+  --color-sidebar-active:      #ffffff;
+  --color-sidebar-active-bg:   linear-gradient(135deg, rgba(100, 116, 139, 0.45), rgba(71, 85, 105, 0.25));
+  --color-sidebar-glow:        rgba(100, 116, 139, 0.25);
+  --color-sidebar-text:        #cbd5e1;
+  --color-sidebar-text-active: #ffffff;
+  --color-sidebar-border:      rgba(100, 116, 139, 0.25);
+  --color-sidebar-logo-bg:     linear-gradient(135deg, #64748b, #94a3b8);
+  --color-sidebar-section:     rgba(203, 213, 225, 0.6);
+  --color-sidebar-guide:       rgba(100, 116, 139, 0.35);
+}
+
+/* ── Violet Theme ── */
+html.theme-violet {
+  --accent:           139 92 246;
+  --accent-h:         124 58 237;
+  --accent-soft:      245 243 255;
+  --accent-txt:       124 58 237;
+  --accent-ring:      139 92 246;
+  --accent-fg:        255 255 255;
+
+  --color-primary:        #8b5cf6;
+  --color-primary-hover:  #7c3aed;
+  --color-primary-dark:   #6d28d9;
+  --color-primary-light:  #faf5ff;
+  --color-primary-text:   #7c3aed;
+  --color-accent-bar:     #8b5cf6;
+
+  --color-bg:             linear-gradient(135deg, #faf5ff 0%, #fafafa 100%);
+  --color-topbar-bg:      rgba(255, 255, 255, 0.85);
+  --color-topbar-border:  rgba(226, 232, 240, 0.6);
+  --color-topbar-accent:  #8b5cf6;
+
+  --color-sidebar-bg:          linear-gradient(180deg, #1e112a 0%, #2e1065 60%, #1e112a 100%);
+  --color-sidebar-hover:       rgba(139, 92, 246, 0.18);
+  --color-sidebar-active:      #ffffff;
+  --color-sidebar-active-bg:   linear-gradient(135deg, rgba(139, 92, 246, 0.45), rgba(167, 139, 250, 0.25));
+  --color-sidebar-glow:        rgba(139, 92, 246, 0.25);
+  --color-sidebar-text:        #d8b4fe;
+  --color-sidebar-text-active: #ffffff;
+  --color-sidebar-border:      rgba(139, 92, 246, 0.25);
+  --color-sidebar-logo-bg:     linear-gradient(135deg, #8b5cf6, #a855f7);
+  --color-sidebar-section:     rgba(216, 180, 254, 0.6);
+  --color-sidebar-guide:       rgba(139, 92, 246, 0.35);
+}
+
+/* ── Teal Theme ── */
+html.theme-teal {
+  --accent:           20 184 166;
+  --accent-h:         13 148 136;
+  --accent-soft:      240 253 250;
+  --accent-txt:       13 148 136;
+  --accent-ring:      20 184 166;
+  --accent-fg:        255 255 255;
+
+  --color-primary:        #14b8a6;
+  --color-primary-hover:  #0d9488;
+  --color-primary-dark:   #0f766e;
+  --color-primary-light:  #f0fdfa;
+  --color-primary-text:   #0d9488;
+  --color-accent-bar:     #14b8a6;
+
+  --color-bg:             linear-gradient(135deg, #f0fdfa 0%, #fafafa 100%);
+  --color-topbar-bg:      rgba(255, 255, 255, 0.85);
+  --color-topbar-border:  rgba(226, 232, 240, 0.6);
+  --color-topbar-accent:  #14b8a6;
+
+  --color-sidebar-bg:          linear-gradient(180deg, #042f2e 0%, #115e59 60%, #042f2e 100%);
+  --color-sidebar-hover:       rgba(20, 184, 166, 0.18);
+  --color-sidebar-active:      #ffffff;
+  --color-sidebar-active-bg:   linear-gradient(135deg, rgba(20, 184, 166, 0.45), rgba(45, 212, 191, 0.25));
+  --color-sidebar-glow:        rgba(20, 184, 166, 0.25);
+  --color-sidebar-text:        #5eead4;
+  --color-sidebar-text-active: #ffffff;
+  --color-sidebar-border:      rgba(20, 184, 166, 0.25);
+  --color-sidebar-logo-bg:     linear-gradient(135deg, #14b8a6, #2dd4bf);
+  --color-sidebar-section:     rgba(94, 234, 212, 0.6);
+  --color-sidebar-guide:       rgba(20, 184, 166, 0.35);
+}
+
+/* ── Midnight OLED Dark Theme ── */
+html.theme-midnight {
+  --bg:               0 0 0;
+  --surface:          9 9 11;
+  --surface-2:        18 18 20;
+  --surface-3:        24 24 27;
+  --border:           39 39 42;
+  --border-2:         63 63 70;
+  --text-1:           255 255 255;
+  --text-2:           203 213 225;
+  --text-3:           148 163 184;
+  --accent:           56 189 248;
+  --accent-h:         14 165 233;
+  --accent-soft:      8 47 73;
+  --accent-txt:       56 189 248;
+  --accent-ring:      56 189 248;
+  --accent-fg:        2 6 23;
+
+  --color-primary:        #38bdf8;
+  --color-primary-hover:  #0ea5e9;
+  --color-primary-dark:   #0284c7;
+  --color-primary-light:  #082f49;
+  --color-primary-text:   #38bdf8;
+  --color-accent-bar:     #38bdf8;
+
+  --color-bg:             #000000;
+  --color-surface:        #09090b;
+  --color-surface-raised: #121214;
+  --color-surface-alt:    #18181b;
+  --color-border:         #27272a;
+
+  --color-topbar-bg:      rgba(9, 9, 11, 0.95);
+  --color-topbar-border:  rgba(39, 39, 42, 0.8);
+  --color-topbar-accent:  #38bdf8;
+
+  --color-sidebar-bg:          linear-gradient(180deg, #000000 0%, #09090b 60%, #000000 100%);
+  --color-sidebar-hover:       rgba(56, 189, 248, 0.15);
+  --color-sidebar-active:      #38bdf8;
+  --color-sidebar-active-bg:   linear-gradient(135deg, rgba(56, 189, 248, 0.35), rgba(14, 165, 233, 0.18));
+  --color-sidebar-glow:        rgba(56, 189, 248, 0.25);
+  --color-sidebar-text:        #94a3b8;
+  --color-sidebar-text-active: #ffffff;
+  --color-sidebar-border:      rgba(39, 39, 42, 0.8);
+  --color-sidebar-logo-bg:     linear-gradient(135deg, #38bdf8, #818cf8);
+  --color-sidebar-section:     rgba(148, 163, 184, 0.5);
+  --color-sidebar-guide:       rgba(56, 189, 248, 0.35);
+}

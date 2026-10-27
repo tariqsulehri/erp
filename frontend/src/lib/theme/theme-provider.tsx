@@ -1,53 +1,95 @@
 'use client';
 
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
+import {
+  THEMES,
+  THEME_DEFINITIONS,
+  THEME_IDS,
+  THEMES_LIST,
+  DEFAULT_THEME,
+  type Theme,
+  type ThemeDefinition,
+  type ThemeOption,
+} from './theme-definitions';
 
-/**
- * Themes switch by class on <html> (documents/design/DESIGN_STANDARDS.md section 7):
- *   "erp" (light, default) · "erp dark" · optional "vivid" add-on (soft depth, no colour change).
- * The root layout applies the saved classes before the first paint; this provider keeps them in sync.
- */
-export type Theme = 'light' | 'dark';
-
-export const THEMES: Array<{ value: Theme; label: string; desc: string }> = [
-  { value: 'light', label: 'Light', desc: 'Bright workspace for daytime use' },
-  { value: 'dark',  label: 'Dark',  desc: 'Low-glare workspace for dim rooms' },
-];
+export {
+  THEMES,
+  THEME_DEFINITIONS,
+  THEME_IDS,
+  THEMES_LIST,
+  DEFAULT_THEME,
+  type Theme,
+  type ThemeDefinition,
+  type ThemeOption,
+};
 
 const THEME_KEY = 'erp-theme';
 const VIVID_KEY = 'erp-vivid';
 
 interface ThemeContextValue {
-  theme:    Theme;
+  theme: Theme;
+  currentTheme: ThemeDefinition;
   setTheme: (theme: Theme) => void;
-  vivid:    boolean;
+  vivid: boolean;
   setVivid: (vivid: boolean) => void;
 }
 
-const ThemeContext = createContext<ThemeContextValue>({ theme: 'light', setTheme: () => {}, vivid: false, setVivid: () => {} });
+const ThemeContext = createContext<ThemeContextValue>({
+  theme: DEFAULT_THEME,
+  currentTheme: THEME_DEFINITIONS[DEFAULT_THEME],
+  setTheme: () => {},
+  vivid: false,
+  setVivid: () => {},
+});
 
 function applyClasses(theme: Theme, vivid: boolean) {
-  const classes = document.documentElement.classList;
+  if (typeof document === 'undefined') return;
+  const root = document.documentElement;
+  const classes = root.classList;
   classes.add('erp');
-  classes.toggle('dark', theme === 'dark');
+
+  // Strip non-active theme-* classes
+  THEME_IDS.forEach(id => {
+    if (id !== 'light' && id !== 'dark') {
+      classes.remove(`theme-${id}`);
+    }
+  });
+
+  const isDark = theme === 'dark' || theme === 'midnight' || Boolean(THEME_DEFINITIONS[theme]?.isDark);
+  classes.toggle('dark', isDark);
+
+  if (theme !== 'light' && theme !== 'dark') {
+    classes.add(`theme-${theme}`);
+  }
+
+  root.setAttribute('data-theme', theme);
   classes.toggle('vivid', vivid);
 }
 
 function save(key: string, value: string) {
-  try { localStorage.setItem(key, value); } catch { /* storage unavailable: the choice lasts for this visit */ }
+  try {
+    localStorage.setItem(key, value);
+  } catch {
+    /* storage unavailable: choice lasts for this visit */
+  }
 }
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
-  const [theme, setThemeState] = useState<Theme>('light');
+  const [theme, setThemeState] = useState<Theme>(DEFAULT_THEME);
   const [vivid, setVividState] = useState(false);
 
   useEffect(() => {
-    let storedTheme: Theme = 'light';
+    let storedTheme: Theme = DEFAULT_THEME;
     let storedVivid = false;
     try {
-      storedTheme = localStorage.getItem(THEME_KEY) === 'dark' ? 'dark' : 'light';
+      const rawTheme = localStorage.getItem(THEME_KEY);
+      if (rawTheme && THEME_IDS.includes(rawTheme as Theme)) {
+        storedTheme = rawTheme as Theme;
+      }
       storedVivid = localStorage.getItem(VIVID_KEY) === '1';
-    } catch { /* storage unavailable: keep the defaults */ }
+    } catch {
+      /* storage unavailable: keep defaults */
+    }
     setThemeState(storedTheme);
     setVividState(storedVivid);
     applyClasses(storedTheme, storedVivid);
@@ -65,8 +107,10 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     save(VIVID_KEY, next ? '1' : '0');
   }
 
+  const currentTheme = THEME_DEFINITIONS[theme] || THEME_DEFINITIONS[DEFAULT_THEME];
+
   return (
-    <ThemeContext.Provider value={{ theme, setTheme, vivid, setVivid }}>
+    <ThemeContext.Provider value={{ theme, currentTheme, setTheme, vivid, setVivid }}>
       {children}
     </ThemeContext.Provider>
   );
@@ -74,4 +118,21 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
 export function useTheme() {
   return useContext(ThemeContext);
+}
+
+/**
+ * useThemeStore hook providing store-like access to the active theme,
+ * full theme dictionary, and theme-setting methods.
+ */
+export function useThemeStore() {
+  const context = useContext(ThemeContext);
+  return {
+    theme: context.theme,
+    currentTheme: context.currentTheme,
+    setTheme: context.setTheme,
+    vivid: context.vivid,
+    setVivid: context.setVivid,
+    themes: THEME_DEFINITIONS,
+    themesList: THEMES_LIST,
+  };
 }

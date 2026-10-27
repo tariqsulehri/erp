@@ -2,6 +2,7 @@
 @import '../styles/themes/light.css';
 @import '../styles/themes/dark.css';
 @import '../styles/themes/vivid.css';
+@import '../styles/themes/theme-palettes.css';
 @import './design-tokens.css';
 
 /* ================================================================
