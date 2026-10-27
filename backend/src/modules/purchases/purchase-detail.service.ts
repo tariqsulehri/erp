@@ -1,4 +1,5 @@
 import { prisma } from '../../db/prisma.js';
+import { withPaymentStatus } from '../parties/invoice-balances.js';
 
 export class PurchaseDetailService {
   constructor(private readonly companyId: string) {}
@@ -46,6 +47,7 @@ export class PurchaseDetailService {
       id,
     );
 
-    return { ...rows[0], lines };
+    const [withPayments] = await withPaymentStatus(this.companyId, 'payables', [rows[0]], row => row.supplier_account_id);
+    return { ...withPayments, lines };
   }
 }

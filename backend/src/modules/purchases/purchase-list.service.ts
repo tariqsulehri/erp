@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { prisma } from '../../db/prisma.js';
+import { withPaymentStatus } from '../parties/invoice-balances.js';
 
 export const ListPurchaseInvoicesQuery = z.object({
   page: z.coerce.number().int().min(1).default(1),
@@ -121,6 +122,8 @@ export class PurchaseListService {
           pi.tax_amount::text,
           pi.freight_amount::text,
           pi.net_amount::text,
+          pi.accounting_voucher_id::text,
+          pi.supplier_account_id::text,
           pi.reference_number,
           pi.posted_at,
           pi.created_at,
@@ -163,8 +166,11 @@ export class PurchaseListService {
       net_amount: totalsRow?.net_amount ?? '0',
     };
 
+    // Paid and Balance Due come from the party's linked account, payments applied to the oldest amounts first.
+    const rowsWithPayments = await withPaymentStatus(this.companyId, 'payables', data as Array<{ status: string; payment_type: string; net_amount: string; accounting_voucher_id: string | null; supplier_account_id: string }>, row => row.supplier_account_id);
+
     return {
-      data,
+      data: rowsWithPayments,
       totals,
       total,
       page: query.page,

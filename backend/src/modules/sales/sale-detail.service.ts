@@ -1,4 +1,5 @@
 import { prisma } from '../../db/prisma.js';
+import { withPaymentStatus } from '../parties/invoice-balances.js';
 import type { AccessScope } from '../auth/access-rules.js';
 import { holderFromColumns } from '../inventory/stock-holder.js';
 import { canUseHolder } from '../inventory/stock-holder-access.js';
@@ -53,6 +54,7 @@ export class SaleDetailService {
       id,
     );
 
-    return { ...rows[0], lines };
+    const [withPayments] = await withPaymentStatus(this.companyId, 'receivables', [rows[0]], row => row.customer_account_id);
+    return { ...withPayments, lines };
   }
 }

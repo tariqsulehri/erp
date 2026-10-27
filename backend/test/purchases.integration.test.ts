@@ -581,4 +581,41 @@ describe.skipIf(!databaseUrl)('Purchase Vouchers (database)', () => {
       expect(CancelPurchaseDraftInput.safeParse({}).success).toBe(false);
     });
   });
+
+  describe('Paid and Balance Due (payments applied to the oldest purchase first)', () => {
+    it('shows each credit purchase paid oldest first, a cash purchase as paid, and nothing for a draft', async () => {
+      const service = new m.PurchaseDraftService(companyId);
+      const line = (price: number) => [{ item_id: itemA, quantity: 1, purchase_price: price, discount_amount: 0, tax_amount: 0 }];
+      const older = await service.createAndPost(purchaseInput({ supplier_id: otherSupplierId, purchase_date: '2025-11-10', due_date: '2025-12-10', lines: line(300) }), userId);
+      const newer = await service.createAndPost(purchaseInput({ supplier_id: otherSupplierId, purchase_date: '2025-11-12', due_date: '2025-12-12', lines: line(200) }), userId);
+      const cash = await service.createAndPost(purchaseInput({ supplier_id: otherSupplierId, purchase_date: '2025-11-12', payment_type: 'Cash', due_date: undefined, lines: line(50) }), userId);
+      const draft = await createDraft({ supplier_id: otherSupplierId, purchase_date: '2025-11-13', due_date: '2025-12-13', lines: line(70) });
+
+      // Pay the supplier 400: the older purchase (300) is paid in full, the newer one (200) gets 100.
+      const { insertPostedVoucher } = await import('../src/modules/vouchers/voucher-posting.js');
+      const supplier = await prisma.supplier.findUniqueOrThrow({ where: { id: otherSupplierId } });
+      const [supplierAccount, cashAccount] = await Promise.all([
+        prisma.account.findUniqueOrThrow({ where: { id: String(supplier.apAccountId) } }),
+        prisma.account.findUniqueOrThrow({ where: { id: settings.cash } }),
+      ]);
+      await prisma.$transaction(transaction => insertPostedVoucher(transaction, {
+        companyId, voucherNumber: 'CPV-TEST-0001', voucherType: 'CPV', voucherDate: '2025-11-15', reference: null,
+        narration: 'Payment to supplier', userId: null,
+        lines: [
+          { account: supplierAccount, debit: new Decimal(400), credit: new Decimal(0), narration: 'Paid' },
+          { account: cashAccount, debit: new Decimal(0), credit: new Decimal(400), narration: 'Paid' },
+        ],
+      }));
+
+      const list = await new m.PurchaseListService(companyId).list(m.ListPurchaseInvoicesQuery.parse({ supplier_id: otherSupplierId, limit: 50 }));
+      const byId = new Map((list.data as Array<{ id: string; paid_amount: string | null; balance_due: string | null }>).map(row => [row.id, row]));
+      expect(byId.get(older.id)).toMatchObject({ paid_amount: '300.00', balance_due: '0.00' });
+      expect(byId.get(newer.id)).toMatchObject({ paid_amount: '100.00', balance_due: '100.00' });
+      expect(byId.get(cash.id)).toMatchObject({ paid_amount: '50.00', balance_due: '0.00' });
+      expect(byId.get(draft.id)).toMatchObject({ paid_amount: null, balance_due: null });
+
+      const detail = await new m.PurchaseDetailService(companyId).getById(newer.id);
+      expect(detail).toMatchObject({ paid_amount: '100.00', balance_due: '100.00' });
+    });
+  });
 });
