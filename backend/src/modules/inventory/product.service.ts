@@ -20,6 +20,7 @@ import type {
   UpdateSizeInput,
   UpdateUomInput,
 } from './product.schema.js';
+import { logAuditEvent } from '../audit/audit.service.js';
 
 function businessError(message: string, statusCode = 400) {
   const error = new Error(message);
@@ -463,6 +464,17 @@ export class ProductService {
     });
 
     await this.replaceBarcodeAndImage(item.id, input.barcode, input.image_url);
+
+    void logAuditEvent({
+      companyId: this.companyId,
+      actor: this.scope ? { id: this.scope.userId, email: '', fullName: 'User', role: this.scope.role, access: [] } : null,
+      action: 'CREATE',
+      entityName: 'Product',
+      entityId: item.id,
+      description: `Created product "${input.name}" (SKU: ${input.sku})`,
+      details: { sku: input.sku, name: input.name, sale_price: input.sale_price },
+    });
+
     return this.getById(item.id);
   }
 
@@ -524,6 +536,16 @@ export class ProductService {
       await this.replaceBarcodeAndImage(id, fields.barcode, fields.image_url);
     }
 
+    void logAuditEvent({
+      companyId: this.companyId,
+      actor: this.scope ? { id: this.scope.userId, email: '', fullName: 'User', role: this.scope.role, access: [] } : null,
+      action: 'UPDATE',
+      entityName: 'Product',
+      entityId: id,
+      description: `Updated product "${item.itemName}" (SKU: ${item.sku})`,
+      details: { changes: fields },
+    });
+
     return this.getById(id);
   }
 
@@ -534,6 +556,15 @@ export class ProductService {
       where: { id },
       data: { isBlocked: true, blockedReason: 'Archived by user' },
     });
+
+    void logAuditEvent({
+      companyId: this.companyId,
+      actor: this.scope ? { id: this.scope.userId, email: '', fullName: 'User', role: this.scope.role, access: [] } : null,
+      action: 'UPDATE',
+      entityName: 'Product',
+      entityId: id,
+      description: `Archived product "${item.itemName}" (SKU: ${item.sku})`,
+    });
   }
 
   async delete(id: string) {
@@ -541,6 +572,15 @@ export class ProductService {
     if (!item) throw businessError('Product not found.', 404);
     if (item.isActive) throw businessError('Only Inactive products can be deleted for good. Use Archive to mark a product as Discontinued.');
     await prisma.inventoryItem.delete({ where: { id } });
+
+    void logAuditEvent({
+      companyId: this.companyId,
+      actor: this.scope ? { id: this.scope.userId, email: '', fullName: 'User', role: this.scope.role, access: [] } : null,
+      action: 'DELETE',
+      entityName: 'Product',
+      entityId: id,
+      description: `Deleted product "${item.itemName}" (SKU: ${item.sku})`,
+    });
   }
 
   /* ────────────────────────── CATEGORIES ────────────────────────── */

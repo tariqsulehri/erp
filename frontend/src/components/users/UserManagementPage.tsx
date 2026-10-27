@@ -193,7 +193,14 @@ function UserManagement({ canAssignAdmin }: { canAssignAdmin: boolean }) {
               )}
               {!usersQuery.isLoading && users.map(user => (
                 <tr key={user.id} onDoubleClick={() => openEdit(user)}>
-                  <td className="cell-strong">{user.full_name}</td>
+                  <td className="cell-strong">
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span>{user.full_name}</span>
+                      {user.is_system && (
+                        <Badge variant="info">Super-Admin</Badge>
+                      )}
+                    </div>
+                  </td>
                   <td style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{user.email}</td>
                   <td>{roleLabel(user.role)}</td>
                   <td>{workplaceLabel({ accessLevel: user.access_level ?? undefined, branch: user.branch, warehouse: user.warehouse })}</td>

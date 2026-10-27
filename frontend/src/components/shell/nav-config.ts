@@ -112,7 +112,6 @@ export const NAV_SECTIONS: NavSection[] = [
         label: 'Inventory',
         icon: IconCube,
         items: [
-          { label: 'Products', href: '/inventory/products', icon: IconPackage, moduleKey: 'inventory', featureKey: 'products', permissionKey: 'inventory.products.view' },
           { label: 'Stock Transfer', href: '/inventory/stock-transfers', icon: IconArrowsExchange, code: 'ST', moduleKey: 'inventory', featureKey: 'stock-transfer', permissionKey: 'inventory.stock_transfer.view', requiresPosting: true },
           { label: 'Stock Received', href: '/inventory/stock-received', icon: IconPackageImport, moduleKey: 'inventory', featureKey: 'stock-received', permissionKey: 'inventory.stock_received.view' },
           { label: 'Stock Adjustment', href: '/inventory/stock-adjustments', icon: IconAdjustmentsHorizontal, code: 'SA', moduleKey: 'inventory', featureKey: 'stock-adjustment', permissionKey: 'inventory.stock_adjustment.view', requiresPosting: true },
@@ -172,10 +171,11 @@ export const NAV_SECTIONS: NavSection[] = [
       }),
       group({
         key: 'config-item-masters',
-        label: 'Item Masters',
-        icon: IconCategory2,
+        label: 'Product Management',
+        icon: IconPackage,
         numbered: true,
         items: [
+          { label: 'Products', href: '/inventory/products', icon: IconPackage, moduleKey: 'system', featureKey: 'products', permissionKey: 'inventory.products.view' },
           { label: 'Categories', href: '/inventory/categories', icon: IconCategory2, moduleKey: 'config', featureKey: 'inventory-categories', permissionKey: 'config.inventory_categories.view' },
           { label: 'Brands', href: '/inventory/brands', icon: IconTag, moduleKey: 'config', featureKey: 'brands', permissionKey: 'config.brands.view' },
           { label: 'Product Types', href: '/inventory/product-types', icon: IconLayersLinked, moduleKey: 'config', featureKey: 'product-types', permissionKey: 'config.product_types.view' },

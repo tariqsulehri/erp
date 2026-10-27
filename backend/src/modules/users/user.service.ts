@@ -4,6 +4,7 @@ import type { AccessLevel, AuthUser, UserRole } from '../auth/access-rules.js';
 import { accessProblem, hasAllBranchAccess } from '../auth/access-rules.js';
 import { hashPassword } from '../auth/password.js';
 import { invalidateAuthUserCache } from '../auth/auth.service.js';
+import { logAuditEvent } from '../audit/audit.service.js';
 import type { CreateUserInput, ListUsersQuery, ResetPasswordInput, UpdateUserInput } from './user.schema.js';
 
 function businessError(message: string, statusCode = 400) {
@@ -17,6 +18,7 @@ const userSelect = (companyId: string) => ({
   email: true,
   fullName: true,
   role: true,
+  isSystem: true,
   isActive: true,
   lastLoginAt: true,
   createdAt: true,
@@ -40,6 +42,7 @@ function mapUser(row: UserRow) {
     email: row.email,
     full_name: row.fullName,
     role: row.role,
+    is_system: row.isSystem,
     access_level: access?.accessLevel ?? null,
     branch: access?.branch ?? null,
     warehouse: access?.warehouse ?? null,
@@ -115,6 +118,16 @@ export class UserService {
       return created;
     });
 
+    void logAuditEvent({
+      companyId: this.companyId,
+      actor: this.actor,
+      action: 'CREATE',
+      entityName: 'User',
+      entityId: user.id,
+      description: `Created user "${input.full_name}" (${input.email}) with role ${input.role}`,
+      details: { email: input.email, role: input.role, access_level: input.access_level },
+    });
+
     return this.getById(user.id);
   }
 
@@ -124,6 +137,14 @@ export class UserService {
 
     const role = input.role ?? existing.role as UserRole;
     if (input.role && input.role !== existing.role) this.assertActorCanAssignRole(input.role);
+    if (existing.is_system) {
+      if (input.is_active === false) {
+        throw businessError('System Super-Admin cannot be deactivated.');
+      }
+      if (input.role && input.role !== 'admin') {
+        throw businessError('System Super-Admin role cannot be changed.');
+      }
+    }
     if (input.id === this.actor.id && input.role && input.role !== existing.role) {
       throw businessError('You cannot change your own Role.');
     }
@@ -162,6 +183,17 @@ export class UserService {
     });
 
     invalidateAuthUserCache(input.id);
+
+    void logAuditEvent({
+      companyId: this.companyId,
+      actor: this.actor,
+      action: 'UPDATE',
+      entityName: 'User',
+      entityId: input.id,
+      description: `Updated user "${existing.full_name}" (${existing.email})`,
+      details: { changes: input },
+    });
+
     return this.getById(input.id);
   }
 
@@ -178,6 +210,16 @@ export class UserService {
       data: { passwordHash: await hashPassword(input.new_password), passwordChangedAt: new Date(), updatedById: this.actor.id },
     });
     invalidateAuthUserCache(id);
+
+    void logAuditEvent({
+      companyId: this.companyId,
+      actor: this.actor,
+      action: 'PASSWORD_RESET',
+      entityName: 'User',
+      entityId: id,
+      description: `Reset password for user "${existing.full_name}" (${existing.email})`,
+    });
+
     return { message: 'Password reset. The user must sign in again with the new password.' };
   }
 

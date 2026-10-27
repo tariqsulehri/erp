@@ -2,7 +2,17 @@
 
 import { useEffect, useMemo, useState, type CSSProperties } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { IconArrowLeft, IconCheck, IconPlus, IconX } from '@tabler/icons-react';
+import {
+  IconArrowLeft,
+  IconArrowRight,
+  IconBuildingWarehouse,
+  IconCheck,
+  IconCube,
+  IconFileAnalytics,
+  IconPlus,
+  IconReceipt,
+  IconX,
+} from '@tabler/icons-react';
 import { formatMoney, normalizeFormatSettings } from '@/lib/app-settings';
 import {
   productsQueryKey,
@@ -26,13 +36,15 @@ import { CheckboxField, NumericField, SelectField, TextField, TextareaField } fr
 import { InlineAlert } from '@/components/ui/InlineAlert';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { SearchableSelect } from '@/components/ui/SearchableSelect';
+import { TabItem, Tabs } from '@/components/ui/Tabs';
 import {
   fmtQty,
-  PRODUCT_TYPE_OPTIONS,
   SelectOption,
   STATUS_OPTIONS,
   TAX_CATEGORY_OPTIONS,
 } from './ProductShared';
+
+type ProductTab = 'definition' | 'pricing' | 'stock' | 'notes';
 
 const summaryLabelStyle: CSSProperties = { display: 'block', fontSize: 'var(--font-size-xs)', fontWeight: 600, color: 'var(--color-text-muted)' };
 const summaryValueStyle: CSSProperties = { fontSize: 'var(--font-size-md)', fontWeight: 600, color: 'var(--color-heading)', fontVariantNumeric: 'tabular-nums' };
@@ -57,6 +69,7 @@ export function ProductForm({ editId, onSaved, onCancel }: {
   const queryClient = useQueryClient();
   const isEdit     = !!editId;
   const [error, setError] = useState('');
+  const [activeTab, setActiveTab] = useState<ProductTab>('definition');
   const { data: generalSettings } = useGeneralSettings();
   const formatSettings = useMemo(() => normalizeFormatSettings(generalSettings), [generalSettings]);
 
@@ -70,6 +83,7 @@ export function ProductForm({ editId, onSaved, onCancel }: {
   const [productTypeId, setProductTypeId] = useState('');
   const [itemSizeId,   setItemSizeId]   = useState('');
   const [colorId,      setColorId]      = useState('');
+  const [customHex,    setCustomHex]    = useState('#1e293b');
   const [originId,     setOriginId]     = useState('');
   const [model,        setModel]        = useState('');
   const [categoryId,   setCategoryId]   = useState('');
@@ -201,6 +215,33 @@ export function ProductForm({ editId, onSaved, onCancel }: {
     [weightUoms],
   );
 
+  /* Sync Color selection with Custom Hex Swatch */
+  const selectedColorRecord = useMemo(() => {
+    return (colorsList ?? []).find((c: any) => c.id === colorId);
+  }, [colorsList, colorId]);
+
+  useEffect(() => {
+    if (selectedColorRecord?.hex_code) {
+      setCustomHex(selectedColorRecord.hex_code);
+    } else if (selectedColorRecord?.hexCode) {
+      setCustomHex(selectedColorRecord.hexCode);
+    }
+  }, [selectedColorRecord]);
+
+  /* When Product Type from configuration table is chosen, sync the enum */
+  function handleProductTypeSelect(nextId: string) {
+    setProductTypeId(nextId);
+    const rec = (productTypesList ?? []).find((pt: any) => pt.id === nextId);
+    if (rec) {
+      const norm = `${rec.code} ${rec.name}`.toLowerCase();
+      if (norm.includes('raw')) setProductType('RawMaterial');
+      else if (norm.includes('semi')) setProductType('SemiFinished');
+      else if (norm.includes('service')) setProductType('Service');
+      else if (norm.includes('consumable')) setProductType('Consumable');
+      else setProductType('Finished');
+    }
+  }
+
   /* ── Load for edit ── */
   const { data: existing } = useProductDetail(isEdit ? editId : undefined);
 
@@ -215,11 +256,12 @@ export function ProductForm({ editId, onSaved, onCancel }: {
     setProductTypeId(existing.product_type_id ?? existing.product_type_record?.id ?? '');
     setItemSizeId(existing.item_size_id ?? existing.size_record?.id ?? '');
     setColorId(existing.color_id ?? existing.color_record?.id ?? '');
+    if (existing.color_record?.hex_code) setCustomHex(existing.color_record.hex_code);
     setOriginId(existing.origin_id ?? existing.origin_record?.id ?? '');
     setModel(existing.model ?? '');
     setCategoryId(existing.category_id ?? '');
     setUomId(existing.uom_id ?? '');
-    setProductType(existing.product_type);
+    setProductType(existing.product_type || 'Finished');
     setStatus(existing.status);
     setIsSellable(existing.is_sellable);
     setIsPurchasable(existing.is_purchasable);
@@ -269,10 +311,10 @@ export function ProductForm({ editId, onSaved, onCancel }: {
   /* Quick-create category mutation */
   const createCatMut = useCreateProductCategory();
   const handleCategoryCreated = (cat: any) => {
-      queryClient.invalidateQueries({ queryKey: productsQueryKey });
-      setCategoryId(cat.id);
-      setShowCatCreate(false);
-      setNewCatCode(''); setNewCatName(''); setNewCatParentId(''); setCatCreateError('');
+    queryClient.invalidateQueries({ queryKey: productsQueryKey });
+    setCategoryId(cat.id);
+    setShowCatCreate(false);
+    setNewCatCode(''); setNewCatName(''); setNewCatParentId(''); setCatCreateError('');
   };
 
   function saveNewCategory() {
@@ -307,7 +349,7 @@ export function ProductForm({ editId, onSaved, onCancel }: {
       model:        model       || undefined,
       category_id:  categoryId  || undefined,
       uom_id:       uomId       || undefined,
-      product_type: productType as any,
+      product_type: (productType || 'Finished') as any,
       status:       status      as any,
       is_sellable:  isSellable,
       is_purchasable: isPurchasable,
@@ -357,6 +399,13 @@ export function ProductForm({ editId, onSaved, onCancel }: {
     { label: 'Reorder Quantity', value: reorderQty, set: setReorderQty, hint: 'Quantity to order each time.' },
   ];
 
+  const tabItems: Array<TabItem<ProductTab>> = [
+    { value: 'definition', label: 'Item Definition', icon: <IconCube size={16} stroke={1.8} /> },
+    { value: 'pricing', label: 'Pricing & Tax', icon: <IconReceipt size={16} stroke={1.8} /> },
+    { value: 'stock', label: 'Stock & Warehouse', icon: <IconBuildingWarehouse size={16} stroke={1.8} /> },
+    { value: 'notes', label: 'Notes & Media', icon: <IconFileAnalytics size={16} stroke={1.8} /> },
+  ];
+
   return (
     <div className="page-shell">
       <PageHeader
@@ -364,9 +413,9 @@ export function ProductForm({ editId, onSaved, onCancel }: {
         description="A Product is an item you buy, sell, or keep in stock. SKU and Product Name are required."
         help={(
           <>
-            <p>Enter the product details, prices, tax, and stock levels, then click Save Product.</p>
-            <p>The SKU is the code you use for this product.</p>
-            <p>Turn off Track Stock For This Product for services and items you do not keep in stock.</p>
+            <p>Enter the product definition, prices, stock parameters, and notes across the tabs, then click Save Product.</p>
+            <p>Attributes such as Product Type, Origin, Brand, Category, UoM, Color, and Size are configured from your Master Tables.</p>
+            <p>Turn off Track Stock For This Product for non-stock items and services.</p>
           </>
         )}
         actions={(
@@ -381,199 +430,392 @@ export function ProductForm({ editId, onSaved, onCancel }: {
 
       {error && <InlineAlert tone="danger">{error}</InlineAlert>}
 
-      <section className="panel" style={{ overflow: 'auto' }}>
+      <Tabs<ProductTab>
+        value={activeTab}
+        items={tabItems}
+        onChange={setActiveTab}
+        label="Product Configuration Tabs"
+      />
+
+      <section className="panel" style={{ overflow: 'visible', marginTop: 16 }}>
         <div className="panel-body">
 
-          {/* ─────── BASIC DETAILS ─────── */}
-          <div className="form-section">
-            <h2 className="form-section-title">Basic Details</h2>
-            <div className="form-grid">
-              <TextField label="SKU" required value={sku} onChange={value => setSku(value.toUpperCase())} placeholder="PRD-0001" />
-              <TextField label="Barcode Or EAN" value={barcode} onChange={setBarcode} placeholder="For example 8901234567890" />
-              <div className="span-2">
-                <TextField label="Product Name" required value={name} onChange={setName} placeholder="Full product name" />
-              </div>
+          {/* ─────── TAB 1: ITEM DEFINITION & ATTRIBUTES ─────── */}
+          {activeTab === 'definition' && (
+            <div className="form-section" role="tabpanel" aria-labelledby="tab-definition">
+              <h2 className="form-section-title">Product Definition & Attributes</h2>
+              <p className="form-hint" style={{ marginBottom: 16 }}>
+                Select the product sequence attributes from your master tables, followed by the item name and SKU.
+              </p>
 
-              <FieldLabel label="Brand">
-                <SearchableSelect value={brandId} options={brandOptions} onChange={setBrandId} placeholder="Select Brand" />
-              </FieldLabel>
-              <TextField label="Model Or Part No." value={model} onChange={setModel} placeholder="For example SM-G998B" />
-              <div className="span-2">
-                <FieldLabel label="Category">
-                  <div style={{ display: 'flex', gap: 8 }}>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <SearchableSelect value={categoryId} options={categoryOptions} onChange={setCategoryId} placeholder="Select Category" />
-                    </div>
-                    <Button
-                      variant="secondary"
-                      icon={showCatCreate ? <IconX size={16} stroke={1.8} /> : <IconPlus size={16} stroke={1.8} />}
-                      onClick={() => { setShowCatCreate(v => !v); setCatCreateError(''); }}
-                      aria-label={showCatCreate ? 'Close New Category' : 'New Category'}
-                      title={showCatCreate ? 'Close New Category' : 'New Category'}
-                      aria-pressed={showCatCreate}
-                    />
-                  </div>
+              <div className="form-grid">
+                {/* 1. Product Type */}
+                <FieldLabel label="Product Type" required>
+                  <SearchableSelect
+                    value={productTypeId}
+                    options={productTypeRecordOptions}
+                    onChange={handleProductTypeSelect}
+                    placeholder="Select Product Type (e.g. Finished Goods, Raw Material)"
+                  />
                 </FieldLabel>
-              </div>
 
-              <FieldLabel label="Product Type">
-                <SearchableSelect value={productTypeId} options={productTypeRecordOptions} onChange={setProductTypeId} placeholder="Select Product Type" />
-              </FieldLabel>
+                {/* 2. Origin */}
+                <FieldLabel label="Origin">
+                  <SearchableSelect
+                    value={originId}
+                    options={originOptions}
+                    onChange={setOriginId}
+                    placeholder="Select Origin (e.g. Pakistan, China)"
+                  />
+                </FieldLabel>
 
-              <FieldLabel label="Size">
-                <SearchableSelect value={itemSizeId} options={sizeOptions} onChange={setItemSizeId} placeholder="Select Size" />
-              </FieldLabel>
+                {/* 3. Brand */}
+                <FieldLabel label="Brand">
+                  <SearchableSelect
+                    value={brandId}
+                    options={brandOptions}
+                    onChange={setBrandId}
+                    placeholder="Select Brand (e.g. 3M, HP)"
+                  />
+                </FieldLabel>
 
-              <FieldLabel label="Color">
-                <SearchableSelect value={colorId} options={colorOptions} onChange={setColorId} placeholder="Select Color" />
-              </FieldLabel>
+                {/* 4. Product Category */}
+                <div className="span-2">
+                  <FieldLabel label="Product Category">
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <SearchableSelect
+                          value={categoryId}
+                          options={categoryOptions}
+                          onChange={setCategoryId}
+                          placeholder="Select Category (e.g. Boards, Pencils)"
+                        />
+                      </div>
+                      <Button
+                        variant="secondary"
+                        icon={showCatCreate ? <IconX size={16} stroke={1.8} /> : <IconPlus size={16} stroke={1.8} />}
+                        onClick={() => { setShowCatCreate(v => !v); setCatCreateError(''); }}
+                        aria-label={showCatCreate ? 'Close New Category' : 'New Category'}
+                        title={showCatCreate ? 'Close New Category' : 'New Category'}
+                        aria-pressed={showCatCreate}
+                      />
+                    </div>
+                  </FieldLabel>
+                </div>
 
-              <FieldLabel label="Origin">
-                <SearchableSelect value={originId} options={originOptions} onChange={setOriginId} placeholder="Select Origin" />
-              </FieldLabel>
-
-              {/* ── Quick-create category ── */}
-              {showCatCreate && (
-                <div className="span-all panel" style={{ overflow: 'visible' }}>
-                  <div className="panel-header">
-                    <h3 className="panel-title">New Category</h3>
-                  </div>
-                  <div className="panel-body">
-                    {catCreateError && <div style={{ marginBottom: 12 }}><InlineAlert tone="danger">{catCreateError}</InlineAlert></div>}
-                    <div className="form-grid">
-                      <TextField label="Category Code" required value={newCatCode} onChange={value => setNewCatCode(value.toUpperCase())} placeholder="ELEC" inputProps={{ maxLength: 20 }} />
-                      <TextField label="Category Name" required value={newCatName} onChange={setNewCatName} placeholder="Electronics" inputProps={{ maxLength: 150 }} />
-                      <div className="span-2">
-                        <FieldLabel label="Parent Category">
-                          <SearchableSelect value={newCatParentId} options={categoryOptions} onChange={setNewCatParentId} placeholder="No Parent (Top Level)" />
-                        </FieldLabel>
-                        <p className="form-hint">Leave blank to create a top-level Category.</p>
+                {/* Quick-create category drawer */}
+                {showCatCreate && (
+                  <div className="span-all panel" style={{ overflow: 'visible', margin: '8px 0', border: '1px solid var(--color-border-focus)' }}>
+                    <div className="panel-header">
+                      <h3 className="panel-title">New Category</h3>
+                    </div>
+                    <div className="panel-body">
+                      {catCreateError && <div style={{ marginBottom: 12 }}><InlineAlert tone="danger">{catCreateError}</InlineAlert></div>}
+                      <div className="form-grid">
+                        <TextField label="Category Code" required value={newCatCode} onChange={value => setNewCatCode(value.toUpperCase())} placeholder="ELEC" inputProps={{ maxLength: 20 }} />
+                        <TextField label="Category Name" required value={newCatName} onChange={setNewCatName} placeholder="Electronics" inputProps={{ maxLength: 150 }} />
+                        <div className="span-2">
+                          <FieldLabel label="Parent Category">
+                            <SearchableSelect value={newCatParentId} options={categoryOptions} onChange={setNewCatParentId} placeholder="No Parent (Top Level)" />
+                          </FieldLabel>
+                          <p className="form-hint">Leave blank to create a top-level Category.</p>
+                        </div>
                       </div>
                     </div>
+                    <div className="panel-footer" style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+                      <Button variant="ghost" onClick={closeCategoryCreate}>Cancel</Button>
+                      <Button variant="primary" size="sm" icon={<IconCheck size={16} stroke={1.8} />} onClick={saveNewCategory} loading={createCatMut.isPending}>
+                        Save Category
+                      </Button>
+                    </div>
                   </div>
-                  <div className="panel-footer">
-                    <Button variant="ghost" onClick={closeCategoryCreate}>Cancel</Button>
-                    <Button variant="primary" size="sm" icon={<IconCheck size={16} stroke={1.8} />} onClick={saveNewCategory} loading={createCatMut.isPending}>
-                      Save Category
-                    </Button>
-                  </div>
+                )}
+
+                {/* 5. Unit of Measure */}
+                <FieldLabel label="Unit Of Measure">
+                  <SearchableSelect
+                    value={uomId}
+                    options={uomOptions}
+                    onChange={setUomId}
+                    placeholder="Select Unit (e.g. Kg, Nos, Box)"
+                  />
+                </FieldLabel>
+
+                {/* 6. Color with Selector & Interactive Color Picker */}
+                <div>
+                  <FieldLabel label="Color">
+                    <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <SearchableSelect
+                          value={colorId}
+                          options={colorOptions}
+                          onChange={val => {
+                            setColorId(val);
+                            const found = (colorsList ?? []).find((c: any) => c.id === val);
+                            if (found?.hex_code) setCustomHex(found.hex_code);
+                            else if (found?.hexCode) setCustomHex(found.hexCode);
+                          }}
+                          placeholder="Select Color (e.g. Red, Blue)"
+                        />
+                      </div>
+                      <div
+                        title={`Color Swatch: ${customHex}`}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 6,
+                          padding: '3px 8px',
+                          border: '1px solid var(--color-border)',
+                          borderRadius: 'var(--border-radius-md)',
+                          background: 'var(--color-bg-subtle)',
+                        }}
+                      >
+                        <input
+                          type="color"
+                          value={customHex}
+                          onChange={e => {
+                            const val = e.target.value;
+                            setCustomHex(val);
+                            const matching = (colorsList ?? []).find((c: any) => (c.hex_code || c.hexCode || '').toLowerCase() === val.toLowerCase());
+                            if (matching) setColorId(matching.id);
+                          }}
+                          aria-label="Exact Color Picker"
+                          style={{
+                            width: 26,
+                            height: 26,
+                            border: 'none',
+                            padding: 0,
+                            borderRadius: '50%',
+                            cursor: 'pointer',
+                            background: 'transparent',
+                          }}
+                        />
+                        <span style={{ fontSize: 'var(--font-size-xs)', fontFamily: 'var(--font-family-mono)', color: 'var(--color-text-muted)' }}>
+                          {customHex.toUpperCase()}
+                        </span>
+                      </div>
+                    </div>
+                  </FieldLabel>
                 </div>
+
+                {/* 7. Size */}
+                <FieldLabel label="Size">
+                  <SearchableSelect
+                    value={itemSizeId}
+                    options={sizeOptions}
+                    onChange={setItemSizeId}
+                    placeholder="Select Size (e.g. Small, Medium, Large)"
+                  />
+                </FieldLabel>
+
+                {/* Core Identifiers */}
+                <TextField
+                  label="SKU"
+                  required
+                  value={sku}
+                  onChange={value => setSku(value.toUpperCase())}
+                  placeholder="PRD-0001"
+                />
+
+                <TextField
+                  label="Barcode Or EAN"
+                  value={barcode}
+                  onChange={setBarcode}
+                  placeholder="For example 8901234567890"
+                />
+
+                <div className="span-2">
+                  <TextField
+                    label="Product Name"
+                    required
+                    value={name}
+                    onChange={setName}
+                    placeholder="Full product name"
+                  />
+                </div>
+
+                <TextField
+                  label="Model Or Part No."
+                  value={model}
+                  onChange={setModel}
+                  placeholder="For example SM-G998B"
+                />
+              </div>
+
+              <div style={{ marginTop: 24, display: 'flex', justifyContent: 'flex-end' }}>
+                <Button variant="secondary" icon={<IconArrowRight size={16} stroke={1.8} />} onClick={() => setActiveTab('pricing')}>
+                  Next: Pricing & Tax
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* ─────── TAB 2: PRICING AND TAX ─────── */}
+          {activeTab === 'pricing' && (
+            <div className="form-section" role="tabpanel" aria-labelledby="tab-pricing">
+              <h2 className="form-section-title">Pricing And Tax</h2>
+              <div className="form-grid">
+                <NumericField label={`Cost Price (${currencySymbol})`} value={costPrice} onChange={setCostPrice} placeholder="0.00" />
+                <NumericField label={`Sale Price (${currencySymbol})`} value={salePrice} onChange={setSalePrice} placeholder="0.00" />
+                <NumericField label={`Minimum Sale Price (${currencySymbol})`} value={minSalePrice} onChange={setMinSalePrice} placeholder="0.00" />
+                <div />
+                <SelectField
+                  label="Tax Category"
+                  value={taxCategory}
+                  options={TAX_CATEGORY_OPTIONS}
+                  onChange={nextTax => setTaxCategory(nextTax || 'Standard')}
+                />
+                <NumericField
+                  label="Tax Rate (%)"
+                  value={taxRate}
+                  onChange={setTaxRate}
+                  placeholder="For example 17"
+                  disabled={taxCategory !== 'Standard'}
+                />
+              </div>
+              {marginValue && (
+                <SummaryRow
+                  items={[
+                    { label: 'Cost', value: formatMoney(costPrice || 0, generalSettings) },
+                    { label: 'Sale', value: formatMoney(salePrice || 0, generalSettings) },
+                    { label: 'Profit', value: formatMoney((parseFloat(salePrice) || 0) - (parseFloat(costPrice) || 0), generalSettings) },
+                    { label: 'Margin', value: `${marginValue}%`, tone: parseFloat(marginValue) >= 20 ? undefined : 'warning' },
+                  ]}
+                />
               )}
 
-              <SelectField
-                label="Product Type"
-                required
-                value={productType}
-                options={PRODUCT_TYPE_OPTIONS}
-                onChange={nextType => setProductType(nextType || 'Finished')}
-              />
-              <FieldLabel label="Unit Of Measure">
-                <SearchableSelect value={uomId} options={uomOptions} onChange={setUomId} placeholder="Select Unit" />
-              </FieldLabel>
-              <SelectField
-                label="Status"
-                required
-                value={status}
-                options={STATUS_OPTIONS}
-                onChange={nextStatus => setStatus(nextStatus || 'Active')}
-              />
-              <div style={{ display: 'flex', gap: 24, alignItems: 'end', minHeight: 52, flexWrap: 'wrap' }}>
-                <CheckboxField label="Can Be Sold" checked={isSellable} onChange={setIsSellable} />
-                <CheckboxField label="Can Be Bought" checked={isPurchasable} onChange={setIsPurchasable} />
-              </div>
-
-              <div className="span-all">
-                <TextareaField label="Description" value={description} onChange={setDescription} placeholder="Detailed description of the product" rows={3} />
-              </div>
-              <div className="span-2">
-                <TextField label="Product Image Link" value={imageUrl} onChange={setImageUrl} placeholder="https://example.com/images/product.jpg" inputProps={{ type: 'url' }} />
+              <div style={{ marginTop: 24, display: 'flex', justifyContent: 'space-between' }}>
+                <Button variant="ghost" icon={<IconArrowLeft size={16} stroke={1.8} />} onClick={() => setActiveTab('definition')}>
+                  Previous: Definition
+                </Button>
+                <Button variant="secondary" icon={<IconArrowRight size={16} stroke={1.8} />} onClick={() => setActiveTab('stock')}>
+                  Next: Stock & Warehouse
+                </Button>
               </div>
             </div>
-          </div>
+          )}
 
-          {/* ─────── PRICING AND TAX ─────── */}
-          <div className="form-section">
-            <h2 className="form-section-title">Pricing And Tax</h2>
-            <div className="form-grid">
-              <NumericField label={`Cost Price (${currencySymbol})`} value={costPrice} onChange={setCostPrice} placeholder="0.00" />
-              <NumericField label={`Sale Price (${currencySymbol})`} value={salePrice} onChange={setSalePrice} placeholder="0.00" />
-              <NumericField label={`Minimum Sale Price (${currencySymbol})`} value={minSalePrice} onChange={setMinSalePrice} placeholder="0.00" />
-              <div />
-              <SelectField
-                label="Tax Category"
-                value={taxCategory}
-                options={TAX_CATEGORY_OPTIONS}
-                onChange={nextTax => setTaxCategory(nextTax || 'Standard')}
-              />
-              <NumericField
-                label="Tax Rate (%)"
-                value={taxRate}
-                onChange={setTaxRate}
-                placeholder="For example 17"
-                disabled={taxCategory !== 'Standard'}
-              />
+          {/* ─────── TAB 3: STOCK CONTROL & MEASUREMENTS ─────── */}
+          {activeTab === 'stock' && (
+            <div className="form-section" role="tabpanel" aria-labelledby="tab-stock">
+              <h2 className="form-section-title">Stock Control & Physical Details</h2>
+              <CheckboxField label="Track Stock For This Product" checked={trackInv} onChange={setTrackInv} />
+              <p className="form-hint" style={{ marginBottom: 16 }}>Turn this off for services and non-inventoried items.</p>
+
+              <div className="form-grid">
+                {stockLevelFields.map(f => (
+                  <div key={f.label}>
+                    <NumericField label={f.label} value={f.value} onChange={f.set} placeholder="0" decimalPlaces={4} disabled={!trackInv} />
+                    <p className="form-hint">{f.hint}</p>
+                  </div>
+                ))}
+              </div>
+              {trackInv && parseFloat(qtyOnHand) >= 0 && (parseFloat(minStock) || parseFloat(maxStock)) ? (
+                <SummaryRow
+                  items={[
+                    { label: 'On Hand', value: fmtQty(qtyOnHand, generalSettings) },
+                    ...(minStock ? [{ label: 'Reorder At', value: fmtQty(minStock, generalSettings), tone: 'warning' as const }] : []),
+                    ...(maxStock ? [{ label: 'Maximum', value: fmtQty(maxStock, generalSettings) }] : []),
+                  ]}
+                />
+              ) : null}
+
+              <h3 className="form-section-title" style={{ marginTop: 24 }}>Weight & Dimensions</h3>
+              <div className="form-grid" style={{ '--form-cols': 5 } as CSSProperties}>
+                <NumericField label="Weight" value={weight} onChange={setWeight} placeholder="0.000" decimalPlaces={3} />
+                <SelectField
+                  label="Weight Unit"
+                  value={weightUnit}
+                  options={weightUnitOptions}
+                  onChange={nextUnit => setWeightUnit(nextUnit || 'kg')}
+                />
+                <NumericField label="Length (cm)" value={lengthCm} onChange={setLengthCm} placeholder="0.00" />
+                <NumericField label="Width (cm)" value={widthCm} onChange={setWidthCm} placeholder="0.00" />
+                <NumericField label="Height (cm)" value={heightCm} onChange={setHeightCm} placeholder="0.00" />
+              </div>
+
+              <div style={{ marginTop: 24, display: 'flex', justifyContent: 'space-between' }}>
+                <Button variant="ghost" icon={<IconArrowLeft size={16} stroke={1.8} />} onClick={() => setActiveTab('pricing')}>
+                  Previous: Pricing & Tax
+                </Button>
+                <Button variant="secondary" icon={<IconArrowRight size={16} stroke={1.8} />} onClick={() => setActiveTab('notes')}>
+                  Next: Notes & Media
+                </Button>
+              </div>
             </div>
-            {marginValue && (
-              <SummaryRow
-                items={[
-                  { label: 'Cost', value: formatMoney(costPrice || 0, generalSettings) },
-                  { label: 'Sale', value: formatMoney(salePrice || 0, generalSettings) },
-                  { label: 'Profit', value: formatMoney((parseFloat(salePrice) || 0) - (parseFloat(costPrice) || 0), generalSettings) },
-                  { label: 'Margin', value: `${marginValue}%`, tone: parseFloat(marginValue) >= 20 ? undefined : 'warning' },
-                ]}
-              />
-            )}
-          </div>
+          )}
 
-          {/* ─────── STOCK CONTROL ─────── */}
-          <div className="form-section">
-            <h2 className="form-section-title">Stock Control</h2>
-            <CheckboxField label="Track Stock For This Product" checked={trackInv} onChange={setTrackInv} />
-            <p className="form-hint" style={{ marginBottom: 12 }}>Turn this off for services and items you do not keep in stock.</p>
-            <div className="form-grid">
-              {stockLevelFields.map(f => (
-                <div key={f.label}>
-                  <NumericField label={f.label} value={f.value} onChange={f.set} placeholder="0" decimalPlaces={4} disabled={!trackInv} />
-                  <p className="form-hint">{f.hint}</p>
+          {/* ─────── TAB 4: NOTES AND MEDIA ─────── */}
+          {activeTab === 'notes' && (
+            <div className="form-section" role="tabpanel" aria-labelledby="tab-notes">
+              <h2 className="form-section-title">Notes, Media & Status</h2>
+
+              <div className="form-grid">
+                <div className="span-all">
+                  <TextareaField
+                    label="Internal Notes"
+                    value={notes}
+                    onChange={setNotes}
+                    placeholder="Enter confidential notes, handling requirements, or vendor instructions (staff only, not printed on invoices)"
+                    rows={4}
+                  />
                 </div>
-              ))}
-            </div>
-            {trackInv && parseFloat(qtyOnHand) >= 0 && (parseFloat(minStock) || parseFloat(maxStock)) ? (
-              <SummaryRow
-                items={[
-                  { label: 'On Hand', value: fmtQty(qtyOnHand, generalSettings) },
-                  ...(minStock ? [{ label: 'Reorder At', value: fmtQty(minStock, generalSettings), tone: 'warning' as const }] : []),
-                  ...(maxStock ? [{ label: 'Maximum', value: fmtQty(maxStock, generalSettings) }] : []),
-                ]}
-              />
-            ) : null}
-          </div>
 
-          {/* ─────── PHYSICAL DETAILS AND NOTES ─────── */}
-          <div className="form-section">
-            <h2 className="form-section-title">Physical Details And Notes</h2>
-            <div className="form-grid" style={{ '--form-cols': 5 } as CSSProperties}>
-              <NumericField label="Weight" value={weight} onChange={setWeight} placeholder="0.000" decimalPlaces={3} />
-              <SelectField
-                label="Weight Unit"
-                value={weightUnit}
-                options={weightUnitOptions}
-                onChange={nextUnit => setWeightUnit(nextUnit || 'kg')}
-              />
-              <NumericField label="Length (cm)" value={lengthCm} onChange={setLengthCm} placeholder="0.00" />
-              <NumericField label="Width (cm)" value={widthCm} onChange={setWidthCm} placeholder="0.00" />
-              <NumericField label="Height (cm)" value={heightCm} onChange={setHeightCm} placeholder="0.00" />
-            </div>
-            <div className="form-grid" style={{ marginTop: 12 }}>
-              <div className="span-2">
-                <TextField label="Tags" value={tags} onChange={setTags} placeholder="For example electronics, mobile, imported" />
-                <p className="form-hint">Separate tags with commas.</p>
+                <div className="span-all">
+                  <TextareaField
+                    label="Public Description"
+                    value={description}
+                    onChange={setDescription}
+                    placeholder="Detailed description printed on quotes, orders, and sales invoices"
+                    rows={3}
+                  />
+                </div>
+
+                <div className="span-2">
+                  <TextField
+                    label="Product Image Link"
+                    value={imageUrl}
+                    onChange={setImageUrl}
+                    placeholder="https://example.com/images/product.jpg"
+                    inputProps={{ type: 'url' }}
+                  />
+                </div>
+
+                <div className="span-2">
+                  <TextField
+                    label="Tags"
+                    value={tags}
+                    onChange={setTags}
+                    placeholder="For example electronics, mobile, imported"
+                  />
+                  <p className="form-hint">Separate tags with commas.</p>
+                </div>
+
+                <SelectField
+                  label="Status"
+                  required
+                  value={status}
+                  options={STATUS_OPTIONS}
+                  onChange={nextStatus => setStatus(nextStatus || 'Active')}
+                />
+
+                <div style={{ display: 'flex', gap: 24, alignItems: 'center', minHeight: 52, flexWrap: 'wrap' }}>
+                  <CheckboxField label="Can Be Sold" checked={isSellable} onChange={setIsSellable} />
+                  <CheckboxField label="Can Be Bought" checked={isPurchasable} onChange={setIsPurchasable} />
+                </div>
               </div>
-              <div className="span-all">
-                <TextareaField label="Internal Notes" value={notes} onChange={setNotes} placeholder="Notes for staff only, not printed" rows={4} />
+
+              <div style={{ marginTop: 24, display: 'flex', justifyContent: 'space-between' }}>
+                <Button variant="ghost" icon={<IconArrowLeft size={16} stroke={1.8} />} onClick={() => setActiveTab('stock')}>
+                  Previous: Stock & Warehouse
+                </Button>
+                <Button variant="primary" icon={<IconCheck size={16} stroke={1.8} />} onClick={save} loading={isPending}>
+                  {isEdit ? 'Save Changes' : 'Save Product'}
+                </Button>
               </div>
             </div>
-          </div>
+          )}
+
         </div>
       </section>
     </div>

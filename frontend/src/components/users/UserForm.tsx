@@ -98,8 +98,8 @@ export function UserForm({ editId, form, setForm, notice, saving, canAssignAdmin
           <div className="form-section">
             <h2 className="form-section-title">Role And Access</h2>
             <div className="form-grid">
-              <SelectField label="Role" required value={form.role} options={roleOptions} placeholder="Select Role" onChange={value => setForm(current => withRole(current, value as UserRole | ''))} />
-              <SelectField label="Access Level" required value={form.access_level} options={accessLevelOptions} placeholder={form.role ? 'Select Access Level' : 'Select a Role First'} disabled={accessLevelOptions.length <= 1} onChange={value => setField('access_level', value as UserFormState['access_level'])} />
+              <SelectField label="Role" required value={form.role} options={roleOptions} placeholder="Select Role" disabled={form.is_system} onChange={value => setForm(current => withRole(current, value as UserRole | ''))} />
+              <SelectField label="Access Level" required value={form.access_level} options={accessLevelOptions} placeholder={form.role ? 'Select Access Level' : 'Select a Role First'} disabled={form.is_system || accessLevelOptions.length <= 1} onChange={value => setField('access_level', value as UserFormState['access_level'])} />
               {form.access_level === 'BRANCH' && (
                 <div className="span-2">
                   <FieldLabel label="Branch" required>
@@ -115,16 +115,26 @@ export function UserForm({ editId, form, setForm, notice, saving, canAssignAdmin
                 </div>
               )}
             </div>
-            <p className="form-hint">
-              Branch users see and sell only their Branch stock. Warehouse users see only their Warehouse stock.
-              Admin and Top Management always have All Branches access.
-            </p>
+            {form.is_system ? (
+              <p className="form-hint" style={{ color: 'var(--color-primary)' }}>
+                System Super-Admin has permanent All Branches administrative access and cannot be demoted.
+              </p>
+            ) : (
+              <p className="form-hint">
+                Branch users see and sell only their Branch stock. Warehouse users see only their Warehouse stock.
+                Admin and Top Management always have All Branches access.
+              </p>
+            )}
           </div>
 
           <div className="form-section">
             <h2 className="form-section-title">Settings</h2>
-            <CheckboxField label="Active" checked={form.is_active} onChange={value => setField('is_active', value)} />
-            <p className="form-hint">Inactive users cannot sign in. Making a user Inactive signs them out on their next action.</p>
+            <CheckboxField label="Active" checked={form.is_active} disabled={form.is_system} onChange={value => setField('is_active', value)} />
+            <p className="form-hint">
+              {form.is_system
+                ? 'System Super-Admin account is permanent and cannot be deactivated or deleted.'
+                : 'Inactive users cannot sign in. Making a user Inactive signs them out on their next action.'}
+            </p>
           </div>
 
           {!isNew && <ResetPasswordSection userId={editId} />}

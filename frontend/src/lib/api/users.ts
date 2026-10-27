@@ -11,6 +11,7 @@ export interface UserRow {
   email: string;
   full_name: string;
   role: UserRole;
+  is_system?: boolean;
   access_level: AccessLevel | null;
   branch: SessionBranch | null;
   warehouse: SessionWarehouse | null;

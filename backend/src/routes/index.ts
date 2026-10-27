@@ -24,12 +24,16 @@ import { citiesRouter } from './cities.routes.js';
 import { areasRouter } from './areas.routes.js';
 import { authRouter } from './auth.routes.js';
 import { usersRouter } from './users.routes.js';
+import { auditLogsRouter } from './audit-logs.routes.js';
+import { rolesRouter } from './roles.routes.js';
 
 export const apiRouter = Router();
 
 apiRouter.use('/health', healthRouter);
 apiRouter.use('/auth', authRouter);
 apiRouter.use('/users', usersRouter);
+apiRouter.use('/audit-logs', auditLogsRouter);
+apiRouter.use('/roles', rolesRouter);
 apiRouter.use('/accounts', accountsRouter);
 apiRouter.use('/bank-accounts', bankAccountsRouter);
 apiRouter.use('/bank-cheques', bankChequesRouter);

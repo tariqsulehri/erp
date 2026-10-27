@@ -25,7 +25,7 @@ async function main() {
   const companies = await prisma.company.findMany({ where: { isActive: true }, select: { id: true, name: true } });
   const user = await prisma.$transaction(async transaction => {
     const created = await transaction.user.create({
-      data: { email, fullName, passwordHash: await hashPassword(password), role: 'admin', passwordChangedAt: new Date() },
+      data: { email, fullName, passwordHash: await hashPassword(password), role: 'admin', isSystem: true, passwordChangedAt: new Date() },
     });
     await transaction.userCompanyAccess.createMany({
       data: companies.map(company => ({ userId: created.id, companyId: company.id, accessLevel: 'ALL_BRANCHES' })),

@@ -59,6 +59,7 @@ model Company {
   stockAdjustmentSettings StockAdjustmentSettings?
   yearEndClosingSettings  YearEndClosingSettings?
   userAccess              UserCompanyAccess[]
+  systemAuditLogs         SystemAuditLog[]
 
   @@map("companies")
 }
@@ -1664,6 +1665,7 @@ model User {
   fullName          String              @map("full_name") @db.VarChar(150)
   passwordHash      String              @map("password_hash")
   role              String              @db.VarChar(30)
+  isSystem          Boolean             @default(false) @map("is_system")
   isActive          Boolean             @default(true) @map("is_active")
   lastLoginAt       DateTime?           @map("last_login_at") @db.Timestamptz(6)
   passwordChangedAt DateTime?           @map("password_changed_at") @db.Timestamptz(6)
@@ -1672,9 +1674,11 @@ model User {
   createdAt         DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt         DateTime            @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
   companyAccess     UserCompanyAccess[]
+  auditLogs         SystemAuditLog[]
 
   // Unique on lower(email) in the database (users_email_key).
   @@index([isActive])
+  @@index([isSystem], map: "idx_users_is_system")
   @@map("users")
 }
 
@@ -1700,4 +1704,28 @@ model UserCompanyAccess {
   @@index([companyId, warehouseId])
   @@index([userId, isActive], map: "idx_user_company_access_user_active")
   @@map("user_company_access")
+}
+
+model SystemAuditLog {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId   String   @map("company_id") @db.Uuid
+  userId      String?  @map("user_id") @db.Uuid
+  userName    String   @map("user_name") @db.VarChar(150)
+  userEmail   String?  @map("user_email") @db.VarChar(150)
+  action      String   @db.VarChar(50)
+  entityName  String   @map("entity_name") @db.VarChar(100)
+  entityId    String?  @map("entity_id") @db.VarChar(100)
+  description String?  @db.VarChar(500)
+  details     Json?    @db.JsonB
+  ipAddress   String?  @map("ip_address") @db.VarChar(45)
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  company     Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  user        User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([companyId, createdAt(sort: Desc)], map: "idx_system_audit_logs_company_created")
+  @@index([companyId, entityName], map: "idx_system_audit_logs_company_entity")
+  @@index([companyId, action], map: "idx_system_audit_logs_company_action")
+  @@index([companyId, userId], map: "idx_system_audit_logs_company_user")
+  @@map("system_audit_logs")
 }

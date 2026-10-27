@@ -11,6 +11,7 @@
  */
 
 import { useState, useEffect } from 'react';
+import Link from 'next/link';
 import {
   IconArrowsExchange,
   IconBuilding,
@@ -1070,18 +1071,47 @@ function COATab({ generalSettings }: { generalSettings: any }) {
 
 /* ── Security tab ───────────────────────────────────────────────────── */
 function SecurityTab() {
-  const items = [
-    { title: 'User Management', desc: 'Add and remove users and set what they can do.' },
-    { title: 'Access By Role', desc: 'Set up roles (Admin, Accountant, Viewer) and give them to users.' },
-    { title: 'Audit Log', desc: 'A full record of what each user does.' },
+  const activeFeatures = [
+    {
+      title: 'User Management',
+      desc: 'Add and remove users and set their workplace access.',
+      href: '/settings/users',
+      actionLabel: 'Manage Users',
+    },
+    {
+      title: 'Access By Role',
+      desc: 'Review roles (Admin, Manager, Accountant, Viewer) and their exact capabilities.',
+      href: '/settings/roles',
+      actionLabel: 'View Roles & Matrix',
+    },
+    {
+      title: 'Audit Log',
+      desc: 'A full chronological record of what each user does across the enterprise.',
+      href: '/settings/audit-logs',
+      actionLabel: 'Open Audit Log',
+    },
+  ];
+
+  const plannedFeatures = [
     { title: 'Password Policy', desc: 'Set the minimum length, required characters, and how often passwords must change.' },
     { title: 'Two-Factor Sign-In', desc: 'Ask for a second sign-in step for all users, or for admins only.' },
   ];
+
   return (
-    <SettingsPanel title="Security" description="User, role, and sign-in controls. These features are planned.">
-      {items.map(item => (
+    <SettingsPanel title="Security & Governance" description="User management, role-based access control, and enterprise activity logs.">
+      {activeFeatures.map(item => (
         <FormRow key={item.title} label={item.title} hint={item.desc}>
-          <div style={{ paddingTop: 6 }}><Badge variant="neutral">Coming Soon</Badge></div>
+          <div style={{ paddingTop: 6 }}>
+            <Link href={item.href}>
+              <Button variant="secondary" size="sm">{item.actionLabel}</Button>
+            </Link>
+          </div>
+        </FormRow>
+      ))}
+
+      {plannedFeatures.map(item => (
+        <FormRow key={item.title} label={item.title} hint={item.desc}>
+          <div style={{ paddingTop: 6 }}><Badge variant="neutral">Planned</Badge></div>
         </FormRow>
       ))}
     </SettingsPanel>

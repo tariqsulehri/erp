@@ -35,7 +35,7 @@ describe('navigation config', () => {
     const items = groupByKey('config-item-masters');
     expect(items.numbered).toBe(true);
     expect(items.items.map(item => item.label)).toEqual([
-      'Categories', 'Brands', 'Product Types', 'Sizes', 'Colors', 'Origins', 'Units of Measure',
+      'Products', 'Categories', 'Brands', 'Product Types', 'Sizes', 'Colors', 'Origins', 'Units of Measure',
     ]);
   });
 
@@ -72,11 +72,11 @@ describe('AppSidebar', () => {
   it('shows each group as one link to its first page, with its page count', () => {
     render(<AppSidebar {...props} />);
     const inventory = screen.getByRole('link', { name: /Inventory/ });
-    expect(inventory).toHaveAttribute('href', '/inventory/products');
-    expect(inventory).toHaveTextContent('4');
+    expect(inventory).toHaveAttribute('href', '/inventory/stock-transfers');
+    expect(inventory).toHaveTextContent('3');
     expect(screen.getByRole('link', { name: /Company & Finance/ })).toHaveAttribute('href', '/settings');
     expect(screen.getByRole('link', { name: /Places & Facilities/ })).toHaveAttribute('href', '/inventory/branches');
-    expect(screen.getByRole('link', { name: /Item Masters/ })).toHaveAttribute('href', '/inventory/categories');
+    expect(screen.getByRole('link', { name: /Product Management/ })).toHaveAttribute('href', '/inventory/products');
     // Pages inside groups are not listed in the sidebar any more; they are tabs on the page.
     expect(screen.queryByRole('link', { name: /Stock Received/ })).not.toBeInTheDocument();
   });
@@ -99,7 +99,6 @@ describe('ModuleTabs', () => {
   it('shows the Inventory pages as tabs, including Stock Received, and marks the current one', () => {
     render(<ModuleTabs {...props} group={groupByKey('inventory')} activeHref="/inventory/stock-received" />);
     const tabs = screen.getByRole('navigation', { name: 'Inventory Pages' });
-    expect(tabs).toHaveTextContent('Products');
     expect(tabs).toHaveTextContent('Stock Transfer');
     expect(tabs).toHaveTextContent('Stock Adjustment');
     expect(screen.getByRole('link', { current: 'page' })).toHaveTextContent('Stock Received');
