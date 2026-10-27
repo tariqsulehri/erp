@@ -1,10 +1,17 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { formatMoney } from '@/lib/app-settings';
 import { useGeneralSettings } from '@/lib/api/settings';
 import { usePostingDateGuard } from '@/lib/api/fiscal-years';
-import { useCreateAndPostPurchase, useCreatePurchaseDraft, useInvalidatePurchaseQueries, usePurchaseSupportData } from '@/lib/api/purchases';
+import {
+  useCreateAndPostPurchase,
+  useCreatePurchaseDraft,
+  useInvalidatePurchaseQueries,
+  usePurchaseSupportData,
+  useUpdateAndPostPurchase,
+  useUpdatePurchaseDraft,
+} from '@/lib/api/purchases';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import {
   addDays,
@@ -12,7 +19,7 @@ import {
 } from '@/lib/erp-utils';
 import { PostedPurchasesView } from './PostedPurchasesView';
 import { PurchaseAnalyticsView } from './PurchaseAnalyticsView';
-import { buildPurchaseDetails, buildPurchasePayload, validatePurchaseVoucher } from './PurchaseVoucherBusiness';
+import { buildPurchaseDetails, buildPurchasePayload, purchaseFormFromDetail, validatePurchaseVoucher } from './PurchaseVoucherBusiness';
 import {
   PurchaseHeaderForm,
   PurchaseLineEntry,
@@ -35,7 +42,13 @@ export default function PurchaseVoucherPage() {
   const supportQuery = usePurchaseSupportData();
   const createDraft = useCreatePurchaseDraft();
   const createAndPost = useCreateAndPostPurchase();
+  const updateDraft = useUpdatePurchaseDraft();
+  const updateAndPost = useUpdateAndPostPurchase();
   const invalidatePurchaseQueries = useInvalidatePurchaseQueries();
+  /** The saved Draft open in the form, or null for a new purchase. */
+  const [openDraft, setOpenDraft] = useState<{ id: string; purchaseNumber: string } | null>(null);
+  /** Supplier, Payment Type and Date of a just-opened Draft, so its saved Due Date is not replaced by the supplier's terms. */
+  const loadedDueDateKey = useRef<string | null>(null);
 
   const [viewMode, setViewMode] = useState<'posted' | 'entry' | 'analytics'>('analytics');
   const [purchaseDate, setPurchaseDate] = useState(today());
@@ -51,7 +64,7 @@ export default function PurchaseVoucherPage() {
   const [message, setMessage] = useState<{ kind: PurchaseMessageKind; text: string } | null>(null);
   const [processConfirmOpen, setProcessConfirmOpen] = useState(false);
 
-  const saving = createDraft.isPending || createAndPost.isPending;
+  const saving = createDraft.isPending || createAndPost.isPending || updateDraft.isPending || updateAndPost.isPending;
   const postingDateGuard = usePostingDateGuard(purchaseDate, 'Purchase Date');
   const isPurchaseDateValid = postingDateGuard.dateIsValid;
   const money = useMemo(() => (value: number) => formatMoney(value, generalSettings), [generalSettings]);
@@ -72,6 +85,7 @@ export default function PurchaseVoucherPage() {
     cancelLineEdit,
     moveLine,
     resetLineEditor,
+    loadLines,
   } = usePurchaseLineEditor({
     items,
     onDefaultWarehouseChange: setWarehouseId,
@@ -104,6 +118,9 @@ export default function PurchaseVoucherPage() {
 
   useEffect(() => {
     if (!supplierId || !selectedSupplier || paymentType !== 'Credit' || !isPurchaseDateValid) return;
+    // Keep an opened Draft's own Due Date until the user changes its Supplier, Payment Type or Date.
+    if (loadedDueDateKey.current === `${supplierId}|${paymentType}|${purchaseDate}`) return;
+    loadedDueDateKey.current = null;
     setDueDate(addDays(purchaseDate, selectedSupplier.paymentTermsDays));
   }, [supplierId, selectedSupplier, paymentType, purchaseDate, isPurchaseDateValid]);
 
@@ -128,7 +145,29 @@ export default function PurchaseVoucherPage() {
     setReferenceNumber('');
     setFreightAmount('');
     resetLineEditor();
+    setOpenDraft(null);
+    loadedDueDateKey.current = null;
     if (clearMessage) setMessage(null);
+  }
+
+  /** Opens a saved Draft in the entry form so it can be changed, saved again, or posted. */
+  function openSavedDraft(detail: Record<string, any>) {
+    const form = purchaseFormFromDetail(detail);
+    setPurchaseDate(form.purchaseDate);
+    setSupplierId(form.supplierId);
+    setPaymentType(form.paymentType);
+    setSupplierInvoiceNumber(form.supplierInvoiceNumber);
+    setSupplierInvoiceDate(form.supplierInvoiceDate);
+    setDueDate(form.dueDate || form.purchaseDate);
+    setWarehouseId(form.warehouseId);
+    setLocationId(form.locationId);
+    setReferenceNumber(form.referenceNumber);
+    setFreightAmount(form.freightAmount);
+    loadLines(form.lines);
+    loadedDueDateKey.current = `${form.supplierId}|${form.paymentType}|${form.purchaseDate}`;
+    setOpenDraft({ id: form.id, purchaseNumber: form.purchaseNumber });
+    setMessage(null);
+    setViewMode('entry');
   }
 
   function validateForm() {
@@ -198,9 +237,13 @@ export default function PurchaseVoucherPage() {
     });
 
     try {
-      const purchase = postNow
-        ? await createAndPost.mutateAsync(payload)
-        : await createDraft.mutateAsync(payload);
+      const purchase = openDraft
+        ? postNow
+          ? await updateAndPost.mutateAsync({ id: openDraft.id, input: payload })
+          : await updateDraft.mutateAsync({ id: openDraft.id, input: payload })
+        : postNow
+          ? await createAndPost.mutateAsync(payload)
+          : await createDraft.mutateAsync(payload);
       await invalidatePurchaseQueries();
       resetForm(false);
       setMessage({
@@ -252,6 +295,7 @@ export default function PurchaseVoucherPage() {
         generalSettings={generalSettings}
         onNewPurchase={openNewPurchase}
         onAnalytics={() => setViewMode('analytics')}
+        onOpenDraft={openSavedDraft}
         newDisabled={newDisabled}
         newDisabledReason={newDisabledReason}
       />
@@ -276,6 +320,9 @@ export default function PurchaseVoucherPage() {
   return (
     <DocumentPage>
       <PurchaseToolbar
+        title={openDraft ? `Purchase Voucher ${openDraft.purchaseNumber}` : undefined}
+        mode={openDraft ? 'Edit' : 'Add'}
+        postedListLabel="Purchase List"
         actionDisabled={actionDisabled}
         saving={saving}
         newDisabled={newDisabled}
@@ -293,8 +340,8 @@ export default function PurchaseVoucherPage() {
             <p>Use this screen to record goods you buy from a Supplier.</p>
             <ul>
               <li>Fill in the Supplier, dates and Warehouse, then add one line for each item.</li>
-              <li>Save Draft keeps the purchase so you can finish it later.</li>
-              <li>Process saves and posts it. Stock and the Supplier balance are updated.</li>
+              <li>Save Draft keeps the purchase so you can finish it later. Find it in the Purchase List with Status Draft and select Open Draft.</li>
+              <li>Process saves and posts it. Stock and the Supplier balance are updated. If posting is refused, nothing is saved.</li>
             </ul>
             <p>A posted purchase cannot be changed. Use a Purchase Return to correct it.</p>
           </>

@@ -15,6 +15,8 @@ interface PurchaseToolbarProps {
   showAnalytics?: boolean;
   newDisabled?: boolean;
   newDisabledReason?: string;
+  /** 'Edit' when a saved Draft is open, so the badges show Edit instead of New. */
+  mode?: 'Add' | 'Edit';
   onNew: () => void;
   onPostedPurchases: () => void;
   onAnalytics?: () => void;
@@ -38,6 +40,7 @@ export function PurchaseToolbar({
   showAnalytics = true,
   newDisabled = false,
   newDisabledReason,
+  mode = 'Add',
   onNew,
   onPostedPurchases,
   onAnalytics,
@@ -52,7 +55,7 @@ export function PurchaseToolbar({
     <DocumentHeader
       title={title}
       help={help}
-      badges={<DocumentStatusBadges code={documentCode} />}
+      badges={<DocumentStatusBadges code={documentCode} mode={mode} />}
       actions={(
         <DocumentActions
           saving={saving}

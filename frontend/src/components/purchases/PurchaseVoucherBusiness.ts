@@ -34,6 +34,66 @@ interface PurchasePayloadInput {
   lines: PurchaseLine[];
 }
 
+/** The entry form values for a saved Draft purchase, so it can be opened, changed and posted. */
+export interface PurchaseDraftForm {
+  id: string;
+  purchaseNumber: string;
+  purchaseDate: string;
+  supplierId: string;
+  paymentType: PaymentType;
+  supplierInvoiceNumber: string;
+  supplierInvoiceDate: string;
+  dueDate: string;
+  warehouseId: string;
+  locationId: string;
+  referenceNumber: string;
+  freightAmount: string;
+  lines: PurchaseLine[];
+}
+
+/** Date columns arrive as 'YYYY-MM-DD' or as an ISO time at midnight UTC; the form needs 'YYYY-MM-DD'. */
+function dateOnly(value: unknown) {
+  return typeof value === 'string' && value.length >= 10 ? value.slice(0, 10) : '';
+}
+
+function textOrEmpty(value: unknown) {
+  return value === null || value === undefined ? '' : String(value);
+}
+
+/** Maps the purchase detail from GET /purchases/:id to the entry form. */
+export function purchaseFormFromDetail(detail: Record<string, any>): PurchaseDraftForm {
+  const freight = Number(detail.freight_amount ?? 0);
+  return {
+    id: String(detail.id),
+    purchaseNumber: String(detail.purchase_number),
+    purchaseDate: dateOnly(detail.purchase_date),
+    supplierId: textOrEmpty(detail.supplier_id),
+    paymentType: detail.payment_type === 'Credit' ? 'Credit' : 'Cash',
+    supplierInvoiceNumber: textOrEmpty(detail.supplier_invoice_number),
+    supplierInvoiceDate: dateOnly(detail.supplier_invoice_date),
+    dueDate: dateOnly(detail.due_date),
+    warehouseId: textOrEmpty(detail.warehouse_id),
+    locationId: textOrEmpty(detail.location_id),
+    referenceNumber: textOrEmpty(detail.reference_number),
+    freightAmount: freight > 0 ? freight.toFixed(2) : '',
+    lines: [...(detail.lines ?? [])]
+      .sort((left, right) => Number(left.line_number) - Number(right.line_number))
+      .map((line, index): PurchaseLine => ({
+        id: index + 1,
+        itemId: String(line.item_id),
+        itemCode: textOrEmpty(line.item_code),
+        itemName: textOrEmpty(line.item_name),
+        uomName: textOrEmpty(line.uom_name),
+        quantity: Number(line.quantity).toFixed(4),
+        purchasePrice: Number(line.purchase_price).toFixed(2),
+        discountAmount: Number(line.discount_amount ?? 0).toFixed(2),
+        taxAmount: Number(line.tax_amount ?? 0).toFixed(2),
+        lineTotal: Number(line.line_total),
+        description: textOrEmpty(line.description),
+      })),
+  };
+}
+
 export function buildPurchaseDetails(selectedSupplier: SupplierOption | undefined, supplierInvoiceNumber: string, lineCount: number) {
   if (!selectedSupplier) return 'Details appear after you select a Supplier.';
 

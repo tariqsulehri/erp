@@ -1,23 +1,39 @@
 'use client';
 
 import { useState } from 'react';
+import { useSession } from 'next-auth/react';
 import {
+  IconBan,
   IconChartBar,
   IconEye,
+  IconFileCheck,
   IconFilePlus,
+  IconPencil,
   IconPrinter,
   IconRefresh,
 } from '@tabler/icons-react';
 import { formatDate, formatNumber } from '@/lib/app-settings';
 import { friendlyErrorMessage, numericValue } from '@/lib/erp-utils';
+import { hasPermission } from '@/lib/auth/session-user';
 import { useCompanyProfile } from '@/lib/api/settings';
-import { usePurchaseInvoiceDetail, usePurchaseInvoicesList } from '@/lib/api/purchases';
+import {
+  useCancelPurchaseDraft,
+  useInvalidatePurchaseQueries,
+  usePostPurchaseDraft,
+  usePurchaseInvoiceDetail,
+  usePurchaseInvoicesList,
+} from '@/lib/api/purchases';
 import { PaginationBar } from '@/components/ui/PaginationBar';
 import { PurchaseInvoicePrintPreview } from './PurchasePrintPreview';
 import { PostedPurchasesFilters } from './components';
+import { purchaseStatusLabel } from './PurchaseVoucherHelpers';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
+import { FormDialog } from '@/components/ui/FormDialog';
+import { TextField } from '@/components/ui/FormFields';
 import { InlineAlert } from '@/components/ui/InlineAlert';
+import { StatusChip } from '@/components/ui/StatusChip';
 import { TableMessageRow } from '@/components/ui/TableMessageRow';
 import {
   DetailFields,
@@ -38,10 +54,13 @@ interface PostedPurchasesViewProps {
   generalSettings: Parameters<typeof formatNumber>[1];
   onNewPurchase: () => void;
   onAnalytics: () => void;
+  /** Opens a saved Draft in the entry form. */
+  onOpenDraft: (detail: Record<string, any>) => void;
   newDisabled?: boolean;
   newDisabledReason?: string;
 }
 
+/** Purchase List: posted purchases by default, and saved Drafts and Cancelled drafts through the Status filter. */
 export function PostedPurchasesView({
   suppliers,
   warehouses,
@@ -49,9 +68,21 @@ export function PostedPurchasesView({
   generalSettings,
   onNewPurchase,
   onAnalytics,
+  onOpenDraft,
   newDisabled = false,
   newDisabledReason,
 }: PostedPurchasesViewProps) {
+  const { data: session } = useSession();
+  const canChangeDrafts = hasPermission(session?.user.role, 'purchases.edit');
+  const postDraft = usePostPurchaseDraft();
+  const cancelDraft = useCancelPurchaseDraft();
+  const invalidatePurchaseQueries = useInvalidatePurchaseQueries();
+  const [status, setStatus] = useState('Posted');
+  const [actionMessage, setActionMessage] = useState<{ tone: 'success' | 'danger'; text: string } | null>(null);
+  const [postConfirmOpen, setPostConfirmOpen] = useState(false);
+  const [cancelOpen, setCancelOpen] = useState(false);
+  const [cancelReason, setCancelReason] = useState('');
+  const [cancelReasonError, setCancelReasonError] = useState('');
   const [searchText, setSearchText] = useState('');
   const [search, setSearch] = useState('');
   const [supplierId, setSupplierId] = useState('');
@@ -71,7 +102,7 @@ export function PostedPurchasesView({
   const listQuery = usePurchaseInvoicesList({
     page,
     limit: pageSize,
-    status: 'Posted',
+    status: (status || undefined) as 'Draft' | 'Posted' | 'Voided' | undefined,
     search: search || undefined,
     supplier_id: supplierId || undefined,
     payment_type: paymentType as PaymentType || undefined,
@@ -90,6 +121,8 @@ export function PostedPurchasesView({
 
   function resetFilters() {
     setPrintError('');
+    setActionMessage(null);
+    setStatus('Posted');
     setSearchText('');
     setSearch('');
     setSupplierId('');
@@ -123,21 +156,62 @@ export function PostedPurchasesView({
 
   const iconProps = { size: 16, stroke: 1.8, 'aria-hidden': true } as const;
   const detail = detailQuery.data;
+  const statusFilterLabel = status ? purchaseStatusLabel(status) : 'All Statuses';
+  const selectedIsDraft = detail?.status === 'Draft';
+
+  async function postSelectedDraft() {
+    if (!detail) return;
+    setActionMessage(null);
+    try {
+      const result = await postDraft.mutateAsync(detail.id);
+      await invalidatePurchaseQueries();
+      setPostConfirmOpen(false);
+      setActionMessage({ tone: 'success', text: `${result.purchase_number} posted. Stock and the Supplier balance are updated.` });
+    } catch (error) {
+      setPostConfirmOpen(false);
+      setActionMessage({ tone: 'danger', text: friendlyErrorMessage(error, 'Could not post the Purchase Voucher. Please try again.') });
+    }
+  }
+
+  function openCancelDialog() {
+    setCancelReason('');
+    setCancelReasonError('');
+    setCancelOpen(true);
+  }
+
+  async function cancelSelectedDraft() {
+    if (!detail) return;
+    const reason = cancelReason.trim();
+    if (reason.length < 3) {
+      setCancelReasonError('Enter a reason of at least 3 characters.');
+      return;
+    }
+    setActionMessage(null);
+    try {
+      const result = await cancelDraft.mutateAsync({ id: detail.id, reason });
+      await invalidatePurchaseQueries();
+      setCancelOpen(false);
+      setActionMessage({ tone: 'success', text: `${result.purchase_number} cancelled. It stays in the list with Status Cancelled.` });
+    } catch (error) {
+      setCancelReasonError(friendlyErrorMessage(error, 'Could not cancel the Draft. Please try again.'));
+    }
+  }
 
   return (
     <DocumentPage>
       <DocumentHeader
-        title="Posted Purchases"
+        title="Purchase List"
         help={(
           <>
-            <p>This list shows all posted purchases. Drafts are not shown here.</p>
+            <p>This list shows posted purchases. Change the Status filter to see saved Drafts or Cancelled drafts.</p>
             <p>Use the filters to find a purchase. Select a row to see its lines and totals, or to print it.</p>
+            <p>A Draft can be opened and changed, posted, or cancelled. A cancelled Draft stays in the list with its reason.</p>
             <p>Posted purchases cannot be changed. Use a Purchase Return to correct one.</p>
           </>
         )}
         badges={(
           <>
-            <Badge variant="success">Posted Only</Badge>
+            <Badge variant={status === 'Posted' ? 'success' : 'neutral'}>{statusFilterLabel}</Badge>
             <Badge variant="neutral">{total} Record{total === 1 ? '' : 's'}</Badge>
           </>
         )}
@@ -151,10 +225,13 @@ export function PostedPurchasesView({
       />
 
       {printError && <InlineAlert tone="danger" onDismiss={() => setPrintError('')}>{printError}</InlineAlert>}
+      {actionMessage && <InlineAlert tone={actionMessage.tone} onDismiss={() => setActionMessage(null)}>{actionMessage.text}</InlineAlert>}
 
       <PostedListPanel
         filters={(
           <PostedPurchasesFilters
+            status={status}
+            onStatusChange={value => updateFilter(() => setStatus(value))}
             search={searchText}
             supplierId={supplierId}
             paymentType={paymentType}
@@ -181,10 +258,11 @@ export function PostedPurchasesView({
           />
         )}
         table={(
-          <table className="data-table" style={{ tableLayout: 'fixed', minWidth: 1080 }}>
+          <table className="data-table" style={{ tableLayout: 'fixed', minWidth: 1176 }}>
             <colgroup>
               <col style={{ width: 128 }} />
               <col style={{ width: 104 }} />
+              <col style={{ width: 96 }} />
               <col style={{ width: 190 }} />
               <col style={{ width: 128 }} />
               <col style={{ width: 80 }} />
@@ -200,6 +278,7 @@ export function PostedPurchasesView({
               <tr>
                 <th>Purchase No.</th>
                 <th>Date</th>
+                <th>Status</th>
                 <th>Supplier</th>
                 <th>Supplier Bill No.</th>
                 <th>Type</th>
@@ -213,17 +292,18 @@ export function PostedPurchasesView({
               </tr>
             </thead>
             <tbody>
-              {listQuery.isLoading && <TableMessageRow colSpan={12} title="Loading Posted Purchases…" loading />}
+              {listQuery.isLoading && <TableMessageRow colSpan={13} title="Loading Purchases…" loading />}
               {listQuery.error && (
-                <TableMessageRow colSpan={12} title="Could Not Load Posted Purchases" description={friendlyErrorMessage(listQuery.error, 'Could not load Posted Purchases. Please try again.')} />
+                <TableMessageRow colSpan={13} title="Could Not Load Purchases" description={friendlyErrorMessage(listQuery.error, 'Could not load the Purchase List. Please try again.')} />
               )}
               {!listQuery.isLoading && !listQuery.error && rows.length === 0 && (
-                <TableMessageRow colSpan={12} title="No Posted Purchases Found" description="Change or clear the filters to see more purchases." />
+                <TableMessageRow colSpan={13} title={`No ${statusFilterLabel === 'All Statuses' ? '' : `${statusFilterLabel} `}Purchases Found`} description="Change or clear the filters to see more purchases." />
               )}
               {rows.map(row => (
                 <tr key={row.id} className={`${postedListRowClass}${selectedId === row.id ? ' is-selected' : ''}`} onClick={() => setSelectedId(row.id)}>
                   <td className="cell-strong">{row.purchase_number}</td>
                   <td>{formatDate(row.purchase_date, generalSettings)}</td>
+                  <td><StatusChip status={row.status} label={purchaseStatusLabel(row.status)} /></td>
                   <td>{row.supplier_code ? `${row.supplier_code} - ${row.supplier_name}` : row.supplier_name}</td>
                   <td className={row.supplier_invoice_number ? undefined : 'cell-muted'}>{row.supplier_invoice_number || 'Not Set'}</td>
                   <td>{row.payment_type}</td>
@@ -264,9 +344,23 @@ export function PostedPurchasesView({
           >
             {detail && (
               <>
+                {selectedIsDraft && canChangeDrafts && (
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
+                    <Button variant="primary" size="sm" icon={<IconPencil {...iconProps} />} onClick={() => onOpenDraft(detail)}>Open Draft</Button>
+                    <Button variant="secondary" size="sm" icon={<IconFileCheck {...iconProps} />} onClick={() => { setActionMessage(null); setPostConfirmOpen(true); }}>Post</Button>
+                    <Button variant="danger" size="sm" icon={<IconBan {...iconProps} />} onClick={openCancelDialog}>Cancel Draft</Button>
+                  </div>
+                )}
                 <DetailFields
                   items={[
                     ['Purchase No.', detail.purchase_number],
+                    ['Status', purchaseStatusLabel(detail.status)],
+                    ...(detail.status === 'Voided'
+                      ? [
+                        ['Cancelled Reason', detail.void_reason] as [string, string],
+                        ['Cancelled At', detail.voided_at ? formatDate(detail.voided_at, generalSettings) : ''] as [string, string],
+                      ]
+                      : []),
                     ['Date', formatDate(detail.purchase_date, generalSettings)],
                     ['Supplier', `${detail.supplier_code} - ${detail.supplier_name}`],
                     ['Payment Type', detail.payment_type],
@@ -324,6 +418,38 @@ export function PostedPurchasesView({
           />
         )}
       />
+
+      <ConfirmDialog
+        open={postConfirmOpen}
+        title="Post Purchase Voucher?"
+        message={`This posts ${detail?.purchase_number ?? 'the Draft'} as it was saved. Stock and the Supplier balance are updated, and you cannot change it after it is posted.`}
+        confirmLabel="Yes, Post"
+        cancelLabel="No"
+        variant="warning"
+        loading={postDraft.isPending}
+        onConfirm={postSelectedDraft}
+        onCancel={() => setPostConfirmOpen(false)}
+      />
+
+      <FormDialog
+        open={cancelOpen}
+        title={`Cancel Draft ${detail?.purchase_number ?? ''}`.trim()}
+        saveLabel="Cancel Draft"
+        cancelLabel="Keep Draft"
+        saving={cancelDraft.isPending}
+        onSave={cancelSelectedDraft}
+        onCancel={() => setCancelOpen(false)}
+      >
+        <p style={{ marginTop: 0 }}>The Draft stays in the Purchase List with Status Cancelled. It cannot be posted or changed after this.</p>
+        <TextField
+          label="Reason"
+          value={cancelReason}
+          onChange={value => { setCancelReason(value); setCancelReasonError(''); }}
+          required
+          placeholder="Why is this Draft cancelled?"
+          error={cancelReasonError || undefined}
+        />
+      </FormDialog>
 
       {printPreviewInvoice && (
         <PurchaseInvoicePrintPreview

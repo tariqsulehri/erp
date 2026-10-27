@@ -37,7 +37,7 @@ export function PurchaseAnalyticsToolbar({
         <>
           <p>This screen shows charts and totals for your posted purchases.</p>
           <p>Use the filters to choose dates, a Supplier, a payment type or a Warehouse. Draft purchases are not counted.</p>
-          <p>Select New Purchase to enter a purchase, or Posted Purchases to see the full list.</p>
+          <p>Select New Purchase to enter a purchase, or Purchase List to see all purchases and saved drafts.</p>
         </>
       )}
       badges={(
@@ -49,7 +49,7 @@ export function PurchaseAnalyticsToolbar({
       actions={(
         <>
           <Button variant="secondary" icon={<IconRefresh {...iconProps} />} onClick={onRefresh}>Refresh</Button>
-          <Button variant="secondary" icon={<IconListSearch {...iconProps} />} onClick={onPostedPurchases}>Posted Purchases</Button>
+          <Button variant="secondary" icon={<IconListSearch {...iconProps} />} onClick={onPostedPurchases}>Purchase List</Button>
           <Button variant="primary" icon={<IconFilePlus {...iconProps} />} disabled={newDisabled} title={newDisabledReason} onClick={onNewPurchase}>New Purchase</Button>
         </>
       )}

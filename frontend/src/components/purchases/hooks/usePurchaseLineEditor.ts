@@ -49,6 +49,14 @@ export function usePurchaseLineEditor({
     setEditingLineId(null);
   }
 
+  /** Replaces all lines, e.g. with the lines of a saved Draft that is opened for editing. */
+  function loadLines(saved: PurchaseLine[]) {
+    setLineDraft(initialPurchaseLineDraft());
+    setLines(saved);
+    setNextLineId(saved.reduce((max, line) => Math.max(max, line.id), 0) + 1);
+    setEditingLineId(null);
+  }
+
   function updateLineDraft(patch: Partial<AddLineDraft>) {
     setLineDraft(current => {
       const next = { ...current, ...patch };
@@ -179,5 +187,6 @@ export function usePurchaseLineEditor({
     cancelLineEdit,
     moveLine,
     resetLineEditor,
+    loadLines,
   };
 }

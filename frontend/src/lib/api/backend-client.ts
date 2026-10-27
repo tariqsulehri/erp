@@ -189,6 +189,21 @@ export async function backendPatch<TResponse, TBody>(path: string, body: TBody):
   return response.json() as Promise<TResponse>;
 }
 
+export async function backendPut<TResponse, TBody>(path: string, body: TBody): Promise<TResponse> {
+  const response = await fetch(`${backendApiBaseUrl}${path}`, {
+    method: 'PUT',
+    headers: {
+      ...defaultHeaders(),
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(body),
+  });
+
+  if (!response.ok) await throwBackendError(response);
+
+  return response.json() as Promise<TResponse>;
+}
+
 export async function backendDelete<TResponse>(path: string): Promise<TResponse> {
   const response = await fetch(`${backendApiBaseUrl}${path}`, {
     method: 'DELETE',

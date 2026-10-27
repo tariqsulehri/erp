@@ -5,10 +5,12 @@ import { DateField, NumericField, SelectField, TextField } from '@/components/ui
 import { SearchableSelect } from '@/components/ui/SearchableSelect';
 import { Button } from '@/components/ui/Button';
 import { PostedListFilters } from '@/components/documents';
+import { PURCHASE_STATUS_OPTIONS } from '../PurchaseVoucherHelpers';
 import type { SupplierOption, WarehouseOption } from '../PurchaseVoucherTypes';
 
 interface PostedPurchasesFiltersProps {
   search: string;
+  status: string;
   supplierId: string;
   paymentType: string;
   warehouseId: string;
@@ -18,6 +20,7 @@ interface PostedPurchasesFiltersProps {
   amountTo: string;
   suppliers: SupplierOption[];
   warehouses: WarehouseOption[];
+  onStatusChange: (value: string) => void;
   onSearchChange: (value: string) => void;
   onSearchSubmit: () => void;
   onSearchClear: () => void;
@@ -35,6 +38,7 @@ interface PostedPurchasesFiltersProps {
 
 export function PostedPurchasesFilters({
   search,
+  status,
   supplierId,
   paymentType,
   warehouseId,
@@ -44,6 +48,7 @@ export function PostedPurchasesFilters({
   amountTo,
   suppliers,
   warehouses,
+  onStatusChange,
   onSearchChange,
   onSearchSubmit,
   onSearchClear,
@@ -69,6 +74,13 @@ export function PostedPurchasesFilters({
       />
       <Button variant="secondary" onClick={onSearchSubmit} loading={loading}>Search</Button>
       <Button variant="ghost" onClick={onSearchClear} disabled={loading || (!search && !searchApplied)}>Clear</Button>
+      <SelectField
+        label="Status"
+        value={status}
+        onChange={onStatusChange}
+        options={PURCHASE_STATUS_OPTIONS}
+        placeholder="All Statuses"
+      />
       <FieldLabel label="Supplier">
         <SearchableSelect value={supplierId} options={suppliers} onChange={onSupplierChange} placeholder="All Suppliers" />
       </FieldLabel>
