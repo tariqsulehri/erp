@@ -365,14 +365,14 @@ describe.skipIf(!databaseUrl)('HTTP API permissions (database)', () => {
       expect((await request('POST', `/api/v1/purchase-returns/${id}/cancel`, { token: tokens.warehouse_staff, body: { reason: 'Test' } })).status).toBe(404);
     });
 
-    it('stock draft edit routes: refused for roles that may not save them, 404 for a missing draft', async () => {
+    it('stock draft edit and cancel routes: refused for roles that may not save them', async () => {
       const id = randomUUID();
       const cases: Array<[string, Role[], RegExp, Role]> = [
         ['stock-transfers', ['accountant', 'viewer'], /save or post stock transfers/, 'warehouse_staff'],
         ['stock-adjustments', ['accountant', 'sales_staff', 'warehouse_staff', 'viewer'], /save or post stock adjustments/, 'manager'],
       ];
       for (const [base, roles, message, allowed] of cases) {
-        for (const [method, path] of [['PUT', `/api/v1/${base}/${id}`], ['POST', `/api/v1/${base}/${id}/update-and-post`]]) {
+        for (const [method, path] of [['PUT', `/api/v1/${base}/${id}`], ['POST', `/api/v1/${base}/${id}/update-and-post`], ['POST', `/api/v1/${base}/${id}/cancel`]]) {
           for (const role of roles) {
             const response = await request(method, path, { token: tokens[role], body: {} });
             expect(response.status, `${role} ${method} ${path}`).toBe(403);

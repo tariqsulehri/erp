@@ -436,6 +436,36 @@ export class StockTransferService {
     }, POSTING_TRANSACTION_OPTIONS);
   }
 
+  /** Cancels a Draft: it stays on file as Voided with who, when and why, so its number is never reused. */
+  async cancelDraft(id: string, input: { reason: string }, userId?: string | null) {
+    const cancelledBy = userIdOrNull(userId);
+    return prisma.$transaction(async transaction => {
+      const rows = await transaction.$queryRaw<TransferHeaderRow[]>`
+        SELECT *
+        FROM stock_transfers
+        WHERE company_id = CAST(${this.companyId} AS uuid)
+          AND id = CAST(${id} AS uuid)
+        FOR UPDATE
+      `;
+      const document = rows[0];
+      if (!document) throw businessError('Stock Transfer was not found.', 404);
+      if (this.scope) assertCanUseHolder(this.scope, fromHolder(document), 'cancel Stock Transfers');
+      if (document.status !== 'Draft') throw businessError('Only Draft Stock Transfers can be cancelled.');
+      await transaction.$queryRaw`
+        UPDATE stock_transfers
+        SET status = 'Voided',
+            voided_by_id = ${cancelledBy}::uuid,
+            voided_at = now(),
+            void_reason = ${input.reason},
+            updated_by_id = ${cancelledBy}::uuid,
+            updated_at = now()
+        WHERE company_id = CAST(${this.companyId} AS uuid)
+          AND id = CAST(${id} AS uuid)
+      `;
+      return { id, transfer_number: document.transfer_number, status: 'Voided' };
+    });
+  }
+
   /** Locks a Draft so two users cannot change or post it at the same time, then replaces its header and lines. */
   private async replaceDraft(transaction: TransactionClient, id: string, input: ValidateStockTransferInput, userId?: string | null) {
     const rows = await transaction.$queryRaw<TransferHeaderRow[]>`

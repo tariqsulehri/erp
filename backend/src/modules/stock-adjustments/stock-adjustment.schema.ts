@@ -38,3 +38,7 @@ export const idParams = z.object({ id: z.string().uuid() });
 
 export type ValidateStockAdjustmentInput = z.infer<typeof ValidateStockAdjustmentInput>;
 export type ListStockAdjustmentsQuery = z.infer<typeof ListStockAdjustmentsQuery>;
+
+export const CancelStockAdjustmentDraftInput = z.object({
+  reason: z.string().trim().min(3, 'Enter a reason of at least 3 characters.').max(500, 'Use 500 characters or fewer for the reason.'),
+});

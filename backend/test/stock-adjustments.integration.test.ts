@@ -449,5 +449,22 @@ describe.skipIf(!databaseUrl)('Stock Adjustments (database)', () => {
       expect(posted).toMatchObject({ id: draft.id, status: 'Posted' });
       expect(amountOn(await voucherFor(draft.id), accounts.gain)).toEqual({ debit: '0.00', credit: '20.00' });
     });
+
+    it('cancels a draft: kept as Voided with who, when and why; it can no longer be posted, edited or cancelled', async () => {
+      const draft = await service().createDraft(adjustmentInput({ adjustment_date: '2025-09-06', lines: increaseC() }), userId);
+      await expect(service(branchUser(branchOne)).cancelDraft(draft.id, { reason: 'Not mine' }, userId))
+        .rejects.toMatchObject({ statusCode: 403, message: 'You can only cancel Stock Adjustments for your own Branch.' });
+      expect(await service(warehouseUser()).cancelDraft(draft.id, { reason: 'Counted twice' }, userId))
+        .toEqual({ id: draft.id, adjustment_number: draft.adjustment_number, status: 'Voided' });
+      const rows = await prisma.$queryRaw<{ status: string; void_reason: string; voided_at: Date | null }[]>`
+        SELECT status, void_reason, voided_at FROM stock_adjustments WHERE id = CAST(${draft.id} AS uuid)
+      `;
+      expect(rows[0]).toMatchObject({ status: 'Voided', void_reason: 'Counted twice' });
+      expect(rows[0].voided_at).not.toBeNull();
+      await expect(service().post(draft.id, userId)).rejects.toThrow(/Only Draft Stock Adjustments can be posted/);
+      await expect(service().updateDraft(draft.id, adjustmentInput({ adjustment_date: '2025-09-06', lines: increaseC() }), userId)).rejects.toThrow(/Only Draft Stock Adjustments can be changed/);
+      await expect(service().cancelDraft(draft.id, { reason: 'Again' }, userId)).rejects.toThrow(/Only Draft Stock Adjustments can be cancelled/);
+      expect(m.schema.CancelStockAdjustmentDraftInput.safeParse({}).success).toBe(false);
+    });
   });
 });

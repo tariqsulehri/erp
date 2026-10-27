@@ -2,7 +2,7 @@ import { Router } from 'express';
 import type { Request } from 'express';
 import { currentUserId, resolveAccessScope, requirePermission } from '../http/access-context.js';
 import { StockAdjustmentService } from '../modules/stock-adjustments/stock-adjustment.service.js';
-import { idParams, ListStockAdjustmentsQuery, ValidateStockAdjustmentInput } from '../modules/stock-adjustments/stock-adjustment.schema.js';
+import { CancelStockAdjustmentDraftInput, idParams, ListStockAdjustmentsQuery, ValidateStockAdjustmentInput } from '../modules/stock-adjustments/stock-adjustment.schema.js';
 
 export const stockAdjustmentsRouter = Router();
 
@@ -78,6 +78,17 @@ stockAdjustmentsRouter.post('/:id/update-and-post', requirePermission('stock_adj
     const { id } = idParams.parse(req.params);
     const input = ValidateStockAdjustmentInput.parse(req.body);
     res.json(await service.updateAndPost(id, input, currentUserId(req)));
+  } catch (error) {
+    next(error);
+  }
+});
+
+stockAdjustmentsRouter.post('/:id/cancel', requirePermission('stock_adjustments.edit'), async (req, res, next) => {
+  try {
+    const service = serviceFor(req);
+    const { id } = idParams.parse(req.params);
+    const input = CancelStockAdjustmentDraftInput.parse(req.body);
+    res.json(await service.cancelDraft(id, input, currentUserId(req)));
   } catch (error) {
     next(error);
   }

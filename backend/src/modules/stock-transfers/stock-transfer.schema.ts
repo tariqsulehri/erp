@@ -61,3 +61,7 @@ export type ValidateStockTransferInput = z.infer<typeof ValidateStockTransferInp
 export type ListStockTransfersQuery = z.infer<typeof ListStockTransfersQuery>;
 export type SupportDataQuery = z.infer<typeof SupportDataQuery>;
 export type SourceStockQuery = z.infer<typeof SourceStockQuery>;
+
+export const CancelStockTransferDraftInput = z.object({
+  reason: z.string().trim().min(3, 'Enter a reason of at least 3 characters.').max(500, 'Use 500 characters or fewer for the reason.'),
+});

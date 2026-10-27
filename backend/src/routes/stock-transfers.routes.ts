@@ -4,6 +4,7 @@ import { currentUserId, resolveAccessScope, requirePermission } from '../http/ac
 import { holderFromColumns } from '../modules/inventory/stock-holder.js';
 import { StockTransferService } from '../modules/stock-transfers/stock-transfer.service.js';
 import {
+  CancelStockTransferDraftInput,
   idParams,
   ListStockTransfersQuery,
   ValidateStockTransferInput,
@@ -96,6 +97,17 @@ stockTransfersRouter.post('/:id/update-and-post', requirePermission('stock_trans
     const { id } = idParams.parse(req.params);
     const input = ValidateStockTransferInput.parse(req.body);
     res.json(await service.updateAndPost(id, input, currentUserId(req)));
+  } catch (error) {
+    next(error);
+  }
+});
+
+stockTransfersRouter.post('/:id/cancel', requirePermission('stock_transfers.edit'), async (req, res, next) => {
+  try {
+    const service = serviceFor(req);
+    const { id } = idParams.parse(req.params);
+    const input = CancelStockTransferDraftInput.parse(req.body);
+    res.json(await service.cancelDraft(id, input, currentUserId(req)));
   } catch (error) {
     next(error);
   }

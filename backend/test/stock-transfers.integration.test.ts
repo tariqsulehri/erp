@@ -378,5 +378,23 @@ describe.skipIf(!databaseUrl)('Stock Transfers (database)', () => {
       const after = await balance({ branchId: branchTwo });
       expect(new Decimal(before!.quantity).minus(after!.quantity).toFixed(4)).toBe('2.0000');
     });
+
+    it('cancels a draft: kept as Voided with who, when and why; only the sending place may cancel it', async () => {
+      const draft = await service().createDraft(branchTwoToOne(1), userId);
+      await expect(service(branchUser(branchOne)).cancelDraft(draft.id, { reason: 'Not mine' }, userId))
+        .rejects.toMatchObject({ statusCode: 403, message: 'You can only cancel Stock Transfers for your own Branch.' });
+      expect(await service(branchUser(branchTwo)).cancelDraft(draft.id, { reason: 'Sent by mistake' }, userId))
+        .toEqual({ id: draft.id, transfer_number: draft.transfer_number, status: 'Voided' });
+      const rows = await prisma.$queryRaw<{ status: string; void_reason: string; voided_at: Date | null }[]>`
+        SELECT status, void_reason, voided_at FROM stock_transfers WHERE id = CAST(${draft.id} AS uuid)
+      `;
+      expect(rows[0]).toMatchObject({ status: 'Voided', void_reason: 'Sent by mistake' });
+      expect(rows[0].voided_at).not.toBeNull();
+      await expect(service().post(draft.id, userId)).rejects.toThrow(/Only Draft Stock Transfers can be posted/);
+      await expect(service().updateDraft(draft.id, branchTwoToOne(1), userId)).rejects.toThrow(/Only Draft Stock Transfers can be changed/);
+      await expect(service().cancelDraft(draft.id, { reason: 'Again' }, userId)).rejects.toThrow(/Only Draft Stock Transfers can be cancelled/);
+      await expect(service().cancelDraft('00000000-0000-4000-8000-000000000000', { reason: 'Missing' }, userId)).rejects.toMatchObject({ statusCode: 404 });
+      expect(m.schema.CancelStockTransferDraftInput.safeParse({ reason: ' ' }).success).toBe(false);
+    });
   });
 });
