@@ -36,7 +36,7 @@ export function Modal({ open, title, children, footer, size = 'md', onClose }: {
   title: string;
   children: ReactNode;
   footer?: ReactNode;
-  size?: 'sm' | 'md' | 'lg';
+  size?: 'sm' | 'md' | 'lg' | 'xl';
   onClose: () => void;
 }) {
   const ref = useRef<HTMLDivElement | null>(null);

@@ -43,22 +43,31 @@ export function PartySearchDialog({
   return (
     <Modal open={open} title={title} onClose={onClose} size="lg">
       <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-        <SearchField
-          value={search}
-          onChange={setSearch}
-          label="Filter Parties"
-          placeholder="Filter by code, name, city, or phone number..."
-        />
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+          <div style={{ flex: 1 }}>
+            <SearchField
+              value={search}
+              onChange={setSearch}
+              label="Filter Parties"
+              placeholder="Filter by code, name, city, or phone number..."
+            />
+          </div>
+          {search && (
+            <Button variant="ghost" size="sm" onClick={() => setSearch('')}>
+              Clear
+            </Button>
+          )}
+        </div>
 
-        <div style={{ maxHeight: 360, overflowY: 'auto', border: '1px solid var(--color-border)', borderRadius: 'var(--border-radius-md)' }}>
+        <div style={{ maxHeight: 440, overflowY: 'auto', border: '1px solid var(--color-border)', borderRadius: 'var(--border-radius-md)' }}>
           <table className="data-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
               <tr style={{ background: 'var(--color-bg-subtle)', position: 'sticky', top: 0, zIndex: 1 }}>
-                <th style={{ width: 120, padding: '8px 12px' }}>Code</th>
-                <th style={{ padding: '8px 12px' }}>Name</th>
-                <th style={{ width: 120, padding: '8px 12px' }}>City</th>
-                <th style={{ width: 140, padding: '8px 12px' }}>Phone</th>
-                <th style={{ width: 80, textAlign: 'right', padding: '8px 12px' }}>Action</th>
+                <th style={{ width: 140, padding: '10px 14px' }}>Code</th>
+                <th style={{ padding: '10px 14px' }}>Name</th>
+                <th style={{ width: 140, padding: '10px 14px' }}>City</th>
+                <th style={{ width: 160, padding: '10px 14px' }}>Phone</th>
+                <th style={{ width: 90, textAlign: 'right', padding: '10px 14px' }}>Action</th>
               </tr>
             </thead>
             <tbody>

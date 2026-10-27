@@ -109,14 +109,14 @@ export function AccountSearchDialog({
         </div>
 
         {/* Results Table */}
-        <div style={{ maxHeight: 380, overflowY: 'auto', border: '1px solid var(--color-border)', borderRadius: 'var(--border-radius-md)' }}>
+        <div style={{ maxHeight: 440, overflowY: 'auto', border: '1px solid var(--color-border)', borderRadius: 'var(--border-radius-md)' }}>
           <table className="data-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
               <tr style={{ background: 'var(--color-bg-subtle)', position: 'sticky', top: 0, zIndex: 1 }}>
-                <th style={{ width: 140, padding: '8px 12px' }}>Code</th>
-                <th style={{ padding: '8px 12px' }}>Account Title</th>
-                <th style={{ width: 120, padding: '8px 12px' }}>Type</th>
-                <th style={{ width: 90, textAlign: 'right', padding: '8px 12px' }}>Action</th>
+                <th style={{ width: 140, padding: '10px 14px' }}>Code</th>
+                <th style={{ padding: '10px 14px' }}>Account Title</th>
+                <th style={{ width: 120, padding: '10px 14px' }}>Type</th>
+                <th style={{ width: 90, textAlign: 'right', padding: '10px 14px' }}>Action</th>
               </tr>
             </thead>
             <tbody>
