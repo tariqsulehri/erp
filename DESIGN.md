@@ -310,12 +310,14 @@ Use the shared component; don't restyle it locally. If a variant is missing, add
 ### Side Panel — `SidePanel`
 - 380px wide, beside the list, not a modal. Header: title plus a ghost close button. Footer: Cancel (ghost) then the primary action. A form-level error shows at the top of the body.
 
-### Summary Tiles And Analytics — `KpiTile`, `TileIcon`, `ChartCard` (`components/analytics/ProCharts.tsx`)
-- Every summary tile has a tone (`blue`, `teal`, `violet`, `amber`, `rose`, `slate`; tokens `--tone-*`). The tone colours the 3D icon badge, a vertical gradient wash (tone tint at the top fading to the surface), and the tile edge. Dashboard tiles use `stat-card has-tone tone-*` with a `stat-head` (icon + label), `stat-value`, and `stat-foot`.
-- Neighbouring tiles use different tones so figures never blur together. Tones are decoration only; chart series keep the validated palette in `chart-palette.ts`.
-- Analytics screens are split into titled sections (`analytics-section-title`: Key Figures, Trends, Breakdown).
-- Charts sit in a `ChartCard`: raised surface, shaded header band (title, headline figure, Chart/Table switch), plot below. Every card has a Table view.
-- Bars and slices use the vertical light-to-deep gradient from `BarGradientDefs`; the middle stop is the true series colour. One value axis per chart, never two.
+### Summary Tiles And Analytics — `StatTile`, `StatGrid` (`components/ui/StatTile.tsx`), `ChartCard` (`components/analytics/ProCharts.tsx`)
+- One tile everywhere (Dashboard, analytics screens, reports). Compact, about 84px tall, in a `StatGrid` that fits as many 220px+ columns as the width allows (five on a wide screen).
+- Tile anatomy: small tone-coloured icon + label (+ a "?" help mark that explains the figure in plain words) / the figure in the code font, tone-coloured, with an optional muted suffix such as "/ 41" / an optional thin progress or part-to-whole bar / one or two short detail lines.
+- The tone comes from the meaning: teal for good, amber for needs attention, rose for a problem (for example a loss or a negative balance), blue, violet and slate for neutral figures. The tone washes the tile, edges it, and colours the icon and the figure.
+- A tile that leads to a report is a link: the whole tile is clickable, with a chevron after the label.
+- Analytics screens and the Dashboard are split into titled sections (`analytics-section-title`).
+- Charts sit in a `ChartCard`: title with a "?" explanation, one-line subtitle, a bold one-sentence finding (`headline`), and icon buttons to switch to the table or download it as CSV. Every card has a Table view.
+- Columns are drawn as rounded tubes on a light track; only the peak carries a dark value pill. Bars use the vertical light-to-deep gradient from `BarGradientDefs`. One value axis per chart, never two.
 
 ### Voucher And Document Forms
 - **Top:** Page Header with the document title and number, a status badge next to the title, and actions on the right (New, Print as secondary; Save Draft as secondary; the posting action as primary).

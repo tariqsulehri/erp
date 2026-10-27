@@ -2,7 +2,7 @@
 
 import { useState, type ReactNode } from 'react';
 import { IconBook2, IconPackage, IconRefresh, IconScale, IconSearch } from '@tabler/icons-react';
-import { TileIcon, type TileTone } from '@/components/analytics/ProCharts';
+import { StatGrid, StatTile, type StatTone } from '@/components/ui/StatTile';
 import { Button } from '@/components/ui/Button';
 import { DateField } from '@/components/ui/FormFields';
 import { InlineAlert } from '@/components/ui/InlineAlert';
@@ -41,26 +41,21 @@ function ledgerCheckWarning(check: LedgerCheck, settings?: AppFormatSettingsSour
 }
 
 function StockValueCheck({ check, settings }: { check: LedgerCheck; settings?: AppFormatSettingsSource | null }) {
-  const figures: Array<{ label: string; value: string; tone: TileTone; icon: ReactNode }> = [
-    { label: 'Stock Value', value: check.stock_value, tone: 'blue', icon: <IconPackage size={18} stroke={1.8} /> },
-    { label: 'Inventory Account Balance', value: check.inventory_account_balance, tone: 'violet', icon: <IconBook2 size={18} stroke={1.8} /> },
-    { label: 'Difference', value: check.difference, tone: check.is_matched ? 'teal' : 'amber', icon: <IconScale size={18} stroke={1.8} /> },
+  const figures: Array<{ label: string; value: string; tone: StatTone; icon: ReactNode }> = [
+    { label: 'Stock Value', value: check.stock_value, tone: 'blue', icon: <IconPackage /> },
+    { label: 'Inventory Account Balance', value: check.inventory_account_balance, tone: 'violet', icon: <IconBook2 /> },
+    { label: 'Difference', value: check.difference, tone: check.is_matched ? 'teal' : 'amber', icon: <IconScale /> },
   ];
 
   return (
     <section className="panel">
       <div className="panel-header"><h2 className="panel-title">Stock Value Check</h2></div>
       <div className="panel-body" style={{ display: 'grid', gap: 12 }}>
-        <div className="layout-cols-3">
+        <StatGrid label="Stock Value Check">
           {figures.map(figure => (
-            <div key={figure.label} className={`stat-card has-tone tone-${figure.tone}`}>
-              <div className="stat-head"><TileIcon>{figure.icon}</TileIcon><div className="stat-label">{figure.label}</div></div>
-              <div className="stat-value" style={{ fontVariantNumeric: 'tabular-nums', fontSize: 'var(--font-size-xl)', ...amountStyle(figure.value) }}>
-                {formatMoney(figure.value, settings)}
-              </div>
-            </div>
+            <StatTile key={figure.label} label={figure.label} tone={figure.tone} icon={figure.icon} value={formatMoney(figure.value, settings)} />
           ))}
-        </div>
+        </StatGrid>
         {check.is_matched
           ? <InlineAlert tone="success">Stock value matches the Inventory account.</InlineAlert>
           : <InlineAlert tone="warning">{ledgerCheckWarning(check, settings)}</InlineAlert>}

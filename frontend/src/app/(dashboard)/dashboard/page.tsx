@@ -1,12 +1,7 @@
 'use client';
 
 import type { CSSProperties, ReactNode } from 'react';
-import Link from 'next/link';
 import { useSession } from 'next-auth/react';
-import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-  PieChart, Pie, Cell,
-} from 'recharts';
 import { useDashboardSummary } from '@/lib/api/dashboard';
 import { useDashboardKpis } from '@/lib/api/reports';
 import { hasPermission } from '@/lib/auth/session-user';
@@ -16,9 +11,10 @@ import {
   IconBuildingBank, IconCalendarStats, IconChartBar, IconCircleCheck, IconCoin, IconListTree, IconPackage,
   IconPencil, IconTrendingUp, IconTruckDelivery, IconUsers,
 } from '@tabler/icons-react';
-import { ChartTooltipBox, ChartValueLegend } from '@/components/analytics/AnalyticsWidgets';
-import { BarGradientDefs, TileIcon, gradientId, useGradientPrefix, type TileTone } from '@/components/analytics/ProCharts';
-import { chartAxisTick, useChartTheme, type ChartTheme } from '@/components/analytics/chart-palette';
+import { ChartCard, DonutChart, MonthlyColumnChart, RankedBars } from '@/components/analytics/ProCharts';
+import { compactAxis } from '@/components/analytics/chart-data';
+import { StatGrid, StatTile, type StatTone } from '@/components/ui/StatTile';
+import { useChartTheme, type ChartTheme } from '@/components/analytics/chart-palette';
 import { Badge } from '@/components/ui/Badge';
 import { InlineAlert } from '@/components/ui/InlineAlert';
 import { PageHeader } from '@/components/ui/PageHeader';
@@ -61,16 +57,6 @@ function statusColor(theme: ChartTheme, status: string) {
 }
 
 // ── Building blocks ──────────────────────────────────────────────────────────
-function StatCard({ label, value, context, tone, icon }: { label: string; value: ReactNode; context?: string; tone: TileTone; icon: ReactNode }) {
-  return (
-    <div className={`stat-card has-tone tone-${tone}`}>
-      <div className="stat-head"><TileIcon>{icon}</TileIcon><div className="stat-label">{label}</div></div>
-      <div className="stat-value" style={{ fontVariantNumeric: 'tabular-nums' }}>{value}</div>
-      {context && <div className="stat-foot">{context}</div>}
-    </div>
-  );
-}
-
 function DashboardPanel({ title, children, bodyStyle }: { title: string; children: ReactNode; bodyStyle?: CSSProperties }) {
   return (
     <section className="panel panel-banded">
@@ -115,54 +101,21 @@ function SummaryRow({ label, value, last = false }: { label: ReactNode; value: R
 
 // ── Financial position (money tiles) ─────────────────────────────────────────
 
-/** "▲ 12.5% vs Last Year": the arrow and the words carry the meaning, colour only supports it. */
-function ChangeText({ percent, settings }: { percent: string | null; settings?: AppFormatSettingsSource | null }) {
-  if (percent === null || percent === undefined) return null;
-  const value = Number(percent);
-  const arrow = value > 0 ? '▲' : value < 0 ? '▼' : '■';
-  const word = value > 0 ? 'Up' : value < 0 ? 'Down' : 'No Change';
-  const color = value > 0 ? 'var(--color-success)' : value < 0 ? 'var(--color-negative)' : 'var(--color-text-muted)';
-  return (
-    <span style={{ fontVariantNumeric: 'tabular-nums' }}>
-      <span aria-hidden="true" style={{ color }}>{arrow}</span>{' '}
-      <span className="sr-only">{word} </span>
-      {formatNumber(Math.abs(value), settings)}% vs Same Period Last Year
-    </span>
-  );
+function changeOf(percent: string | null | undefined) {
+  return percent === null || percent === undefined ? null : { percent: Number(percent), text: 'vs same period last year' };
 }
 
-function MoneyTile({ label, value, context, href, linkLabel, tone, icon }: {
-  label: string;
-  value: string;
-  context?: ReactNode;
-  href?: string;
-  linkLabel?: string;
-  tone: TileTone;
-  icon: ReactNode;
-}) {
-  const body = (
-    <>
-      <div className="stat-head"><TileIcon>{icon}</TileIcon><div className="stat-label">{label}</div></div>
-      <div className="stat-value" style={{ fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={value}>{value}</div>
-      {context && <div className="stat-foot">{context}</div>}
-      {href && <div className="stat-link">{linkLabel ?? 'View Report'} →</div>}
-    </>
-  );
-  const className = `stat-card has-tone tone-${tone}`;
-  if (!href) return <div className={className}>{body}</div>;
-  return (
-    <Link href={href} className={className} style={{ display: 'block', color: 'inherit', textDecoration: 'none' }} aria-label={`${label}: ${value}. ${linkLabel ?? 'View Report'}`}>
-      {body}
-    </Link>
-  );
+/** Good when zero or more, a problem when below zero. */
+function signTone(value: string | number): StatTone {
+  return Number(value) < 0 ? 'rose' : 'teal';
 }
 
-function MoneyTileSkeleton({ label }: { label: string }) {
+function TileSkeleton({ label }: { label: string }) {
   return (
-    <div className="stat-card" aria-hidden="true">
-      <div className="stat-label">{label}</div>
-      <div className="skeleton" style={{ height: 24, width: '70%' }} />
-      <div className="skeleton" style={{ height: 10, width: '50%', marginTop: 8 }} />
+    <div className="stat-tile tone-slate" aria-hidden="true">
+      <div className="stat-tile-head"><span className="stat-tile-label">{label}</span></div>
+      <div className="skeleton" style={{ height: 22, width: '70%' }} />
+      <div className="skeleton" style={{ height: 10, width: '50%', marginTop: 6 }} />
     </div>
   );
 }
@@ -179,63 +132,72 @@ function FinancialPosition({ settings }: { settings?: AppFormatSettingsSource | 
   const subtitle = data
     ? `${data.period.fiscal_year ? `Fiscal Year ${data.period.fiscal_year} to date` : 'Year to date'} (${formatDate(data.period.date_from, settings)} to ${formatDate(data.period.date_to, settings)})`
     : 'Money figures for the current fiscal year.';
+  const money = (value: string | number) => formatMoney(value, settings);
+  const margin = data?.profit.gross_margin_percent;
 
   return (
-    // .panel allows shrinking to zero; inside the fixed-height scrolling grid this panel must keep its content height.
-    <section className="panel panel-banded" aria-labelledby="financial-position-title" style={{ overflow: 'visible', minHeight: 'auto', flexShrink: 0 }}>
-      <div className="panel-header" style={{ display: 'flex', alignItems: 'baseline', gap: 12, flexWrap: 'wrap' }}>
-        <h2 className="panel-title" id="financial-position-title">Financial Position</h2>
-        <span style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-muted)' }}>{subtitle}</span>
+    <section aria-labelledby="financial-position-title" style={{ display: 'grid', gap: 8, flexShrink: 0 }}>
+      <div className="dashboard-section-head">
+        <h2 className="analytics-section-title" id="financial-position-title">Financial Position</h2>
+        <span className="dashboard-section-note">{subtitle}</span>
       </div>
-      <div className="panel-body">
-        {error ? (
-          <InlineAlert tone="danger">Unable to load the money figures: {error.message}. Refresh the page and try again.</InlineAlert>
-        ) : isLoading || !data ? (
-          <div className="layout-cols-4" aria-busy="true" aria-label="Loading Financial Position">
-            {MONEY_TILE_LABELS.map(label => <MoneyTileSkeleton key={label} label={label} />)}
-          </div>
-        ) : (
-          <div className="layout-cols-4">
-            <MoneyTile
-              label="Revenue" tone="blue" icon={<IconTrendingUp size={18} stroke={1.8} />}
-              value={formatMoney(data.profit.revenue, settings)}
-              context={<ChangeText percent={data.profit.revenue_change_percent} settings={settings} />}
-            />
-            <MoneyTile
-              label="Gross Profit" tone="teal" icon={<IconChartBar size={18} stroke={1.8} />}
-              value={formatMoney(data.profit.gross_profit, settings)}
-              context={data.profit.gross_margin_percent !== null ? `Gross Margin ${formatNumber(data.profit.gross_margin_percent, settings)}%` : 'Gross Margin Not Available'}
-            />
-            <MoneyTile
-              label="Net Profit" tone="violet" icon={<IconCoin size={18} stroke={1.8} />}
-              value={formatMoney(data.profit.net_profit, settings)}
-              context={<ChangeText percent={data.profit.net_profit_change_percent} settings={settings} />}
-            />
-            <MoneyTile
-              label="Receivables" tone="amber" icon={<IconUsers size={18} stroke={1.8} />}
-              value={formatMoney(data.position.receivables, settings)}
-              context="Customers Owe Us"
-              href="/reports?report=receivables-aging"
-              linkLabel="View Receivables Aging"
-            />
-            <MoneyTile
-              label="Payables" tone="rose" icon={<IconTruckDelivery size={18} stroke={1.8} />}
-              value={formatMoney(data.position.payables, settings)}
-              context="We Owe Suppliers"
-              href="/reports?report=payables-aging"
-              linkLabel="View Payables Aging"
-            />
-            <MoneyTile label="Cash And Bank" tone="teal" icon={<IconBuildingBank size={18} stroke={1.8} />} value={formatMoney(data.position.cash_and_bank, settings)} context="Cash In Hand And In Banks" />
-            <MoneyTile
-              label="Stock Value" tone="blue" icon={<IconPackage size={18} stroke={1.8} />}
-              value={formatMoney(data.position.stock_value, settings)}
-              context="Stock On Hand At Cost"
-              href="/reports?report=stock-valuation"
-              linkLabel="View Stock Valuation"
-            />
-          </div>
-        )}
-      </div>
+      {error ? (
+        <InlineAlert tone="danger">Unable to load the money figures: {error.message}. Refresh the page and try again.</InlineAlert>
+      ) : isLoading || !data ? (
+        <div className="stat-grid" aria-busy="true" aria-label="Loading Financial Position">
+          {MONEY_TILE_LABELS.map(label => <TileSkeleton key={label} label={label} />)}
+        </div>
+      ) : (
+        <StatGrid label="Financial Position">
+          <StatTile
+            label="Revenue" tone="blue" icon={<IconTrendingUp />}
+            value={money(data.profit.revenue)}
+            change={changeOf(data.profit.revenue_change_percent)}
+            help="Income from sales and other revenue accounts posted in the period."
+          />
+          <StatTile
+            label="Gross Profit" tone={signTone(data.profit.gross_profit)} icon={<IconChartBar />}
+            value={money(data.profit.gross_profit)}
+            progress={margin !== null && margin !== undefined ? Number(margin) : undefined}
+            detail={margin === null || margin === undefined ? 'Gross margin not available' : `Gross margin ${formatNumber(margin, settings)}%`}
+            help="Revenue less the cost of the goods sold. The bar shows the gross margin."
+          />
+          <StatTile
+            label="Net Profit" tone={signTone(data.profit.net_profit)} icon={<IconCoin />}
+            value={money(data.profit.net_profit)}
+            change={changeOf(data.profit.net_profit_change_percent)}
+            detail={Number(data.profit.net_profit) < 0 ? 'Loss for the period' : undefined}
+            help="Revenue less all expenses posted in the period. A negative figure is a loss."
+          />
+          <StatTile
+            label="Receivables" tone="amber" icon={<IconUsers />}
+            value={money(data.position.receivables)}
+            detail="Customers owe us"
+            href="/reports?report=receivables-aging" linkLabel="View Receivables Aging"
+            help="Open customer balances. Select the tile to see how long they have been owed."
+          />
+          <StatTile
+            label="Payables" tone="violet" icon={<IconTruckDelivery />}
+            value={money(data.position.payables)}
+            detail="We owe suppliers"
+            href="/reports?report=payables-aging" linkLabel="View Payables Aging"
+            help="Open supplier balances. Select the tile to see how long they have been due."
+          />
+          <StatTile
+            label="Cash And Bank" tone={signTone(data.position.cash_and_bank)} icon={<IconBuildingBank />}
+            value={money(data.position.cash_and_bank)}
+            detail="Cash in hand and in banks"
+            help="Balance of all cash and bank accounts today."
+          />
+          <StatTile
+            label="Stock Value" tone="blue" icon={<IconPackage />}
+            value={money(data.position.stock_value)}
+            detail="Stock on hand at cost"
+            href="/reports?report=stock-valuation" linkLabel="View Stock Valuation"
+            help="Quantity on hand valued at weighted average cost."
+          />
+        </StatGrid>
+      )}
     </section>
   );
 }
@@ -245,17 +207,7 @@ export default function DashboardPage() {
   const { data, isLoading, error } = useDashboardSummary();
   const { data: settings } = useGeneralSettings();
   const theme = useChartTheme();
-  const tick = chartAxisTick(theme);
-  const prefix = useGradientPrefix();
-  const fill = (color: string) => `url(#${gradientId(prefix, color)})`;
-  const gradientColors = Object.values(theme.series);
 
-  const compact = (n: number) => {
-    const absolute = Math.abs(n);
-    if (absolute >= 1_000_000) return `${formatNumber(n / 1_000_000, settings)}M`;
-    if (absolute >= 1_000) return `${formatNumber(n / 1_000, settings)}K`;
-    return String(n);
-  };
 
   if (isLoading || error || !data) {
     return (
@@ -293,6 +245,29 @@ export default function DashboardPage() {
     ? Math.round((fiscalYear.closedPeriods / (fiscalYear.totalPeriods || 1)) * 100)
     : 0;
   const pctOf = (n: number) => (accounts.total > 0 ? Math.round((n / accounts.total) * 100) : 0);
+  const axis = compactAxis(settings);
+
+  // Chart data and one-sentence findings.
+  const monthlyPoints = vouchers.monthlyVolume.map(row => ({ monthKey: row.month, label: row.month, total: Number(row.total), count: row.count }));
+  const monthlyAverage = monthlyPoints.length > 0 ? monthlyPoints.reduce((sum, row) => sum + row.total, 0) / monthlyPoints.length : 0;
+  const peakMonth = monthlyPoints.reduce<(typeof monthlyPoints)[number] | null>((best, row) => (!best || row.total > best.total ? row : best), null);
+  const monthlyHeadline = peakMonth && peakMonth.total > 0
+    ? `${peakMonth.label} was the busiest month with ${formatMoney(peakMonth.total, settings)} posted in ${formatCount(peakMonth.count, settings)} vouchers.`
+    : undefined;
+  const statusHeadline = vouchers.total > 0
+    ? `${formatCount(vouchers.posted, settings)} of ${formatCount(vouchers.total, settings)} vouchers are posted${vouchers.draft > 0 ? `; ${formatCount(vouchers.draft, settings)} drafts wait to be posted.` : '.'}`
+    : undefined;
+  const largestType = [...accountTypeData].sort((left, right) => right.value - left.value)[0];
+  const accountHeadline = largestType
+    ? `${largestType.name} is the largest group: ${formatCount(largestType.value, settings)} of ${formatCount(accounts.total, settings)} accounts (${pctOf(largestType.value)}%).`
+    : undefined;
+  const rankedTypes = voucherTypeData
+    .map(row => ({ name: row.name === row.type ? row.type : `${row.type} · ${row.name}`, value: Number(row.total), count: row.count }))
+    .sort((left, right) => right.value - left.value);
+  const typeTotal = rankedTypes.reduce((sum, row) => sum + row.value, 0);
+  const typeHeadline = rankedTypes[0]
+    ? `${rankedTypes[0].name} carries the most, ${typeTotal > 0 ? (rankedTypes[0].value / typeTotal * 100).toFixed(1) : '0'}% of the posted amount.`
+    : undefined;
 
   const description = fiscalYear
     ? `Fiscal Year ${fiscalYear.name} · ${fiscalYear.currentPeriod ? `Current Period ${fiscalYear.currentPeriod.name}` : 'No Open Period'}`
@@ -306,142 +281,133 @@ export default function DashboardPage() {
         {/* Money tiles: only for users who may see financial reports */}
         <FinancialPosition settings={settings} />
 
-        {/* Row 1: summary figures */}
-        <div className="layout-cols-4">
-          <StatCard label="Total Accounts" tone="blue" icon={<IconListTree size={18} stroke={1.8} />} value={formatCount(accounts.total, settings)} context={`${accounts.active} Active · ${accounts.posting} Posting`} />
-          <StatCard label="Posted Vouchers" tone="teal" icon={<IconCircleCheck size={18} stroke={1.8} />} value={formatCount(vouchers.posted, settings)} context={`Of ${vouchers.total} Total`} />
-          <StatCard label="Draft Vouchers" tone="amber" icon={<IconPencil size={18} stroke={1.8} />} value={formatCount(vouchers.draft, settings)} context="Waiting To Be Posted" />
-          <StatCard
-            label="Fiscal Year" tone="violet" icon={<IconCalendarStats size={18} stroke={1.8} />}
-            value={fiscalYear ? (
-              <Badge variant={fiscalYear.status === 'open' ? 'success' : 'neutral'} style={{ fontSize: 'var(--font-size-sm)' }}>{titleCase(fiscalYear.status)}</Badge>
-            ) : 'Not Set'}
-            context={fiscalYear ? `${fiscalYear.name} · ${fiscalYear.openPeriods} Open · ${fiscalYear.closedPeriods} Closed` : 'No Active Fiscal Year'}
-          />
-        </div>
+        {/* Row 1: accounts and vouchers */}
+        <section aria-labelledby="activity-title" style={{ display: 'grid', gap: 8, flexShrink: 0 }}>
+          <div className="dashboard-section-head">
+            <h2 className="analytics-section-title" id="activity-title">Accounts And Vouchers</h2>
+          </div>
+          <StatGrid label="Accounts And Vouchers">
+            <StatTile
+              label="Total Accounts" tone="blue" icon={<IconListTree />}
+              value={formatCount(accounts.total, settings)}
+              progress={accounts.total > 0 ? accounts.active / accounts.total * 100 : 0}
+              detail={`${formatCount(accounts.active, settings)} active · ${formatCount(accounts.posting, settings)} posting`}
+              help="Accounts in the Chart of Accounts. The bar shows how many are active."
+            />
+            <StatTile
+              label="Posted Vouchers" tone="teal" icon={<IconCircleCheck />}
+              value={formatCount(vouchers.posted, settings)}
+              suffix={`/ ${formatCount(vouchers.total, settings)}`}
+              progress={vouchers.total > 0 ? vouchers.posted / vouchers.total * 100 : 0}
+              detail="Posted to the ledger"
+              help="Vouchers posted to the ledger, out of all vouchers."
+            />
+            <StatTile
+              label="Draft Vouchers" tone={vouchers.draft > 0 ? 'amber' : 'teal'} icon={<IconPencil />}
+              value={formatCount(vouchers.draft, settings)}
+              suffix={`/ ${formatCount(vouchers.total, settings)}`}
+              detail={vouchers.draft > 0 ? 'Waiting to be posted' : 'Nothing waiting'}
+              help="Vouchers saved as draft that do not affect the ledger until they are posted."
+            />
+            <StatTile
+              label="Fiscal Year" tone="violet" icon={<IconCalendarStats />}
+              value={fiscalYear ? titleCase(fiscalYear.status) : 'Not Set'}
+              suffix={fiscalYear ? `/ ${fiscalYear.name}` : undefined}
+              progress={fiscalYear ? fyPct : undefined}
+              detail={fiscalYear ? `${formatCount(fiscalYear.closedPeriods, settings)} of ${formatCount(fiscalYear.totalPeriods, settings)} periods closed` : 'No active fiscal year'}
+              help="The current fiscal year. The bar shows how many of its periods are closed."
+            />
+          </StatGrid>
+        </section>
 
-        {/* Row 2: monthly volume + voucher status */}
-        <div className="layout-main-aside">
-          <DashboardPanel title="Posted Amount By Month For The Last 6 Months">
-            {vouchers.monthlyVolume.length === 0 ? (
+        <h2 className="analytics-section-title">Vouchers And Accounts</h2>
+        {/* Row 2: monthly amount + voucher status */}
+        <div className="analytics-row-main">
+          <ChartCard
+            title="Posted Amount By Month"
+            subtitle="Last 6 months; the dashed line is the monthly average"
+            headline={monthlyHeadline}
+            help="Total amount of vouchers posted in each of the last 6 months."
+            metric={{ label: 'Monthly Average', value: formatMoney(monthlyAverage, settings) }}
+            table={{
+              columns: [{ key: 'month', label: 'Month' }, { key: 'count', label: 'Vouchers', numeric: true }, { key: 'total', label: 'Posted Amount', numeric: true }],
+              rows: vouchers.monthlyVolume.map(row => ({ month: row.month, count: formatCount(row.count, settings), total: formatMoney(row.total, settings) })),
+            }}
+          >
+            {monthlyPoints.length === 0 ? (
               <EmptyNote>No posted vouchers in the last 6 months.</EmptyNote>
             ) : (
-              // One value axis: the amount is plotted, the voucher count is shown in the tooltip.
-              <ResponsiveContainer width="100%" height={220}>
-                <BarChart data={vouchers.monthlyVolume} margin={{ top: 8, right: 8, left: 8, bottom: 0 }} barCategoryGap="30%">
-                  <BarGradientDefs prefix={prefix} colors={gradientColors} />
-                  <CartesianGrid stroke={theme.grid} vertical={false} />
-                  <XAxis dataKey="month" tick={tick} axisLine={{ stroke: theme.border }} tickLine={false} />
-                  <YAxis tick={tick} axisLine={false} tickLine={false} tickFormatter={v => compact(Number(v))} width={52} />
-                  <Tooltip
-                    cursor={{ fill: theme.grid, opacity: 0.6 }}
-                    content={({ active, payload, label }) => {
-                      if (!active || !payload?.length) return null;
-                      const point = payload[0]?.payload as { count: number; total: number };
-                      return (
-                        <ChartTooltipBox
-                          label={label}
-                          entries={[
-                            { key: 'total', name: 'Posted Amount', color: theme.series.blue, value: formatMoney(Number(point.total ?? 0), settings) },
-                            { key: 'count', name: 'Vouchers', color: theme.series.slate, value: formatCount(Number(point.count ?? 0), settings) },
-                          ]}
-                        />
-                      );
-                    }}
-                  />
-                  <Bar dataKey="total" fill={fill(theme.series.blue)} radius={[4, 4, 0, 0]} name="Posted Amount" maxBarSize={28} />
-                </BarChart>
-              </ResponsiveContainer>
+              <MonthlyColumnChart
+                data={monthlyPoints}
+                dataKey="total"
+                seriesName="Posted Amount"
+                average={monthlyAverage}
+                format={value => formatMoney(value, settings)}
+                axis={axis}
+                tooltipTitle={point => String(point.label)}
+                height={230}
+              />
             )}
-          </DashboardPanel>
+          </ChartCard>
 
-          <DashboardPanel title="Voucher Status">
-            {statusData.length === 0 ? (
-              <EmptyNote>No vouchers yet.</EmptyNote>
-            ) : (
-              <>
-                <ResponsiveContainer width="100%" height={160}>
-                  <PieChart>
-                    <BarGradientDefs prefix={prefix} colors={gradientColors} />
-                    <Pie data={statusData} dataKey="value" innerRadius={48} outerRadius={70} paddingAngle={2} stroke={theme.surface} strokeWidth={2}>
-                      {statusData.map(entry => <Cell key={entry.name} fill={fill(statusColor(theme, entry.name))} />)}
-                    </Pie>
-                    <Tooltip
-                      content={({ active, payload }) => {
-                        if (!active || !payload?.length) return null;
-                        const entry = payload[0];
-                        return <ChartTooltipBox entries={[{ key: String(entry.name), name: String(entry.name), color: statusColor(theme, String(entry.name)), value: formatCount(Number(entry.value ?? 0), settings) }]} />;
-                      }}
-                    />
-                  </PieChart>
-                </ResponsiveContainer>
-                <div style={{ marginTop: 8 }}>
-                  <ChartValueLegend items={statusData.map(d => ({ name: d.name, color: statusColor(theme, d.name), value: formatCount(d.value, settings) }))} />
-                </div>
-              </>
-            )}
-          </DashboardPanel>
+          <ChartCard
+            title="Voucher Status"
+            subtitle="All vouchers by where they stand"
+            headline={statusHeadline}
+            help="Posted vouchers are in the ledger. Drafts do not affect balances until they are posted. Voided vouchers are cancelled."
+            table={{
+              columns: [{ key: 'status', label: 'Status' }, { key: 'count', label: 'Vouchers', numeric: true }, { key: 'share', label: 'Share', numeric: true }],
+              rows: statusData.map(row => ({ status: row.name, count: formatCount(row.value, settings), share: `${vouchers.total > 0 ? Math.round(row.value / vouchers.total * 100) : 0}%` })),
+            }}
+          >
+            <DonutChart
+              items={statusData.map(row => ({ name: row.name, value: row.value, color: statusColor(theme, row.name) }))}
+              centerValue={formatCount(vouchers.total, settings)}
+              centerLabel="vouchers"
+              format={value => formatCount(value, settings)}
+            />
+          </ChartCard>
         </div>
 
         {/* Row 3: accounts by type + posted amount by voucher type */}
         <div className="layout-cols-2">
-          <DashboardPanel title="Accounts By Type">
-            {accountTypeData.length === 0 ? (
-              <EmptyNote>No accounts yet.</EmptyNote>
-            ) : (
-              <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
-                <div style={{ width: '45%', height: 180 }}>
-                  <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <BarGradientDefs prefix={prefix} colors={gradientColors} />
-                      <Pie data={accountTypeData} dataKey="value" innerRadius={48} outerRadius={72} paddingAngle={2} stroke={theme.surface} strokeWidth={2}>
-                        {accountTypeData.map(entry => <Cell key={entry.name} fill={fill(accountTypeColor(theme, entry.name))} />)}
-                      </Pie>
-                      <Tooltip
-                        content={({ active, payload }) => {
-                          if (!active || !payload?.length) return null;
-                          const entry = payload[0];
-                          return <ChartTooltipBox entries={[{ key: String(entry.name), name: String(entry.name), color: accountTypeColor(theme, String(entry.name)), value: formatCount(Number(entry.value ?? 0), settings) }]} />;
-                        }}
-                      />
-                    </PieChart>
-                  </ResponsiveContainer>
-                </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <ChartValueLegend
-                    items={accountTypeData.map(d => ({ name: d.name, color: accountTypeColor(theme, d.name), value: `${d.value} (${pctOf(d.value)}%)` }))}
-                  />
-                  <div style={{ borderTop: '1px solid var(--color-border-subtle)', paddingTop: 8, marginTop: 8, display: 'flex', justifyContent: 'space-between', fontSize: 'var(--font-size-sm)', fontWeight: 600, color: 'var(--color-heading)' }}>
-                    <span>Total</span>
-                    <span style={{ fontVariantNumeric: 'tabular-nums' }}>{accounts.total}</span>
-                  </div>
-                </div>
-              </div>
-            )}
-          </DashboardPanel>
+          <ChartCard
+            title="Accounts By Type"
+            subtitle="Chart of Accounts by account type"
+            headline={accountHeadline}
+            help="How the accounts in the Chart of Accounts split across Asset, Liability, Equity, Revenue, and Expense."
+            table={{
+              columns: [{ key: 'type', label: 'Type' }, { key: 'count', label: 'Accounts', numeric: true }, { key: 'share', label: 'Share', numeric: true }],
+              rows: accountTypeData.map(row => ({ type: row.name, count: formatCount(row.value, settings), share: `${pctOf(row.value)}%` })),
+            }}
+          >
+            <DonutChart
+              items={accountTypeData.map(row => ({ name: row.name, value: row.value, color: accountTypeColor(theme, row.name) }))}
+              centerValue={formatCount(accounts.total, settings)}
+              centerLabel="accounts"
+              format={value => formatCount(value, settings)}
+            />
+          </ChartCard>
 
-          <DashboardPanel title="Posted Amount By Voucher Type">
-            {voucherTypeData.length === 0 ? (
-              <EmptyNote>No posted vouchers yet.</EmptyNote>
-            ) : (
-              <ResponsiveContainer width="100%" height={180}>
-                <BarChart data={voucherTypeData} layout="vertical" margin={{ left: 16, right: 24, top: 4, bottom: 4 }}>
-                  <BarGradientDefs prefix={prefix} colors={gradientColors} />
-                  <CartesianGrid stroke={theme.grid} horizontal={false} />
-                  <XAxis type="number" tick={tick} axisLine={false} tickLine={false} tickFormatter={v => compact(Number(v))} />
-                  <YAxis type="category" dataKey="name" tick={tick} axisLine={false} tickLine={false} width={80} />
-                  <Tooltip
-                    cursor={{ fill: theme.grid }}
-                    content={({ active, payload, label }) => {
-                      if (!active || !payload?.length) return null;
-                      return <ChartTooltipBox label={label} entries={[{ key: 'total', name: 'Posted Amount', color: theme.series.blue, value: formatMoney(Number(payload[0]?.value ?? 0), settings) }]} />;
-                    }}
-                  />
-                  <Bar dataKey="total" fill={fill(theme.series.blue)} radius={[0, 4, 4, 0]} barSize={16} />
-                </BarChart>
-              </ResponsiveContainer>
-            )}
-          </DashboardPanel>
+          <ChartCard
+            title="Posted Amount By Voucher Type"
+            subtitle="Amount and share of all posted vouchers"
+            headline={typeHeadline}
+            help="Posted voucher amounts grouped by voucher type, largest first."
+            table={{
+              columns: [{ key: 'type', label: 'Voucher Type' }, { key: 'count', label: 'Vouchers', numeric: true }, { key: 'total', label: 'Posted Amount', numeric: true }],
+              rows: rankedTypes.map(row => ({ type: row.name, count: formatCount(row.count, settings), total: formatMoney(row.value, settings) })),
+            }}
+          >
+            <RankedBars
+              items={rankedTypes}
+              total={typeTotal}
+              format={value => formatMoney(value, settings)}
+              color={theme.series.blue}
+              limit={7}
+              countLabel={value => `${formatCount(value, settings)} Vouchers`}
+            />
+          </ChartCard>
         </div>
 
         {/* Row 4: recent vouchers + fiscal year progress */}
@@ -546,7 +512,7 @@ export default function DashboardPage() {
                 value={(
                   <>
                     <div>{r.count}</div>
-                    <div style={{ fontSize: 'var(--font-size-xs)', fontWeight: 400, color: 'var(--color-text-muted)' }}>{compact(r.total)}</div>
+                    <div style={{ fontSize: 'var(--font-size-xs)', fontWeight: 400, color: 'var(--color-text-muted)' }}>{axis(Number(r.total))}</div>
                   </>
                 )}
               />

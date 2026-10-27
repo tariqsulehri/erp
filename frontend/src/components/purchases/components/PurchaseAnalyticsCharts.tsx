@@ -21,6 +21,26 @@ export function PurchaseAnalyticsCharts({
   const count = (value: number) => formatCount(value, settings);
   const share = (value: number, total: number) => `${(total > 0 ? value / total * 100 : 0).toFixed(1)}%`;
   const monthTitle = (point: MonthPoint) => String(point.longLabel ?? point.label);
+  const percentText = (value: number) => `${Math.abs(value).toFixed(1)}%`;
+
+  // One-sentence findings shown under each chart title.
+  const latest = months[months.length - 1];
+  const versusAverage = latest && model.averageMonthly > 0 ? (latest.netAmount - model.averageMonthly) / model.averageMonthly * 100 : null;
+  const trendHeadline = model.peakMonth
+    ? `Peak month ${model.peakMonth.longLabel} at ${money(model.peakMonth.netAmount)}.${latest && versusAverage !== null ? ` ${latest.longLabel} is ${percentText(versusAverage)} ${versusAverage >= 0 ? 'above' : 'below'} the monthly average.` : ''}`
+    : undefined;
+  const netVersusGross = totals.grossAmount > 0 ? (totals.netAmount - totals.grossAmount) / totals.grossAmount * 100 : 0;
+  const bridgeHeadline = `Tax and freight add ${money(totals.taxAmount + totals.freightAmount)} and discount takes ${money(totals.discountAmount)}, so net is ${percentText(netVersusGross)} ${netVersusGross >= 0 ? 'above' : 'below'} gross.`;
+  const creditMonths = months.filter(month => month.creditAmount > 0).length;
+  const creditHeadline = `${formatNumber(totals.creditShare, settings)}% of net purchases are on credit, in ${count(creditMonths)} of ${count(months.length)} months.`;
+  const topSupplier = model.suppliers[0];
+  const topThreeShare = model.suppliers.slice(0, 3).reduce((sum, row) => sum + row.value, 0);
+  const supplierHeadline = topSupplier
+    ? `${topSupplier.name} is the largest supplier with ${share(topSupplier.value, totals.netAmount)}; the top ${Math.min(3, model.suppliers.length)} make up ${share(topThreeShare, totals.netAmount)}.`
+    : undefined;
+  const warehouseHeadline = model.warehouses.length === 1
+    ? `All purchases were received at ${model.warehouses[0].name}.`
+    : model.warehouses[0] ? `${model.warehouses[0].name} received the most, ${share(model.warehouses[0].value, totals.netAmount)}.` : undefined;
 
   return (
     <>
@@ -29,6 +49,8 @@ export function PurchaseAnalyticsCharts({
         <ChartCard
           title="Net Purchases By Month"
           subtitle="Posted purchase value each month; the dashed line is the monthly average"
+          headline={trendHeadline}
+          help="Net value of posted purchase invoices in each month of the selected period. Months with no purchases show as zero."
           metric={{ label: 'Monthly Average', value: money(model.averageMonthly) }}
           table={{
             columns: [
@@ -61,6 +83,8 @@ export function PurchaseAnalyticsCharts({
         <ChartCard
           title="Gross To Net"
           subtitle="How discount, tax, and freight move gross value to the net amount"
+          headline={bridgeHeadline}
+          help="Starts at the gross value of the items, takes off discount, adds tax and freight, and ends at the net amount owed or paid."
           legend={[
             { name: 'Total', color: theme.series.blue },
             { name: 'Reduces', color: theme.series.teal },
@@ -96,6 +120,8 @@ export function PurchaseAnalyticsCharts({
         <ChartCard
           title="Cash And Credit By Month"
           subtitle="Net value bought on credit and paid in cash"
+          headline={creditHeadline}
+          help="Credit purchases are owed to suppliers and appear in Payables; cash purchases were paid at once."
           metric={{ label: 'On Credit', value: `${formatNumber(totals.creditShare, settings)}%` }}
           legend={[
             { name: 'Credit', color: theme.series.blue },
@@ -131,6 +157,8 @@ export function PurchaseAnalyticsCharts({
         <ChartCard
           title="Top Suppliers"
           subtitle="Net purchase value and share of the total"
+          headline={supplierHeadline}
+          help="Suppliers ranked by net purchase value. The percentage is each supplier's share of all purchases."
           metric={{ label: 'Suppliers', value: count(model.suppliers.length) }}
           table={{
             columns: [{ key: 'name', label: 'Supplier' }, { key: 'count', label: 'Invoices', numeric: true }, { key: 'net', label: 'Net', numeric: true }, { key: 'share', label: 'Share', numeric: true }],
@@ -143,6 +171,8 @@ export function PurchaseAnalyticsCharts({
         <ChartCard
           title="Received By Warehouse"
           subtitle="Where purchased stock was received"
+          headline={warehouseHeadline}
+          help="Net purchase value by the warehouse that received the stock."
           metric={{ label: 'Warehouses', value: count(model.warehouses.length) }}
           table={{
             columns: [{ key: 'name', label: 'Warehouse' }, { key: 'count', label: 'Invoices', numeric: true }, { key: 'net', label: 'Net', numeric: true }, { key: 'share', label: 'Share', numeric: true }],

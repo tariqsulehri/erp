@@ -1,20 +1,21 @@
 'use client';
 
 import { useId, useState, type ReactNode } from 'react';
-import { IconArrowDownRight, IconArrowUpRight } from '@tabler/icons-react';
+import { IconChartBar, IconDownload, IconTable } from '@tabler/icons-react';
 import {
   Bar,
   BarChart,
   CartesianGrid,
   Cell,
   LabelList,
+  Pie,
+  PieChart,
   ReferenceLine,
   ResponsiveContainer,
   Tooltip,
   XAxis,
   YAxis,
 } from 'recharts';
-import { SegmentedControl } from '@/components/ui/SegmentedControl';
 import { ChartTooltipBox } from './AnalyticsWidgets';
 import { barGradientStops, chartAxisTick, useChartTheme } from './chart-palette';
 
@@ -45,105 +46,38 @@ export interface LegendItem {
   line?: boolean;
 }
 
-/* ── KPI tile ─────────────────────────────────────────────────── */
+/* ── Chart card ────────────────────────────────────────────────── */
 
-export type TileTone = 'blue' | 'teal' | 'violet' | 'amber' | 'rose' | 'slate';
-
-/** 3D icon badge in the tile's tone. Works inside .kpi-tile and .stat-card.has-tone. */
-export function TileIcon({ children }: { children: ReactNode }) {
-  return <span className="tile-icon" aria-hidden>{children}</span>;
+function csvCell(value: string) {
+  return /[",\n]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value;
 }
 
-export function KpiTile({
-  label,
-  value,
-  detail,
-  change,
-  spark,
-  meter,
-  tone = 'blue',
-  icon,
-}: {
-  /** Colour identity of the tile: icon badge, gradient wash, and edge. */
-  tone?: TileTone;
-  /** Tabler icon, about 18px. */
-  icon?: ReactNode;
-  label: string;
-  value: string;
-  detail?: ReactNode;
-  /** Percent change against the previous month; null hides it. */
-  change?: { percent: number | null; text: string } | null;
-  /** Monthly values for the small trend line. */
-  spark?: number[];
-  /** Part-to-whole bar under the figure, e.g. Cash and Credit. */
-  meter?: Array<{ name: string; value: number; color: string }>;
-}) {
-  const meterTotal = meter?.reduce((sum, part) => sum + Math.max(part.value, 0), 0) ?? 0;
-  return (
-    <div className={`kpi-tile tone-${tone}`}>
-      {icon && <TileIcon>{icon}</TileIcon>}
-      <span className="kpi-tile-label">{label}</span>
-      <strong className="kpi-tile-value" title={value}>{value}</strong>
-      {spark && spark.length > 1 && <Sparkline values={spark} label={`${label} trend`} />}
-      <span className="kpi-tile-detail">
-        {change && change.percent !== null && (
-          <span className="kpi-delta" title={change.text}>
-            {change.percent >= 0
-              ? <IconArrowUpRight size={14} stroke={2} aria-hidden />
-              : <IconArrowDownRight size={14} stroke={2} aria-hidden />}
-            {`${Math.abs(change.percent).toFixed(1)}%`}
-          </span>
-        )}
-        {change && change.percent !== null && <span>{change.text}</span>}
-        {detail}
-      </span>
-      {meter && meterTotal > 0 && (
-        <div className="kpi-meter" role="img" aria-label={meter.map(part => `${part.name} ${Math.round(part.value / meterTotal * 100)}%`).join(', ')}>
-          {meter.filter(part => part.value > 0).map(part => (
-            <span key={part.name} title={`${part.name}: ${Math.round(part.value / meterTotal * 100)}%`} style={{ width: `${part.value / meterTotal * 100}%`, background: part.color }} />
-          ))}
-        </div>
-      )}
-    </div>
-  );
+/** Saves the card's table as a CSV file. */
+function downloadTable(title: string, table: ChartTable) {
+  const lines = [
+    table.columns.map(column => csvCell(column.label)).join(','),
+    ...table.rows.map(row => table.columns.map(column => csvCell(row[column.key] ?? '')).join(',')),
+  ];
+  const blob = new Blob([`${lines.join('\n')}\n`], { type: 'text/csv;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `${title.replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '').toLowerCase() || 'chart'}.csv`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
 }
 
-function Sparkline({ values, label }: { values: number[]; label: string }) {
-  const theme = useChartTheme();
-  const gradientId = useId();
-  const width = 92;
-  const height = 34;
-  const pad = 4;
-  const max = Math.max(...values, 0);
-  const min = Math.min(...values, 0);
-  const span = max - min || 1;
-  const points = values.map((value, index) => ({
-    x: pad + index * (width - pad * 2) / (values.length - 1),
-    y: pad + (1 - (value - min) / span) * (height - pad * 2),
-  }));
-  const line = points.map(point => `${point.x.toFixed(1)},${point.y.toFixed(1)}`).join(' ');
-  const last = points[points.length - 1];
-  const area = `${pad},${height - pad} ${line} ${last.x.toFixed(1)},${height - pad}`;
-  return (
-    <svg className="kpi-tile-spark" width={width} height={height} viewBox={`0 0 ${width} ${height}`} role="img" aria-label={label}>
-      <defs>
-        <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor={theme.series.blue} stopOpacity={0.18} />
-          <stop offset="100%" stopColor={theme.series.blue} stopOpacity={0} />
-        </linearGradient>
-      </defs>
-      <polygon points={area} fill={`url(#${gradientId})`} />
-      <polyline points={line} fill="none" stroke={theme.series.blue} strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
-      <circle cx={last.x} cy={last.y} r={3.5} fill={theme.series.blue} stroke={theme.surface} strokeWidth={2} />
-    </svg>
-  );
-}
-
-/* ── Chart card with Chart / Table switch ─────────────────────── */
-
+/**
+ * Chart card: title with a "?" explanation, one-line subtitle, a bold headline that states the finding,
+ * and icon buttons to switch to the table view or download the table. Every chart keeps a Table view.
+ */
 export function ChartCard({
   title,
   subtitle,
+  headline,
+  help,
   metric,
   legend,
   table,
@@ -151,18 +85,25 @@ export function ChartCard({
 }: {
   title: string;
   subtitle: string;
+  /** The finding in one sentence, e.g. "86% of purchases are on credit." */
+  headline?: ReactNode;
+  help?: string;
   metric?: { label: string; value: string };
   legend?: LegendItem[];
   table: ChartTable;
   children: ReactNode;
 }) {
-  const [view, setView] = useState<'chart' | 'table'>('chart');
+  const [showTable, setShowTable] = useState(false);
   return (
     <section className="chart-card" aria-label={title}>
       <div className="chart-card-head">
-        <div style={{ minWidth: 0 }}>
-          <h2 className="chart-card-title">{title}</h2>
+        <div className="chart-card-heading">
+          <h2 className="chart-card-title">
+            {title}
+            {help && <span className="stat-tile-help chart-card-help" role="note" tabIndex={0} title={help} aria-label={`About ${title}: ${help}`}>?</span>}
+          </h2>
           <div className="chart-card-subtitle">{subtitle}</div>
+          {headline && <p className="chart-card-headline">{headline}</p>}
         </div>
         <div className="chart-card-tools">
           {metric && (
@@ -171,17 +112,35 @@ export function ChartCard({
               <strong>{metric.value}</strong>
             </div>
           )}
-          <SegmentedControl
-            label={`${title} View`}
-            value={view}
-            onChange={setView}
-            options={[{ value: 'chart', label: 'Chart' }, { value: 'table', label: 'Table' }]}
-          />
+          <button
+            type="button"
+            className="chart-card-tool"
+            aria-pressed={showTable}
+            aria-label={showTable ? `Show ${title} Chart` : `Show ${title} Table`}
+            title={showTable ? 'Show Chart' : 'Show Table'}
+            onClick={() => setShowTable(value => !value)}
+          >
+            {showTable ? <IconChartBar size={16} stroke={1.8} aria-hidden /> : <IconTable size={16} stroke={1.8} aria-hidden />}
+          </button>
+          <button
+            type="button"
+            className="chart-card-tool"
+            aria-label={`Download ${title} As CSV`}
+            title="Download CSV"
+            disabled={table.rows.length === 0}
+            onClick={() => downloadTable(title, table)}
+          >
+            <IconDownload size={16} stroke={1.8} aria-hidden />
+          </button>
         </div>
       </div>
-      {view === 'chart' && legend && legend.length > 1 && <SeriesLegend items={legend} />}
       <div className="chart-card-body">
-        {view === 'chart' ? children : <ChartDataTable table={table} />}
+        {showTable ? <ChartDataTable table={table} /> : (
+          <>
+            {legend && legend.length > 1 && <SeriesLegend items={legend} />}
+            {children}
+          </>
+        )}
       </div>
     </section>
   );
@@ -277,6 +236,23 @@ function MoneyTooltip({ active, payload, title, format, colors }: {
   );
 }
 
+/** Dark value pill above a column, drawn only where the data row carries text in the label key. */
+function pillLabel(theme: ReturnType<typeof useChartTheme>) {
+  return function PillLabel(props: any) {
+    const text = String(props.value ?? '');
+    if (!text) return null;
+    const width = text.length * 7 + 14;
+    const cx = Number(props.x) + Number(props.width) / 2;
+    const top = Number(props.y) - 24;
+    return (
+      <g>
+        <rect x={cx - width / 2} y={top} width={width} height={19} rx={9.5} fill={theme.heading} />
+        <text x={cx} y={top + 13} textAnchor="middle" fontSize={11} fontWeight={600} fontFamily="var(--font-code)" fill={theme.surface}>{text}</text>
+      </g>
+    );
+  };
+}
+
 /** Monthly columns for one measure, with the average as a reference line and the peak month labelled. */
 export function MonthlyColumnChart({
   data,
@@ -306,7 +282,7 @@ export function MonthlyColumnChart({
   const color = theme.series.blue;
   return (
     <ResponsiveContainer width="100%" height={height}>
-      <BarChart data={labelled} margin={{ top: 22, right: 8, left: 0, bottom: 0 }} barCategoryGap="28%">
+      <BarChart data={labelled} margin={{ top: 30, right: 8, left: 0, bottom: 0 }} barCategoryGap="24%">
         <BarGradientDefs prefix={prefix} colors={[color]} />
         <CartesianGrid stroke={theme.grid} vertical={false} />
         <XAxis dataKey="label" tick={tick} axisLine={{ stroke: theme.border }} tickLine={false} interval="preserveStartEnd" minTickGap={8} />
@@ -315,8 +291,9 @@ export function MonthlyColumnChart({
         {average !== undefined && average > 0 && (
           <ReferenceLine y={average} stroke={theme.axisText} strokeDasharray="4 4" ifOverflow="extendDomain" />
         )}
-        <Bar dataKey={dataKey} name={seriesName} fill={`url(#${gradientId(prefix, color)})`} radius={[4, 4, 0, 0]} maxBarSize={24}>
-          <LabelList dataKey="peakLabel" position="top" offset={8} fontSize={12} fontWeight={600} fill={theme.heading} />
+        {/* Tube style: each month has a light track to full height, the value fills it from the baseline. */}
+        <Bar dataKey={dataKey} name={seriesName} fill={`url(#${gradientId(prefix, color)})`} radius={[6, 6, 6, 6]} maxBarSize={30} background={{ fill: theme.grid, radius: 6 }}>
+          <LabelList dataKey="peakLabel" content={pillLabel(theme)} />
         </Bar>
       </BarChart>
     </ResponsiveContainer>
@@ -360,8 +337,9 @@ export function StackedMonthlyChart({
             fill={`url(#${gradientId(prefix, item.color)})`}
             stroke={theme.surface}
             strokeWidth={2}
-            radius={index === series.length - 1 ? [4, 4, 0, 0] : [0, 0, 0, 0]}
-            maxBarSize={24}
+            radius={index === series.length - 1 ? [6, 6, 0, 0] : [0, 0, 0, 0]}
+            maxBarSize={30}
+            background={index === 0 ? { fill: theme.grid, radius: 6 } : undefined}
           />
         ))}
       </BarChart>
@@ -463,5 +441,58 @@ export function RankedBars({
         <div className="ranked-bars-more">{`${rest.length} more: ${format(restValue)} (${(total > 0 ? restValue / total * 100 : 0).toFixed(1)}%)`}</div>
       )}
     </>
+  );
+}
+
+/** Donut with the total in the middle and a legend of count and share beside it. For part-to-whole with up to 6 parts. */
+export function DonutChart({
+  items,
+  centerValue,
+  centerLabel,
+  format,
+}: {
+  items: Array<{ name: string; value: number; color: string }>;
+  centerValue: string;
+  centerLabel: string;
+  format: Format;
+}) {
+  const theme = useChartTheme();
+  const prefix = useGradientPrefix();
+  const total = items.reduce((sum, item) => sum + item.value, 0);
+  if (total <= 0) return <div className="chart-empty">No data yet.</div>;
+  const tooltip = ({ active, payload }: any) => {
+    if (!active || !payload?.length) return null;
+    const item = payload[0].payload as { name: string; value: number; color: string };
+    return <ChartTooltipBox entries={[{ key: item.name, name: item.name, color: item.color, value: `${format(item.value)} (${(item.value / total * 100).toFixed(0)}%)` }]} />;
+  };
+  return (
+    <div className="donut-layout">
+      <div className="donut-plot">
+        <ResponsiveContainer width="100%" height="100%">
+          <PieChart>
+            <BarGradientDefs prefix={prefix} colors={items.map(item => item.color)} />
+            <Tooltip content={tooltip} />
+            <Pie data={items} dataKey="value" nameKey="name" innerRadius="70%" outerRadius="100%" paddingAngle={1} stroke={theme.surface} strokeWidth={2} startAngle={90} endAngle={-270}>
+              {items.map(item => <Cell key={item.name} fill={`url(#${gradientId(prefix, item.color)})`} />)}
+            </Pie>
+          </PieChart>
+        </ResponsiveContainer>
+        <div className="donut-center" aria-hidden>
+          <strong>{centerValue}</strong>
+          <span>{centerLabel}</span>
+        </div>
+      </div>
+      <table className="donut-legend">
+        <tbody>
+          {items.map(item => (
+            <tr key={item.name}>
+              <td><span className="swatch" style={{ background: item.color }} aria-hidden />{item.name}</td>
+              <td className="num">{format(item.value)}</td>
+              <td className="num">{`${(item.value / total * 100).toFixed(0)}%`}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }
