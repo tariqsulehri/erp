@@ -67,20 +67,20 @@ export default function LoginPage() {
                 <rect x="3" y="15" width="14" height="4" rx="1" fill="currentColor" opacity="0.6" />
               </svg>
             </span>
-            <span style={{ fontSize: 'var(--font-size-lg)', fontWeight: 600, color: 'var(--color-sidebar-text-active)' }}>ERP Finance</span>
+            <span style={{ fontSize: 'var(--font-size-lg)', fontWeight: 600, color: 'var(--color-login-text)' }}>ERP Finance</span>
           </div>
 
-          <h1 style={{ margin: '0 0 12px', fontSize: 'var(--font-size-3xl)', fontWeight: 600, lineHeight: 1.2, letterSpacing: '-0.02em', color: 'var(--color-sidebar-text-active)' }}>
+          <h1 style={{ margin: '0 0 12px', fontSize: 'var(--font-size-3xl)', fontWeight: 600, lineHeight: 1.2, letterSpacing: '-0.02em', color: 'var(--color-login-text)' }}>
             Complete Financial Control For Your Business
           </h1>
-          <p style={{ margin: '0 0 28px', fontSize: 'var(--font-size-md)', lineHeight: 1.6, color: 'var(--color-sidebar-text)' }}>
+          <p style={{ margin: '0 0 28px', fontSize: 'var(--font-size-md)', lineHeight: 1.6, color: 'var(--color-login-muted)' }}>
             Multi-company ERP with double-entry accounting, real-time reporting, and IFRS and GAAP support.
           </p>
 
           <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 10 }}>
             {FEATURES.map(feature => (
-              <li key={feature} style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 'var(--font-size-md)', color: 'var(--color-sidebar-text)' }}>
-                <IconCheck size={16} stroke={1.8} aria-hidden style={{ color: 'var(--color-sidebar-active)', flexShrink: 0 }} />
+              <li key={feature} style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 'var(--font-size-md)', color: 'var(--color-login-muted)' }}>
+                <IconCheck size={16} stroke={1.8} aria-hidden style={{ color: 'var(--color-login-accent)', flexShrink: 0 }} />
                 <span>{feature}</span>
               </li>
             ))}

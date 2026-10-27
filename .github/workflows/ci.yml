@@ -111,6 +111,10 @@ jobs:
         working-directory: frontend
         run: npm run lint
 
+      - name: Run Frontend Tests (with coverage)
+        working-directory: frontend
+        run: npm run test:coverage -- --ci
+
       - name: Build Frontend
         working-directory: frontend
         env:
@@ -123,16 +127,30 @@ jobs:
         continue-on-error: true
         run: npm audit --omit=dev --audit-level=high
 
+  deployment-scripts:
+    name: Deployment Scripts
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Test deploy, status, rollback and backup scripts
+        run: deployment/tests/lib.test.sh
+
   docker-images:
     name: Docker Images Build
     runs-on: ubuntu-latest
-    needs: [ backend-ci, frontend-ci ]
+    needs: [ backend-ci, frontend-ci, deployment-scripts ]
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
 
       - name: Build Backend Image
         run: docker build -t erp-backend:ci backend
+
+      # The image runs database migrations on the server; the Prisma CLI must work inside it.
+      - name: Check Prisma CLI Inside Backend Image
+        run: docker run --rm erp-backend:ci node node_modules/prisma/build/index.js --version
 
       - name: Build Frontend Image
         run: docker build -t erp-frontend:ci frontend

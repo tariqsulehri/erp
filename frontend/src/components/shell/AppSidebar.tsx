@@ -108,7 +108,7 @@ function NavGroupBlock({ group, open, parentActive, activeHref, collapsed, onTog
     <div>
       <button
         type="button"
-        className={`nav-item${parentActive ? (collapsed ? ' active' : ' is-parent-active') : ''}`}
+        className={`nav-item${parentActive ? (collapsed ? ' active' : ' is-parent-active') : ''}${open ? ' is-open' : ''}`}
         onClick={onToggle}
         aria-expanded={open}
         aria-controls={listId}
@@ -119,9 +119,9 @@ function NavGroupBlock({ group, open, parentActive, activeHref, collapsed, onTog
         <span className={`nav-chevron${open ? ' open' : ''}`} aria-hidden><IconChevronDown size={14} stroke={1.8} /></span>
       </button>
       {open && (
-        <div className="nav-sub-list" id={listId}>
-          {group.items.map(item => (
-            <NavLink key={item.href} item={item} sub active={item.href === activeHref} collapsed={collapsed} postingDisabled={postingDisabled} postingReason={postingReason} />
+        <div className={`nav-sub-list${group.numbered ? ' is-numbered' : ''}`} id={listId}>
+          {group.items.map((item, index) => (
+            <NavLink key={item.href} item={item} sub step={group.numbered ? index + 1 : undefined} active={item.href === activeHref} collapsed={collapsed} postingDisabled={postingDisabled} postingReason={postingReason} />
           ))}
         </div>
       )}
@@ -129,10 +129,12 @@ function NavGroupBlock({ group, open, parentActive, activeHref, collapsed, onTog
   );
 }
 
-function NavLink({ item, active, sub = false, collapsed, postingDisabled, postingReason }: {
+function NavLink({ item, active, sub = false, step, collapsed, postingDisabled, postingReason }: {
   item: NavLeaf;
   active: boolean;
   sub?: boolean;
+  /** Setup step number shown before the icon. */
+  step?: number;
   collapsed: boolean;
   postingDisabled: boolean;
   postingReason: string;
@@ -142,6 +144,7 @@ function NavLink({ item, active, sub = false, collapsed, postingDisabled, postin
   const data = { 'data-module': item.moduleKey, 'data-feature': item.featureKey, 'data-permission': item.permissionKey };
   const content = (
     <>
+      {step !== undefined && <span className="nav-item-step" aria-label={`Step ${step}`}>{step}</span>}
       <span className="nav-item-icon"><Icon {...(sub ? SUB_ICON : ICON)} /></span>
       <span className="nav-item-label">{item.label}</span>
       {item.code && <span className="nav-item-code">{item.code}</span>}

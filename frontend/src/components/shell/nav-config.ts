@@ -50,6 +50,8 @@ export interface NavGroup {
   label: string;
   icon: TablerIcon;
   items: NavLeaf[];
+  /** Shows the pages as numbered steps, in the order they are set up. */
+  numbered?: boolean;
 }
 
 export type NavEntry = { type: 'link'; item: NavLeaf } | { type: 'group'; group: NavGroup };
@@ -136,18 +138,20 @@ export const NAV_SECTIONS: NavSection[] = [
         key: 'config',
         label: 'Configuration',
         icon: IconAdjustmentsHorizontal,
+        // Setup order: company settings and the fiscal year first, then accounts, places, stock, and users.
+        numbered: true,
         items: [
-          { label: 'Chart of Accounts', href: '/accounts', icon: IconScale, moduleKey: 'config', featureKey: 'chart-of-accounts', permissionKey: 'config.chart_of_accounts.view' },
-          { label: 'Fiscal Year', href: '/fiscal-year', icon: IconCalendarStats, moduleKey: 'config', featureKey: 'fiscal-year', permissionKey: 'config.fiscal_year.view' },
           { label: 'General Settings', href: '/settings', icon: IconAdjustmentsHorizontal, moduleKey: 'config', featureKey: 'settings', permissionKey: 'config.settings.view' },
-          { label: 'Users', href: '/settings/users', icon: IconUserShield, moduleKey: 'config', featureKey: 'users', permissionKey: 'config.users.view', userManagersOnly: true },
+          { label: 'Fiscal Year', href: '/fiscal-year', icon: IconCalendarStats, moduleKey: 'config', featureKey: 'fiscal-year', permissionKey: 'config.fiscal_year.view' },
+          { label: 'Chart of Accounts', href: '/accounts', icon: IconScale, moduleKey: 'config', featureKey: 'chart-of-accounts', permissionKey: 'config.chart_of_accounts.view' },
+          { label: 'States', href: '/settings/states', icon: IconMapPin, moduleKey: 'config', featureKey: 'states', permissionKey: 'config.states.view' },
+          { label: 'Cities', href: '/settings/cities', icon: IconMap, moduleKey: 'config', featureKey: 'cities', permissionKey: 'config.cities.view' },
+          { label: 'Areas', href: '/settings/areas', icon: IconBuildingCommunity, moduleKey: 'config', featureKey: 'areas', permissionKey: 'config.areas.view' },
           { label: 'Branches', href: '/inventory/branches', icon: IconBuildingStore, moduleKey: 'config', featureKey: 'branches', permissionKey: 'config.branches.view' },
           { label: 'Warehouses', href: '/inventory/warehouses', icon: IconBuildingWarehouse, moduleKey: 'config', featureKey: 'warehouses', permissionKey: 'config.warehouses.view' },
           { label: 'Categories', href: '/inventory/categories', icon: IconCategory2, moduleKey: 'config', featureKey: 'inventory-categories', permissionKey: 'config.inventory_categories.view' },
           { label: 'Units of Measure', href: '/inventory/uom', icon: IconRulerMeasure, moduleKey: 'config', featureKey: 'units-of-measure', permissionKey: 'config.units_of_measure.view' },
-          { label: 'States', href: '/settings/states', icon: IconMapPin, moduleKey: 'config', featureKey: 'states', permissionKey: 'config.states.view' },
-          { label: 'Cities', href: '/settings/cities', icon: IconMap, moduleKey: 'config', featureKey: 'cities', permissionKey: 'config.cities.view' },
-          { label: 'Areas', href: '/settings/areas', icon: IconBuildingCommunity, moduleKey: 'config', featureKey: 'areas', permissionKey: 'config.areas.view' },
+          { label: 'Users', href: '/settings/users', icon: IconUserShield, moduleKey: 'config', featureKey: 'users', permissionKey: 'config.users.view', userManagersOnly: true },
         ],
       }),
     ],

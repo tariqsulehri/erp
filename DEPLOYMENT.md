@@ -8,7 +8,7 @@ How to install, update, back up, restore and roll back the ERP on a server. Comm
 | Container | Image | Purpose |
 | --- | --- | --- |
 | `migrate` | `tariqsulehri/erp-be:<version>` | Runs once per deploy: installs a new database or applies pending migrations, then exits |
-| `erp_be` | `tariqsulehri/erp-be:<version>` | Backend API on `127.0.0.1:3071` (port 5000 inside Docker) |
+| `erp_be` | `tariqsulehri/erp-be:<version>` | Backend API on port `3071` (port 5000 inside Docker; set `BACKEND_BIND=127.0.0.1` to hide it) |
 | `erp_fe` | `tariqsulehri/erp-fe:<version>` | Frontend on port `3070`; the browser only talks to this |
 | `erp_caddy` (optional) | `caddy:2.8-alpine` | HTTPS on ports 80/443 with automatic certificates |
 
@@ -16,15 +16,17 @@ PostgreSQL runs outside these containers. The backend reaches it through `DATABA
 
 ## Release Images
 
-Build and push from a clean checkout of the release commit. Always use a version number, never `latest`.
+From a clean checkout of the release commit on a developer machine:
 
 ```bash
-VERSION=1.4.0
-docker build --platform linux/amd64 -t tariqsulehri/erp-be:$VERSION backend
-docker build --platform linux/amd64 -t tariqsulehri/erp-fe:$VERSION frontend
-docker push tariqsulehri/erp-be:$VERSION
-docker push tariqsulehri/erp-fe:$VERSION
+deployment/build-and-push.sh                 # version = today's date, e.g. 2026.10.27 (then .2, .3 the same day)
+deployment/build-and-push.sh 1.5.0           # or a version you choose
+deployment/build-and-push.sh --deploy        # build, push, then deploy on the server and show its status report
 ```
+
+The script builds both images for `linux/amd64`, stamps the version and git commit into them (shown by `status.sh`),
+and pushes each image as `<version>` and `latest`. The server address defaults to `root@161.97.110.121`, folder
+`/deployments/erp`, key `~/.ssh/id_aiscripto`; override with `DEPLOY_SSH`, `DEPLOY_DIR`, `DEPLOY_KEY`.
 
 ## First Install On A New Server
 
@@ -62,34 +64,51 @@ docker push tariqsulehri/erp-fe:$VERSION
 ## Update To A New Version
 
 ```bash
-./deploy.sh 1.5.0
+./deploy.sh 2026.10.27                       # a version tag (recommended)
+./deploy.sh                                  # latest
+./deploy.sh 2026.10.27 --no-backup           # skip the database backup
+./deploy.sh 2026.10.27 --no-auto-rollback    # keep the new version running even if unhealthy
 ```
 
-The script:
-1. pulls the images;
-2. takes a database backup into `backups/`;
-3. runs the `migrate` job;
-4. recreates only changed containers;
-5. waits for both health checks.
+The script shows numbered steps with timings:
+1. checks Docker and the settings files (database address, secrets of at least 32 characters);
+2. keeps the running images as `previous` so a rollback needs no download;
+3. pulls the images;
+4. backs up the database into `backups/` (unless `--no-backup`);
+5. runs the `migrate` job (pending migrations only on an existing database);
+6. starts the new backend and frontend;
+7. waits up to 3 minutes for both health checks; if they fail, it starts `previous` again automatically;
+8. runs smoke tests: sign-in page, frontend health, backend health, database connection.
 
-It stops at the first failure, and every successful deploy is recorded in `.deploy-history`.
+It ends with `RESULT: SUCCESS`, `DEPLOYED WITH WARNINGS`, or `FAILED`, followed by the status report:
+version, git commit, start time, health and uptime of each container; each endpoint with its HTTP code and
+response time; migrations applied and the latest one; CPU and memory; the app addresses; the last 5 deployments.
+Every run is recorded in `.deploy-history`.
+
+Print the same report at any time:
+
+```bash
+./status.sh
+```
 
 ## Roll Back
 
 ```bash
-tail .deploy-history          # find the previous version
-./rollback.sh 1.4.0
+./rollback.sh previous        # the version that ran before the last deploy (kept on this server)
+./rollback.sh 2026.10.27      # any version on Docker Hub
 ```
 
 Rollback changes containers only. If the failed version applied a migration that the previous version
-cannot work with, restore the backup taken just before that deploy (`backups/erp-<time>-before-1.5.0.dump`), then roll back.
+cannot work with, restore the backup taken just before that deploy (`backups/erp-<time>-before-<version>.dump`), then roll back.
 
 ## Backups
 
-- `deploy.sh` takes a backup before every deploy.
+- `deploy.sh` takes a backup before every deploy (unless `--no-backup`).
+- `backup.sh` uses the server's own `pg_dump` when it is at least the database's version (PostgreSQL 18 on the
+  current server), and the backend image's PostgreSQL 17 client only for databases up to version 17.
 - Schedule a nightly backup with cron on the server:
   ```
-  15 1 * * * cd /opt/erp/deployment && ./backup.sh nightly >> backups/backup.log 2>&1
+  15 1 * * * cd /deployments/erp && ./backup.sh nightly >> backups/backup.log 2>&1
   ```
 - Local backups older than 30 days are deleted (`KEEP_DAYS` changes this).
 - **Copy backups off the server every day**, for example with `rclone` or `aws s3 sync backups/ s3://<bucket>/erp/`. A backup on the same disk does not survive a disk or server loss.

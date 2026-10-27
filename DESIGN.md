@@ -31,33 +31,33 @@ colors:
   dark-blue: "#3b6fe0"
 typography:
   page-title:
-    fontFamily: "Inter, -apple-system, BlinkMacSystemFont, Segoe UI, system-ui, sans-serif"
+    fontFamily: "Poppins, Inter, -apple-system, BlinkMacSystemFont, Segoe UI, system-ui, sans-serif"
     fontSize: "1.25rem"
     fontWeight: 600
     lineHeight: 1.25
     letterSpacing: "-0.01em"
   section-title:
-    fontFamily: "Inter, system-ui, sans-serif"
+    fontFamily: "Poppins, Inter, system-ui, sans-serif"
     fontSize: "0.875rem"
     fontWeight: 600
     lineHeight: 1.4
   body:
-    fontFamily: "Inter, system-ui, sans-serif"
+    fontFamily: "Poppins, Inter, system-ui, sans-serif"
     fontSize: "0.875rem"
     fontWeight: 400
     lineHeight: 1.5
   control:
-    fontFamily: "Inter, system-ui, sans-serif"
+    fontFamily: "Poppins, Inter, system-ui, sans-serif"
     fontSize: "0.8125rem"
     fontWeight: 400
     lineHeight: 1.3
   label:
-    fontFamily: "Inter, system-ui, sans-serif"
+    fontFamily: "Poppins, Inter, system-ui, sans-serif"
     fontSize: "0.75rem"
     fontWeight: 600
     lineHeight: 1.3
   figure:
-    fontFamily: "Inter, system-ui, sans-serif"
+    fontFamily: "Poppins, Inter, system-ui, sans-serif"
     fontSize: "0.8125rem"
     fontWeight: 500
     fontFeature: "tnum"
@@ -138,10 +138,10 @@ Depth comes from refined directional lighting, layered multi-stop ambient shadow
 - Dimensional working surfaces with subtle directional gradient washes (`--grad-surface`) and top edge highlights on a cool, quiet ground (`Workspace Ground`)
 - Tactile 3D primary actions (`--grad-primary`) with specular top sheen, bottom support border, and active press depression
 - Structured secondary actions with frosted 3D button styling (`--grad-secondary`) and crisp bevel outlines
-- Navy anchor only in the sidebar, styled with deep micro-gradient and sleek active indicators
+- A light sidebar (white, ink text) with a Ledger Blue guide line beside the open group and a light blue current page; the navy is kept for the sign-in panel and the Dark theme sidebar
 - Compact 32px controls, 36px table rows, 6px control corners, 8px container corners
 - Layered 3D elevation: subtle ambient grounding + key light drop shadows for panels and floating modals
-- One open-source typeface (Inter), with tabular figures wherever numbers must line up (strictly NO licensed fonts)
+- One open-source typeface (Poppins, falling back to Inter), with tabular figures wherever numbers must line up and the code font for tile and chart figures (strictly NO licensed fonts)
 - Two themes, Light and Dark, sharing identical 3D gradient token architecture
 
 ## Colors
@@ -167,7 +167,7 @@ A Restrained palette: cool neutrals, one blue, and three status hues.
 ### Named Rules
 **The One Blue Rule.** Ledger Blue marks what you can act on and what is selected. It never decorates: no blue header bars, no blue stripes, no blue icon tiles.
 
-**The Navy Border Rule.** Navy appears in the sidebar and nowhere else. Table headers, panel headers, and list panes are light.
+**The Navy Border Rule.** Navy appears on the sign-in panel and the Dark theme sidebar, and nowhere else. Table headers, panel headers, and list panes are light.
 
 **The Token-Only Rule.** Components never contain hex values or `rgba()` literals. If a color is missing, add a token to design-tokens.css for both themes.
 
@@ -175,11 +175,11 @@ A Restrained palette: cool neutrals, one blue, and three status hues.
 
 ## Typography
 
-**UI Font:** Inter (with -apple-system, Segoe UI, system-ui fallback)
-**Figures:** Inter with `font-variant-numeric: tabular-nums`, set only on numeric cells, numeric inputs and totals, because Inter's tabular set also widens hyphens in codes like `BR-001`.
+**UI Font:** Poppins (open source, Google Fonts), falling back to Inter, -apple-system, Segoe UI, system-ui
+**Figures:** the UI font with `font-variant-numeric: tabular-nums`, set only on numeric cells, numeric inputs and totals, because the tabular set also widens hyphens in codes like `BR-001`. Tile figures, chart pills, legends, and code chips use `--font-code`, as in the dashboard samples.
 **Code Font:** `--font-code` (SF Mono, Consolas), only for code, JSON, and import previews.
 
-**Character:** one well-tuned workhorse sans for everything. Inter is kept deliberately: it has true tabular figures, and all 50+ screens already use it. `--font-mono` is a historic alias of the UI font, so amounts never switch to a monospace costume.
+**Character:** one geometric workhorse sans for everything, Poppins, at the token sizes (13px controls and table cells, 14px body, 16px section titles). `--font-mono` is a historic alias of the UI font, so amounts never switch to a monospace costume.
 
 ### Hierarchy
 - **Page Title** (600, 20px, 1.25): one per screen, in the Page Header.
@@ -245,7 +245,7 @@ Surfaces and controls embrace a **3D Dimensional Standard**. Rather than stark f
 Gently squared: 6px on controls (inputs, buttons, selects, segments), 8px on containers (panels, dialogs, dropdown menus), full pill only on status badges. Borders are 1px everywhere. A 1.5px or 2px border is a leftover to remove.
 
 ### Named Rules
-**The No Side-Stripe Rule.** No colored left or right border on rows, cards, alerts, or list items. Show selection with Ledger Blue Tint, plus a 1px inset outline where more emphasis is needed.
+**The No Side-Stripe Rule.** No colored left or right border on rows, alerts, or list items; the only exception is the 3px tone edge of a `SummaryCard` at the top of a setup screen. Show selection with Ledger Blue Tint, plus a 1px inset outline where more emphasis is needed.
 
 ## Components
 
@@ -253,7 +253,7 @@ Use the shared component; don't restyle it locally. If a variant is missing, add
 
 ### App Shell — `components/shell/`
 - `nav-config.ts` is the single navigation tree (sections → links or groups → pages). Add a page there and the sidebar, breadcrumb and active state follow. The active route is the longest matching href.
-- `AppSidebar`: navy, 248px, grouped by section; one group open at a time. The active page has a tinted fill and subtle 3D left pip; its group only brightens (one selected row at a time). Collapses to a 64px icon rail (remembered per browser) with tooltips; on tablet and phone it is a drawer.
+- `AppSidebar`: light (white) in the Light theme and navy in the Dark theme, 248px, grouped by section; one group open at a time. An open group heading turns Ledger Blue with a blue guide line beside its pages; the current page has a light blue fill and blue text. Configuration pages are numbered setup steps in setup order (`numbered: true` in `nav-config.ts`). Collapses to a 64px icon rail (remembered per browser) with tooltips; on tablet and phone it is a drawer.
 - `AppHeader`: breadcrumb (group › page), mobile menu button, and the user menu (Appearance: Light / Dark, then Sign Out).
 
 ### Page Header — `PageHeader`
@@ -319,6 +319,12 @@ Use the shared component; don't restyle it locally. If a variant is missing, add
 - Charts sit in a `ChartCard`: title with a "?" explanation, one-line subtitle, a bold one-sentence finding (`headline`), and icon buttons to switch to the table or download it as CSV. Every card has a Table view.
 - Columns are drawn as rounded tubes on a light track; only the peak carries a dark value pill. Bars use the vertical light-to-deep gradient from `BarGradientDefs`. One value axis per chart, never two.
 
+### Setup Screens — `ScreenHeader`, `SummaryCard`, `FormDialog` (reference: Fiscal Years)
+- `ScreenHeader`: outlined icon tile, title with an optional badge, one-line description, optional search or actions on the right.
+- `SummaryCard`: up to three across, each with a tinted icon chip, a small caps label, a bold value, and one muted line; the tone gives the 3px left edge.
+- The list sits in a `list-card`: toolbar (filter search, select filters, the primary New button), then a `data-table data-table-caps` table with small caps headers, a `code-chip` for the record code, `status-pill`s, and `text-action` links (Edit, Periods, Lock; destructive actions in red).
+- Create and edit forms open in a `FormDialog`: header with a blue accent bar, an About info box, small caps labels over filled fields in a 2 or 3 column grid, an options or preview box, and full-width Save and Cancel at the bottom.
+
 ### Voucher And Document Forms
 - **Top:** Page Header with the document title and number, a status badge next to the title, and actions on the right (New, Print as secondary; Save Draft as secondary; the posting action as primary).
 - **Header fields:** one `.form-grid` panel: number (read-only), date, reference, party, and description.
@@ -344,14 +350,14 @@ When touching a screen that predates this standard:
 - **Do** right-align every amount, quantity, and count, with tabular figures.
 - **Do** mark required fields with `*` and validate before calling the API.
 - **Do** write labels, buttons, and headers in Title Case, in plain words a non-native English speaker understands.
-- **Do** stick strictly to open-source fonts (Inter and system fallbacks); never introduce licensed font dependencies.
+- **Do** stick strictly to open-source fonts (Poppins, Inter, and system fallbacks); never introduce licensed font dependencies.
 - **Do** take currency, date, timezone, and number formats from settings.
 - **Do** give every icon-only button an `aria-label` and a `title`.
 - **Do** check every change in both Light and Dark.
 
 ### Don't:
 - **Don't** use arbitrary, neon, or horizontal novelty gradients; all gradients must adhere to the 180° directional top-down lighting tokens.
-- **Don't** require commercial or licensed fonts (e.g. Giorgio Sans); open-source Inter is the single typography standard.
+- **Don't** require commercial or licensed fonts (e.g. Giorgio Sans); open-source Poppins is the single typography standard.
 - **Don't** use navy or blue bars as panel or table headers.
 - **Don't** use uppercase labels or table headers.
 - **Don't** use font sizes below 12px, or weights outside 400–700.

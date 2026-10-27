@@ -15,6 +15,15 @@ RUN npm run build
 # Production stage: Next.js standalone output (server.js plus only the files it needs)
 FROM node:22-alpine AS runner
 
+# Version facts shown by deployment/status.sh (set by deployment/build-and-push.sh).
+ARG APP_VERSION=dev
+ARG GIT_COMMIT=unknown
+LABEL org.opencontainers.image.title="ERP frontend" \
+      org.opencontainers.image.version="$APP_VERSION" \
+      org.opencontainers.image.revision="$GIT_COMMIT" \
+      org.opencontainers.image.source="https://github.com/tariqsulehri/erp"
+ENV APP_VERSION=$APP_VERSION GIT_COMMIT=$GIT_COMMIT
+
 WORKDIR /app
 
 ENV NODE_ENV=production

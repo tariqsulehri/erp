@@ -30,16 +30,18 @@
   --color-border-focus:   #1f56c7;
 
   /* Navigation — the only navy region */
-  --color-sidebar-bg:          #182130;
-  --color-sidebar-hover:       #222d40;
-  --color-sidebar-active:      #7ea3ee;
-  --color-sidebar-active-bg:   rgba(126,163,238,.16);
-  --color-sidebar-glow:        rgba(31,86,199,.22);
-  --color-sidebar-text:        #b9c3d1;
-  --color-sidebar-text-active: #ffffff;
-  --color-sidebar-border:      rgba(255,255,255,.08);
+  /* Light sidebar (menu template): white surface, ink text, Ledger Blue for the open group and the current page. */
+  --color-sidebar-bg:          #ffffff;
+  --color-sidebar-hover:       #f2f5fa;
+  --color-sidebar-active:      #1f56c7;
+  --color-sidebar-active-bg:   #e6eefc;
+  --color-sidebar-glow:        rgba(31,86,199,.12);
+  --color-sidebar-text:        #3b4658;
+  --color-sidebar-text-active: #0f1b2d;
+  --color-sidebar-border:      #e3e8ef;
   --color-sidebar-logo-bg:     #1f56c7;
-  --color-sidebar-section:     #9fb0c7;
+  --color-sidebar-section:     #7a8699;
+  --color-sidebar-guide:       #9db7ea;
 
   --color-topbar-bg:     #ffffff;
   --color-topbar-border: #e3e8ee;
@@ -193,6 +195,7 @@
   --color-sidebar-border:      rgba(255,255,255,.06);
   --color-sidebar-logo-bg:     #3b6fe0;
   --color-sidebar-section:     #7b889c;
+  --color-sidebar-guide:       rgba(107,155,255,.45);
 
   --color-topbar-bg:     #141c2a;
   --color-topbar-border: #2a3547;
@@ -312,7 +315,12 @@
    ================================================================ */
 :root {
   /* One UI face for everything, with tabular figures so numbers align. */
-  --font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  /* Navy sign-in panel: same in both themes (the sidebar is light, so the panel keeps its own text colours). */
+  --color-login-text:   #ffffff;
+  --color-login-muted:  #b9c3d1;
+  --color-login-accent: #7ea3ee;
+
+  --font-family: 'Poppins', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
   /* Historic name: amounts and codes use the UI face, not a monospace costume. */
   --font-mono:   var(--font-family);
   /* Real monospace, only for code, JSON, or import previews. */

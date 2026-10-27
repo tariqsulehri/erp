@@ -1,10 +1,13 @@
-# Production stack. Images are built and pushed by the release process and selected with APP_TAG.
+# Production stack. Images are built by build-and-push.sh and selected with APP_TAG.
 # Use ./deploy.sh <tag> instead of running this file by hand; see DEPLOYMENT.md.
+# The project name is fixed so container and volume names stay the same whatever the folder is called.
+name: erp
+
 services:
 
   # ── Database job: installs a new database or applies pending migrations, then exits ──
   migrate:
-    image: tariqsulehri/erp-be:${APP_TAG:?Set APP_TAG to the release version}
+    image: tariqsulehri/erp-be:${APP_TAG:-latest}
     platform: linux/amd64
     env_file:
       - .env.backend
@@ -15,7 +18,7 @@ services:
 
   # ── Backend API ───────────────────────────────────────────
   backend:
-    image: tariqsulehri/erp-be:${APP_TAG:?Set APP_TAG to the release version}
+    image: tariqsulehri/erp-be:${APP_TAG:-latest}
     platform: linux/amd64
     container_name: erp_be
     restart: unless-stopped
@@ -24,11 +27,11 @@ services:
     environment:
       NODE_ENV: production
       PORT: 5000
-    depends_on:
-      migrate:
-        condition: service_completed_successfully
+    volumes:
+      - erp_be_uploads:/tmp/erp_be_uploads
     ports:
-      - "127.0.0.1:3071:5000"
+      # Set BACKEND_BIND=127.0.0.1 when nothing outside this server needs the API directly.
+      - "${BACKEND_BIND:-0.0.0.0}:${BACKEND_PORT:-3071}:5000"
     healthcheck:
       # Readiness: the API answers and can reach the database.
       test: ["CMD-SHELL", "curl -sf http://localhost:5000/health/database || exit 1"]
@@ -39,7 +42,7 @@ services:
 
   # ── Frontend (Next.js) ──────────────────────────────────
   frontend:
-    image: tariqsulehri/erp-fe:${APP_TAG:?Set APP_TAG to the release version}
+    image: tariqsulehri/erp-fe:${APP_TAG:-latest}
     platform: linux/amd64
     container_name: erp_fe
     restart: unless-stopped
@@ -53,7 +56,7 @@ services:
         condition: service_healthy
     ports:
       # Set FRONTEND_BIND=127.0.0.1 once the https profile (Caddy) is in use, so only HTTPS is public.
-      - "${FRONTEND_BIND:-0.0.0.0}:3070:3000"
+      - "${FRONTEND_BIND:-0.0.0.0}:${FRONTEND_PORT:-3070}:3000"
     healthcheck:
       test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000/api/health', (r) => process.exit(r.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1));"]
       interval: 10s
@@ -81,5 +84,6 @@ services:
         condition: service_healthy
 
 volumes:
+  erp_be_uploads:
   caddy_data:
   caddy_config:
