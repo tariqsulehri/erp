@@ -62,4 +62,7 @@ export interface SaleListRow {
   customer_code?: string | null;
   customer_name: string;
   line_count: number;
+  /** Posted documents only; receipts are applied to the oldest amounts first. */
+  paid_amount?: string | null;
+  balance_due?: string | null;
 }

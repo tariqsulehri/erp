@@ -196,7 +196,7 @@ export function PostedSalesView({
           </PostedListFilters>
         )}
         table={(
-          <table className="data-table" style={{ tableLayout: 'fixed', minWidth: 1096 }}>
+          <table className="data-table" style={{ tableLayout: 'fixed', minWidth: 1206 }}>
             <colgroup>
               <col style={{ width: 120 }} />
               <col style={{ width: 104 }} />
@@ -209,6 +209,7 @@ export function PostedSalesView({
               <col style={{ width: 100 }} />
               <col style={{ width: 100 }} />
               <col style={{ width: 120 }} />
+              <col style={{ width: 110 }} />
               <col style={{ width: 52 }} />
             </colgroup>
             <thead>
@@ -224,16 +225,17 @@ export function PostedSalesView({
                 <th className="num">Discount</th>
                 <th className="num">Tax</th>
                 <th className="num">Net Amount</th>
+                <th className="num">Balance Due</th>
                 <th><span className="sr-only">Actions</span></th>
               </tr>
             </thead>
             <tbody>
-              {listQuery.isLoading && <TableMessageRow colSpan={12} title="Loading Sales…" loading />}
+              {listQuery.isLoading && <TableMessageRow colSpan={13} title="Loading Sales…" loading />}
               {listQuery.error && (
-                <TableMessageRow colSpan={12} title="Could Not Load Sales" description={friendlyErrorMessage(listQuery.error, 'Could not load the Sale List. Please try again.')} />
+                <TableMessageRow colSpan={13} title="Could Not Load Sales" description={friendlyErrorMessage(listQuery.error, 'Could not load the Sale List. Please try again.')} />
               )}
               {!listQuery.isLoading && !listQuery.error && rows.length === 0 && (
-                <TableMessageRow colSpan={12} title={`No ${statusFilterLabel === 'All Statuses' ? '' : `${statusFilterLabel} `}Sales Found`} description="Change or clear the filters to see more records." />
+                <TableMessageRow colSpan={13} title={`No ${statusFilterLabel === 'All Statuses' ? '' : `${statusFilterLabel} `}Sales Found`} description="Change or clear the filters to see more records." />
               )}
               {rows.map(row => (
                 <tr key={row.id} className={`${postedListRowClass}${selectedId === row.id ? ' is-selected' : ''}`} onClick={() => setSelectedId(row.id)}>
@@ -248,6 +250,7 @@ export function PostedSalesView({
                   <td className="num">{money(Number(row.discount_amount))}</td>
                   <td className="num">{money(Number(row.tax_amount))}</td>
                   <td className="num cell-strong">{money(Number(row.net_amount))}</td>
+                  <td className={(row.balance_due === null || row.balance_due === undefined) ? 'num cell-muted' : 'num'}>{(row.balance_due === null || row.balance_due === undefined) ? '—' : money(Number(row.balance_due))}</td>
                   <td className="cell-actions">
                     <Button variant="ghost" size="sm" icon={<IconEye {...iconProps} />} onClick={event => { event.stopPropagation(); setSelectedId(row.id); }} aria-label={`View Sale ${row.sale_number}`} title="View Sale" />
                   </td>
@@ -334,6 +337,10 @@ export function PostedSalesView({
                     ['Tax', money(Number(detail.tax_amount))],
                     ['Freight', money(Number(detail.freight_amount))],
                     ['Net Amount', money(Number(detail.net_amount))],
+                    ...((detail.balance_due === null || detail.balance_due === undefined) ? [] : [
+                      ['Paid', money(Number(detail.paid_amount))] as [string, string],
+                      ['Balance Due', money(Number(detail.balance_due))] as [string, string],
+                    ]),
                   ]}
                 />
               </>

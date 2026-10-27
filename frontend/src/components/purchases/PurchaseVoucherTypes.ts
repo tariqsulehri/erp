@@ -67,6 +67,9 @@ export interface PurchaseListRow {
   supplier_name: string;
   supplier_invoice_number?: string | null;
   line_count: number;
+  /** Posted documents only; payments are applied to the oldest amounts first. */
+  paid_amount?: string | null;
+  balance_due?: string | null;
 }
 
 export interface AddLineDraft {
