@@ -26,6 +26,7 @@ describe('Role permissions', () => {
       'stock_transfers.edit': ['admin', 'top_management', 'manager', 'sales_staff', 'warehouse_staff'],
       'stock_adjustments.edit': ['admin', 'top_management', 'manager'],
       'products.manage': ['admin', 'top_management', 'manager'],
+      'stock.reverse': ['admin', 'top_management', 'manager'],
     } as const;
     for (const [permission, roles] of Object.entries(expected)) {
       for (const role of USER_ROLES) {

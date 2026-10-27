@@ -46,6 +46,7 @@ const permissionActionText: Record<Permission, string> = {
   'stock_transfers.edit': 'save or post stock transfers',
   'stock_adjustments.edit': 'save or post stock adjustments',
   'products.manage': 'add or change products and product setup lists',
+  'stock.reverse': 'reverse posted stock transfers and stock adjustments',
 };
 
 /** Route middleware: stops the request with 403 when the signed-in user's role may not do this action. */

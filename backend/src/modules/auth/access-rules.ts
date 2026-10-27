@@ -46,6 +46,8 @@ export const PERMISSION_ROLES = {
   'stock_adjustments.edit': ['admin', 'top_management', 'manager'],
   /** Add, change and delete Products and their setup lists (categories, brands, sizes, colours, units...). */
   'products.manage': ['admin', 'top_management', 'manager'],
+  /** Reverse posted Stock Transfers and Stock Adjustments (Branch and Warehouse managers only for their own place). */
+  'stock.reverse': ['admin', 'top_management', 'manager'],
 } as const satisfies Record<string, readonly UserRole[]>;
 
 export type Permission = keyof typeof PERMISSION_ROLES;

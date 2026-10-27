@@ -58,6 +58,7 @@ export const PERMISSION_ROLES = {
   'stock_transfers.edit': ['admin', 'top_management', 'manager', 'sales_staff', 'warehouse_staff'],
   'stock_adjustments.edit': ['admin', 'top_management', 'manager'],
   'products.manage': ['admin', 'top_management', 'manager'],
+  'stock.reverse': ['admin', 'top_management', 'manager'],
 } as const satisfies Record<string, readonly UserRole[]>;
 
 export type Permission = keyof typeof PERMISSION_ROLES;

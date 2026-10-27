@@ -2,7 +2,7 @@ import { Router } from 'express';
 import type { Request } from 'express';
 import { currentUserId, resolveAccessScope, requirePermission } from '../http/access-context.js';
 import { StockAdjustmentService } from '../modules/stock-adjustments/stock-adjustment.service.js';
-import { CancelStockAdjustmentDraftInput, idParams, ListStockAdjustmentsQuery, ValidateStockAdjustmentInput } from '../modules/stock-adjustments/stock-adjustment.schema.js';
+import { CancelStockAdjustmentDraftInput, idParams, ListStockAdjustmentsQuery, ReverseStockDocumentInput, ValidateStockAdjustmentInput } from '../modules/stock-adjustments/stock-adjustment.schema.js';
 
 export const stockAdjustmentsRouter = Router();
 
@@ -99,6 +99,17 @@ stockAdjustmentsRouter.post('/:id/post', requirePermission('stock_adjustments.ed
     const service = serviceFor(req);
     const { id } = idParams.parse(req.params);
     res.json(await service.post(id, currentUserId(req)));
+  } catch (error) {
+    next(error);
+  }
+});
+
+stockAdjustmentsRouter.post('/:id/reverse', requirePermission('stock.reverse'), async (req, res, next) => {
+  try {
+    const service = serviceFor(req);
+    const { id } = idParams.parse(req.params);
+    const input = ReverseStockDocumentInput.parse(req.body);
+    res.json(await service.reverse(id, input, currentUserId(req)));
   } catch (error) {
     next(error);
   }

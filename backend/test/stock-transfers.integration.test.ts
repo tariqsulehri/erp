@@ -397,4 +397,57 @@ describe.skipIf(!databaseUrl)('Stock Transfers (database)', () => {
       expect(m.schema.CancelStockTransferDraftInput.safeParse({ reason: ' ' }).success).toBe(false);
     });
   });
+
+  describe('Reverse a posted transfer', () => {
+    const reversal = (date: string, reason = 'Sent to the wrong shop') => ({ reversal_date: date, reason });
+    const zero = { quantity: '0.0000', value: '0.00', average: '0.0000' };
+    const placeBalance = async (holder: { branchId?: string }) => (await balance(holder)) ?? zero;
+
+    it('moves the stock back from the receiving place at the cost it moved at; company stock value does not change', async () => {
+      const senderBefore = await placeBalance({ branchId: branchTwo });
+      const receiverBefore = await placeBalance({ branchId: branchOne });
+      const companyBefore = await companyStock();
+      const posted = await service().createAndPost(branchTwoToOne(2, '2025-12-03'), userId);
+      const vouchersBefore = await companyCount('vouchers');
+
+      const result = await service(branchUser(branchTwo)).reverse(posted.id, reversal('2025-12-04'), userId);
+      expect(result).toEqual({ id: posted.id, transfer_number: posted.transfer_number, status: 'Voided' });
+      expect((await placeBalance({ branchId: branchTwo })).quantity).toBe(senderBefore.quantity);
+      expect((await placeBalance({ branchId: branchTwo })).value).toBe(senderBefore.value);
+      expect((await placeBalance({ branchId: branchOne })).quantity).toBe(receiverBefore.quantity);
+      expect((await placeBalance({ branchId: branchOne })).value).toBe(receiverBefore.value);
+      expect(await companyStock()).toEqual(companyBefore);
+      expect(await companyCount('vouchers')).toBe(vouchersBefore);
+
+      const movements = await prisma.$queryRaw<{ movement_kind: string; branch_id: string; movement_date: string; remarks: string }[]>`
+        SELECT movement_kind::text, branch_id::text, movement_date::text, remarks FROM inventory_stock_movements
+        WHERE source_document_id = CAST(${posted.id} AS uuid) AND movement_date = '2025-12-04' ORDER BY movement_kind
+      `;
+      expect(movements).toEqual([
+        { movement_kind: 'TRANSFER_IN', branch_id: branchTwo, movement_date: '2025-12-04', remarks: `Reversal of ${posted.transfer_number}` },
+        { movement_kind: 'TRANSFER_OUT', branch_id: branchOne, movement_date: '2025-12-04', remarks: `Reversal of ${posted.transfer_number}` },
+      ]);
+      expect(await status(posted.id)).toBe('Voided');
+      await expect(service().reverse(posted.id, reversal('2025-12-04'), userId)).rejects.toThrow(/already reversed or cancelled/);
+    });
+
+    it('refuses drafts, early dates, the receiving place, and stock already used; nothing changes', async () => {
+      const draft = await service().createDraft(branchTwoToOne(1, '2025-12-05'), userId);
+      await expect(service().reverse(draft.id, reversal('2025-12-05'), userId)).rejects.toThrow(/Cancel a Draft instead/);
+
+      const posted = await service().createAndPost(branchTwoToOne(1, '2025-12-05'), userId);
+      await expect(service().reverse(posted.id, reversal('2025-12-04'), userId)).rejects.toThrow(/Reversal Date cannot be before the Transfer Date 2025-12-05/);
+      await expect(service(branchUser(branchOne)).reverse(posted.id, reversal('2025-12-05'), userId))
+        .rejects.toMatchObject({ statusCode: 403, message: 'You can only reverse Stock Transfers for your own Branch.' });
+      await expect(service().reverse('00000000-0000-4000-8000-000000000000', reversal('2025-12-05'), userId)).rejects.toMatchObject({ statusCode: 404 });
+
+      // Branch One sends all its stock away, so the transfer it received can no longer be taken back.
+      const receiver = await placeBalance({ branchId: branchOne });
+      await service().createAndPost(transferInput({ transfer_date: '2025-12-06', from_warehouse_id: '', from_branch_id: branchOne, to_branch_id: branchTwo, lines: [{ item_id: itemA, quantity: Number(receiver.quantity) }] }), userId);
+      const movementsBefore = await companyCount('inventory_stock_movements');
+      await expect(service().reverse(posted.id, reversal('2025-12-07'), userId)).rejects.toThrow(/Cannot reverse: the Branch now has only 0.0000 of/);
+      expect(await status(posted.id)).toBe('Posted');
+      expect(await companyCount('inventory_stock_movements')).toBe(movementsBefore);
+    });
+  });
 });

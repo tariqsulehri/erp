@@ -384,6 +384,19 @@ describe.skipIf(!databaseUrl)('HTTP API permissions (database)', () => {
       }
     });
 
+    it('POST /stock-transfers/:id/reverse and /stock-adjustments/:id/reverse: only Admin, Top Management and Managers', async () => {
+      const id = randomUUID();
+      for (const base of ['stock-transfers', 'stock-adjustments']) {
+        for (const role of ['accountant', 'sales_staff', 'warehouse_staff', 'viewer'] as Role[]) {
+          const response = await request('POST', `/api/v1/${base}/${id}/reverse`, { token: tokens[role], body: { reversal_date: '2025-08-01', reason: 'Test' } });
+          expect(response.status, `${role} ${base}`).toBe(403);
+          expect(response.body.error.message).toMatch(/reverse posted stock transfers and stock adjustments/);
+        }
+        expect((await request('POST', `/api/v1/${base}/${id}/reverse`, { token: tokens.manager, body: {} })).status, base).toBe(400);
+        expect((await request('POST', `/api/v1/${base}/${id}/reverse`, { token: tokens.admin, body: { reversal_date: '2025-08-01', reason: 'Test' } })).status, base).toBe(404);
+      }
+    });
+
     it('POST /stock-adjustments/drafts: only Admin, Top Management and Managers', async () => {
       for (const role of ['accountant', 'sales_staff', 'warehouse_staff', 'viewer'] as Role[]) {
         const response = await request('POST', '/api/v1/stock-adjustments/drafts', { token: tokens[role], body: {} });

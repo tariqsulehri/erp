@@ -42,3 +42,10 @@ export type ListStockAdjustmentsQuery = z.infer<typeof ListStockAdjustmentsQuery
 export const CancelStockAdjustmentDraftInput = z.object({
   reason: z.string().trim().min(3, 'Enter a reason of at least 3 characters.').max(500, 'Use 500 characters or fewer for the reason.'),
 });
+
+export const ReverseStockDocumentInput = z.object({
+  reversal_date: dateInput,
+  reason: z.string().trim().min(3, 'Enter a reason of at least 3 characters.').max(400, 'Use 400 characters or fewer for the reason.'),
+});
+
+export type ReverseStockDocumentInput = z.infer<typeof ReverseStockDocumentInput>;

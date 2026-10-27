@@ -6,6 +6,7 @@ import { StockTransferService } from '../modules/stock-transfers/stock-transfer.
 import {
   CancelStockTransferDraftInput,
   idParams,
+  ReverseStockDocumentInput,
   ListStockTransfersQuery,
   ValidateStockTransferInput,
   SupportDataQuery,
@@ -118,6 +119,17 @@ stockTransfersRouter.post('/:id/post', requirePermission('stock_transfers.edit')
     const service = serviceFor(req);
     const { id } = idParams.parse(req.params);
     res.json(await service.post(id, currentUserId(req)));
+  } catch (error) {
+    next(error);
+  }
+});
+
+stockTransfersRouter.post('/:id/reverse', requirePermission('stock.reverse'), async (req, res, next) => {
+  try {
+    const service = serviceFor(req);
+    const { id } = idParams.parse(req.params);
+    const input = ReverseStockDocumentInput.parse(req.body);
+    res.json(await service.reverse(id, input, currentUserId(req)));
   } catch (error) {
     next(error);
   }

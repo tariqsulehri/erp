@@ -4,7 +4,8 @@ import { prisma } from '../../db/prisma.js';
 import type { AccessScope } from '../auth/access-rules.js';
 import { type StockHolder, holderCondition, holderFromColumns } from '../inventory/stock-holder.js';
 import { assertCanUseHolder, canUseHolder, validateHolder, visibleStockCondition } from '../inventory/stock-holder-access.js';
-import type { ListStockTransfersQuery, SupportDataQuery, ValidateStockTransferInput } from './stock-transfer.schema.js';
+import type { ListStockTransfersQuery, ReverseStockDocumentInput, SupportDataQuery, ValidateStockTransferInput } from './stock-transfer.schema.js';
+import { applyExactStockChange } from '../inventory/stock-reversal.js';
 import { nextDocumentNumber } from '../numbering/document-number.js';
 
 type TransactionClient = Prisma.TransactionClient;
@@ -438,6 +439,68 @@ export class StockTransferService {
     }, POSTING_TRANSACTION_OPTIONS);
   }
 
+  /**
+   * Reverses a posted transfer on the Reversal Date: each item goes back from the receiving place to the
+   * sending place at the exact cost it moved at, so company stock value does not change. The transfer stays
+   * on file as Voided with who, when and why; its movements are never edited, only offset.
+   */
+  async reverse(id: string, input: ReverseStockDocumentInput, userId?: string | null) {
+    const reversedBy = userIdOrNull(userId);
+    return prisma.$transaction(async transaction => {
+      const rows = await transaction.$queryRaw<TransferHeaderRow[]>`
+        SELECT *
+        FROM stock_transfers
+        WHERE company_id = CAST(${this.companyId} AS uuid)
+          AND id = CAST(${id} AS uuid)
+        FOR UPDATE
+      `;
+      const transfer = rows[0];
+      if (!transfer) throw businessError('Stock Transfer was not found.', 404);
+      if (this.scope) assertCanUseHolder(this.scope, fromHolder(transfer), 'reverse Stock Transfers');
+      if (transfer.status === 'Draft') throw businessError('Only posted Stock Transfers can be reversed. Cancel a Draft instead.');
+      if (transfer.status !== 'Posted') throw businessError('This Stock Transfer is already reversed or cancelled.');
+      const transferDate = this.databaseDateText(transfer.transfer_date);
+      if (input.reversal_date < transferDate) throw businessError(`Reversal Date cannot be before the Transfer Date ${transferDate}.`);
+      await this.assertDateInOpenPeriod(transaction, input.reversal_date);
+
+      const lines = await transaction.$queryRaw<Array<TransferLineRow & { total_cost: string }>>`
+        SELECT id, item_id, item_code, item_name, quantity::text, total_cost::text, description
+        FROM stock_transfer_lines
+        WHERE company_id = CAST(${this.companyId} AS uuid)
+          AND stock_transfer_id = CAST(${id} AS uuid)
+          AND is_active = true
+        ORDER BY item_id, line_number
+      `;
+      const from = fromHolder(transfer);
+      const to = toHolder(transfer);
+      // Lock both places' balance rows in one fixed order, as posting does.
+      await this.lockBalancesForTransfer(transaction, transfer, lines.map(line => line.item_id));
+      const remarks = `Reversal of ${transfer.transfer_number}`;
+      for (const line of lines) {
+        const quantity = this.quantity(line.quantity);
+        const cost = new Decimal(line.total_cost);
+        const unitCost = quantity.gt(0) ? cost.div(quantity).toDecimalPlaces(4, Decimal.ROUND_HALF_UP) : new Decimal(0);
+        const afterOut = await applyExactStockChange(transaction, this.companyId, to, line, quantity.neg(), cost.neg());
+        await this.insertMovement(transaction, transfer, line, to, 'TRANSFER_OUT', quantity, new Decimal(0), quantity, unitCost, cost, afterOut, reversedBy, { date: input.reversal_date, remarks });
+        const afterIn = await applyExactStockChange(transaction, this.companyId, from, line, quantity, cost);
+        await this.insertMovement(transaction, transfer, line, from, 'TRANSFER_IN', quantity, quantity, new Decimal(0), unitCost, cost, afterIn, reversedBy, { date: input.reversal_date, remarks });
+      }
+
+      await transaction.$queryRaw`
+        UPDATE stock_transfers
+        SET status = 'Voided',
+            voided_by_id = ${reversedBy}::uuid,
+            voided_at = now(),
+            void_reason = ${`Reversed on ${input.reversal_date}: ${input.reason}`},
+            updated_by_id = ${reversedBy}::uuid,
+            updated_at = now()
+        WHERE company_id = CAST(${this.companyId} AS uuid)
+          AND id = CAST(${id} AS uuid)
+      `;
+      return { id, transfer_number: transfer.transfer_number, status: 'Voided' };
+    }, POSTING_TRANSACTION_OPTIONS);
+  }
+
   /** Cancels a Draft: it stays on file as Voided with who, when and why, so its number is never reused. */
   async cancelDraft(id: string, input: { reason: string }, userId?: string | null) {
     const cancelledBy = userIdOrNull(userId);
@@ -847,6 +910,7 @@ export class StockTransferService {
     totalCost: Decimal,
     stockAfterMovement: Decimal,
     userId: string | null,
+    reversal?: { date: string; remarks: string },
   ) {
     await transaction.$queryRaw`
       INSERT INTO inventory_stock_movements (
@@ -861,7 +925,7 @@ export class StockTransferService {
         ${holder.branchId}::uuid,
         ${holder.warehouseId}::uuid,
         ${holder.locationId}::uuid,
-        CAST(${this.databaseDateText(transfer.transfer_date)} AS date),
+        CAST(${reversal?.date ?? this.databaseDateText(transfer.transfer_date)} AS date),
         ${movementKind}::"StockMovementKind",
         'STOCK_TRANSFER',
         CAST(${transfer.id} AS uuid),
@@ -872,7 +936,7 @@ export class StockTransferService {
         CAST(${totalCost.toFixed(4)} AS numeric),
         CAST(${stockAfterMovement.toFixed(4)} AS numeric),
         'WEIGHTED_AVERAGE',
-        ${`${movementKind === 'TRANSFER_OUT' ? 'Transfer Out' : 'Transfer In'} ${transfer.transfer_number} Qty ${signedQuantity.toFixed(4)}`},
+        ${reversal?.remarks ?? `${movementKind === 'TRANSFER_OUT' ? 'Transfer Out' : 'Transfer In'} ${transfer.transfer_number} Qty ${signedQuantity.toFixed(4)}`},
         true,
         ${userId}::uuid,
         now()

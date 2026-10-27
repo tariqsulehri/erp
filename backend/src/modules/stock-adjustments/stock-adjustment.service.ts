@@ -6,8 +6,9 @@ import { type StockHolder, holderCondition, holderFromColumns } from '../invento
 import { assertCanUseHolder, canUseHolder, validateHolder, visibleStockCondition } from '../inventory/stock-holder-access.js';
 import { issueCost } from '../inventory/stock-cost.js';
 import { PostingAccountSettingsService } from '../settings/posting-account-settings.service.js';
-import { insertPostedVoucher, type PostingLine } from '../vouchers/voucher-posting.js';
-import type { ListStockAdjustmentsQuery, ValidateStockAdjustmentInput } from './stock-adjustment.schema.js';
+import { insertPostedVoucher, nextVoucherNumber, type PostingLine } from '../vouchers/voucher-posting.js';
+import { applyExactStockChange } from '../inventory/stock-reversal.js';
+import type { ListStockAdjustmentsQuery, ReverseStockDocumentInput, ValidateStockAdjustmentInput } from './stock-adjustment.schema.js';
 import { nextDocumentNumber } from '../numbering/document-number.js';
 
 type TransactionClient = Prisma.TransactionClient;
@@ -454,6 +455,108 @@ export class StockAdjustmentService {
 
     await this.insertLines(transaction, headerRows[0].id, input, holder);
     return { id: headerRows[0].id, adjustment_number: adjustmentNumber, status: 'Draft' };
+  }
+
+  /**
+   * Reverses a posted adjustment on the Reversal Date: an Increase is taken back out and a Decrease put back,
+   * each at the exact cost it was posted at, and a Reversal Voucher (RV) swaps every Debit and Credit of the
+   * original voucher, so the Inventory account still equals stock value. The adjustment stays on file as Voided
+   * with who, when and why; its movements and voucher are never edited, only offset.
+   */
+  async reverse(id: string, input: ReverseStockDocumentInput, userId?: string | null) {
+    const reversedBy = userIdOrNull(userId);
+    return prisma.$transaction(async transaction => {
+      const rows = await transaction.$queryRaw<AdjustmentHeaderRow[]>`
+        SELECT *
+        FROM stock_adjustments
+        WHERE company_id = CAST(${this.companyId} AS uuid)
+          AND id = CAST(${id} AS uuid)
+        FOR UPDATE
+      `;
+      const adjustment = rows[0];
+      if (!adjustment) throw businessError('Stock Adjustment was not found.', 404);
+      if (this.scope) assertCanUseHolder(this.scope, headerHolder(adjustment), 'reverse Stock Adjustments');
+      if (adjustment.status === 'Draft') throw businessError('Only posted Stock Adjustments can be reversed. Cancel a Draft instead.');
+      if (adjustment.status !== 'Posted') throw businessError('This Stock Adjustment is already reversed or cancelled.');
+      const adjustmentDate = this.databaseDateText(adjustment.adjustment_date);
+      if (input.reversal_date < adjustmentDate) throw businessError(`Reversal Date cannot be before the Adjustment Date ${adjustmentDate}.`);
+      await this.assertDateInOpenPeriod(transaction, input.reversal_date);
+
+      const lines = await transaction.$queryRaw<Array<AdjustmentLineRow & { total_cost: string }>>`
+        SELECT id, adjustment_type, item_id, item_code, item_name, quantity::text, unit_cost::text, total_cost::text, description
+        FROM stock_adjustment_lines
+        WHERE company_id = CAST(${this.companyId} AS uuid)
+          AND stock_adjustment_id = CAST(${id} AS uuid)
+          AND is_active = true
+        ORDER BY item_id, line_number
+      `;
+      const holder = headerHolder(adjustment);
+      const remarks = `Reversal of ${adjustment.adjustment_number}`;
+      for (const line of lines) {
+        const quantity = this.quantity(line.quantity);
+        const cost = new Decimal(line.total_cost);
+        const unitCost = quantity.gt(0) ? cost.div(quantity).toDecimalPlaces(4, Decimal.ROUND_HALF_UP) : new Decimal(0);
+        if (line.adjustment_type === 'Increase') {
+          const after = await applyExactStockChange(transaction, this.companyId, holder, line, quantity.neg(), cost.neg());
+          await this.insertMovement(transaction, adjustment, line, 'ADJUSTMENT_OUT', new Decimal(0), quantity, unitCost, cost, after, reversedBy, { date: input.reversal_date, remarks });
+        } else {
+          const after = await applyExactStockChange(transaction, this.companyId, holder, line, quantity, cost);
+          await this.insertMovement(transaction, adjustment, line, 'ADJUSTMENT_IN', quantity, new Decimal(0), unitCost, cost, after, reversedBy, { date: input.reversal_date, remarks });
+        }
+      }
+
+      if (adjustment.accounting_voucher_id) {
+        await this.reverseVoucher(transaction, adjustment, input, reversedBy);
+      }
+
+      await transaction.$queryRaw`
+        UPDATE stock_adjustments
+        SET status = 'Voided',
+            voided_by_id = ${reversedBy}::uuid,
+            voided_at = now(),
+            void_reason = ${`Reversed on ${input.reversal_date}: ${input.reason}`},
+            updated_by_id = ${reversedBy}::uuid,
+            updated_at = now()
+        WHERE company_id = CAST(${this.companyId} AS uuid)
+          AND id = CAST(${id} AS uuid)
+      `;
+      return { id, adjustment_number: adjustment.adjustment_number, status: 'Voided' };
+    }, POSTING_TRANSACTION_OPTIONS);
+  }
+
+  /** Posts a Reversal Voucher (RV) that swaps every Debit and Credit of the adjustment's voucher, and marks that voucher Reversed. */
+  private async reverseVoucher(transaction: TransactionClient, adjustment: AdjustmentHeaderRow, input: ReverseStockDocumentInput, userId: string | null) {
+    const voucher = await transaction.voucher.findFirst({
+      where: { id: String(adjustment.accounting_voucher_id), companyId: this.companyId },
+      include: { lines: true },
+    });
+    if (!voucher) throw businessError('The voucher of this Stock Adjustment was not found.', 404);
+    if (voucher.reversalVoucherId) throw businessError(`Voucher ${voucher.voucherNumber} is already reversed.`);
+
+    const voucherNumber = await nextVoucherNumber(transaction, this.companyId, 'RV', Number(input.reversal_date.slice(0, 4)));
+    const reversalId = await insertPostedVoucher(transaction, {
+      companyId: this.companyId,
+      voucherNumber,
+      voucherType: 'RV',
+      voucherDate: input.reversal_date,
+      reference: adjustment.adjustment_number,
+      narration: `Reversal of ${adjustment.adjustment_number}: ${input.reason}`,
+      userId,
+      reversalOfId: voucher.id,
+      lines: voucher.lines
+        .slice()
+        .sort((left, right) => left.lineNo - right.lineNo)
+        .map(line => ({
+          account: { id: line.accountId, code: line.accountCode, name: line.accountName },
+          debit: new Decimal(line.creditAmount.toString()),
+          credit: new Decimal(line.debitAmount.toString()),
+          narration: `Reversal: ${line.narration || voucher.narration || voucher.voucherNumber}`,
+        })),
+    });
+    await transaction.voucher.update({
+      where: { id: voucher.id },
+      data: { reversalVoucherId: reversalId, reversalStatus: 'Reversed', reversedBy: userId, reversedAt: new Date(), reversalReason: input.reason },
+    });
   }
 
   /** Cancels a Draft: it stays on file as Voided with who, when and why, so its number is never reused. */
@@ -952,6 +1055,7 @@ export class StockAdjustmentService {
     totalCost: Decimal,
     stockAfterMovement: Decimal,
     userId: string | null,
+    reversal?: { date: string; remarks: string },
   ) {
     await transaction.$queryRaw`
       INSERT INTO inventory_stock_movements (
@@ -966,7 +1070,7 @@ export class StockAdjustmentService {
         ${adjustment.branch_id}::uuid,
         ${adjustment.warehouse_id}::uuid,
         ${adjustment.location_id}::uuid,
-        CAST(${this.databaseDateText(adjustment.adjustment_date)} AS date),
+        CAST(${reversal?.date ?? this.databaseDateText(adjustment.adjustment_date)} AS date),
         ${movementKind}::"StockMovementKind",
         'STOCK_ADJUSTMENT',
         CAST(${adjustment.id} AS uuid),
@@ -977,7 +1081,7 @@ export class StockAdjustmentService {
         CAST(${totalCost.toFixed(4)} AS numeric),
         CAST(${stockAfterMovement.toFixed(4)} AS numeric),
         'WEIGHTED_AVERAGE',
-        ${`${movementKind === 'ADJUSTMENT_IN' ? 'Adjustment In' : 'Adjustment Out'} ${adjustment.adjustment_number}`},
+        ${reversal?.remarks ?? `${movementKind === 'ADJUSTMENT_IN' ? 'Adjustment In' : 'Adjustment Out'} ${adjustment.adjustment_number}`},
         true,
         ${userId}::uuid,
         now()

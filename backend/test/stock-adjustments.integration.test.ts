@@ -467,4 +467,87 @@ describe.skipIf(!databaseUrl)('Stock Adjustments (database)', () => {
       expect(m.schema.CancelStockAdjustmentDraftInput.safeParse({}).success).toBe(false);
     });
   });
+
+  describe('Reverse a posted adjustment', () => {
+    const reversal = (date: string, reason = 'Counted wrong') => ({ reversal_date: date, reason });
+    const zero = { quantity: '0.0000', value: '0.00', average: '0.0000' };
+    const balanceOrZero = async () => (await balance(itemC)) ?? zero;
+
+    it('reverses an Increase: stock and value go back, an RV voucher mirrors the SA voucher, and Inventory still equals stock', async () => {
+      const before = await balanceOrZero();
+      const ledgerBefore = await inventoryLedgerAndStock();
+      const posted = await service().createAndPost(adjustmentInput({ adjustment_date: '2025-09-10', lines: increaseC(2, 15) }), userId);
+      const movementsBefore = await companyCount('inventory_stock_movements');
+
+      const result = await service().reverse(posted.id, reversal('2025-09-11'), userId);
+      expect(result).toEqual({ id: posted.id, adjustment_number: posted.adjustment_number, status: 'Voided' });
+      expect(await balanceOrZero()).toEqual(before);
+      expect(await inventoryLedgerAndStock()).toEqual(ledgerBefore);
+      const after = await inventoryLedgerAndStock();
+      expect(after.ledger).toBe(after.stock);
+
+      const movements = await movementsOf(posted.id);
+      expect(await companyCount('inventory_stock_movements')).toBe(movementsBefore + 1);
+      const back = movements.find(movement => movement.movement_kind === 'ADJUSTMENT_OUT')!;
+      expect(new Decimal(back.total_cost).toFixed(2)).toBe('30.00');
+      const dates = await prisma.$queryRaw<{ movement_date: string; remarks: string }[]>`
+        SELECT movement_date::text, remarks FROM inventory_stock_movements
+        WHERE source_document_id = CAST(${posted.id} AS uuid) AND movement_kind = 'ADJUSTMENT_OUT'
+      `;
+      expect(dates).toEqual([{ movement_date: '2025-09-11', remarks: `Reversal of ${posted.adjustment_number}` }]);
+
+      const original = await voucherFor(posted.id);
+      expect(original.reversalStatus).toBe('Reversed');
+      const rv = await prisma.voucher.findUniqueOrThrow({ where: { id: String(original.reversalVoucherId) }, include: { lines: true } });
+      expect(rv).toMatchObject({ voucherType: 'RV', status: 'Posted', reversalOfId: original.id });
+      expect(rv.voucherDate.toISOString().slice(0, 10)).toBe('2025-09-11');
+      expect(amountOn(rv, accounts.inventory)).toEqual({ debit: '0.00', credit: '30.00' });
+      expect(amountOn(rv, accounts.gain)).toEqual({ debit: '30.00', credit: '0.00' });
+
+      const row = await prisma.$queryRaw<{ status: string; void_reason: string }[]>`SELECT status, void_reason FROM stock_adjustments WHERE id = CAST(${posted.id} AS uuid)`;
+      expect(row[0]).toEqual({ status: 'Voided', void_reason: 'Reversed on 2025-09-11: Counted wrong' });
+    });
+
+    it('reverses a Decrease by putting the stock back at the value it was taken out at', async () => {
+      await service().createAndPost(adjustmentInput({ adjustment_date: '2025-09-12', lines: increaseC(4, 20) }), userId);
+      const before = await balanceOrZero();
+      const posted = await service().createAndPost(adjustmentInput({ adjustment_date: '2025-09-12', lines: [{ adjustment_type: 'Decrease', item_id: itemC, quantity: 1, unit_cost: 0 }] }), userId);
+      await service().reverse(posted.id, reversal('2025-09-13'), userId);
+      expect(await balanceOrZero()).toEqual(before);
+      const after = await inventoryLedgerAndStock();
+      expect(after.ledger).toBe(after.stock);
+      expect(amountOn(await prisma.voucher.findUniqueOrThrow({ where: { id: String((await voucherFor(posted.id)).reversalVoucherId) }, include: { lines: true } }), accounts.loss).credit).not.toBe('0.00');
+    });
+
+    it('refuses drafts, repeat reversals, early or closed dates, other places, and stock that is no longer there; nothing changes', async () => {
+      const draft = await service().createDraft(adjustmentInput({ adjustment_date: '2025-09-14', lines: increaseC() }), userId);
+      await expect(service().reverse(draft.id, reversal('2025-09-14'), userId)).rejects.toThrow(/Cancel a Draft instead/);
+
+      const posted = await service().createAndPost(adjustmentInput({ adjustment_date: '2025-09-14', lines: increaseC(1, 10) }), userId);
+      await expect(service().reverse(posted.id, reversal('2025-09-13'), userId)).rejects.toThrow(/Reversal Date cannot be before the Adjustment Date 2025-09-14/);
+      await expect(service().reverse(posted.id, reversal('2026-02-10'), userId)).rejects.toThrow(/February 2026" is closed/);
+      await expect(service(branchUser(branchOne)).reverse(posted.id, reversal('2025-09-15'), userId))
+        .rejects.toMatchObject({ statusCode: 403, message: 'You can only reverse Stock Adjustments for your own Branch.' });
+      await expect(service().reverse('00000000-0000-4000-8000-000000000000', reversal('2025-09-15'), userId)).rejects.toMatchObject({ statusCode: 404 });
+
+      // Take out all of item C, so the earlier Increase can no longer be taken back.
+      const stock = await balance(itemC);
+      await service().createAndPost(adjustmentInput({ adjustment_date: '2025-09-15', lines: [{ adjustment_type: 'Decrease', item_id: itemC, quantity: Number(stock!.quantity), unit_cost: 0 }] }), userId);
+      const movementsBefore = await companyCount('inventory_stock_movements');
+      const vouchersBefore = await companyCount('vouchers');
+      await expect(service().reverse(posted.id, reversal('2025-09-16'), userId)).rejects.toThrow(/Cannot reverse: the Warehouse now has only 0.0000 of ADJ-C/);
+      expect((await header(posted.id)).status).toBe('Posted');
+      expect(await companyCount('inventory_stock_movements')).toBe(movementsBefore);
+      expect(await companyCount('vouchers')).toBe(vouchersBefore);
+
+      const reversible = await service().createAndPost(adjustmentInput({ adjustment_date: '2025-09-16', lines: increaseC(1, 10) }), userId);
+      await service().reverse(reversible.id, reversal('2025-09-16'), userId);
+      await expect(service().reverse(reversible.id, reversal('2025-09-16'), userId)).rejects.toThrow(/already reversed or cancelled/);
+      expect(m.schema.ReverseStockDocumentInput.safeParse({ reversal_date: '16-09-2025', reason: 'Bad date' }).success).toBe(false);
+      expect(m.schema.ReverseStockDocumentInput.safeParse({ reversal_date: '2025-09-16', reason: ' ' }).success).toBe(false);
+
+      const after = await inventoryLedgerAndStock();
+      expect(after.ledger).toBe(after.stock);
+    });
+  });
 });
