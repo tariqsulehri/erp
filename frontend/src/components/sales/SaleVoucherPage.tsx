@@ -1,13 +1,20 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { formatMoney } from '@/lib/app-settings';
 import { useGeneralSettings } from '@/lib/api/settings';
 import { usePostingDateGuard } from '@/lib/api/fiscal-years';
-import { useCreateAndPostSale, useCreateSaleDraft, useInvalidateSaleQueries, useSaleSupportData } from '@/lib/api/sales';
+import {
+  useCreateAndPostSale,
+  useCreateSaleDraft,
+  useInvalidateSaleQueries,
+  useSaleSupportData,
+  useUpdateAndPostSale,
+  useUpdateSaleDraft,
+} from '@/lib/api/sales';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { addDays, friendlyErrorMessage } from '@/lib/erp-utils';
-import { buildSaleDetails, buildSalePayload, validateSaleVoucher } from './SaleVoucherBusiness';
+import { buildSaleDetails, buildSalePayload, saleFormFromDetail, validateSaleVoucher } from './SaleVoucherBusiness';
 import { PostedSalesView } from './PostedSalesView';
 import { SaleAnalyticsView } from './SaleAnalyticsView';
 import {
@@ -31,7 +38,15 @@ export default function SaleVoucherPage() {
   const supportQuery = useSaleSupportData(branch.branchId || undefined);
   const createDraft = useCreateSaleDraft();
   const createAndPost = useCreateAndPostSale();
+  const updateDraft = useUpdateSaleDraft();
+  const updateAndPost = useUpdateAndPostSale();
   const invalidateSaleQueries = useInvalidateSaleQueries();
+  /** The saved Draft open in the form, or null for a new sale. */
+  const [openDraft, setOpenDraft] = useState<{ id: string; saleNumber: string } | null>(null);
+  /** Customer, Payment Type and Date of a just-opened Draft, so its saved Due Date is not replaced by the customer's terms. */
+  const loadedDueDateKey = useRef<string | null>(null);
+  /** An opened Draft's shelf Location, applied once that Branch's Locations have loaded. */
+  const pendingLocationId = useRef<string | null>(null);
 
   const [viewMode, setViewMode] = useState<'posted' | 'entry' | 'analytics'>('analytics');
   const [saleDate, setSaleDate] = useState(today());
@@ -45,7 +60,7 @@ export default function SaleVoucherPage() {
   const [message, setMessage] = useState<{ kind: SaleMessageKind; text: string } | null>(null);
   const [processConfirmOpen, setProcessConfirmOpen] = useState(false);
 
-  const saving = createDraft.isPending || createAndPost.isPending;
+  const saving = createDraft.isPending || createAndPost.isPending || updateDraft.isPending || updateAndPost.isPending;
   const postingDateGuard = usePostingDateGuard(saleDate, 'Sale Date');
   const isSaleDateValid = postingDateGuard.dateIsValid;
   const money = useMemo(() => (value: number) => formatMoney(value, generalSettings), [generalSettings]);
@@ -67,6 +82,7 @@ export default function SaleVoucherPage() {
     cancelLineEdit,
     moveLine,
     resetLineEditor,
+    loadLines,
   } = usePurchaseLineEditor({
     items,
     // Sale items are always taken from the selected Branch, so an item's default Warehouse is ignored.
@@ -83,8 +99,19 @@ export default function SaleVoucherPage() {
 
   useEffect(() => {
     if (!customerId || !selectedCustomer || paymentType !== 'Credit' || !isSaleDateValid) return;
+    // Keep an opened Draft's own Due Date until the user changes its Customer, Payment Type or Date.
+    if (loadedDueDateKey.current === `${customerId}|${paymentType}|${saleDate}`) return;
+    loadedDueDateKey.current = null;
     setDueDate(addDays(saleDate, selectedCustomer.paymentTermsDays));
   }, [customerId, selectedCustomer, paymentType, saleDate, isSaleDateValid]);
+
+  useEffect(() => {
+    const pending = pendingLocationId.current;
+    if (pending && branchLocations.some(location => location.value === pending)) {
+      pendingLocationId.current = null;
+      setLocationId(pending);
+    }
+  }, [branchLocations, setLocationId]);
 
   useEffect(() => {
     if (supportQuery.error) {
@@ -106,7 +133,31 @@ export default function SaleVoucherPage() {
     setDeliveryNoteNumber('');
     setFreightAmount('');
     resetLineEditor();
+    setOpenDraft(null);
+    loadedDueDateKey.current = null;
+    pendingLocationId.current = null;
     if (clearMessage) setMessage(null);
+  }
+
+  /** Opens a saved Draft in the entry form so it can be changed, saved again, or posted. */
+  function openSavedDraft(detail: Record<string, any>) {
+    const form = saleFormFromDetail(detail);
+    setSaleDate(form.saleDate);
+    setCustomerId(form.customerId);
+    setPaymentType(form.paymentType);
+    setDueDate(form.dueDate || form.saleDate);
+    setDeliveryDate(form.deliveryDate);
+    changeBranch(form.branchId);
+    setLocationId(form.locationId);
+    pendingLocationId.current = form.locationId || null;
+    setCustomerReferenceNumber(form.customerReferenceNumber);
+    setDeliveryNoteNumber(form.deliveryNoteNumber);
+    setFreightAmount(form.freightAmount);
+    loadLines(form.lines);
+    loadedDueDateKey.current = `${form.customerId}|${form.paymentType}|${form.saleDate}`;
+    setOpenDraft({ id: form.id, saleNumber: form.saleNumber });
+    setMessage(null);
+    setViewMode('entry');
   }
 
   function validateForm() {
@@ -167,9 +218,13 @@ export default function SaleVoucherPage() {
     });
 
     try {
-      const sale = postNow
-        ? await createAndPost.mutateAsync(payload)
-        : await createDraft.mutateAsync(payload);
+      const sale = openDraft
+        ? postNow
+          ? await updateAndPost.mutateAsync({ id: openDraft.id, input: payload })
+          : await updateDraft.mutateAsync({ id: openDraft.id, input: payload })
+        : postNow
+          ? await createAndPost.mutateAsync(payload)
+          : await createDraft.mutateAsync(payload);
       await invalidateSaleQueries();
       resetForm(false);
       setMessage({
@@ -219,6 +274,7 @@ export default function SaleVoucherPage() {
         generalSettings={generalSettings}
         onNewSale={openNewSale}
         onAnalytics={() => setViewMode('analytics')}
+        onOpenDraft={openSavedDraft}
         newDisabled={newDisabled}
         newDisabledReason={newDisabledReason}
       />
@@ -240,9 +296,10 @@ export default function SaleVoucherPage() {
   return (
     <DocumentPage>
       <PurchaseToolbar
-        title="Sale Voucher"
+        title={openDraft ? `Sale Voucher ${openDraft.saleNumber}` : 'Sale Voucher'}
+        mode={openDraft ? 'Edit' : 'Add'}
         documentCode="SI"
-        postedListLabel="Posted Sales"
+        postedListLabel="Sale List"
         analyticsLabel="Analysis"
         showAnalytics
         actionDisabled={actionDisabled}
@@ -262,8 +319,8 @@ export default function SaleVoucherPage() {
             <p>Use this screen to record goods you sell to a Customer from a Branch.</p>
             <ul>
               <li>Fill in the Customer, dates and Branch, then add one line for each item.</li>
-              <li>Save Draft keeps the sale so you can finish it later.</li>
-              <li>Process saves and posts it. Stock and the Customer balance are updated.</li>
+              <li>Save Draft keeps the sale so you can finish it later. Find it in the Sale List with Status Draft and select Open Draft.</li>
+              <li>Process saves and posts it. Stock and the Customer balance are updated. If posting is refused, nothing is saved.</li>
             </ul>
             <p>A posted sale cannot be changed. Use a Sale Return to correct it.</p>
           </>

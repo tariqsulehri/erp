@@ -1,7 +1,7 @@
 'use client';
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { backendGet, backendPost } from './backend-client';
+import { backendGet, backendPost, backendPut } from './backend-client';
 import type { DocumentListTotals } from './document-totals';
 import type { SaleListRow, SalePaymentType } from '@/components/sales/SaleVoucherTypes';
 
@@ -89,6 +89,34 @@ export function useCreateSaleDraft() {
 export function useCreateAndPostSale() {
   return useMutation({
     mutationFn: (input: unknown) => backendPost<any, unknown>('/sales/create-and-post', input),
+  });
+}
+
+/** Saves changes to a Draft sale. The sale number stays the same. */
+export function useUpdateSaleDraft() {
+  return useMutation({
+    mutationFn: ({ id, input }: { id: string; input: unknown }) => backendPut<any, unknown>(`/sales/${id}`, input),
+  });
+}
+
+/** Saves changes to a Draft sale and posts it in one step. */
+export function useUpdateAndPostSale() {
+  return useMutation({
+    mutationFn: ({ id, input }: { id: string; input: unknown }) => backendPost<any, unknown>(`/sales/${id}/update-and-post`, input),
+  });
+}
+
+/** Posts a saved Draft sale as it is. */
+export function usePostSaleDraft() {
+  return useMutation({
+    mutationFn: (id: string) => backendPost<any, Record<string, never>>(`/sales/${id}/post`, {}),
+  });
+}
+
+/** Cancels a Draft sale. It stays on file as Cancelled with the reason. */
+export function useCancelSaleDraft() {
+  return useMutation({
+    mutationFn: ({ id, reason }: { id: string; reason: string }) => backendPost<any, { reason: string }>(`/sales/${id}/cancel`, { reason }),
   });
 }
 

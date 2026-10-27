@@ -1,5 +1,6 @@
 import { cleanNumber, numericValue } from '@/lib/erp-utils';
 import { validMoneyPattern } from '@/components/purchases/PurchaseVoucherHelpers';
+import { dateOnly, documentLinesFromDetail, textOrEmpty } from '@/components/purchases/PurchaseVoucherBusiness';
 import type { BranchOption, CustomerOption, SaleLine, SalePaymentType } from './SaleVoucherTypes';
 
 interface SaleValidationInput {
@@ -82,5 +83,42 @@ export function buildSalePayload(input: SalePayloadInput) {
       tax_amount: numericValue(line.taxAmount),
       description: line.description || undefined,
     })),
+  };
+}
+
+/** The entry form values for a saved Draft sale, so it can be opened, changed and posted. */
+export interface SaleDraftForm {
+  id: string;
+  saleNumber: string;
+  saleDate: string;
+  customerId: string;
+  paymentType: SalePaymentType;
+  dueDate: string;
+  deliveryDate: string;
+  branchId: string;
+  locationId: string;
+  customerReferenceNumber: string;
+  deliveryNoteNumber: string;
+  freightAmount: string;
+  lines: SaleLine[];
+}
+
+/** Maps the sale detail from GET /sales/:id to the entry form. */
+export function saleFormFromDetail(detail: Record<string, any>): SaleDraftForm {
+  const freight = Number(detail.freight_amount ?? 0);
+  return {
+    id: String(detail.id),
+    saleNumber: String(detail.sale_number),
+    saleDate: dateOnly(detail.sale_date),
+    customerId: textOrEmpty(detail.customer_id),
+    paymentType: detail.payment_type === 'Credit' ? 'Credit' : 'Cash',
+    dueDate: dateOnly(detail.due_date),
+    deliveryDate: dateOnly(detail.delivery_date),
+    branchId: textOrEmpty(detail.branch_id),
+    locationId: textOrEmpty(detail.location_id),
+    customerReferenceNumber: textOrEmpty(detail.customer_reference_number),
+    deliveryNoteNumber: textOrEmpty(detail.delivery_note_number),
+    freightAmount: freight > 0 ? freight.toFixed(2) : '',
+    lines: documentLinesFromDetail(detail.lines, 'sale_price'),
   };
 }

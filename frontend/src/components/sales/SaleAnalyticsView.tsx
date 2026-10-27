@@ -34,12 +34,12 @@ export function SaleAnalyticsView({ settings, onNewSale, onPostedSales, newDisab
       help={(
         <>
           <p>This screen shows charts and totals for posted sales. Draft documents are not counted.</p>
-          <p>See totals by month, cash and credit, and your top Customers. Select Posted Sales to see the full list, or New to enter one.</p>
+          <p>See totals by month, cash and credit, and your top Customers. Select Sale List to see all sales and saved drafts, or New to enter one.</p>
         </>
       )}
       documentLabel="Sales"
       partyLabel="Customer"
-      postedListLabel="Posted Sales"
+      postedListLabel="Sale List"
       rows={rows}
       totalRecords={query.data?.total ?? 0}
       loading={query.isLoading}

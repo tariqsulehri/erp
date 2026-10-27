@@ -52,11 +52,11 @@ export interface PurchaseDraftForm {
 }
 
 /** Date columns arrive as 'YYYY-MM-DD' or as an ISO time at midnight UTC; the form needs 'YYYY-MM-DD'. */
-function dateOnly(value: unknown) {
+export function dateOnly(value: unknown) {
   return typeof value === 'string' && value.length >= 10 ? value.slice(0, 10) : '';
 }
 
-function textOrEmpty(value: unknown) {
+export function textOrEmpty(value: unknown) {
   return value === null || value === undefined ? '' : String(value);
 }
 
@@ -76,22 +76,30 @@ export function purchaseFormFromDetail(detail: Record<string, any>): PurchaseDra
     locationId: textOrEmpty(detail.location_id),
     referenceNumber: textOrEmpty(detail.reference_number),
     freightAmount: freight > 0 ? freight.toFixed(2) : '',
-    lines: [...(detail.lines ?? [])]
-      .sort((left, right) => Number(left.line_number) - Number(right.line_number))
-      .map((line, index): PurchaseLine => ({
-        id: index + 1,
-        itemId: String(line.item_id),
-        itemCode: textOrEmpty(line.item_code),
-        itemName: textOrEmpty(line.item_name),
-        uomName: textOrEmpty(line.uom_name),
-        quantity: Number(line.quantity).toFixed(4),
-        purchasePrice: Number(line.purchase_price).toFixed(2),
-        discountAmount: Number(line.discount_amount ?? 0).toFixed(2),
-        taxAmount: Number(line.tax_amount ?? 0).toFixed(2),
-        lineTotal: Number(line.line_total),
-        description: textOrEmpty(line.description),
-      })),
+    lines: documentLinesFromDetail(detail.lines, 'purchase_price'),
   };
+}
+
+/**
+ * Maps saved document lines to editor lines in line order. Sale, purchase and return documents share the
+ * line editor, which keeps the unit price in `purchasePrice` whatever the document calls it.
+ */
+export function documentLinesFromDetail(lines: Array<Record<string, any>> | undefined, priceField: string): PurchaseLine[] {
+  return [...(lines ?? [])]
+    .sort((left, right) => Number(left.line_number) - Number(right.line_number))
+    .map((line, index) => ({
+      id: index + 1,
+      itemId: String(line.item_id),
+      itemCode: textOrEmpty(line.item_code),
+      itemName: textOrEmpty(line.item_name),
+      uomName: textOrEmpty(line.uom_name),
+      quantity: Number(line.quantity).toFixed(4),
+      purchasePrice: Number(line[priceField]).toFixed(2),
+      discountAmount: Number(line.discount_amount ?? 0).toFixed(2),
+      taxAmount: Number(line.tax_amount ?? 0).toFixed(2),
+      lineTotal: Number(line.line_total),
+      description: textOrEmpty(line.description),
+    }));
 }
 
 export function buildPurchaseDetails(selectedSupplier: SupplierOption | undefined, supplierInvoiceNumber: string, lineCount: number) {
