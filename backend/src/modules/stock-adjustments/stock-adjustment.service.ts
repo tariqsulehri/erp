@@ -11,6 +11,8 @@ import type { ListStockAdjustmentsQuery, ValidateStockAdjustmentInput } from './
 import { nextDocumentNumber } from '../numbering/document-number.js';
 
 type TransactionClient = Prisma.TransactionClient;
+
+const POSTING_TRANSACTION_OPTIONS = { maxWait: 10_000, timeout: 30_000 };
 type AdjustmentType = 'Increase' | 'Decrease';
 
 interface AccountRow {
@@ -383,160 +385,238 @@ export class StockAdjustmentService {
   }
 
   async createDraft(input: ValidateStockAdjustmentInput, userId?: string | null) {
+    return prisma.$transaction(transaction => this.insertDraft(transaction, input, userId));
+  }
+
+  /** Saves and posts in one transaction: if posting is refused, no draft is left behind. */
+  async createAndPost(input: ValidateStockAdjustmentInput, userId?: string | null) {
     return prisma.$transaction(async transaction => {
-      const errors: string[] = [];
-      await this.validateInput(input, errors, [], transaction);
-      if (errors.length) throw businessError(errors[0]);
-      const holder = inputHolder(input);
+      const draft = await this.insertDraft(transaction, input, userId);
+      return this.postInTransaction(transaction, draft.id, userId);
+    }, POSTING_TRANSACTION_OPTIONS);
+  }
 
-      const adjustmentNumber = await this.nextAdjustmentNumber(input.adjustment_date.slice(0, 4), transaction);
-      const itemRows = await this.getItemsForLines(input.lines.map(line => line.item_id), transaction);
-      const itemMap = new Map(itemRows.map(item => [item.id, item]));
-      const userIdValue = userIdOrNull(userId);
-      const totals = await this.calculateDraftTotals(input, transaction);
+  /**
+   * Replaces the header and lines of a Draft adjustment. The adjustment number never changes, even when
+   * the date moves to another year, because document numbers are permanent once given.
+   */
+  async updateDraft(id: string, input: ValidateStockAdjustmentInput, userId?: string | null) {
+    return prisma.$transaction(transaction => this.replaceDraft(transaction, id, input, userId));
+  }
 
-      const headerRows = await transaction.$queryRaw<{ id: string }[]>`
-        INSERT INTO stock_adjustments (
-          company_id, adjustment_number, adjustment_date, branch_id, warehouse_id, location_id,
-          reference_number, reason, description, status, total_quantity_in, total_quantity_out,
-          total_cost_in, total_cost_out, created_by_id, updated_by_id, updated_at
+  /** Saves the changes to a Draft and posts it in one transaction; if posting is refused, the changes are not saved either. */
+  async updateAndPost(id: string, input: ValidateStockAdjustmentInput, userId?: string | null) {
+    return prisma.$transaction(async transaction => {
+      await this.replaceDraft(transaction, id, input, userId);
+      return this.postInTransaction(transaction, id, userId);
+    }, POSTING_TRANSACTION_OPTIONS);
+  }
+
+  private async insertDraft(transaction: TransactionClient, input: ValidateStockAdjustmentInput, userId?: string | null) {
+    const errors: string[] = [];
+    await this.validateInput(input, errors, [], transaction);
+    if (errors.length) throw businessError(errors[0]);
+    const holder = inputHolder(input);
+
+    const adjustmentNumber = await this.nextAdjustmentNumber(input.adjustment_date.slice(0, 4), transaction);
+    const userIdValue = userIdOrNull(userId);
+    const totals = await this.calculateDraftTotals(input, transaction);
+
+    const headerRows = await transaction.$queryRaw<{ id: string }[]>`
+      INSERT INTO stock_adjustments (
+        company_id, adjustment_number, adjustment_date, branch_id, warehouse_id, location_id,
+        reference_number, reason, description, status, total_quantity_in, total_quantity_out,
+        total_cost_in, total_cost_out, created_by_id, updated_by_id, updated_at
+      )
+      VALUES (
+        CAST(${this.companyId} AS uuid),
+        ${adjustmentNumber},
+        CAST(${input.adjustment_date} AS date),
+        ${holder.branchId}::uuid,
+        ${holder.warehouseId}::uuid,
+        ${holder.locationId}::uuid,
+        ${textOrNull(input.reference_number)},
+        ${textOrNull(input.reason)},
+        ${textOrNull(input.description)},
+        'Draft',
+        CAST(${totals.totalQuantityIn.toFixed(4)} AS numeric),
+        CAST(${totals.totalQuantityOut.toFixed(4)} AS numeric),
+        CAST(${totals.totalCostIn.toFixed(4)} AS numeric),
+        CAST(${totals.totalCostOut.toFixed(4)} AS numeric),
+        ${userIdValue}::uuid,
+        ${userIdValue}::uuid,
+        now()
+      )
+      RETURNING id
+    `;
+
+    await this.insertLines(transaction, headerRows[0].id, input, holder);
+    return { id: headerRows[0].id, adjustment_number: adjustmentNumber, status: 'Draft' };
+  }
+
+  /** Locks a Draft so two users cannot change or post it at the same time, then replaces its header and lines. */
+  private async replaceDraft(transaction: TransactionClient, id: string, input: ValidateStockAdjustmentInput, userId?: string | null) {
+    const rows = await transaction.$queryRaw<AdjustmentHeaderRow[]>`
+      SELECT *
+      FROM stock_adjustments
+      WHERE company_id = CAST(${this.companyId} AS uuid)
+        AND id = CAST(${id} AS uuid)
+      FOR UPDATE
+    `;
+    const adjustment = rows[0];
+    if (!adjustment) throw businessError('Stock Adjustment was not found.', 404);
+    if (this.scope) assertCanUseHolder(this.scope, headerHolder(adjustment), 'change Stock Adjustments');
+    if (adjustment.status !== 'Draft') throw businessError('Only Draft Stock Adjustments can be changed. A posted adjustment cannot be changed.');
+
+    const errors: string[] = [];
+    await this.validateInput(input, errors, [], transaction);
+    if (errors.length) throw businessError(errors[0]);
+    const holder = inputHolder(input);
+    const totals = await this.calculateDraftTotals(input, transaction);
+    const userIdValue = userIdOrNull(userId);
+
+    await transaction.$queryRaw`
+      UPDATE stock_adjustments
+      SET adjustment_date = CAST(${input.adjustment_date} AS date),
+          branch_id = ${holder.branchId}::uuid,
+          warehouse_id = ${holder.warehouseId}::uuid,
+          location_id = ${holder.locationId}::uuid,
+          reference_number = ${textOrNull(input.reference_number)},
+          reason = ${textOrNull(input.reason)},
+          description = ${textOrNull(input.description)},
+          total_quantity_in = CAST(${totals.totalQuantityIn.toFixed(4)} AS numeric),
+          total_quantity_out = CAST(${totals.totalQuantityOut.toFixed(4)} AS numeric),
+          total_cost_in = CAST(${totals.totalCostIn.toFixed(4)} AS numeric),
+          total_cost_out = CAST(${totals.totalCostOut.toFixed(4)} AS numeric),
+          updated_by_id = ${userIdValue}::uuid,
+          updated_at = now()
+      WHERE company_id = CAST(${this.companyId} AS uuid)
+        AND id = CAST(${id} AS uuid)
+    `;
+    await transaction.$queryRaw`
+      DELETE FROM stock_adjustment_lines
+      WHERE company_id = CAST(${this.companyId} AS uuid)
+        AND stock_adjustment_id = CAST(${id} AS uuid)
+    `;
+    await this.insertLines(transaction, id, input, holder);
+    return { id, adjustment_number: adjustment.adjustment_number, status: 'Draft' };
+  }
+
+  private async insertLines(transaction: TransactionClient, adjustmentId: string, input: ValidateStockAdjustmentInput, holder: StockHolder) {
+    const itemRows = await this.getItemsForLines(input.lines.map(line => line.item_id), transaction);
+    const itemMap = new Map(itemRows.map(item => [item.id, item]));
+    for (const [index, line] of input.lines.entries()) {
+      const item = itemMap.get(line.item_id)!;
+      const unitCost = line.adjustment_type === 'Increase'
+        ? this.money(line.unit_cost)
+        : (await this.getBalance(transaction, line.item_id, holder)).averageCost;
+      const quantity = this.quantity(line.quantity);
+
+      await transaction.$queryRaw`
+        INSERT INTO stock_adjustment_lines (
+          company_id, stock_adjustment_id, line_number, adjustment_type, item_id,
+          item_code, item_name, uom_name, quantity, unit_cost, total_cost, description, updated_at
         )
         VALUES (
           CAST(${this.companyId} AS uuid),
-          ${adjustmentNumber},
-          CAST(${input.adjustment_date} AS date),
-          ${holder.branchId}::uuid,
-          ${holder.warehouseId}::uuid,
-          ${holder.locationId}::uuid,
-          ${textOrNull(input.reference_number)},
-          ${textOrNull(input.reason)},
-          ${textOrNull(input.description)},
-          'Draft',
-          CAST(${totals.totalQuantityIn.toFixed(4)} AS numeric),
-          CAST(${totals.totalQuantityOut.toFixed(4)} AS numeric),
-          CAST(${totals.totalCostIn.toFixed(4)} AS numeric),
-          CAST(${totals.totalCostOut.toFixed(4)} AS numeric),
-          ${userIdValue}::uuid,
-          ${userIdValue}::uuid,
+          CAST(${adjustmentId} AS uuid),
+          ${index + 1},
+          ${line.adjustment_type},
+          CAST(${line.item_id} AS uuid),
+          ${item.item_code},
+          ${item.item_name},
+          ${item.uom_name},
+          CAST(${quantity.toFixed(4)} AS numeric),
+          CAST(${unitCost.toFixed(4)} AS numeric),
+          CAST(${unitCost.times(quantity).toDecimalPlaces(4, Decimal.ROUND_HALF_UP).toFixed(4)} AS numeric),
+          ${textOrNull(line.description)},
           now()
         )
-        RETURNING id
       `;
-
-      for (const [index, line] of input.lines.entries()) {
-        const item = itemMap.get(line.item_id)!;
-        const unitCost = line.adjustment_type === 'Increase'
-          ? this.money(line.unit_cost)
-          : (await this.getBalance(transaction, line.item_id, holder)).averageCost;
-        const quantity = this.quantity(line.quantity);
-
-        await transaction.$queryRaw`
-          INSERT INTO stock_adjustment_lines (
-            company_id, stock_adjustment_id, line_number, adjustment_type, item_id,
-            item_code, item_name, uom_name, quantity, unit_cost, total_cost, description, updated_at
-          )
-          VALUES (
-            CAST(${this.companyId} AS uuid),
-            CAST(${headerRows[0].id} AS uuid),
-            ${index + 1},
-            ${line.adjustment_type},
-            CAST(${line.item_id} AS uuid),
-            ${item.item_code},
-            ${item.item_name},
-            ${item.uom_name},
-            CAST(${quantity.toFixed(4)} AS numeric),
-            CAST(${unitCost.toFixed(4)} AS numeric),
-            CAST(${unitCost.times(quantity).toDecimalPlaces(4, Decimal.ROUND_HALF_UP).toFixed(4)} AS numeric),
-            ${textOrNull(line.description)},
-            now()
-          )
-        `;
-      }
-
-      return { id: headerRows[0].id, adjustment_number: adjustmentNumber, status: 'Draft' };
-    });
-  }
-
-  async createAndPost(input: ValidateStockAdjustmentInput, userId?: string | null) {
-    const draft = await this.createDraft(input, userId);
-    return this.post(draft.id, userId);
+    }
   }
 
   async post(id: string, userId?: string | null) {
-    return prisma.$transaction(async transaction => {
-      const headerRows = await transaction.$queryRaw<AdjustmentHeaderRow[]>`
-        SELECT *
-        FROM stock_adjustments
-        WHERE company_id = CAST(${this.companyId} AS uuid)
-          AND id = CAST(${id} AS uuid)
-        FOR UPDATE
-      `;
-      const adjustment = headerRows[0];
-      if (!adjustment) throw businessError('Stock Adjustment was not found.', 404);
-      if (this.scope) assertCanUseHolder(this.scope, headerHolder(adjustment), 'post Stock Adjustments');
-      if (adjustment.status !== 'Draft') throw businessError('Only Draft Stock Adjustments can be posted.');
+    return prisma.$transaction(transaction => this.postInTransaction(transaction, id, userId), POSTING_TRANSACTION_OPTIONS);
+  }
 
-      const dateText = this.databaseDateText(adjustment.adjustment_date);
-      await this.assertDateInOpenPeriod(transaction, dateText);
-      const settings = await this.ensureStockAdjustmentSettings(transaction);
-      const inventoryAccount = await this.getAccount(transaction, settings.default_inventory_account_id, 'Default Inventory Account');
-      const gainAccount = await this.getAccount(transaction, settings.adjustment_gain_account_id, 'Stock Adjustment Gain Account');
-      const lossAccount = await this.getAccount(transaction, settings.adjustment_loss_account_id, 'Stock Adjustment Loss Account');
-      const lines = await transaction.$queryRaw<AdjustmentLineRow[]>`
-        SELECT *
-        FROM stock_adjustment_lines
-        WHERE company_id = CAST(${this.companyId} AS uuid)
-          AND stock_adjustment_id = CAST(${id} AS uuid)
-          AND is_active = true
-        ORDER BY line_number ASC
-      `;
-      if (!lines.length) throw businessError('Stock Adjustment has no items.');
+  /**
+   * Posts a Draft adjustment inside the caller's transaction, so saving and posting can be one unit:
+   * if posting fails, the saved draft is rolled back too.
+   */
+  private async postInTransaction(transaction: TransactionClient, id: string, userId?: string | null) {
+    const headerRows = await transaction.$queryRaw<AdjustmentHeaderRow[]>`
+      SELECT *
+      FROM stock_adjustments
+      WHERE company_id = CAST(${this.companyId} AS uuid)
+        AND id = CAST(${id} AS uuid)
+      FOR UPDATE
+    `;
+    const adjustment = headerRows[0];
+    if (!adjustment) throw businessError('Stock Adjustment was not found.', 404);
+    if (this.scope) assertCanUseHolder(this.scope, headerHolder(adjustment), 'post Stock Adjustments');
+    if (adjustment.status !== 'Draft') throw businessError('Only Draft Stock Adjustments can be posted.');
 
-      let totalQuantityIn = new Decimal(0);
-      let totalQuantityOut = new Decimal(0);
-      let totalCostIn = new Decimal(0);
-      let totalCostOut = new Decimal(0);
-      const userIdValue = userIdOrNull(userId);
+    const dateText = this.databaseDateText(adjustment.adjustment_date);
+    await this.assertDateInOpenPeriod(transaction, dateText);
+    const settings = await this.ensureStockAdjustmentSettings(transaction);
+    const inventoryAccount = await this.getAccount(transaction, settings.default_inventory_account_id, 'Default Inventory Account');
+    const gainAccount = await this.getAccount(transaction, settings.adjustment_gain_account_id, 'Stock Adjustment Gain Account');
+    const lossAccount = await this.getAccount(transaction, settings.adjustment_loss_account_id, 'Stock Adjustment Loss Account');
+    const lines = await transaction.$queryRaw<AdjustmentLineRow[]>`
+      SELECT *
+      FROM stock_adjustment_lines
+      WHERE company_id = CAST(${this.companyId} AS uuid)
+        AND stock_adjustment_id = CAST(${id} AS uuid)
+        AND is_active = true
+      ORDER BY line_number ASC
+    `;
+    if (!lines.length) throw businessError('Stock Adjustment has no items.');
 
-      for (const line of lines) {
-        const result = await this.postLine(transaction, adjustment, line, userIdValue);
-        totalQuantityIn = totalQuantityIn.plus(result.quantityIn);
-        totalQuantityOut = totalQuantityOut.plus(result.quantityOut);
-        totalCostIn = totalCostIn.plus(result.costIn);
-        totalCostOut = totalCostOut.plus(result.costOut);
-      }
+    let totalQuantityIn = new Decimal(0);
+    let totalQuantityOut = new Decimal(0);
+    let totalCostIn = new Decimal(0);
+    let totalCostOut = new Decimal(0);
+    const userIdValue = userIdOrNull(userId);
 
-      const accountingVoucherId = await this.createAccountingVoucher(
-        transaction,
-        adjustment,
-        {
-          inventoryAccount,
-          gainAccount,
-          lossAccount,
-          totalCostIn,
-          totalCostOut,
-        },
-        userIdValue,
-      );
+    for (const line of lines) {
+      const result = await this.postLine(transaction, adjustment, line, userIdValue);
+      totalQuantityIn = totalQuantityIn.plus(result.quantityIn);
+      totalQuantityOut = totalQuantityOut.plus(result.quantityOut);
+      totalCostIn = totalCostIn.plus(result.costIn);
+      totalCostOut = totalCostOut.plus(result.costOut);
+    }
 
-      await transaction.$queryRaw`
-        UPDATE stock_adjustments
-        SET status = 'Posted',
-            accounting_voucher_id = ${accountingVoucherId}::uuid,
-            total_quantity_in = CAST(${totalQuantityIn.toFixed(4)} AS numeric),
-            total_quantity_out = CAST(${totalQuantityOut.toFixed(4)} AS numeric),
-            total_cost_in = CAST(${totalCostIn.toFixed(4)} AS numeric),
-            total_cost_out = CAST(${totalCostOut.toFixed(4)} AS numeric),
-            posted_by_id = ${userIdValue}::uuid,
-            posted_at = now(),
-            updated_by_id = ${userIdValue}::uuid,
-            updated_at = now()
-        WHERE company_id = CAST(${this.companyId} AS uuid)
-          AND id = CAST(${id} AS uuid)
-      `;
+    const accountingVoucherId = await this.createAccountingVoucher(
+      transaction,
+      adjustment,
+      {
+        inventoryAccount,
+        gainAccount,
+        lossAccount,
+        totalCostIn,
+        totalCostOut,
+      },
+      userIdValue,
+    );
 
-      return { id, adjustment_number: adjustment.adjustment_number, status: 'Posted' };
-    });
+    await transaction.$queryRaw`
+      UPDATE stock_adjustments
+      SET status = 'Posted',
+          accounting_voucher_id = ${accountingVoucherId}::uuid,
+          total_quantity_in = CAST(${totalQuantityIn.toFixed(4)} AS numeric),
+          total_quantity_out = CAST(${totalQuantityOut.toFixed(4)} AS numeric),
+          total_cost_in = CAST(${totalCostIn.toFixed(4)} AS numeric),
+          total_cost_out = CAST(${totalCostOut.toFixed(4)} AS numeric),
+          posted_by_id = ${userIdValue}::uuid,
+          posted_at = now(),
+          updated_by_id = ${userIdValue}::uuid,
+          updated_at = now()
+      WHERE company_id = CAST(${this.companyId} AS uuid)
+        AND id = CAST(${id} AS uuid)
+    `;
+
+    return { id, adjustment_number: adjustment.adjustment_number, status: 'Posted' };
   }
 
   /** Reads the saved Stock Adjustment accounts; defaults are created only when the company has none yet. */

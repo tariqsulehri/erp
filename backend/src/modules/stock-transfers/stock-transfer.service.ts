@@ -420,6 +420,98 @@ export class StockTransferService {
     return prisma.$transaction(transaction => this.postInTransaction(transaction, id, userId), POSTING_TRANSACTION_OPTIONS);
   }
 
+  /**
+   * Replaces the header and lines of a Draft transfer. The transfer number never changes, even when the
+   * date moves to another year, because document numbers are permanent once given.
+   */
+  async updateDraft(id: string, input: ValidateStockTransferInput, userId?: string | null) {
+    return prisma.$transaction(transaction => this.replaceDraft(transaction, id, input, userId));
+  }
+
+  /** Saves the changes to a Draft and posts it in one transaction; if posting is refused, the changes are not saved either. */
+  async updateAndPost(id: string, input: ValidateStockTransferInput, userId?: string | null) {
+    return prisma.$transaction(async transaction => {
+      await this.replaceDraft(transaction, id, input, userId);
+      return this.postInTransaction(transaction, id, userId);
+    }, POSTING_TRANSACTION_OPTIONS);
+  }
+
+  /** Locks a Draft so two users cannot change or post it at the same time, then replaces its header and lines. */
+  private async replaceDraft(transaction: TransactionClient, id: string, input: ValidateStockTransferInput, userId?: string | null) {
+    const rows = await transaction.$queryRaw<TransferHeaderRow[]>`
+      SELECT *
+      FROM stock_transfers
+      WHERE company_id = CAST(${this.companyId} AS uuid)
+        AND id = CAST(${id} AS uuid)
+      FOR UPDATE
+    `;
+    const transfer = rows[0];
+    if (!transfer) throw businessError('Stock Transfer was not found.', 404);
+    // Only the sending place may change its transfer, as only the sender may post it.
+    if (this.scope) assertCanUseHolder(this.scope, fromHolder(transfer), 'change Stock Transfers');
+    if (transfer.status !== 'Draft') throw businessError('Only Draft Stock Transfers can be changed. A posted transfer cannot be changed.');
+
+    const errors: string[] = [];
+    const holders = await this.validateInput(input, errors, [], transaction);
+    if (errors.length || !holders) throw businessError(errors[0] ?? 'Check the Stock Transfer details and try again.');
+    const { from, to } = holders;
+    const updatedBy = userIdOrNull(userId);
+    const totalQuantity = input.lines.reduce((sum, line) => sum.plus(line.quantity), new Decimal(0));
+
+    await transaction.$queryRaw`
+      UPDATE stock_transfers
+      SET transfer_date = CAST(${input.transfer_date} AS date),
+          from_branch_id = ${from.branchId}::uuid,
+          from_warehouse_id = ${from.warehouseId}::uuid,
+          from_location_id = ${from.locationId}::uuid,
+          to_branch_id = ${to.branchId}::uuid,
+          to_warehouse_id = ${to.warehouseId}::uuid,
+          to_location_id = ${to.locationId}::uuid,
+          reference_number = ${textOrNull(input.reference_number)},
+          description = ${textOrNull(input.description)},
+          total_quantity = CAST(${totalQuantity.toFixed(4)} AS numeric),
+          updated_by_id = ${updatedBy}::uuid,
+          updated_at = now()
+      WHERE company_id = CAST(${this.companyId} AS uuid)
+        AND id = CAST(${id} AS uuid)
+    `;
+    await transaction.$queryRaw`
+      DELETE FROM stock_transfer_lines
+      WHERE company_id = CAST(${this.companyId} AS uuid)
+        AND stock_transfer_id = CAST(${id} AS uuid)
+    `;
+    await this.insertLines(transaction, id, input);
+    return { id, transfer_number: transfer.transfer_number, status: 'Draft' };
+  }
+
+  private async insertLines(transaction: TransactionClient, transferId: string, input: ValidateStockTransferInput) {
+    const itemRows = await this.getItemsForLines(input.lines.map(line => line.item_id), transaction);
+    const itemMap = new Map(itemRows.map(item => [item.id, item]));
+    for (const [index, line] of input.lines.entries()) {
+      const item = itemMap.get(line.item_id)!;
+      await transaction.$queryRaw`
+        INSERT INTO stock_transfer_lines (
+          company_id, stock_transfer_id, line_number, item_id, item_code, item_name,
+          uom_name, quantity, unit_cost, total_cost, description, updated_at
+        )
+        VALUES (
+          CAST(${this.companyId} AS uuid),
+          CAST(${transferId} AS uuid),
+          ${index + 1},
+          CAST(${line.item_id} AS uuid),
+          ${item.item_code},
+          ${item.item_name},
+          ${item.uom_name},
+          CAST(${this.quantity(line.quantity).toFixed(4)} AS numeric),
+          0,
+          0,
+          ${textOrNull(line.description)},
+          now()
+        )
+      `;
+    }
+  }
+
   private async insertDraft(transaction: TransactionClient, input: ValidateStockTransferInput, userId?: string | null) {
     const errors: string[] = [];
     const holders = await this.validateInput(input, errors, [], transaction);
@@ -427,8 +519,6 @@ export class StockTransferService {
     const { from, to } = holders;
 
     const transferNumber = await this.nextTransferNumber(input.transfer_date.slice(0, 4), transaction);
-    const itemRows = await this.getItemsForLines(input.lines.map(line => line.item_id), transaction);
-    const itemMap = new Map(itemRows.map(item => [item.id, item]));
     const postedBy = userIdOrNull(userId);
     const totalQuantity = input.lines.reduce((sum, line) => sum.plus(line.quantity), new Decimal(0));
 
@@ -460,30 +550,7 @@ export class StockTransferService {
       RETURNING id
     `;
 
-    for (const [index, line] of input.lines.entries()) {
-      const item = itemMap.get(line.item_id)!;
-      await transaction.$queryRaw`
-        INSERT INTO stock_transfer_lines (
-          company_id, stock_transfer_id, line_number, item_id, item_code, item_name,
-          uom_name, quantity, unit_cost, total_cost, description, updated_at
-        )
-        VALUES (
-          CAST(${this.companyId} AS uuid),
-          CAST(${headerRows[0].id} AS uuid),
-          ${index + 1},
-          CAST(${line.item_id} AS uuid),
-          ${item.item_code},
-          ${item.item_name},
-          ${item.uom_name},
-          CAST(${this.quantity(line.quantity).toFixed(4)} AS numeric),
-          0,
-          0,
-          ${textOrNull(line.description)},
-          now()
-        )
-      `;
-    }
-
+    await this.insertLines(transaction, headerRows[0].id, input);
     return { id: headerRows[0].id, transfer_number: transferNumber, status: 'Draft' };
   }
 

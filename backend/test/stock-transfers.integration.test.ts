@@ -338,4 +338,45 @@ describe.skipIf(!databaseUrl)('Stock Transfers (database)', () => {
     expect(await balance({ branchId: branchTwo })).toEqual({ quantity: '8.0000', value: '880.00', average: '110.0000' });
     expect((await service().validate(transferInput({ transfer_date: '2025-11-04' }))).errors.join(' ')).toMatch(/Period "November 2025" is closed/);
   });
+
+  const branchTwoToOne = (quantity = 1, date = '2025-12-01') => transferInput({
+    transfer_date: date, from_warehouse_id: '', from_branch_id: branchTwo, to_branch_id: branchOne, lines: [{ item_id: itemA, quantity }],
+  });
+
+  describe('Draft lifecycle: edit, and save changes and post together', () => {
+    it('edits a draft: same number, new lines, no stock moved', async () => {
+      const draft = await service().createDraft(branchTwoToOne(1), userId);
+      const stockBefore = await balance({ branchId: branchTwo });
+      const updated = await service(branchUser(branchTwo)).updateDraft(draft.id, branchTwoToOne(3, '2025-12-02'), userId);
+      expect(updated).toEqual({ id: draft.id, transfer_number: draft.transfer_number, status: 'Draft' });
+      expect(await status(draft.id)).toBe('Draft');
+      const lines = await prisma.$queryRaw<{ quantity: string }[]>`
+        SELECT quantity::text FROM stock_transfer_lines WHERE stock_transfer_id = CAST(${draft.id} AS uuid)
+      `;
+      expect(lines.map(line => new Decimal(line.quantity).toFixed(4))).toEqual(['3.0000']);
+      expect(await balance({ branchId: branchTwo })).toEqual(stockBefore);
+    });
+
+    it('lets only the sending place change a draft, and refuses posted, missing or short-of-stock changes', async () => {
+      const draft = await service().createDraft(branchTwoToOne(1), userId);
+      await expect(service(branchUser(branchOne)).updateDraft(draft.id, branchTwoToOne(1), userId))
+        .rejects.toMatchObject({ statusCode: 403, message: 'You can only change Stock Transfers for your own Branch.' });
+      await expect(service().updateDraft(draft.id, branchTwoToOne(999), userId)).rejects.toThrow(/Not enough stock for line 1/);
+      expect(await status(draft.id)).toBe('Draft');
+      await expect(service().updateDraft('00000000-0000-4000-8000-000000000000', branchTwoToOne(1), userId)).rejects.toMatchObject({ statusCode: 404 });
+
+      const posted = await service().createAndPost(branchTwoToOne(1), userId);
+      await expect(service().updateDraft(posted.id, branchTwoToOne(1), userId))
+        .rejects.toMatchObject({ statusCode: 400, message: expect.stringMatching(/Only Draft Stock Transfers can be changed/) });
+    });
+
+    it('saves changes and posts in one step, moving the new quantity', async () => {
+      const draft = await service().createDraft(branchTwoToOne(1), userId);
+      const before = await balance({ branchId: branchTwo });
+      const posted = await service(branchUser(branchTwo)).updateAndPost(draft.id, branchTwoToOne(2), userId);
+      expect(posted).toMatchObject({ id: draft.id, status: 'Posted' });
+      const after = await balance({ branchId: branchTwo });
+      expect(new Decimal(before!.quantity).minus(after!.quantity).toFixed(4)).toBe('2.0000');
+    });
+  });
 });

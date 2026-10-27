@@ -61,6 +61,28 @@ stockAdjustmentsRouter.post('/create-and-post', requirePermission('stock_adjustm
   }
 });
 
+stockAdjustmentsRouter.put('/:id', requirePermission('stock_adjustments.edit'), async (req, res, next) => {
+  try {
+    const service = serviceFor(req);
+    const { id } = idParams.parse(req.params);
+    const input = ValidateStockAdjustmentInput.parse(req.body);
+    res.json(await service.updateDraft(id, input, currentUserId(req)));
+  } catch (error) {
+    next(error);
+  }
+});
+
+stockAdjustmentsRouter.post('/:id/update-and-post', requirePermission('stock_adjustments.edit'), async (req, res, next) => {
+  try {
+    const service = serviceFor(req);
+    const { id } = idParams.parse(req.params);
+    const input = ValidateStockAdjustmentInput.parse(req.body);
+    res.json(await service.updateAndPost(id, input, currentUserId(req)));
+  } catch (error) {
+    next(error);
+  }
+});
+
 stockAdjustmentsRouter.post('/:id/post', requirePermission('stock_adjustments.edit'), async (req, res, next) => {
   try {
     const service = serviceFor(req);

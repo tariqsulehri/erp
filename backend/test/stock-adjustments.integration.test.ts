@@ -385,4 +385,69 @@ describe.skipIf(!databaseUrl)('Stock Adjustments (database)', () => {
     const stockChange = new Decimal(after.stock).minus(before.stock).toFixed(2);
     expect(ledgerChange).toBe(stockChange);
   });
+
+  /** Makes posting fail after validation has passed, by making the Stock Adjustment Gain Account Inactive for the callback. */
+  async function withInactiveGainAccount(callback: () => Promise<void>) {
+    await prisma.account.update({ where: { id: accounts.gain }, data: { isActive: false } });
+    try {
+      await callback();
+    } finally {
+      await prisma.account.update({ where: { id: accounts.gain }, data: { isActive: true } });
+    }
+  }
+
+  const increaseC = (quantity = 1, unitCost = 10) => [{ adjustment_type: 'Increase' as const, item_id: itemC, quantity, unit_cost: unitCost }];
+
+  describe('Draft lifecycle: save and post together, edit', () => {
+    it('leaves no draft behind when Save And Post is refused at posting', async () => {
+      const adjustmentsBefore = await companyCount('stock_adjustments');
+      const stockBefore = await balance(itemC);
+      await withInactiveGainAccount(async () => {
+        await expect(service().createAndPost(adjustmentInput({ adjustment_date: '2025-09-01', lines: increaseC() }), userId))
+          .rejects.toThrow(/Stock Adjustment Gain Account is not set up or is Inactive/);
+      });
+      expect(await companyCount('stock_adjustments')).toBe(adjustmentsBefore);
+      expect(await balance(itemC)).toEqual(stockBefore);
+    });
+
+    it('edits a draft: same number, new lines and totals, no stock change', async () => {
+      const draft = await service().createDraft(adjustmentInput({ adjustment_date: '2025-09-02', lines: increaseC() }), userId);
+      const stockBefore = await balance(itemC);
+      const updated = await service().updateDraft(draft.id, adjustmentInput({ adjustment_date: '2025-09-03', reason: 'Recount', lines: increaseC(3, 12) }), userId);
+      expect(updated).toEqual({ id: draft.id, adjustment_number: draft.adjustment_number, status: 'Draft' });
+      const row = await header(draft.id);
+      expect(row.status).toBe('Draft');
+      expect(new Decimal(row.total_quantity_in).toFixed(4)).toBe('3.0000');
+      expect(new Decimal(row.total_cost_in).toFixed(2)).toBe('36.00');
+      expect(await balance(itemC)).toEqual(stockBefore);
+    });
+
+    it('refuses to edit a posted, missing or other-place adjustment', async () => {
+      const posted = await service().createAndPost(adjustmentInput({ adjustment_date: '2025-09-04', lines: increaseC() }), userId);
+      await expect(service().updateDraft(posted.id, adjustmentInput({ adjustment_date: '2025-09-04', lines: increaseC() }), userId))
+        .rejects.toMatchObject({ statusCode: 400, message: expect.stringMatching(/Only Draft Stock Adjustments can be changed/) });
+      await expect(service().updateDraft('00000000-0000-4000-8000-000000000000', adjustmentInput({ adjustment_date: '2025-09-04', lines: increaseC() }), userId))
+        .rejects.toMatchObject({ statusCode: 404 });
+      const draft = await service().createDraft(adjustmentInput({ adjustment_date: '2025-09-04', lines: increaseC() }), userId);
+      await expect(service(branchUser(branchOne)).updateDraft(draft.id, adjustmentInput({ adjustment_date: '2025-09-04', lines: increaseC() }), userId))
+        .rejects.toMatchObject({ statusCode: 403, message: 'You can only change Stock Adjustments for your own Branch.' });
+    });
+
+    it('saves changes and posts in one step, keeping the old values when posting is refused', async () => {
+      const draft = await service().createDraft(adjustmentInput({ adjustment_date: '2025-09-05', lines: increaseC() }), userId);
+      const stockBefore = await balance(itemC);
+      await withInactiveGainAccount(async () => {
+        await expect(service().updateAndPost(draft.id, adjustmentInput({ adjustment_date: '2025-09-05', lines: increaseC(5, 10) }), userId))
+          .rejects.toThrow(/Stock Adjustment Gain Account is not set up or is Inactive/);
+      });
+      const kept = await header(draft.id);
+      expect(kept.status).toBe('Draft');
+      expect(new Decimal(kept.total_quantity_in).toFixed(4)).toBe('1.0000');
+      expect(await balance(itemC)).toEqual(stockBefore);
+
+      const posted = await service().updateAndPost(draft.id, adjustmentInput({ adjustment_date: '2025-09-05', lines: increaseC(2, 10) }), userId);
+      expect(posted).toMatchObject({ id: draft.id, status: 'Posted' });
+      expect(amountOn(await voucherFor(draft.id), accounts.gain)).toEqual({ debit: '0.00', credit: '20.00' });
+    });
+  });
 });

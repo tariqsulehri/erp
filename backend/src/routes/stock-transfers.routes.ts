@@ -79,6 +79,28 @@ stockTransfersRouter.post('/create-and-post', requirePermission('stock_transfers
   }
 });
 
+stockTransfersRouter.put('/:id', requirePermission('stock_transfers.edit'), async (req, res, next) => {
+  try {
+    const service = serviceFor(req);
+    const { id } = idParams.parse(req.params);
+    const input = ValidateStockTransferInput.parse(req.body);
+    res.json(await service.updateDraft(id, input, currentUserId(req)));
+  } catch (error) {
+    next(error);
+  }
+});
+
+stockTransfersRouter.post('/:id/update-and-post', requirePermission('stock_transfers.edit'), async (req, res, next) => {
+  try {
+    const service = serviceFor(req);
+    const { id } = idParams.parse(req.params);
+    const input = ValidateStockTransferInput.parse(req.body);
+    res.json(await service.updateAndPost(id, input, currentUserId(req)));
+  } catch (error) {
+    next(error);
+  }
+});
+
 stockTransfersRouter.post('/:id/post', requirePermission('stock_transfers.edit'), async (req, res, next) => {
   try {
     const service = serviceFor(req);

@@ -365,6 +365,25 @@ describe.skipIf(!databaseUrl)('HTTP API permissions (database)', () => {
       expect((await request('POST', `/api/v1/purchase-returns/${id}/cancel`, { token: tokens.warehouse_staff, body: { reason: 'Test' } })).status).toBe(404);
     });
 
+    it('stock draft edit routes: refused for roles that may not save them, 404 for a missing draft', async () => {
+      const id = randomUUID();
+      const cases: Array<[string, Role[], RegExp, Role]> = [
+        ['stock-transfers', ['accountant', 'viewer'], /save or post stock transfers/, 'warehouse_staff'],
+        ['stock-adjustments', ['accountant', 'sales_staff', 'warehouse_staff', 'viewer'], /save or post stock adjustments/, 'manager'],
+      ];
+      for (const [base, roles, message, allowed] of cases) {
+        for (const [method, path] of [['PUT', `/api/v1/${base}/${id}`], ['POST', `/api/v1/${base}/${id}/update-and-post`]]) {
+          for (const role of roles) {
+            const response = await request(method, path, { token: tokens[role], body: {} });
+            expect(response.status, `${role} ${method} ${path}`).toBe(403);
+            expect(response.body.error.message).toMatch(message);
+          }
+          // Allowed roles reach request checking: an empty body is refused before the draft is looked up.
+          expect((await request(method, path, { token: tokens[allowed], body: {} })).status, `${allowed} ${method} ${path}`).toBe(400);
+        }
+      }
+    });
+
     it('POST /stock-adjustments/drafts: only Admin, Top Management and Managers', async () => {
       for (const role of ['accountant', 'sales_staff', 'warehouse_staff', 'viewer'] as Role[]) {
         const response = await request('POST', '/api/v1/stock-adjustments/drafts', { token: tokens[role], body: {} });
