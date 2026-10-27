@@ -1,7 +1,6 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
 import { SearchField } from '@/components/ui/SearchField';
@@ -80,7 +79,7 @@ export function ProductSearchDialog({
               {filtered.length === 0 ? (
                 <tr>
                   <td colSpan={6} style={{ textAlign: 'center', padding: '24px', color: 'var(--color-text-muted)' }}>
-                    No products found for "{search}".
+                    No products found for &quot;{search}&quot;.
                   </td>
                 </tr>
               ) : (

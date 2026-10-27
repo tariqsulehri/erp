@@ -74,7 +74,7 @@ export function PartySearchDialog({
               {filtered.length === 0 ? (
                 <tr>
                   <td colSpan={5} style={{ textAlign: 'center', padding: '24px', color: 'var(--color-text-muted)' }}>
-                    No results found for "{search}".
+                    No results found for &quot;{search}&quot;.
                   </td>
                 </tr>
               ) : (

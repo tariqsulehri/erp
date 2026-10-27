@@ -1,7 +1,6 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { IconCheck, IconSearch } from '@tabler/icons-react';
 import { useAvailableBankCheques } from '@/lib/api/bank-cheques';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';

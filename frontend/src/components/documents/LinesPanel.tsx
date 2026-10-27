@@ -3,7 +3,6 @@
 import type { KeyboardEvent, ReactNode, Ref } from 'react';
 import { Button } from '@/components/ui/Button';
 import { IconFilePlus } from '@tabler/icons-react';
-import { useSaveShortcutLabel } from './useLineEntryKeyboard';
 import styles from './documents.module.css';
 
 /**
@@ -84,7 +83,7 @@ export function AddLineButton({ onClick, disabled = false }: { onClick: () => vo
 }
 
 /** Small keyboard hint shown next to the lines title. */
-export function LineShortcutHint({ mode = 'grid' }: { mode?: 'entry' | 'grid' }) {
+export function LineShortcutHint({ mode: _mode = 'grid' }: { mode?: 'entry' | 'grid' } = {}) {
   return (
     <span className={styles.hint}>
       <kbd>Alt+N</kbd> Add Line

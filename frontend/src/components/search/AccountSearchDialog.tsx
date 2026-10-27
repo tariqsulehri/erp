@@ -1,7 +1,6 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { IconSearch, IconX } from '@tabler/icons-react';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
@@ -123,7 +122,7 @@ export function AccountSearchDialog({
               {filteredOptions.length === 0 ? (
                 <tr>
                   <td colSpan={4} style={{ textAlign: 'center', padding: '32px 16px', color: 'var(--color-text-muted)' }}>
-                    No accounts match "{search}" in this category.
+                    No accounts match &quot;{search}&quot; in this category.
                   </td>
                 </tr>
               ) : (

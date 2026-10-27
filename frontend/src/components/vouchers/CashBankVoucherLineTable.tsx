@@ -7,8 +7,8 @@ import { Button } from '@/components/ui/Button';
 import { SearchableSelect, type SelectOption } from '@/components/ui/SearchableSelect';
 import { LinesTable } from '@/components/documents';
 import styles from '@/components/documents/documents.module.css';
-import { AccountOptionItem, AccountSearchDialog } from '@/components/search/AccountSearchDialog';
-import { AvailableChequeItem, ChequeSearchDialog } from '@/components/search/ChequeSearchDialog';
+import { type AccountOptionItem, AccountSearchDialog } from '@/components/search/AccountSearchDialog';
+import { ChequeSearchDialog } from '@/components/search/ChequeSearchDialog';
 import { amountValue, cleanAmount, formatAmountInput, sanitizeAmountInput, today } from './VoucherShared';
 
 export interface CashBankVoucherLine {

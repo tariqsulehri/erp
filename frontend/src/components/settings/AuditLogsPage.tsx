@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { IconHistory, IconSearch, IconX } from '@tabler/icons-react';
+import { IconHistory, IconX } from '@tabler/icons-react';
 import { useAuditLogs, type AuditLogRow } from '@/lib/api/audit';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';

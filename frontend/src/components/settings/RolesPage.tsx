@@ -11,11 +11,11 @@ import { TableMessageRow } from '@/components/ui/TableMessageRow';
 import { friendlyErrorMessage } from '@/lib/erp-utils';
 
 export default function RolesPage() {
-  const { data, isLoading, error, refetch } = useRoles();
+  const { data, isLoading, error } = useRoles();
   const [selectedRole, setSelectedRole] = useState<string>('admin');
 
-  const roles = data?.data ?? [];
-  const permissions = data?.permission_definitions ?? [];
+  const roles = useMemo(() => data?.data ?? [], [data?.data]);
+  const permissions = useMemo(() => data?.permission_definitions ?? [], [data?.permission_definitions]);
 
   const currentRole = useMemo(() => {
     return roles.find(r => r.role === selectedRole) || roles[0];
