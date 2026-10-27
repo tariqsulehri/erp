@@ -9,28 +9,45 @@ jest.mock('next/link', () => ({
   default: ({ href, children, ...props }: { href: string; children: React.ReactNode }) => <a href={href} {...props}>{children}</a>,
 }));
 
-const configGroup = () => {
+const groupByKey = (key: string) => {
   for (const section of NAV_SECTIONS) {
     for (const entry of section.entries) {
-      if (entry.type === 'group' && entry.group.key === 'config') return entry.group;
+      if (entry.type === 'group' && entry.group.key === key) return entry.group;
     }
   }
-  throw new Error('Configuration group missing');
+  throw new Error(`Group ${key} missing`);
 };
 
 describe('navigation config', () => {
-  it('lists Configuration as numbered setup steps in setup order', () => {
-    const group = configGroup();
-    expect(group.numbered).toBe(true);
-    expect(group.items.map(item => item.label)).toEqual([
-      'General Settings', 'Fiscal Year', 'Chart of Accounts', 'States', 'Cities', 'Areas',
-      'Branches', 'Warehouses', 'Categories', 'Units of Measure', 'Users',
+  it('lists categorized setup groups with clean, focused items', () => {
+    const company = groupByKey('config-company');
+    expect(company.numbered).toBe(true);
+    expect(company.items.map(item => item.label)).toEqual([
+      'General Settings', 'Fiscal Year', 'Chart of Accounts',
+    ]);
+
+    const facilities = groupByKey('config-facilities');
+    expect(facilities.numbered).toBe(true);
+    expect(facilities.items.map(item => item.label)).toEqual([
+      'Branches', 'Warehouses', 'States', 'Cities', 'Areas',
+    ]);
+
+    const items = groupByKey('config-item-masters');
+    expect(items.numbered).toBe(true);
+    expect(items.items.map(item => item.label)).toEqual([
+      'Categories', 'Units of Measure',
     ]);
   });
 
   it('every page has a unique address', () => {
     const hrefs = NAV_SECTIONS.flatMap(section => section.entries.flatMap(entry => (entry.type === 'link' ? [entry.item.href] : entry.group.items.map(item => item.href))));
     expect(new Set(hrefs).size).toBe(hrefs.length);
+  });
+
+  it('hides Design System from navigation', () => {
+    const labels = navSectionsFor({ canManageUsers: true, role: 'admin' })
+      .flatMap(section => section.entries.flatMap(entry => (entry.type === 'group' ? entry.group.items.map(item => item.label) : [entry.item.label])));
+    expect(labels).not.toContain('Design System');
   });
 
   it('hides Users from people who cannot manage users', () => {
@@ -43,19 +60,11 @@ describe('navigation config', () => {
   it('selects the most specific page for an address', () => {
     expect(resolveRoute('/settings/areas')?.item.label).toBe('Areas');
     expect(resolveRoute('/settings')?.item.label).toBe('General Settings');
-    expect(resolveRoute('/fiscal-year')?.group?.key).toBe('config');
+    expect(resolveRoute('/fiscal-year')?.group?.key).toBe('config-company');
+    expect(resolveRoute('/inventory/uom')?.group?.key).toBe('config-item-masters');
     expect(resolveRoute('/does-not-exist')).toBeUndefined();
   });
 });
-
-const groupByKey = (key: string) => {
-  for (const section of NAV_SECTIONS) {
-    for (const entry of section.entries) {
-      if (entry.type === 'group' && entry.group.key === key) return entry.group;
-    }
-  }
-  throw new Error(`Group ${key} missing`);
-};
 
 describe('AppSidebar', () => {
   const props = { collapsed: false, onToggleCollapsed: jest.fn(), postingDisabled: false, postingReason: '' };
@@ -65,7 +74,9 @@ describe('AppSidebar', () => {
     const inventory = screen.getByRole('link', { name: /Inventory/ });
     expect(inventory).toHaveAttribute('href', '/inventory/products');
     expect(inventory).toHaveTextContent('4');
-    expect(screen.getByRole('link', { name: /Configuration/ })).toHaveAttribute('href', '/settings');
+    expect(screen.getByRole('link', { name: /Company & Finance/ })).toHaveAttribute('href', '/settings');
+    expect(screen.getByRole('link', { name: /Places & Facilities/ })).toHaveAttribute('href', '/inventory/branches');
+    expect(screen.getByRole('link', { name: /Item Masters/ })).toHaveAttribute('href', '/inventory/categories');
     // Pages inside groups are not listed in the sidebar any more; they are tabs on the page.
     expect(screen.queryByRole('link', { name: /Stock Received/ })).not.toBeInTheDocument();
   });
@@ -95,10 +106,10 @@ describe('ModuleTabs', () => {
     expect(screen.queryByLabelText('Step 1')).not.toBeInTheDocument();
   });
 
-  it('numbers the Configuration pages as setup steps', () => {
-    render(<ModuleTabs {...props} group={groupByKey('config')} activeHref="/fiscal-year" />);
+  it('numbers the Company & Finance pages as setup steps', () => {
+    render(<ModuleTabs {...props} group={groupByKey('config-company')} activeHref="/fiscal-year" />);
     expect(screen.getByLabelText('Step 1')).toBeInTheDocument();
-    expect(screen.getByLabelText('Step 11')).toBeInTheDocument();
+    expect(screen.getByLabelText('Step 3')).toBeInTheDocument();
     const current = screen.getByRole('link', { current: 'page' });
     expect(current).toHaveTextContent('Fiscal Year');
     expect(current).toHaveTextContent('2');
