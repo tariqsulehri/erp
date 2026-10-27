@@ -8,10 +8,8 @@ export const loginSchema = z.object({
 
 export const newPasswordSchema = z
   .string()
-  .max(200, 'Password is too long.')
-  .refine(val => val === '1234' || val.length >= PASSWORD_MIN_LENGTH, {
-    message: `Password must be at least ${PASSWORD_MIN_LENGTH} characters.`,
-  });
+  .min(PASSWORD_MIN_LENGTH, `Password must be at least ${PASSWORD_MIN_LENGTH} characters.`)
+  .max(200, 'Password is too long.');
 
 export const changePasswordSchema = z.object({
   current_password: z.string().min(1, 'Current Password is required.').max(200),

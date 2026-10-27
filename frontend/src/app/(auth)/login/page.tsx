@@ -7,8 +7,8 @@ import { IconClock, IconDots, IconEye, IconEyeOff, IconLock } from '@tabler/icon
 import { InlineAlert } from '@/components/ui/InlineAlert';
 
 export default function LoginPage() {
-  const [email, setEmail] = useState('admin@example.com');
-  const [password, setPassword] = useState('admin123');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -106,7 +106,7 @@ export default function LoginPage() {
             {/* Username / Email field */}
             <div className="login-field-group">
               <label htmlFor="login-username" className="login-field-label">
-                USERNAME
+                Email
               </label>
               <div className="login-input-wrap">
                 <input
@@ -116,7 +116,7 @@ export default function LoginPage() {
                   className="login-input"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="admin@example.com"
+                  placeholder="name@company.com"
                   required
                   autoComplete="email"
                 />
@@ -129,7 +129,7 @@ export default function LoginPage() {
             {/* Password field */}
             <div className="login-field-group">
               <label htmlFor="login-password" className="login-field-label">
-                PASSWORD
+                Password
               </label>
               <div className="login-input-wrap has-lead">
                 <span className="login-input-lead-icon" aria-hidden>

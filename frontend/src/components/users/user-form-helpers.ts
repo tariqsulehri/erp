@@ -61,7 +61,7 @@ export function validateUserForm(form: UserFormState, isNew: boolean) {
   if (!form.full_name.trim()) return 'Enter the Full Name.';
   if (!form.email.trim()) return 'Enter the Email.';
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) return 'Email is not correct. Use a format like name@company.com.';
-  if (isNew && form.password !== '1234' && form.password.length < PASSWORD_MIN_LENGTH) return `Password must be at least ${PASSWORD_MIN_LENGTH} characters.`;
+  if (isNew && form.password.length < PASSWORD_MIN_LENGTH) return `Password must be at least ${PASSWORD_MIN_LENGTH} characters.`;
   if (!form.role) return 'Select a Role.';
   if (!form.access_level) return 'Select an Access Level.';
   if (form.access_level === 'BRANCH' && !form.branch_id) return 'Select the Branch this user works in.';
