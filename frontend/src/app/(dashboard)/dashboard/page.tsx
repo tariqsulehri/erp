@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, type CSSProperties, type ReactNode } from 'react';
+import type { CSSProperties, ReactNode } from 'react';
 import { useSession } from 'next-auth/react';
 import { useDashboardSummary } from '@/lib/api/dashboard';
 import { useDashboardKpis } from '@/lib/api/reports';
@@ -11,20 +11,10 @@ import {
   IconBuildingBank, IconCalendarStats, IconChartBar, IconCircleCheck, IconCoin, IconListTree, IconPackage,
   IconPencil, IconTrendingUp, IconTruckDelivery, IconUsers,
 } from '@tabler/icons-react';
-import {
-  CapsuleBenchmarkChart,
-  type CapsuleBenchmarkPillar,
-  CategoryGradePillars,
-  ChartCard,
-  type GradePillarItem,
-  PipelineDonutChart,
-  type PipelineDonutItem,
-  TargetBenchmarkBars,
-  type TargetBenchmarkRow,
-} from '@/components/analytics/ProCharts';
+import { ChartCard, DonutChart, MonthlyColumnChart, RankedBars } from '@/components/analytics/ProCharts';
 import { compactAxis } from '@/components/analytics/chart-data';
 import { StatGrid, StatTile, type StatTone } from '@/components/ui/StatTile';
-import { useChartTheme } from '@/components/analytics/chart-palette';
+import { useChartTheme, type ChartTheme } from '@/components/analytics/chart-palette';
 import { Badge } from '@/components/ui/Badge';
 import { InlineAlert } from '@/components/ui/InlineAlert';
 import { PageHeader } from '@/components/ui/PageHeader';
@@ -47,6 +37,24 @@ function voucherStatusVariant(status: string): BadgeVariant {
 
 function titleCase(value: string) {
   return value ? value.charAt(0).toUpperCase() + value.slice(1) : value;
+}
+
+/** One palette for every dashboard chart, taken from the shared chart palette. */
+function accountTypeColor(theme: ChartTheme, type: string) {
+  const map: Record<string, string> = {
+    Asset: theme.series.blue,
+    Liability: theme.series.red,
+    Equity: theme.series.slate,
+    Revenue: theme.series.teal,
+    Expense: theme.series.amber,
+  };
+  return map[type] ?? theme.series.slate;
+}
+
+function statusColor(theme: ChartTheme, status: string) {
+  if (status === 'Posted') return theme.series.teal;
+  if (status === 'Draft') return theme.series.amber;
+  return theme.series.slate;
 }
 
 // ── Building blocks ──────────────────────────────────────────────────────────
@@ -207,8 +215,7 @@ export default function DashboardPage() {
   const { data, isLoading, error } = useDashboardSummary();
   const { data: settings } = useGeneralSettings();
   const theme = useChartTheme();
-  const [targetTab, setTargetTab] = useState<'departments' | 'managers'>('departments');
-  const [targetCloseTab, setTargetCloseTab] = useState<'own' | 'attainment'>('own');
+
 
   if (isLoading || error || !data) {
     return (
@@ -226,139 +233,53 @@ export default function DashboardPage() {
   }
 
   const { accounts, vouchers, fiscalYear } = data;
-  const pctOf = (n: number) => (accounts.total > 0 ? Math.round((n / accounts.total) * 100) : 0);
+
+  const statusData = [
+    { name: 'Posted', value: vouchers.posted },
+    { name: 'Draft', value: vouchers.draft },
+    { name: 'Voided', value: vouchers.voided },
+  ].filter(d => d.value > 0);
+
+  const accountTypeData = accounts.byType.map(r => ({ name: r.type, value: r.count }));
+
+  const voucherTypeData = vouchers.byType.map(r => ({
+    name: VOUCHER_TYPE_LABELS[r.type] ?? r.type,
+    type: r.type,
+    count: r.count,
+    total: r.total,
+  }));
 
   const fyPct = fiscalYear
     ? Math.round((fiscalYear.closedPeriods / (fiscalYear.totalPeriods || 1)) * 100)
     : 0;
+  const pctOf = (n: number) => (accounts.total > 0 ? Math.round((n / accounts.total) * 100) : 0);
   const axis = compactAxis(settings);
+
+  // Chart data and one-sentence findings.
+  const monthlyPoints = vouchers.monthlyVolume.map(row => ({ monthKey: row.month, label: row.month, total: Number(row.total), count: row.count }));
+  const monthlyAverage = monthlyPoints.length > 0 ? monthlyPoints.reduce((sum, row) => sum + row.total, 0) / monthlyPoints.length : 0;
+  const peakMonth = monthlyPoints.reduce<(typeof monthlyPoints)[number] | null>((best, row) => (!best || row.total > best.total ? row : best), null);
+  const monthlyHeadline = peakMonth && peakMonth.total > 0
+    ? `${peakMonth.label} was the busiest month with ${formatMoney(peakMonth.total, settings)} posted in ${formatCount(peakMonth.count, settings)} vouchers.`
+    : undefined;
+  const statusHeadline = vouchers.total > 0
+    ? `${formatCount(vouchers.posted, settings)} of ${formatCount(vouchers.total, settings)} vouchers are posted${vouchers.draft > 0 ? `; ${formatCount(vouchers.draft, settings)} drafts wait to be posted.` : '.'}`
+    : undefined;
+  const largestType = [...accountTypeData].sort((left, right) => right.value - left.value)[0];
+  const accountHeadline = largestType
+    ? `${largestType.name} is the largest group: ${formatCount(largestType.value, settings)} of ${formatCount(accounts.total, settings)} accounts (${pctOf(largestType.value)}%).`
+    : undefined;
+  const rankedTypes = voucherTypeData
+    .map(row => ({ name: row.name === row.type ? row.type : `${row.type} · ${row.name}`, value: Number(row.total), count: row.count }))
+    .sort((left, right) => right.value - left.value);
+  const typeTotal = rankedTypes.reduce((sum, row) => sum + row.value, 0);
+  const typeHeadline = rankedTypes[0]
+    ? `${rankedTypes[0].name} carries the most, ${typeTotal > 0 ? (rankedTypes[0].value / typeTotal * 100).toFixed(1) : '0'}% of the posted amount.`
+    : undefined;
 
   const description = fiscalYear
     ? `Fiscal Year ${fiscalYear.name} · ${fiscalYear.currentPeriod ? `Current Period ${fiscalYear.currentPeriod.name}` : 'No Open Period'}`
     : 'No Active Fiscal Year';
-
-  // ── Card 1: Promotion / Voucher Pipeline ──
-  const pipelineItems: PipelineDonutItem[] = [
-    {
-      name: 'ready for promotion',
-      count: 0,
-      share: 0,
-      color: '#22c55e',
-      gradient: ['#22c55e', '#16a34a'],
-    },
-    {
-      name: 'nearly ready',
-      count: 0,
-      share: 0,
-      color: '#3b82f6',
-      gradient: ['#3b82f6', '#1d4ed8'],
-    },
-    {
-      name: 'not ready yet',
-      count: 33,
-      share: 80,
-      color: '#f97316',
-      gradient: ['#f97316', '#ea580c'],
-    },
-    {
-      name: 'still to be assessed',
-      count: 8,
-      share: 20,
-      color: '#94a3b8',
-      gradient: ['#94a3b8', '#64748b'],
-    },
-  ];
-
-  // ── Card 2: Teams against target ──
-  const departmentTargetRows: TargetBenchmarkRow[] = [
-    {
-      name: 'Engineering',
-      subtitle: '10 people',
-      achievedPercent: 27.2,
-      targetPercent: 66.1,
-      variancePoints: -38.9,
-      gradient: ['#1d4ed8', '#3b82f6'],
-    },
-    {
-      name: 'DevOps',
-      subtitle: '28 people',
-      achievedPercent: 48.2,
-      targetPercent: 68.1,
-      variancePoints: -19.9,
-      gradient: ['#1d4ed8', '#3b82f6'],
-    },
-  ];
-
-  const managerTargetRows: TargetBenchmarkRow[] = [
-    {
-      name: 'Core Platform',
-      subtitle: '16 people',
-      achievedPercent: 34.5,
-      targetPercent: 65.0,
-      variancePoints: -30.5,
-      gradient: ['#1d4ed8', '#3b82f6'],
-    },
-    {
-      name: 'Product Delivery',
-      subtitle: '22 people',
-      achievedPercent: 52.8,
-      targetPercent: 70.0,
-      variancePoints: -17.2,
-      gradient: ['#1d4ed8', '#3b82f6'],
-    },
-  ];
-
-  // ── Card 3: How close people are to their target ──
-  const closePillars: CapsuleBenchmarkPillar[] = [
-    {
-      count: 14,
-      countUnit: 'people',
-      fillPercent: 42,
-      badgeLabel: '42%',
-      title: 'Far behind',
-      subtitle: '25+ points below',
-      gradient: ['#ef4444', '#b91c1c'],
-    },
-    {
-      count: 11,
-      countUnit: 'people',
-      fillPercent: 33,
-      badgeLabel: '33%',
-      title: 'Behind',
-      subtitle: '10–25 points below',
-      gradient: ['#f97316', '#ea580c'],
-    },
-    {
-      count: 8,
-      countUnit: 'people',
-      fillPercent: 24,
-      badgeLabel: '24%',
-      title: 'Close',
-      subtitle: 'within 10 points',
-      gradient: ['#38bdf8', '#0284c7'],
-    },
-    {
-      count: 0,
-      countUnit: 'people',
-      fillPercent: 0,
-      badgeLabel: '0%',
-      title: 'On target',
-      subtitle: 'all skills met',
-      gradient: ['#94a3b8', '#64748b'],
-    },
-  ];
-
-  // ── Card 4: People by grade ──
-  const gradeItems: GradePillarItem[] = [
-    { id: 'g13', count: 1, countUnit: 'person', percentage: 2, label: 'G13', subLabel: 'too few', gradient: ['#1e293b', '#0f172a'] },
-    { id: 'g14', count: 11, countUnit: 'people', percentage: 27, label: 'G14', subLabel: '0 ready', gradient: ['#2563eb', '#1d4ed8'] },
-    { id: 'g15', count: 18, countUnit: 'people', percentage: 44, label: 'G15', subLabel: 'ready', gradient: ['#2563eb', '#1d4ed8'] },
-    { id: 'g16', count: 4, countUnit: 'people', percentage: 10, label: 'G16', subLabel: '0 ready', gradient: ['#2563eb', '#1d4ed8'] },
-    { id: 'g17', count: 3, countUnit: 'people', percentage: 7, label: 'G17', subLabel: '0 ready', gradient: ['#1e293b', '#0f172a'] },
-    { id: 'g18', count: 2, countUnit: 'people', percentage: 5, label: 'G18', subLabel: 'too few', gradient: ['#1e293b', '#0f172a'] },
-    { id: 'g19', count: 1, countUnit: 'person', percentage: 2, label: 'G19', subLabel: 'too few', gradient: ['#1e293b', '#0f172a'] },
-    { id: 'g21', count: 1, countUnit: 'person', percentage: 2, label: 'G21', subLabel: 'too few', gradient: ['#1e293b', '#0f172a'] },
-  ];
 
   return (
     <main className="page-shell">
@@ -407,152 +328,91 @@ export default function DashboardPage() {
           </StatGrid>
         </section>
 
-        <h2 className="analytics-section-title">Performance Analytics & Pipeline</h2>
-        <div className="dashboard-visuals-grid">
-          {/* Card 1: Promotion / Voucher Pipeline */}
+        <h2 className="analytics-section-title">Vouchers And Accounts</h2>
+        {/* Row 2: monthly amount + voucher status */}
+        <div className="analytics-row-main">
           <ChartCard
-            title="Promotion pipeline"
-            subtitle="Where all 41 people stand on the way to their next grade."
-            headline="0 of 41 are ready for promotion. 8 still need a result before they can be judged."
-            help="Status distribution across technical readiness, assessments, and next promotion grade."
+            title="Posted Amount By Month"
+            subtitle="Last 6 months; the dashed line is the monthly average"
+            headline={monthlyHeadline}
+            help="Total amount of vouchers posted in each of the last 6 months."
+            metric={{ label: 'Monthly Average', value: formatMoney(monthlyAverage, settings) }}
             table={{
-              columns: [
-                { key: 'status', label: 'Status' },
-                { key: 'count', label: 'People', numeric: true },
-                { key: 'share', label: 'Share', numeric: true },
-              ],
-              rows: pipelineItems.map(item => ({
-                status: item.name,
-                count: formatCount(item.count, settings),
-                share: `${item.share}%`,
-              })),
+              columns: [{ key: 'month', label: 'Month' }, { key: 'count', label: 'Vouchers', numeric: true }, { key: 'total', label: 'Posted Amount', numeric: true }],
+              rows: vouchers.monthlyVolume.map(row => ({ month: row.month, count: formatCount(row.count, settings), total: formatMoney(row.total, settings) })),
             }}
           >
-            <PipelineDonutChart
-              items={pipelineItems}
-              totalCount={41}
-              totalLabel="people"
-            />
-          </ChartCard>
-
-          {/* Card 2: Teams against target */}
-          <ChartCard
-            title="Teams against target"
-            subtitle="Each department's average technical score, with its target as a dark tick. Furthest behind first."
-            headline="2 of 2 departments are below target. Engineering is furthest behind, 38.9 points short."
-            help="Average technical score by department compared against minimum benchmark target."
-            pillSwitch={(
-              <div className="chart-pill-switch">
-                <button
-                  type="button"
-                  className={`chart-pill-btn ${targetTab === 'departments' ? 'active' : ''}`}
-                  onClick={() => setTargetTab('departments')}
-                >
-                  Departments
-                </button>
-                <button
-                  type="button"
-                  className={`chart-pill-btn ${targetTab === 'managers' ? 'active' : ''}`}
-                  onClick={() => setTargetTab('managers')}
-                >
-                  Line managers
-                </button>
-              </div>
+            {monthlyPoints.length === 0 ? (
+              <EmptyNote>No posted vouchers in the last 6 months.</EmptyNote>
+            ) : (
+              <MonthlyColumnChart
+                data={monthlyPoints}
+                dataKey="total"
+                seriesName="Posted Amount"
+                average={monthlyAverage}
+                format={value => formatMoney(value, settings)}
+                axis={axis}
+                tooltipTitle={point => String(point.label)}
+                height={230}
+              />
             )}
-            footerNote="Not shown: 2 with fewer than 3 people."
+          </ChartCard>
+
+          <ChartCard
+            title="Voucher Status"
+            subtitle="All vouchers by where they stand"
+            headline={statusHeadline}
+            help="Posted vouchers are in the ledger. Drafts do not affect balances until they are posted. Voided vouchers are cancelled."
             table={{
-              columns: [
-                { key: 'team', label: targetTab === 'departments' ? 'Department' : 'Team' },
-                { key: 'people', label: 'People', numeric: true },
-                { key: 'actual', label: 'Score', numeric: true },
-                { key: 'target', label: 'Target', numeric: true },
-                { key: 'variance', label: 'Variance', numeric: true },
-              ],
-              rows: (targetTab === 'departments' ? departmentTargetRows : managerTargetRows).map(r => ({
-                team: r.name,
-                people: r.subtitle || '',
-                actual: `${r.achievedPercent.toFixed(1)}%`,
-                target: `${r.targetPercent.toFixed(1)}%`,
-                variance: `${r.variancePoints > 0 ? '+' : ''}${r.variancePoints.toFixed(1)} pts`,
-              })),
+              columns: [{ key: 'status', label: 'Status' }, { key: 'count', label: 'Vouchers', numeric: true }, { key: 'share', label: 'Share', numeric: true }],
+              rows: statusData.map(row => ({ status: row.name, count: formatCount(row.value, settings), share: `${vouchers.total > 0 ? Math.round(row.value / vouchers.total * 100) : 0}%` })),
             }}
           >
-            <TargetBenchmarkBars
-              rows={targetTab === 'departments' ? departmentTargetRows : managerTargetRows}
+            <DonutChart
+              items={statusData.map(row => ({ name: row.name, value: row.value, color: statusColor(theme, row.name) }))}
+              centerValue={formatCount(vouchers.total, settings)}
+              centerLabel="vouchers"
+              format={value => formatCount(value, settings)}
+            />
+          </ChartCard>
+        </div>
+
+        {/* Row 3: accounts by type + posted amount by voucher type */}
+        <div className="layout-cols-2">
+          <ChartCard
+            title="Accounts By Type"
+            subtitle="Chart of Accounts by account type"
+            headline={accountHeadline}
+            help="How the accounts in the Chart of Accounts split across Asset, Liability, Equity, Revenue, and Expense."
+            table={{
+              columns: [{ key: 'type', label: 'Type' }, { key: 'count', label: 'Accounts', numeric: true }, { key: 'share', label: 'Share', numeric: true }],
+              rows: accountTypeData.map(row => ({ type: row.name, count: formatCount(row.value, settings), share: `${pctOf(row.value)}%` })),
+            }}
+          >
+            <DonutChart
+              items={accountTypeData.map(row => ({ name: row.name, value: row.value, color: accountTypeColor(theme, row.name) }))}
+              centerValue={formatCount(accounts.total, settings)}
+              centerLabel="accounts"
+              format={value => formatCount(value, settings)}
             />
           </ChartCard>
 
-          {/* Card 3: How close people are to their target */}
           <ChartCard
-            title="How close people are to their target"
-            subtitle="33 people with a technical result, each compared with the target for their grade."
-            help="People categorized into performance proximity bands against grade targets."
-            pillSwitch={(
-              <div className="chart-pill-switch">
-                <button
-                  type="button"
-                  className={`chart-pill-btn ${targetCloseTab === 'own' ? 'active' : ''}`}
-                  onClick={() => setTargetCloseTab('own')}
-                >
-                  Own target
-                </button>
-                <button
-                  type="button"
-                  className={`chart-pill-btn ${targetCloseTab === 'attainment' ? 'active' : ''}`}
-                  onClick={() => setTargetCloseTab('attainment')}
-                >
-                  Attainment
-                </button>
-              </div>
-            )}
+            title="Posted Amount By Voucher Type"
+            subtitle="Amount and share of all posted vouchers"
+            headline={typeHeadline}
+            help="Posted voucher amounts grouped by voucher type, largest first."
             table={{
-              columns: [
-                { key: 'band', label: 'Band' },
-                { key: 'count', label: 'People', numeric: true },
-                { key: 'threshold', label: 'Threshold' },
-                { key: 'share', label: 'Share', numeric: true },
-              ],
-              rows: closePillars.map(p => ({
-                band: p.title,
-                count: `${p.count} ${p.countUnit || 'people'}`,
-                threshold: p.subtitle,
-                share: p.badgeLabel,
-              })),
+              columns: [{ key: 'type', label: 'Voucher Type' }, { key: 'count', label: 'Vouchers', numeric: true }, { key: 'total', label: 'Posted Amount', numeric: true }],
+              rows: rankedTypes.map(row => ({ type: row.name, count: formatCount(row.count, settings), total: formatMoney(row.value, settings) })),
             }}
           >
-            <CapsuleBenchmarkChart
-              pillars={closePillars}
-              axisLeft="Further from target"
-              axisRight="Closer to target"
-              summaryNote="The middle person is 22 points below their target. 8 not shown: no technical result yet, or no target."
-            />
-          </ChartCard>
-
-          {/* Card 4: People by grade */}
-          <ChartCard
-            title="People by grade"
-            subtitle="Number of people at each grade, junior to senior. The striped part is ready for promotion."
-            help="Staff distribution across career progression grades."
-            footerNote="41 people, 0 ready for promotion."
-            table={{
-              columns: [
-                { key: 'grade', label: 'Grade' },
-                { key: 'count', label: 'People', numeric: true },
-                { key: 'share', label: 'Share', numeric: true },
-                { key: 'status', label: 'Status' },
-              ],
-              rows: gradeItems.map(g => ({
-                grade: g.label,
-                count: `${g.count} ${g.countUnit || 'people'}`,
-                share: `${g.percentage}%`,
-                status: g.subLabel,
-              })),
-            }}
-          >
-            <CategoryGradePillars
-              items={gradeItems}
-              axisLeft="Junior"
-              axisRight="Senior"
+            <RankedBars
+              items={rankedTypes}
+              total={typeTotal}
+              format={value => formatMoney(value, settings)}
+              limit={7}
+              countLabel={value => `${formatCount(value, settings)} Vouchers`}
             />
           </ChartCard>
         </div>
