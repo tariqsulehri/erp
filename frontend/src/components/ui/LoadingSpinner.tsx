@@ -43,7 +43,7 @@ export function Spinner({
 
   const topColor =
     color === 'white'
-      ? 'var(--color-on-primary, #ffffff)'
+      ? 'var(--color-on-primary)'
       : color === 'secondary'
         ? 'var(--color-text-secondary)'
         : color === 'muted'
@@ -52,8 +52,8 @@ export function Spinner({
 
   const trackColor =
     color === 'white'
-      ? 'rgba(255, 255, 255, 0.2)'
-      : 'var(--color-border-subtle, rgba(0, 0, 0, 0.08))';
+      ? 'rgb(var(--accent-fg) / 0.2)'
+      : 'var(--color-border-subtle)';
 
   return (
     <span

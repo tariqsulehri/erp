@@ -252,7 +252,7 @@ export default function AuditLogsPage() {
                     style={{
                       margin: '4px 0 0',
                       padding: 12,
-                      backgroundColor: 'var(--color-surface-sunken, #f8f9fa)',
+                      backgroundColor: 'var(--color-surface-alt)',
                       borderRadius: 'var(--radius-sm)',
                       fontSize: 'var(--font-size-xs)',
                       fontFamily: 'monospace',

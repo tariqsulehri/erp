@@ -1121,7 +1121,7 @@ function SecurityTab() {
                 border: '1px solid var(--color-border)',
                 borderRadius: 'var(--border-radius-lg)',
                 padding: '20px 18px',
-                background: 'var(--color-bg-subtle)',
+                background: 'var(--color-surface-alt)',
                 display: 'flex',
                 flexDirection: 'column',
                 justifyContent: 'space-between',

@@ -25,6 +25,7 @@ import { SearchField } from '@/components/ui/SearchField';
 import { SidePanel } from '@/components/ui/SidePanel';
 import { TableMessageRow } from '@/components/ui/TableMessageRow';
 import { friendlyErrorMessage } from '@/lib/erp-utils';
+import { FALLBACK_COLOUR_HEX, NEW_COLOUR_HEX } from './product-colour-defaults';
 
 interface ColorRow {
   id: string;
@@ -43,7 +44,7 @@ interface ColorRow {
 const EMPTY_FORM = {
   code: '',
   name: '',
-  hex_code: '#2563EB',
+  hex_code: NEW_COLOUR_HEX,
   description: '',
   notes: '',
   sort_order: 0,
@@ -82,7 +83,7 @@ export default function ColorsPage() {
     setForm({
       code: c.code,
       name: c.name,
-      hex_code: c.hex_code ?? c.hexCode ?? '#2563EB',
+      hex_code: c.hex_code ?? c.hexCode ?? NEW_COLOUR_HEX,
       description: c.description ?? '',
       notes: c.notes ?? '',
       sort_order: c.sort_order ?? c.sortOrder ?? 0,
@@ -304,11 +305,11 @@ export default function ColorsPage() {
             <TextField label="Color Name" value={form.name} onChange={v => set('name', v)} required placeholder="e.g. Jet Black" />
             <div style={{ display: 'flex', gap: 12, alignItems: 'flex-end', marginBottom: 12 }}>
               <div style={{ flex: 1 }}>
-                <TextField label="Hex Code" value={form.hex_code} onChange={v => set('hex_code', v)} placeholder="#000000" />
+                <TextField label="Hex Code" value={form.hex_code} onChange={v => set('hex_code', v)} placeholder={FALLBACK_COLOUR_HEX} />
               </div>
               <input
                 type="color"
-                value={form.hex_code?.startsWith('#') && form.hex_code.length === 7 ? form.hex_code : '#000000'}
+                value={form.hex_code?.startsWith('#') && form.hex_code.length === 7 ? form.hex_code : FALLBACK_COLOUR_HEX}
                 onChange={e => set('hex_code', e.target.value)}
                 style={{
                   width: 40,

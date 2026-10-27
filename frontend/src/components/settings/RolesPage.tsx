@@ -150,8 +150,8 @@ export default function RolesPage() {
                               width: 22,
                               height: 22,
                               borderRadius: '50%',
-                              backgroundColor: 'var(--color-success-subtle, #e6f4ea)',
-                              color: 'var(--color-success-text, #137333)',
+                              backgroundColor: 'var(--color-success-bg)',
+                              color: 'var(--color-success-text)',
                             }}
                             title={`Allowed for ${r.label}`}
                           >

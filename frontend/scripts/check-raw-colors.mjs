@@ -12,6 +12,8 @@ const ALLOWED = new Set([
   join('src', 'styles', 'themes', 'brand-palette.css'),
   join('src', 'styles', 'themes', 'theme-palettes.css'),
   join('src', 'lib', 'theme', 'theme-definitions.ts'),
+  // Product colour codes are business data (the Colour master), not interface colours.
+  join('src', 'components', 'inventory', 'product-colour-defaults.ts'),
 ]);
 const EXTENSIONS = /\.(css|scss|ts|tsx|js|jsx|mjs)$/;
 

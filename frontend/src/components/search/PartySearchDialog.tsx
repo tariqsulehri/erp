@@ -62,7 +62,7 @@ export function PartySearchDialog({
         <div style={{ maxHeight: 440, overflowY: 'auto', border: '1px solid var(--color-border)', borderRadius: 'var(--border-radius-md)' }}>
           <table className="data-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
-              <tr style={{ background: 'var(--color-bg-subtle)', position: 'sticky', top: 0, zIndex: 1 }}>
+              <tr style={{ background: 'var(--color-surface-alt)', position: 'sticky', top: 0, zIndex: 1 }}>
                 <th style={{ width: 140, padding: '10px 14px' }}>Code</th>
                 <th style={{ padding: '10px 14px' }}>Name</th>
                 <th style={{ width: 140, padding: '10px 14px' }}>City</th>

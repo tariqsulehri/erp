@@ -95,8 +95,8 @@ export function AccountSearchDialog({
                   padding: '4px 10px',
                   borderRadius: 'var(--radius-full)',
                   border: active ? '1px solid var(--color-primary)' : '1px solid var(--color-border)',
-                  background: active ? 'var(--color-primary)' : 'var(--color-bg-subtle)',
-                  color: active ? '#ffffff' : 'var(--color-text)',
+                  background: active ? 'var(--color-primary)' : 'var(--color-surface-alt)',
+                  color: active ? 'var(--color-on-primary)' : 'var(--color-text)',
                   cursor: 'pointer',
                   transition: 'all 0.15s ease',
                 }}
@@ -111,7 +111,7 @@ export function AccountSearchDialog({
         <div style={{ maxHeight: 440, overflowY: 'auto', border: '1px solid var(--color-border)', borderRadius: 'var(--border-radius-md)' }}>
           <table className="data-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
-              <tr style={{ background: 'var(--color-bg-subtle)', position: 'sticky', top: 0, zIndex: 1 }}>
+              <tr style={{ background: 'var(--color-surface-alt)', position: 'sticky', top: 0, zIndex: 1 }}>
                 <th style={{ width: 140, padding: '10px 14px' }}>Code</th>
                 <th style={{ padding: '10px 14px' }}>Account Title</th>
                 <th style={{ width: 120, padding: '10px 14px' }}>Type</th>

@@ -43,6 +43,7 @@ import {
   STATUS_OPTIONS,
   TAX_CATEGORY_OPTIONS,
 } from './ProductShared';
+import { NEW_PRODUCT_CUSTOM_HEX } from './product-colour-defaults';
 
 type ProductTab = 'definition' | 'pricing' | 'stock' | 'notes';
 
@@ -83,7 +84,7 @@ export function ProductForm({ editId, onSaved, onCancel }: {
   const [productTypeId, setProductTypeId] = useState('');
   const [itemSizeId,   setItemSizeId]   = useState('');
   const [colorId,      setColorId]      = useState('');
-  const [customHex,    setCustomHex]    = useState('#1e293b');
+  const [customHex,    setCustomHex]    = useState(NEW_PRODUCT_CUSTOM_HEX);
   const [originId,     setOriginId]     = useState('');
   const [model,        setModel]        = useState('');
   const [categoryId,   setCategoryId]   = useState('');
@@ -567,7 +568,7 @@ export function ProductForm({ editId, onSaved, onCancel }: {
                           padding: '3px 8px',
                           border: '1px solid var(--color-border)',
                           borderRadius: 'var(--border-radius-md)',
-                          background: 'var(--color-bg-subtle)',
+                          background: 'var(--color-surface-alt)',
                         }}
                       >
                         <input

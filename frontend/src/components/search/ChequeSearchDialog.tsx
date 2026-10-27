@@ -39,7 +39,7 @@ export function ChequeSearchDialog({
     <Modal open={open} title="Select Available Cheque" onClose={onClose} size="lg">
       <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
         {bankAccountTitle && (
-          <div style={{ padding: '10px 14px', background: 'var(--color-bg-subtle)', borderRadius: 'var(--border-radius-md)', border: '1px solid var(--color-border-subtle)', fontSize: 'var(--font-size-xs)' }}>
+          <div style={{ padding: '10px 14px', background: 'var(--color-surface-alt)', borderRadius: 'var(--border-radius-md)', border: '1px solid var(--color-border-subtle)', fontSize: 'var(--font-size-xs)' }}>
             <span style={{ color: 'var(--color-text-muted)' }}>Bank Account: </span>
             <strong style={{ color: 'var(--color-heading)' }}>{bankAccountTitle}</strong>
           </div>
@@ -64,7 +64,7 @@ export function ChequeSearchDialog({
         <div style={{ maxHeight: 420, overflowY: 'auto', border: '1px solid var(--color-border)', borderRadius: 'var(--border-radius-md)' }}>
           <table className="data-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
-              <tr style={{ background: 'var(--color-bg-subtle)', position: 'sticky', top: 0, zIndex: 1 }}>
+              <tr style={{ background: 'var(--color-surface-alt)', position: 'sticky', top: 0, zIndex: 1 }}>
                 <th style={{ padding: '10px 14px' }}>Cheque Number</th>
                 <th style={{ padding: '10px 14px' }}>Book No.</th>
                 <th style={{ width: 100, padding: '10px 14px' }}>Serial No.</th>
