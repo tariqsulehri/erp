@@ -18,12 +18,7 @@ function buildDatasourceUrl(rawUrl: string): string {
 declare global {
   // eslint-disable-next-line no-var
   var __prisma: PrismaClient | undefined;
-  // eslint-disable-next-line no-var
-  var __prismaRo: PrismaClient | undefined;
 }
-
-const primaryDatasourceUrl = buildDatasourceUrl(env.DATABASE_URL);
-const readOnlyDatasourceUrl = buildDatasourceUrl(process.env.DATABASE_RO_URL || env.DATABASE_URL);
 
 function createPrismaClient(url: string): PrismaClient {
   return new PrismaClient({
@@ -32,13 +27,11 @@ function createPrismaClient(url: string): PrismaClient {
   });
 }
 
-// Global singleton instances to prevent connection pool leaks across reloads
-export const prisma = globalThis.__prisma ?? createPrismaClient(primaryDatasourceUrl);
-export const prismaRo = globalThis.__prismaRo ?? createPrismaClient(readOnlyDatasourceUrl);
+// Global singleton instance to prevent connection pool leaks across reloads
+export const prisma = globalThis.__prisma ?? createPrismaClient(buildDatasourceUrl(env.DATABASE_URL));
 
 if (env.NODE_ENV !== 'production') {
   globalThis.__prisma = prisma;
-  globalThis.__prismaRo = prismaRo;
 }
 
 export async function connectDatabase() {
@@ -47,7 +40,4 @@ export async function connectDatabase() {
 
 export async function disconnectDatabase() {
   await prisma.$disconnect();
-  if (globalThis.__prismaRo) {
-    await prismaRo.$disconnect();
-  }
 }
