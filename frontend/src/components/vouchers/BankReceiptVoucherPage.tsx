@@ -12,6 +12,9 @@ import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { FieldLabel } from '@/components/ui/FieldLabel';
 import { DateField, NumericField, TextField } from '@/components/ui/FormFields';
 import { SearchableSelect, type SelectOption as VoucherSelectOption } from '@/components/ui/SearchableSelect';
+import { Button } from '@/components/ui/Button';
+import { IconSearch } from '@tabler/icons-react';
+import { AccountSearchDialog } from '@/components/search/AccountSearchDialog';
 import {
   AddLineButton,
   DocumentActions,
@@ -55,8 +58,8 @@ const depositTypes: SelectOption[] = [
   { value: 'OTHER', label: 'Other Deposit', searchText: 'other' },
 ];
 
-const INITIAL_LINE_COUNT = 10;
-const initialLines = () => Array.from({ length: INITIAL_LINE_COUNT }, (_, index) => blankLine(index + 1));
+const INITIAL_LINE_COUNT = 1;
+const initialLines = () => [blankLine(1)];
 
 const blankLine = (id: number): ReceiptLine => ({
   id,
@@ -83,6 +86,7 @@ export default function BankReceiptVoucherPage() {
   const [bankAccountId, setBankAccountId] = useState('');
   const [lines, setLines] = useState<ReceiptLine[]>(initialLines);
   const [nextLineId, setNextLineId] = useState(INITIAL_LINE_COUNT + 1);
+  const [bankSearchOpen, setBankSearchOpen] = useState(false);
   const [message, setMessage] = useState<{ kind: MessageKind; text: string } | null>(null);
   const [processConfirmOpen, setProcessConfirmOpen] = useState(false);
   const postingDateGuard = usePostingDateGuard(depositDate, 'Deposit Date');
@@ -189,17 +193,14 @@ export default function BankReceiptVoucherPage() {
       clearingDate: '',
       amount: String(line.cr_amount ?? ''),
     }));
-    const paddedLines = [...receiptLines];
-    while (paddedLines.length < INITIAL_LINE_COUNT) {
-      paddedLines.push(blankLine(paddedLines.length + 1));
-    }
+    const loadedLines = receiptLines.length > 0 ? receiptLines : [blankLine(1)];
 
     setDepositDate(String(voucher.voucher_date ?? '').slice(0, 10));
     setReferenceNumber(voucher.reference || '');
     setDescription(voucher.narration || '');
     setBankAccountId(bankLine?.account_id || '');
-    setLines(paddedLines);
-    setNextLineId(paddedLines.length + 1);
+    setLines(loadedLines);
+    setNextLineId(loadedLines.length + 1);
     setMessage(null);
   }, [detailQuery.data, editingVoucherId]);
 
@@ -222,7 +223,7 @@ export default function BankReceiptVoucherPage() {
     setDescription('');
     setBankAccountId('');
     setLines(initialLines());
-    setNextLineId(INITIAL_LINE_COUNT + 1);
+    setNextLineId(2);
     if (editingVoucherId) router.push(pathname);
     if (clearMessage) setMessage(null);
   }
@@ -384,13 +385,25 @@ export default function BankReceiptVoucherPage() {
         <TextField label="Reference Number" value={referenceNumber} onChange={setReferenceNumber} placeholder="Slip, Cheque, Note" />
         <div className="span-2">
           <FieldLabel label="Bank Account" required>
-            <SearchableSelect
-              value={bankAccountId}
-              options={bankAccountOptions}
-              onChange={setBankAccountId}
-              placeholder={bankAccountsQuery.isLoading ? 'Loading Accounts' : bankAccountsQuery.error ? 'Accounts Not Loaded' : 'Search Bank Account'}
-              disabled={bankAccountsQuery.isLoading || bankAccountsQuery.isError}
-            />
+            <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <SearchableSelect
+                  value={bankAccountId}
+                  options={bankAccountOptions}
+                  onChange={setBankAccountId}
+                  placeholder={bankAccountsQuery.isLoading ? 'Loading Accounts' : bankAccountsQuery.error ? 'Accounts Not Loaded' : 'Search Bank Account'}
+                  disabled={bankAccountsQuery.isLoading || bankAccountsQuery.isError}
+                />
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                icon={<IconSearch size={16} stroke={1.8} />}
+                onClick={() => setBankSearchOpen(true)}
+                title="Advanced Bank Account Lookup"
+                aria-label="Search Bank Account"
+              />
+            </div>
           </FieldLabel>
         </div>
         <NumericField label="Current Balance" value={money(currentBalance)} disabled />
@@ -425,8 +438,23 @@ export default function BankReceiptVoucherPage() {
           generalSettings={generalSettings}
           onUpdateLine={updateLine}
           onRemoveLine={removeLine}
+          onAddLine={addLine}
         />
       </LinesPanel>
+
+      {/* Advanced Bank Account Search Modal */}
+      {bankSearchOpen && (
+        <AccountSearchDialog
+          open={true}
+          title="Select Deposit Bank Account"
+          options={bankAccountOptions}
+          onSelect={selected => {
+            setBankAccountId(selected.value);
+            setBankSearchOpen(false);
+          }}
+          onClose={() => setBankSearchOpen(false)}
+        />
+      )}
 
       <ConfirmDialog
         open={processConfirmOpen}

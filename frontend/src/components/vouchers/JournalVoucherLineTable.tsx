@@ -30,6 +30,7 @@ export function JournalVoucherLineTable({
   generalSettings,
   onUpdateLine,
   onRemoveLine,
+  onAddLine,
 }: {
   lines: JournalVoucherLine[];
   accountOptions: SelectOption[];
@@ -38,6 +39,7 @@ export function JournalVoucherLineTable({
   generalSettings?: AppFormatSettingsSource | null;
   onUpdateLine: (id: number, patch: Partial<JournalVoucherLine>) => void;
   onRemoveLine: (id: number) => void;
+  onAddLine?: () => void;
 }) {
   const [accountSearchLineId, setAccountSearchLineId] = useState<number | null>(null);
 
@@ -74,6 +76,7 @@ export function JournalVoucherLineTable({
         <tbody>
           {lines.map((line, index) => {
             const lineNo = index + 1;
+            const isLastLine = index === lines.length - 1;
             return (
               <tr key={line.id} data-line-row data-line-empty={isEmptyLine(line) ? 'true' : undefined}>
                 <td className="num cell-muted">{lineNo}</td>
@@ -83,7 +86,12 @@ export function JournalVoucherLineTable({
                       <SearchableSelect
                         value={line.accountId}
                         options={accountOptions}
-                        onChange={value => onUpdateLine(line.id, { accountId: value })}
+                        onChange={value => {
+                          onUpdateLine(line.id, { accountId: value });
+                          if (isLastLine && value && onAddLine) {
+                            onAddLine();
+                          }
+                        }}
                         placeholder={accountsLoading ? 'Loading Accounts' : accountsError ? 'Accounts Not Loaded' : 'Search Account'}
                         disabled={accountsLoading || accountsError}
                         ariaLabel={`Account, Line ${lineNo}`}
@@ -121,6 +129,12 @@ export function JournalVoucherLineTable({
                   }}
                   onFocus={() => onUpdateLine(line.id, { debit: cleanAmount(line.debit) })}
                   onBlur={() => onUpdateLine(line.id, { debit: formatAmountInput(line.debit, generalSettings) })}
+                  onKeyDown={event => {
+                    if (event.key === 'Enter' && isLastLine && onAddLine) {
+                      event.preventDefault();
+                      onAddLine();
+                    }
+                  }}
                   placeholder="0.00"
                   aria-label={`Debit, Line ${lineNo}`}
                 />
@@ -136,6 +150,12 @@ export function JournalVoucherLineTable({
                   }}
                   onFocus={() => onUpdateLine(line.id, { credit: cleanAmount(line.credit) })}
                   onBlur={() => onUpdateLine(line.id, { credit: formatAmountInput(line.credit, generalSettings) })}
+                  onKeyDown={event => {
+                    if (event.key === 'Enter' && isLastLine && onAddLine) {
+                      event.preventDefault();
+                      onAddLine();
+                    }
+                  }}
                   placeholder="0.00"
                   aria-label={`Credit, Line ${lineNo}`}
                 />

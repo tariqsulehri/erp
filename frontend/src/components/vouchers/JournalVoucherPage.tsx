@@ -51,9 +51,9 @@ interface AccountOption extends SelectOption {
   openingBalance?: string | number | null;
 }
 
-const INITIAL_LINE_COUNT = 12;
+const INITIAL_LINE_COUNT = 2;
 const blankLine = (id: number): JournalLine => ({ id, accountId: '', description: '', debit: '', credit: '' });
-const initialLines = () => Array.from({ length: INITIAL_LINE_COUNT }, (_, index) => blankLine(index + 1));
+const initialLines = () => [blankLine(1), blankLine(2)];
 
 export default function JournalVoucherPage() {
   const router = useRouter();
@@ -155,16 +155,13 @@ export default function JournalVoucherPage() {
       debit: String(line.dr_amount ?? ''),
       credit: String(line.cr_amount ?? ''),
     }));
-    const paddedLines = [...journalLines];
-    while (paddedLines.length < INITIAL_LINE_COUNT) {
-      paddedLines.push(blankLine(paddedLines.length + 1));
-    }
+    const loadedLines = journalLines.length >= 2 ? journalLines : [blankLine(1), blankLine(2)];
 
     setVoucherDate(String(voucher.voucher_date ?? '').slice(0, 10));
     setReferenceNumber(voucher.reference || '');
     setDescription(voucher.narration || '');
-    setLines(paddedLines);
-    setNextLineId(paddedLines.length + 1);
+    setLines(loadedLines);
+    setNextLineId(loadedLines.length + 1);
     setMessage(null);
   }, [detailQuery.data, editingVoucherId]);
 
@@ -186,7 +183,7 @@ export default function JournalVoucherPage() {
     setReferenceNumber('');
     setDescription('');
     setLines(initialLines());
-    setNextLineId(INITIAL_LINE_COUNT + 1);
+    setNextLineId(3);
     if (editingVoucherId) router.push(pathname);
     if (clearMessage) setMessage(null);
   }
@@ -372,6 +369,7 @@ export default function JournalVoucherPage() {
           generalSettings={generalSettings}
           onUpdateLine={updateLine}
           onRemoveLine={removeLine}
+          onAddLine={addLine}
         />
       </LinesPanel>
 

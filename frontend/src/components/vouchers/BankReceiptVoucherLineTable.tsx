@@ -42,6 +42,7 @@ export function BankReceiptVoucherLineTable({
   generalSettings,
   onUpdateLine,
   onRemoveLine,
+  onAddLine,
 }: {
   lines: BankReceiptVoucherLine[];
   accountOptions: SelectOption[];
@@ -51,6 +52,7 @@ export function BankReceiptVoucherLineTable({
   generalSettings?: AppFormatSettingsSource | null;
   onUpdateLine: (id: number, patch: Partial<BankReceiptVoucherLine>) => void;
   onRemoveLine: (id: number) => void;
+  onAddLine?: () => void;
 }) {
   const [accountSearchLineId, setAccountSearchLineId] = useState<number | null>(null);
 
@@ -69,35 +71,36 @@ export function BankReceiptVoucherLineTable({
         <colgroup>
           <col style={{ width: 48 }} />
           <col style={{ width: 230 }} />
-        <col />
-        <col style={{ width: 140 }} />
-        <col style={{ width: 116 }} />
-        <col style={{ width: 136 }} />
-        <col style={{ width: 128 }} />
-        <col style={{ width: 136 }} />
-        <col style={{ width: 128 }} />
-        <col style={{ width: 48 }} />
-      </colgroup>
-      <thead>
-        <tr>
-          <th className="num">No.</th>
-          <th>Received From Account<span className="field-required" aria-hidden="true">*</span></th>
-          <th>Description</th>
-          <th>Deposit Type</th>
-          <th>Cheque Number<span className="field-required" aria-hidden="true">*</span></th>
-          <th>Cheque Date</th>
-          <th>Cheque Bank</th>
-          <th>Clearing Date</th>
-          <th className="num">Amount<span className="field-required" aria-hidden="true">*</span></th>
-          <th><span className="sr-only">Actions</span></th>
-        </tr>
-      </thead>
-      <tbody>
-        {lines.map((line, index) => {
-          const isCheque = line.depositKind === 'CHEQUE';
-          const lineNo = index + 1;
-          return (
-            <tr key={line.id} data-line-row data-line-empty={isEmptyLine(line) ? 'true' : undefined}>
+          <col />
+          <col style={{ width: 140 }} />
+          <col style={{ width: 116 }} />
+          <col style={{ width: 136 }} />
+          <col style={{ width: 128 }} />
+          <col style={{ width: 136 }} />
+          <col style={{ width: 128 }} />
+          <col style={{ width: 44 }} />
+        </colgroup>
+        <thead>
+          <tr>
+            <th className="num">No.</th>
+            <th>Received From Account<span className="field-required" aria-hidden="true">*</span></th>
+            <th>Description</th>
+            <th>Deposit Type</th>
+            <th>Cheque Number<span className="field-required" aria-hidden="true">*</span></th>
+            <th>Cheque Date</th>
+            <th>Cheque Bank</th>
+            <th>Clearing Date</th>
+            <th className="num">Amount<span className="field-required" aria-hidden="true">*</span></th>
+            <th><span className="sr-only">Actions</span></th>
+          </tr>
+        </thead>
+        <tbody>
+          {lines.map((line, index) => {
+            const isCheque = line.depositKind === 'CHEQUE';
+            const lineNo = index + 1;
+            const isLastLine = index === lines.length - 1;
+            return (
+              <tr key={line.id} data-line-row data-line-empty={isEmptyLine(line) ? 'true' : undefined}>
                 <td className="num cell-muted">{lineNo}</td>
                 <td data-line-first>
                   <div className={styles.cellControlGroup}>
@@ -105,7 +108,12 @@ export function BankReceiptVoucherLineTable({
                       <SearchableSelect
                         value={line.receivedFromAccountId}
                         options={accountOptions}
-                        onChange={value => onUpdateLine(line.id, { receivedFromAccountId: value })}
+                        onChange={value => {
+                          onUpdateLine(line.id, { receivedFromAccountId: value });
+                          if (isLastLine && value && onAddLine) {
+                            onAddLine();
+                          }
+                        }}
                         placeholder={accountsLoading ? 'Loading Accounts' : accountsError ? 'Accounts Not Loaded' : 'Search Account'}
                         disabled={accountsLoading || accountsError}
                         ariaLabel={`Received From Account, Line ${lineNo}`}
@@ -189,6 +197,12 @@ export function BankReceiptVoucherLineTable({
                   onChange={event => onUpdateLine(line.id, { amount: sanitizeAmountInput(event.currentTarget.value) })}
                   onFocus={() => onUpdateLine(line.id, { amount: cleanAmount(line.amount) })}
                   onBlur={() => onUpdateLine(line.id, { amount: formatAmountInput(line.amount, generalSettings) })}
+                  onKeyDown={event => {
+                    if (event.key === 'Enter' && isLastLine && onAddLine) {
+                      event.preventDefault();
+                      onAddLine();
+                    }
+                  }}
                   placeholder="0.00"
                   aria-label={`Amount, Line ${lineNo}`}
                 />
