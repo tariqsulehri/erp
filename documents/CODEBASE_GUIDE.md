@@ -230,3 +230,65 @@ npm run check:secrets                                    # from the repository r
 - Hard-coding company IDs, account IDs, currency, dates or fiscal years: read them from settings or the database.
 - Raw hex colours in components, `==` comparisons (lint fails), or `Array.prototype.at` in tests (TS target).
 - Shell `grep --include=*.ts` in zsh fails on the glob; quote it: `--include='*.ts'`.
+
+## 12. Starting Another Agent (Antigravity, Codex, Cursor)
+
+Some agents read `AGENTS.md` or `GEMINI.md` on their own, depending on version and settings. To be sure an
+agent builds the right context, and to see what it understood before it changes anything, start each new
+conversation with the context prompt below. The agent must open this repository folder on a branch that
+has this guide.
+
+### Context prompt (paste at the start of a new conversation)
+
+```text
+You are working in the BizTrack ERP repository (Next.js frontend in frontend/, Express + Prisma +
+PostgreSQL backend in backend/). Before doing any task, build your context of this codebase.
+Do not change any file in this step.
+
+1. Read these files in this order:
+   - AGENTS.md
+   - documents/CODEBASE_GUIDE.md
+   - documents/PROJECT_RULES.md
+   - documents/CODING_STANDARDS.md
+   - documents/DEFINITION_OF_DONE.md
+   - documents/ACCOUNTING_POSTING_RULES.md
+   - documents/INVENTORY_CURRENT_STATE.md
+2. Open these to see the patterns in real code:
+   - backend/src/routes/stock-adjustments.routes.ts
+   - backend/src/modules/stock-adjustments/stock-adjustment.service.ts
+   - backend/src/modules/auth/access-rules.ts
+   - frontend/src/components/purchases/PurchaseVoucherPage.tsx
+   - frontend/src/components/documents/index.ts
+   - frontend/src/components/shell/nav-config.ts
+   - backend/test/stock-adjustments.integration.test.ts
+3. Then reply with a short summary in your own words:
+   - how a route, service and transaction fit together in the backend;
+   - the Draft → Post → Cancel / Reverse lifecycle and the endpoints every document uses;
+   - the posting rules (one transaction, Inventory account equals stock value, posted documents never edited);
+   - where permissions are defined and which three places must stay in sync;
+   - the commands that must pass before a commit;
+   - the working rules you must follow (branch per change, ask before push / deploy / data deletion,
+     never bypass approvals or access checks, keep CODEBASE_GUIDE.md up to date).
+4. List anything in the documents that looks unclear or contradicts the code.
+
+Wait for my next message before making any change.
+```
+
+### Task prompt (start each later task with this)
+
+```text
+Follow AGENTS.md and documents/CODEBASE_GUIDE.md. Work on a new branch, reuse the shared parts named
+in the guide, add or update tests, run every check in section 7 of the guide, and commit only when they
+pass. Do not push, deploy or change the database without asking me first.
+
+Task: <describe what you want>
+```
+
+### Tips
+
+- **Check the agent's summary.** Correct anything wrong (for example "posted documents can be edited" or
+  "save and post use two transactions") before it writes code.
+- **One task per conversation.** Start a new conversation, with the context prompt again, for unrelated work.
+- **Workspace or global rules:** if the agent has a rules setting, paste the lines from `GEMINI.md` there so
+  they apply to every conversation.
+- **Review before merging:** run the checks in section 7 on the agent's branch, or ask for a code review.
