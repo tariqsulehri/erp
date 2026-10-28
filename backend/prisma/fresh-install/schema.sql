@@ -1242,7 +1242,6 @@ CREATE TABLE public.inventory_stock_balances (
     created_at timestamp(3) without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
     updated_at timestamp(3) without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
     branch_id uuid,
-    version integer DEFAULT 1 NOT NULL,
     CONSTRAINT inventory_stock_balances_holder_check CHECK (((branch_id IS NULL) <> (warehouse_id IS NULL)))
 );
 
@@ -1465,7 +1464,6 @@ CREATE TABLE public.purchase_invoices (
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
     location_id uuid,
-    version integer DEFAULT 1 NOT NULL,
     CONSTRAINT chk_purchase_invoices_amounts CHECK (((gross_amount >= (0)::numeric) AND (discount_amount >= (0)::numeric) AND (tax_amount >= (0)::numeric) AND (freight_amount >= (0)::numeric) AND (net_amount >= (0)::numeric))),
     CONSTRAINT chk_purchase_invoices_payment_type CHECK (((payment_type)::text = ANY ((ARRAY['Cash'::character varying, 'Credit'::character varying])::text[]))),
     CONSTRAINT chk_purchase_invoices_status CHECK (((status)::text = ANY ((ARRAY['Draft'::character varying, 'Posted'::character varying, 'Voided'::character varying])::text[])))
@@ -1629,7 +1627,6 @@ CREATE TABLE public.sale_invoices (
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
     location_id uuid,
     branch_id uuid,
-    version integer DEFAULT 1 NOT NULL,
     CONSTRAINT chk_sale_invoices_amounts CHECK (((gross_amount >= (0)::numeric) AND (discount_amount >= (0)::numeric) AND (tax_amount >= (0)::numeric) AND (freight_amount >= (0)::numeric) AND (net_amount >= (0)::numeric) AND (cost_amount >= (0)::numeric))),
     CONSTRAINT chk_sale_invoices_payment_type CHECK (((payment_type)::text = ANY ((ARRAY['Cash'::character varying, 'Credit'::character varying])::text[]))),
     CONSTRAINT chk_sale_invoices_status CHECK (((status)::text = ANY ((ARRAY['Draft'::character varying, 'Posted'::character varying, 'Voided'::character varying])::text[]))),
@@ -1819,7 +1816,6 @@ CREATE TABLE public.stock_adjustments (
     is_active boolean DEFAULT true NOT NULL,
     accounting_voucher_id uuid,
     branch_id uuid,
-    version integer DEFAULT 1 NOT NULL,
     voided_by_id uuid,
     voided_at timestamp(6) with time zone,
     void_reason text,
@@ -2054,7 +2050,6 @@ CREATE TABLE public.vouchers (
     reversed_by uuid,
     reversed_at timestamp with time zone,
     reversal_reason text,
-    version integer DEFAULT 1 NOT NULL,
     CONSTRAINT vouchers_approval_status_check CHECK (((approval_status)::text = ANY ((ARRAY['Not Required'::character varying, 'Pending'::character varying, 'Approved'::character varying, 'Rejected'::character varying])::text[]))),
     CONSTRAINT vouchers_voucher_type_check CHECK (((voucher_type)::text = ANY ((ARRAY['BRV'::character varying, 'BPV'::character varying, 'CRV'::character varying, 'CPV'::character varying, 'JV'::character varying, 'CV'::character varying, 'DN'::character varying, 'CN'::character varying, 'PI'::character varying, 'PR'::character varying, 'SI'::character varying, 'SR'::character varying, 'SA'::character varying, 'RV'::character varying, 'CL'::character varying, 'OS'::character varying])::text[])))
 );
