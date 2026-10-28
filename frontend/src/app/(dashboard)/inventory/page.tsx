@@ -1,7 +1,7 @@
 import { PageHeader } from '@/components/ui/PageHeader';
 import InventoryCardGrid, { type InventoryCard } from './InventoryCardGrid';
 
-export const metadata = { title: 'Inventory — ERP Finance' };
+export const metadata = { title: 'Inventory — BizTrack' };
 
 const CARDS: InventoryCard[] = [
   {

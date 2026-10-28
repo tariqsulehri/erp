@@ -26,10 +26,10 @@ export function AppSidebar({
 }) {
   return (
     <aside className="sidebar" aria-label="Main Navigation">
-      <Link href="/dashboard" className="sidebar-brand" title="ERP Finance">
+      <Link href="/dashboard" className="sidebar-brand" title="BizTrack">
         <span className="sidebar-brand-mark" aria-hidden><IconHomeDollar size={19} stroke={1.8} /></span>
         <span className="sidebar-brand-text">
-          <span className="sidebar-brand-title">ERP Finance</span>
+          <span className="sidebar-brand-title">BizTrack</span>
           <span className="sidebar-brand-sub">Financial Module</span>
         </span>
       </Link>

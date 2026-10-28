@@ -1,6 +1,6 @@
 import BrandsPage from '@/components/inventory/BrandsPage';
 
-export const metadata = { title: 'Brands — ERP Finance' };
+export const metadata = { title: 'Brands — BizTrack' };
 
 export default function BrandsRoute() {
   return <BrandsPage />;

@@ -5,8 +5,8 @@ import './globals.css';
 import { Providers } from './providers';
 
 export const metadata: Metadata = {
-  title: 'ERP Financial Module',
-  description: 'Professional-grade, multi-company ERP Financial Management System',
+  title: 'BizTrack',
+  description: 'BizTrack: purchases, sales, stock and accounts for your whole business in one place.',
 };
 
 export const viewport: Viewport = {
