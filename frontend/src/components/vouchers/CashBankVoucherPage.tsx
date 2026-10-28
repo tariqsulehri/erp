@@ -30,7 +30,7 @@ import {
 import { CashBankVoucherLineTable, type CashBankVoucherLine } from './CashBankVoucherLineTable';
 import { useDefaultVoucherDate } from './VoucherFiscalDate';
 import { getBankAccountOptions, getCashAccountOptions, getVoucherLineAccountOptions, type VoucherAccountOption } from './VoucherAccountRules';
-import { buildCashBankVoucherLines } from './VoucherPayload';
+import { buildCashBankVoucherLines, parseCashBankLineNarration } from './VoucherPayload';
 import { saveVoucherDocument } from './VoucherSaveFlow';
 import { validateCashBankVoucher } from './VoucherValidation';
 import {
@@ -246,15 +246,18 @@ export default function CashBankVoucherPage({ voucherType }: { voucherType: Vouc
 
     const sortedLines = [...(voucher.lines ?? [])].sort((a: any, b: any) => Number(a.line_no) - Number(b.line_no));
     const primaryLine = sortedLines[0];
-    const detailLines = sortedLines.slice(1).map((line: any, index: number): CashBankLine => ({
-      id: index + 1,
-      accountId: line.account_id,
-      description: line.narration || '',
-      chequeDetails: '',
-      chequeDate: '',
-      clearingDate: '',
-      amount: config.direction === 'payment' ? String(line.dr_amount ?? '') : String(line.cr_amount ?? ''),
-    }));
+    const detailLines = sortedLines.slice(1).map((line: any, index: number): CashBankLine => {
+      const parsed = parseCashBankLineNarration(line.narration, config.successNoun);
+      return {
+        id: index + 1,
+        accountId: line.account_id,
+        description: parsed.description,
+        chequeDetails: parsed.chequeDetails,
+        chequeDate: parsed.chequeDate,
+        clearingDate: parsed.clearingDate,
+        amount: config.direction === 'payment' ? String(line.dr_amount ?? '') : String(line.cr_amount ?? ''),
+      };
+    });
     const initialLoadedLines = detailLines.length > 0 ? detailLines : [blankLine(1)];
 
     setVoucherDate(String(voucher.voucher_date ?? '').slice(0, 10));
@@ -264,7 +267,7 @@ export default function CashBankVoucherPage({ voucherType }: { voucherType: Vouc
     setLines(initialLoadedLines);
     setNextLineId(initialLoadedLines.length + 1);
     setMessage(null);
-  }, [config.direction, config.title, config.voucherType, detailQuery.data, editingVoucherId]);
+  }, [config.direction, config.successNoun, config.title, config.voucherType, detailQuery.data, editingVoucherId]);
 
   function updateLine(id: number, patch: Partial<CashBankLine>) {
     setLines(current => current.map(line => (line.id === id ? { ...line, ...patch } : line)));

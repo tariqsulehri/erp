@@ -49,6 +49,46 @@ function cashBankLineNarration(line: CashBankVoucherLine, config: CashBankPayloa
   ].filter(Boolean).join(' | ') || description.trim() || config.successNoun;
 }
 
+export function parseCashBankLineNarration(narration: string | null | undefined, fallbackNoun?: string): {
+  description: string;
+  chequeDetails: string;
+  chequeDate: string;
+  clearingDate: string;
+} {
+  if (!narration) {
+    return { description: '', chequeDetails: '', chequeDate: '', clearingDate: '' };
+  }
+
+  const parts = narration.split(/\s*\|\s*/);
+  let chequeDetails = '';
+  let chequeDate = '';
+  let clearingDate = '';
+  const descParts: string[] = [];
+
+  for (const part of parts) {
+    const trimmed = part.trim();
+    if (!trimmed) continue;
+
+    if (/^Cheque Details\s+/i.test(trimmed)) {
+      chequeDetails = trimmed.replace(/^Cheque Details\s+/i, '').trim();
+    } else if (/^Cheque Date\s+/i.test(trimmed)) {
+      chequeDate = trimmed.replace(/^Cheque Date\s+/i, '').trim();
+    } else if (/^Clearing Date\s+/i.test(trimmed)) {
+      clearingDate = trimmed.replace(/^Clearing Date\s+/i, '').trim();
+    } else {
+      descParts.push(trimmed);
+    }
+  }
+
+  const description = descParts.join(' | ');
+  return {
+    description: fallbackNoun && description === fallbackNoun ? '' : description,
+    chequeDetails,
+    chequeDate,
+    clearingDate,
+  };
+}
+
 export function buildCashBankVoucherLines({
   config,
   primaryAccountId,

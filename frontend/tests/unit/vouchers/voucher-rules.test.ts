@@ -1,4 +1,4 @@
-import { buildCashBankVoucherLines, buildJournalVoucherLines } from '@/components/vouchers/VoucherPayload';
+import { buildCashBankVoucherLines, buildJournalVoucherLines, parseCashBankLineNarration } from '@/components/vouchers/VoucherPayload';
 import { validateCashBankVoucher, validateJournalVoucher } from '@/components/vouchers/VoucherValidation';
 import { bankAccountToVoucherOption } from '@/components/vouchers/VoucherAccountRules';
 import type { CashBankVoucherLine } from '@/components/vouchers/CashBankVoucherLineTable';
@@ -139,5 +139,37 @@ describe('Cash and Bank Voucher rules', () => {
     });
     expect(option.value).toBe('ledger-acc-uuid');
     expect(option.bankAccountId).toBe('bank-acc-uuid');
+  });
+
+  it('parses cash and bank line narration to restore cheque details and dates', () => {
+    const parsed1 = parseCashBankLineNarration('ttttt | Cheque Details HBL-0006002 | Cheque Date 2026-10-28', 'Bank Payment Voucher');
+    expect(parsed1).toEqual({
+      description: 'ttttt',
+      chequeDetails: 'HBL-0006002',
+      chequeDate: '2026-10-28',
+      clearingDate: '',
+    });
+
+    const parsed2 = parseCashBankLineNarration('Cheque Details CHQ-100 | Cheque Date 2026-10-28 | Clearing Date 2026-10-31', 'Bank Payment Voucher');
+    expect(parsed2).toEqual({
+      description: '',
+      chequeDetails: 'CHQ-100',
+      chequeDate: '2026-10-28',
+      clearingDate: '2026-10-31',
+    });
+
+    const parsed3 = parseCashBankLineNarration('Plain office expense narration', 'Bank Payment Voucher');
+    expect(parsed3).toEqual({
+      description: 'Plain office expense narration',
+      chequeDetails: '',
+      chequeDate: '',
+      clearingDate: '',
+    });
+
+    const parsed4 = parseCashBankLineNarration('Bank Payment Voucher', 'Bank Payment Voucher');
+    expect(parsed4.description).toBe('');
+
+    const parsed5 = parseCashBankLineNarration('');
+    expect(parsed5).toEqual({ description: '', chequeDetails: '', chequeDate: '', clearingDate: '' });
   });
 });
