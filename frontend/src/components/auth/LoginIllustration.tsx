@@ -5,7 +5,7 @@
  */
 export function LoginIllustration() {
   return (
-    <svg className="login-art" viewBox="0 0 320 260" role="img" aria-label="ERP dashboard with sales chart, balanced ledger and stock">
+    <svg className="login-art" viewBox="0 0 320 260" role="img" aria-label="Business dashboard with sales chart, balanced ledger and stock">
       {/* Links from the dashboard to the ledger and stock cards */}
       <path className="login-art-link" d="M96 180 C 96 196, 80 196, 72 204" />
       <path className="login-art-link" d="M236 180 C 236 192, 250 192, 256 198" />

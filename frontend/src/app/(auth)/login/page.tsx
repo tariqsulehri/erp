@@ -50,21 +50,21 @@ export default function LoginPage() {
   return (
     <div className="login-page-split">
       {/* Left royal blue branding panel */}
-      <aside className="login-brand-panel" aria-label="ERP Branding">
+      <aside className="login-brand-panel" aria-label="BizTrack">
         <div className="login-brand-top">
           <div className="login-brand-logo">
             <span className="brand-logo-icon" aria-hidden>
               <IconChartPie size={16} stroke={2.2} />
             </span>
-            <span className="brand-logo-name">ERP Finance</span>
+            <span className="brand-logo-name">BizTrack</span>
           </div>
 
           <div className="login-hero-copy">
-            <span className="login-eyebrow">Enterprise Resource Planning</span>
+            <span className="login-eyebrow">Business Management Suite</span>
             <h1 className="login-headline">
-              Your whole business, in balance<span className="login-dot">.</span>
+              Run your business with clarity<span className="login-dot">.</span>
             </h1>
-            <p className="login-tagline">Purchases, sales, stock and accounts in one place. Every entry posted, every figure traceable.</p>
+            <p className="login-tagline">Buy, sell, manage stock and grow. Your whole business in one place, always up to date.</p>
           </div>
 
           <div className="login-art-wrap">
@@ -73,7 +73,7 @@ export default function LoginPage() {
         </div>
 
         <div className="login-brand-footer">
-          <span>Enterprise Resource Planning &amp; Finance App</span>
+          <span>BizTrack — Business Management App</span>
         </div>
       </aside>
 
