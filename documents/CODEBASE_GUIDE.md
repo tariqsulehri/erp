@@ -274,6 +274,40 @@ Do not change any file in this step.
 Wait for my next message before making any change.
 ```
 
+### If the agent only replies "ready" without a summary
+
+Some agents skip step 3 and only say they made no changes. Ask for the summary before giving any task:
+
+```text
+Please give me the summary from step 3 now, in your own words, covering each point:
+- how a route, service and transaction fit together in the backend;
+- the Draft → Post → Cancel / Reverse lifecycle and the endpoints every document uses;
+- the posting rules;
+- where permissions are defined and which three places must stay in sync;
+- the commands that must pass before a commit;
+- the working rules you must follow.
+Then list anything in the documents that looks unclear or contradicts the code.
+```
+
+### What a correct summary must say
+
+Correct the agent before its first task if any point is missing or wrong:
+
+1. **Backend:** routes only parse input and check the permission, then call a service. All business rules and
+   posting live in services, in one database transaction, locking rows with `SELECT ... FOR UPDATE`.
+2. **Lifecycle:** Draft → Post, or Draft → Cancel (with a reason). Posted Stock Transfers, Stock Adjustments
+   and Opening Stock are undone with Reverse. Document numbers are never reused.
+3. **Endpoints:** `POST /drafts`, `POST /create-and-post`, `PUT /:id`, `POST /:id/update-and-post`,
+   `POST /:id/post`, `POST /:id/cancel`, and `POST /:id/reverse` for stock documents (section 4).
+4. **Posting rules:** saving and posting happen in **one** transaction; posted documents are **never edited**;
+   the **Inventory account must equal total stock value**.
+5. **Permissions:** one table in three places that must match: `backend/src/modules/auth/access-rules.ts`,
+   `frontend/src/lib/auth/session-user.ts` and `backend/test/permissions.test.ts` (section 5).
+6. **Checks before commit:** backend type-check and tests; frontend type-check, lint, `check:colors` and tests;
+   `npm run check:secrets` (section 7).
+7. **Working rules:** a branch per change; ask before pushing, deploying, or deleting or dropping data; never
+   bypass approvals, access checks or period locks; keep this guide up to date.
+
 ### Task prompt (start each later task with this)
 
 ```text
