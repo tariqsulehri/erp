@@ -1,10 +1,10 @@
 'use client';
 
-import Image from 'next/image';
 import { signIn } from 'next-auth/react';
 import { useEffect, useRef, useState } from 'react';
-import { IconClock, IconDots, IconEye, IconEyeOff, IconLock } from '@tabler/icons-react';
+import { IconChartPie, IconDots, IconEye, IconEyeOff, IconLock } from '@tabler/icons-react';
 import { InlineAlert } from '@/components/ui/InlineAlert';
+import { LoginIllustration } from '@/components/auth/LoginIllustration';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -53,33 +53,22 @@ export default function LoginPage() {
       <aside className="login-brand-panel" aria-label="ERP Branding">
         <div className="login-brand-top">
           <div className="login-brand-logo">
-            <span className="brand-logo-name">tkxel</span>
-            <span className="brand-logo-divider" aria-hidden>|</span>
-            <span className="brand-logo-sub">
-              <span className="brand-logo-icon" aria-hidden>
-                <IconClock size={16} stroke={2.2} />
-              </span>
-              <span>Calibr</span>
+            <span className="brand-logo-icon" aria-hidden>
+              <IconChartPie size={16} stroke={2.2} />
             </span>
+            <span className="brand-logo-name">ERP Finance</span>
           </div>
 
           <div className="login-hero-copy">
-            <span className="login-eyebrow">WE ENGINEER SOFTWARE SOLUTIONS</span>
+            <span className="login-eyebrow">Enterprise Resource Planning</span>
             <h1 className="login-headline">
-              Calibr – capability, calibrated<span className="login-dot">.</span>
+              Your whole business, in balance<span className="login-dot">.</span>
             </h1>
-            <p className="login-tagline">Grow on evidence, not opinion.</p>
+            <p className="login-tagline">Purchases, sales, stock and accounts in one place. Every entry posted, every figure traceable.</p>
           </div>
 
-          <div className="login-mascot-wrap">
-            <Image
-              src="/images/login-mascot.jpg"
-              alt="Calibr ERP Intelligent Analytics Owl"
-              width={320}
-              height={320}
-              priority
-              className="login-mascot-img"
-            />
+          <div className="login-art-wrap">
+            <LoginIllustration />
           </div>
         </div>
 

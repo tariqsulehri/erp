@@ -1433,7 +1433,7 @@ input[type="number"].input,
 
 
 /* ================================================================
-   LOGIN PAGE (Calibr / Tkxel Split Layout)
+   LOGIN PAGE (Split Layout)
    ================================================================ */
 .login-page-split {
   min-height: 100vh;
@@ -1471,23 +1471,10 @@ input[type="number"].input,
   color: var(--color-login-text);
 }
 
-.brand-logo-divider {
-  color: var(--color-login-accent);
-  font-size: 18px;
-}
-
-.brand-logo-sub {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 18px;
-  font-weight: 600;
-  color: var(--color-login-text);
-}
-
 .brand-logo-icon {
-  width: 26px;
-  height: 26px;
+  color: var(--color-login-text);
+  width: 30px;
+  height: 30px;
   border-radius: 50%;
   border: 2px solid var(--color-login-muted);
   display: inline-grid;
@@ -1528,21 +1515,36 @@ input[type="number"].input,
   font-weight: 400;
 }
 
-.login-mascot-wrap {
+.login-art-wrap {
   margin-top: 18px;
-  max-width: 320px;
+  max-width: 360px;
+  padding: 20px 16px;
   border-radius: 18px;
-  overflow: hidden;
   box-shadow: 0 16px 36px rgb(var(--shadow-ink) / 0.3);
   background: color-mix(in srgb, var(--color-login-text) 8%, transparent);
 }
 
-.login-mascot-img {
-  display: block;
-  width: 100%;
-  height: auto;
-  object-fit: cover;
-}
+/* Login artwork (LoginIllustration): theme tokens only. */
+.login-art { display: block; width: 100%; height: auto; font-family: inherit; }
+.login-art-glass { fill: color-mix(in srgb, var(--color-login-text) 12%, transparent); stroke: color-mix(in srgb, var(--color-login-text) 30%, transparent); }
+.login-art-dot { fill: color-mix(in srgb, var(--color-login-text) 55%, transparent); }
+.login-art-label { fill: var(--color-login-muted); font-size: 12px; font-weight: 600; }
+.login-art-line { fill: color-mix(in srgb, var(--color-login-text) 28%, transparent); }
+.login-art-axis { stroke: color-mix(in srgb, var(--color-login-text) 35%, transparent); stroke-width: 1.5; }
+.login-art-bar { fill: color-mix(in srgb, var(--color-login-text) 70%, transparent); }
+.login-art-bar-accent, .login-art-box-accent { fill: rgb(var(--brand-accent)); }
+.login-art-trend { fill: none; stroke: rgb(var(--brand-accent)); stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
+.login-art-trend-head { fill: rgb(var(--brand-accent)); }
+.login-art-link { fill: none; stroke: color-mix(in srgb, var(--color-login-text) 45%, transparent); stroke-width: 1.5; stroke-dasharray: 4 4; }
+.login-art-card, .login-art-chip { fill: var(--color-login-text); }
+.login-art-card-title { fill: rgb(var(--erp-blue-deep)); font-size: 13px; font-weight: 700; }
+.login-art-card-text, .login-art-chip-text { fill: rgb(var(--erp-blue-deep)); font-size: 12px; font-weight: 500; }
+.login-art-card-muted { fill: rgb(var(--erp-blue)); font-size: 12px; font-weight: 600; }
+.login-art-num { font-variant-numeric: tabular-nums; font-weight: 700; }
+.login-art-badge { fill: rgb(var(--brand-accent)); }
+.login-art-check { fill: none; stroke: var(--color-login-text); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.login-art-box { fill: rgb(var(--erp-blue)); }
+.login-art-tape { stroke: var(--color-login-text); stroke-width: 2; opacity: 0.7; }
 
 .login-brand-footer {
   margin-top: 36px;
