@@ -73,7 +73,7 @@ export class BankChequeService {
 
     if (query.bank_account_id) {
       params.push(query.bank_account_id);
-      where.push(`b.bank_account_id = CAST($${params.length} AS uuid)`);
+      where.push(`(b.bank_account_id = CAST($${params.length} AS uuid) OR ba.ledger_account_id = CAST($${params.length} AS uuid))`);
     }
     if (query.status) {
       params.push(query.status);
@@ -220,7 +220,7 @@ export class BankChequeService {
 
     if (query.bank_account_id) {
       params.push(query.bank_account_id);
-      where.push(`c.bank_account_id = CAST($${params.length} AS uuid)`);
+      where.push(`(c.bank_account_id = CAST($${params.length} AS uuid) OR ba.ledger_account_id = CAST($${params.length} AS uuid))`);
     }
     if (query.cheque_book_id) {
       params.push(query.cheque_book_id);
@@ -290,8 +290,9 @@ export class BankChequeService {
         c.bank_account_id
       FROM bank_cheques c
       JOIN bank_cheque_books b ON b.id = c.bank_cheque_book_id AND b.company_id = c.company_id
+      JOIN bank_accounts ba ON ba.id = c.bank_account_id AND ba.company_id = c.company_id
       WHERE c.company_id = CAST(${this.companyId} AS uuid)
-        AND c.bank_account_id = CAST(${query.bank_account_id} AS uuid)
+        AND (c.bank_account_id = CAST(${query.bank_account_id} AS uuid) OR ba.ledger_account_id = CAST(${query.bank_account_id} AS uuid))
         AND c.status = 'Available'
         AND (${search}::text IS NULL OR c.cheque_number ILIKE ${search} OR b.book_number ILIKE ${search})
       ORDER BY b.book_number ASC, c.serial_number ASC

@@ -357,6 +357,10 @@ describe.skipIf(!databaseUrl)('Bank Accounts and Cheques (database)', () => {
       const available = await service.availableCheques({ bank_account_id: bankOneId, limit: 50 });
       expect(available).toHaveLength(6 + 3);
       expect(available.every(row => row.bank_account_id === bankOneId)).toBe(true);
+
+      const availableByLedger = await service.availableCheques({ bank_account_id: bankLedgerOne, limit: 50 });
+      expect(availableByLedger).toHaveLength(available.length);
+      expect(availableByLedger.map(row => row.id)).toEqual(available.map(row => row.id));
     });
   });
 });

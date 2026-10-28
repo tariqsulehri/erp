@@ -1,5 +1,6 @@
 import { buildCashBankVoucherLines, buildJournalVoucherLines } from '@/components/vouchers/VoucherPayload';
 import { validateCashBankVoucher, validateJournalVoucher } from '@/components/vouchers/VoucherValidation';
+import { bankAccountToVoucherOption } from '@/components/vouchers/VoucherAccountRules';
 import type { CashBankVoucherLine } from '@/components/vouchers/CashBankVoucherLineTable';
 import type { JournalVoucherLine } from '@/components/vouchers/JournalVoucherLineTable';
 
@@ -124,5 +125,19 @@ describe('Cash and Bank Voucher rules', () => {
       const credit = result.lines.reduce((sum, line) => sum + line.cr_amount, 0);
       expect(debit).toBe(credit);
     }
+  });
+
+  it('preserves bankAccountId on bank account voucher options', () => {
+    const option = bankAccountToVoucherOption({
+      id: 'bank-acc-uuid',
+      ledger_account_id: 'ledger-acc-uuid',
+      ledger_account_code: '0101200101',
+      ledger_account_name: 'Main Bank Account',
+      bank_name: 'Habib Bank Limited',
+      account_title: 'Business Current',
+      account_number: '1234567890',
+    });
+    expect(option.value).toBe('ledger-acc-uuid');
+    expect(option.bankAccountId).toBe('bank-acc-uuid');
   });
 });

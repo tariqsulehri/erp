@@ -8,9 +8,11 @@ export interface VoucherAccountOption {
   name: string;
   openingBalance?: string | number | null;
   currentBalance?: string | number | null;
+  bankAccountId?: string;
 }
 
 export interface VoucherBankAccountRow {
+  id?: string;
   ledger_account_id: string;
   ledger_account_code: string;
   ledger_account_name: string;
@@ -59,6 +61,7 @@ export function bankAccountToVoucherOption(bankAccount: VoucherBankAccountRow): 
     name: bankAccount.ledger_account_name,
     openingBalance: bankAccount.current_balance,
     currentBalance: bankAccount.current_balance,
+    bankAccountId: bankAccount.id,
   };
 }
 

@@ -175,6 +175,11 @@ export default function CashBankVoucherPage({ voucherType }: { voucherType: Vouc
   const lineAccountOptions = useMemo(() => getVoucherLineAccountOptions(allAccounts, activeBankAccounts), [allAccounts, activeBankAccounts]);
   const primaryAccountOptions: VoucherAccountOption[] = config.primaryAccountKind === 'Bank' ? bankAccountOptions : cashAccountOptions;
   const selectedPrimaryAccount = primaryAccountOptions.find(option => option.value === primaryAccountId);
+  const selectedBankAccount = useMemo(
+    () => activeBankAccounts.find((account: { ledger_account_id?: string; id?: string }) => account.ledger_account_id === primaryAccountId),
+    [activeBankAccounts, primaryAccountId],
+  );
+  const resolvedBankAccountId = selectedPrimaryAccount?.bankAccountId ?? selectedBankAccount?.id;
   const enteredLines = lines.filter(line =>
     line.accountId ||
     line.description.trim() ||
@@ -499,7 +504,7 @@ export default function CashBankVoucherPage({ voucherType }: { voucherType: Vouc
           accountOptions={lineAccountOptions}
           accountsLoading={accountsLoading}
           accountsError={Boolean(accountsError)}
-          bankAccountId={config.primaryAccountKind === 'Bank' ? primaryAccountId : undefined}
+          bankAccountId={config.primaryAccountKind === 'Bank' ? resolvedBankAccountId : undefined}
           bankAccountTitle={selectedPrimaryAccount?.label}
           voucherDate={voucherDate}
           generalSettings={generalSettings}
