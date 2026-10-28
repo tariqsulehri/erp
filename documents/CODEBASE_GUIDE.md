@@ -147,8 +147,9 @@ approval cannot approve it. Never bypass this by writing to the database.
 - The backend enforces both: `requirePermission(...)` on routes, and the scope check
   (`assertCanUseHolder`, `canUseHolder`) inside services.
 - **`PERMISSION_ROLES` is defined three times and must stay identical:**
-  `backend/src/modules/auth/access-rules.ts`, `frontend/src/lib/auth/session-user.ts`, and the expected table in
-  `backend/test/permissions.test.ts`. Add a matching plain message in `backend/src/http/access-context.ts`.
+  `backend/src/modules/auth/access-rules.ts`, `frontend/src/lib/auth/session-user.ts`, and the full expected
+  table in `backend/test/permissions.test.ts` (the test fails if any permission or role list differs). Add a
+  matching plain message in `permissionActionText` in `backend/src/http/access-context.ts`.
 - The frontend disables actions the role cannot use (`usePermission`, `roleCannotSave`) with a plain tooltip;
   the backend refuses them anyway.
 
@@ -174,7 +175,8 @@ Run from the folder shown. All must pass before a commit.
 ```bash
 cd backend  && npm run type-check && npm test            # Vitest (unit + database tests)
 cd frontend && npm run type-check && npm run lint && npm run check:colors && npm test
-npm run check:secrets                                    # from the repository root
+npm run check:secrets && npm run test:secrets            # from the repository root
+deployment/tests/lib.test.sh                             # when you change files in deployment/
 ```
 
 - **Backend database tests** use `TEST_DATABASE_URL`, or `DATABASE_URL` from `backend/.env`. Each test file
@@ -304,7 +306,8 @@ Correct the agent before its first task if any point is missing or wrong:
 5. **Permissions:** one table in three places that must match: `backend/src/modules/auth/access-rules.ts`,
    `frontend/src/lib/auth/session-user.ts` and `backend/test/permissions.test.ts` (section 5).
 6. **Checks before commit:** backend type-check and tests; frontend type-check, lint, `check:colors` and tests;
-   `npm run check:secrets` (section 7).
+   `npm run check:secrets` and `npm run test:secrets`; `deployment/tests/lib.test.sh` for deployment changes
+   (section 7).
 7. **Working rules:** a branch per change; ask before pushing, deploying, or deleting or dropping data; never
    bypass approvals, access checks or period locks; keep this guide up to date.
 

@@ -208,7 +208,7 @@ For a posted sale return:
 | Cr | `0502200101` | Sales Discount Allowed | Discount Amount reversed |
 | Cr | `0501100101` | Cost Of Goods Sold | Cost Amount reversed |
 
-Sale return stock posting must create an `inventory_stock_movements` row with `quantity_in` and `movement_kind = SALE_RETURN`.
+Sale return stock posting must create an `inventory_stock_movements` row with `quantity_in` and `movement_kind = SALES_RETURN`.
 
 ## Stock Adjustment Posting
 

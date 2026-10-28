@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { hasPermission, permissionsForRole, USER_ROLES } from '../src/modules/auth/access-rules.js';
+import { hasPermission, PERMISSION_ROLES, permissionsForRole, USER_ROLES } from '../src/modules/auth/access-rules.js';
 import { createVoucherInputSchema } from '../src/modules/vouchers/voucher.schema.js';
 
 describe('Role permissions', () => {
@@ -32,6 +32,33 @@ describe('Role permissions', () => {
       for (const role of USER_ROLES) {
         expect(hasPermission(role, permission as keyof typeof expected), `${role} ${permission}`).toBe((roles as readonly string[]).includes(role));
       }
+    }
+  });
+
+  // The same table is in frontend/src/lib/auth/session-user.ts. Adding, removing or changing a permission
+  // must update both files and this expected table.
+  it('matches the full permission table, permission by permission and role by role', () => {
+    const expected: Record<string, readonly string[]> = {
+      'vouchers.edit': ['admin', 'top_management', 'manager', 'accountant'],
+      'vouchers.approve': ['admin', 'top_management', 'manager'],
+      'vouchers.post': ['admin', 'top_management', 'manager', 'accountant'],
+      'vouchers.reverse': ['admin', 'top_management', 'manager'],
+      'fiscal_years.manage': ['admin', 'top_management'],
+      'settings.manage': ['admin', 'top_management'],
+      'accounts.manage': ['admin', 'top_management', 'manager', 'accountant'],
+      'organization.manage': ['admin', 'top_management'],
+      'locations.manage': ['admin', 'top_management', 'manager'],
+      'reports.financial': ['admin', 'top_management', 'manager', 'accountant'],
+      'sales.edit': ['admin', 'top_management', 'manager', 'accountant', 'sales_staff'],
+      'purchases.edit': ['admin', 'top_management', 'manager', 'accountant', 'warehouse_staff'],
+      'stock_transfers.edit': ['admin', 'top_management', 'manager', 'sales_staff', 'warehouse_staff'],
+      'stock_adjustments.edit': ['admin', 'top_management', 'manager'],
+      'products.manage': ['admin', 'top_management', 'manager'],
+      'stock.reverse': ['admin', 'top_management', 'manager'],
+    };
+    expect(Object.keys(PERMISSION_ROLES).sort()).toEqual(Object.keys(expected).sort());
+    for (const [permission, roles] of Object.entries(expected)) {
+      expect([...PERMISSION_ROLES[permission as keyof typeof PERMISSION_ROLES]], permission).toEqual(roles);
     }
   });
 

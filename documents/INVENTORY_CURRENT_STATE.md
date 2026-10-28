@@ -149,19 +149,19 @@ Company comes from the `x-company-id` header, user from `x-user-id`.
 
 | # | Deficiency | Where | Impact |
 |---|---|---|---|
-| D1 | Adjustment `createAndPost` runs draft and post in two transactions | `stock-adjustment.service.ts` `createAndPost` | A failed post leaves an orphan draft |
+| D1 | Adjustment `createAndPost` runs draft and post in two transactions | `stock-adjustment.service.ts` `createAndPost` | A failed post leaves an orphan draft **Fixed 2026-10-28:** Save And Post now runs in one transaction. |
 | D2 | Adjustment numbering uses `ORDER BY ... LIMIT 1 FOR UPDATE` on text | `nextAdjustmentNumber` | Duplicate numbers under concurrency; wrong order past 9999 |
 | D3 | Adjustment balances are not locked in a fixed order | `postLine` | Possible deadlocks |
 | D4 | `ensureStockAdjustmentSettings` overwrites settings with hard-coded accounts on every post; `ensureAccount` renames/reactivates them | `stock-adjustment.service.ts` | Custom account setup is lost; breaks "no hard-coded account ranges" rule |
 | D5 | Voiding a system voucher (`SA`, `SI`, `PI`, `PR`, `SR`) does not reverse stock or update the source document | `vouchers/voucher.service.ts` `void` | Stock and GL go out of sync |
-| D6 | No void / reversal flow for any stock document | all stock modules | Posted mistakes cannot be corrected per the immutability rule |
+| D6 | No void / reversal flow for any stock document | all stock modules | Posted mistakes cannot be corrected per the immutability rule **Fixed 2026-10-28:** Posted Stock Transfers, Stock Adjustments and Opening Stock can be reversed (`POST /:id/reverse`). |
 | D7 | Sale and sale-return cost captured at draft time | `sale-draft.service.ts`, `sale-return-draft.service.ts` | COGS drifts if average cost changes before posting |
 | D8 | Stock value rounded to 2 dp in purchases/sales, 4 dp in transfers/adjustments | post services | Small value differences accumulate |
 | D9 | Duplicate lines of the same item each validate against full balance | `validateInput` in stock modules | Validation passes, posting then fails |
 | D10 | Partial unique index on `StockBalance` missing from `schema.prisma` | `schema.prisma` vs migration | `prisma migrate dev` may drop it; transfer locking depends on it |
 | D11 | No unique key on movements by source document + line | `StockMovement` | Database does not stop double posting on its own |
 | D12 | Item hard delete fails with a raw FK error when history exists | `product.service.ts` `delete` | Unfriendly error |
-| D13 | No permission checks on post endpoints; user ID taken from a raw header | routes | Anyone with the header can post |
+| D13 | No permission checks on post endpoints; user ID taken from a raw header | routes | Anyone with the header can post **Fixed 2026-10-28:** Routes check permissions with `requirePermission`; the user comes from the signed-in session (`currentUserId`), not a header. |
 
 ### 3.2 Unimplemented Schema Features
 
@@ -179,7 +179,7 @@ Company comes from the `x-company-id` header, user from `x-user-id`.
 
 | # | Deficiency | Where |
 |---|---|---|
-| F1 | Drafts can be saved but never reopened, edited, or posted; lists show only `Posted`, limit 50, no search or paging | `StockTransferPage.tsx`, `StockAdjustmentPage.tsx` |
+| F1 | Drafts can be saved but never reopened, edited, or posted; lists show only `Posted`, limit 50, no search or paging | `StockTransferPage.tsx`, `StockAdjustmentPage.tsx` **Fixed 2026-10-28:** Lists have a Status filter; Drafts can be opened, changed, posted or cancelled. |
 | F2 | No stock movement history (stock ledger) screen or endpoint | — |
 | F3 | No all-warehouse stock report, valuation report, or low-stock report | only per-warehouse Stock Summary |
 | F4 | No brand management screen | — |
