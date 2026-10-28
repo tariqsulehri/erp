@@ -1,15 +1,15 @@
 # CLAUDE.md
 
-This file gives coding-agent guidance for this repository. `AGENTS.md` and files in `documents/` are the primary rules and must be followed before code or database changes.
+This file gives coding-agent guidance for this repository. `AGENTS.md` and files in `documents/` are the primary rules and must be followed before code or database changes. Start with `documents/CODEBASE_GUIDE.md`, the map of the codebase.
 
 ## Project
 
-Professional, multi-company ERP system with a split architecture:
+BizTrack: a professional, multi-company ERP (purchases, sales, returns, stock and accounting) with a split architecture:
 
 - `frontend/` is the Next.js user interface.
 - `backend/` is the Node.js/Express API and owns Prisma, PostgreSQL, business rules, posting logic, and database migrations.
 
-The current work focuses on financial vouchers, chart of accounts, customers, suppliers, inventory, purchases, and backend API migration.
+All seven business documents (Purchase, Purchase Return, Sale, Sale Return, Stock Transfer, Stock Adjustment, Opening Stock) share one Draft → Post → Cancel / Reverse lifecycle; see `documents/CODEBASE_GUIDE.md` section 4.
 
 ## Commands
 

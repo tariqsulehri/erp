@@ -1,13 +1,36 @@
 # Agent Instructions
 
-These instructions apply to all coding work in this repository.
+These instructions apply to all coding work in this repository, by any agent (Claude Code, Codex, Gemini /
+Antigravity, Cursor, Copilot) or person.
+
+## Start Here
+
+Read `documents/CODEBASE_GUIDE.md` first. It is the map of the codebase: folders, the backend and frontend
+patterns, the shared document lifecycle (Draft, Post, Cancel, Reverse), permissions, commands, tests,
+database changes and delivery. Then read the rule documents below for the layer you change.
+
+## Working Rules For Agents
+
+- **Work on a branch.** One branch per change; never commit straight to `master` or `main`.
+- **Prove it before committing.** Run the checks in `documents/CODEBASE_GUIDE.md` section 7 and commit only
+  when they all pass. Add or update tests for every behaviour you change. Follow `documents/DEFINITION_OF_DONE.md`.
+- **Ask before anything hard to undo:** pushing, merging, deploying, deleting data, dropping columns or
+  tables, or changing a shared server. Back up the database before any migration.
+- **Never remove a working feature** to make a change easier, and never bypass a business control
+  (approval two-person rule, access scope, period locks) by writing to the database directly.
+- **Match the code around you.** Reuse the shared parts named in the guide instead of writing new versions.
+- **Report honestly.** Say what was tested, what was not, and what still needs a person to check.
+- **Keep the guide true.** When you change a pattern, an endpoint, a permission or a workflow, update
+  `documents/CODEBASE_GUIDE.md` (and `documents/INVENTORY_CURRENT_STATE.md` for inventory) in the same change.
 
 ## Required Reading Before Changes
 
 Before making code or database changes, read and follow:
 
+- `documents/CODEBASE_GUIDE.md`
 - `documents/PROJECT_RULES.md`
 - `documents/CODING_STANDARDS.md`
+- `documents/DEFINITION_OF_DONE.md`
 
 For frontend work, also read:
 
@@ -25,6 +48,7 @@ For database, Prisma, inventory, stock, accounting, posting, or reporting work, 
 - `documents/INVENTORY_TABLES.md`
 - `documents/INVENTORY_SCHEMA.md`
 - `documents/BANK_DEPOSIT_SCHEMA.md`
+- `documents/INVENTORY_CURRENT_STATE.md` (what is built, what is still missing)
 
 ## Non-Negotiable Rules
 
@@ -117,3 +141,8 @@ Every posted inventory transaction must create a stock movement record.
 - `inventory_stock_balances` is a current stock snapshot for fast reads.
 - Draft documents must not affect stock.
 - Posted stock/accounting documents should not be directly edited.
+- Saving and posting happen in one database transaction: if posting is refused, nothing is saved.
+- The Inventory account must always equal total stock value. Any change to stock value posts its voucher in
+  the same transaction (Opening Stock posts Dr Inventory / Cr the Opening Balance Account).
+- Posted Stock Transfers, Stock Adjustments and Opening Stock are corrected with Reverse, which gives back the
+  exact posted cost. Opening Stock is accepted once per item per Branch or Warehouse.

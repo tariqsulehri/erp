@@ -6,8 +6,10 @@ This folder contains the rules and reference documents used while building the E
 
 Start with:
 
-1. `PROJECT_RULES.md`
-2. `CODING_STANDARDS.md`
+1. `CODEBASE_GUIDE.md` (the map of the codebase)
+2. `PROJECT_RULES.md`
+3. `CODING_STANDARDS.md`
+4. `DEFINITION_OF_DONE.md`
 
 Then read the layer-specific document for the work being done:
 
@@ -22,6 +24,8 @@ Schema reference documents should be used when working on their specific modules
 
 | File | Purpose |
 | --- | --- |
+| `CODEBASE_GUIDE.md` | Map of the codebase for agents and new developers: folders, patterns, document lifecycle, permissions, commands, tests, database changes and delivery. |
+| `DEFINITION_OF_DONE.md` | What must be true before a change is finished. |
 | `PROJECT_RULES.md` | Business-wide rules: naming, settings, parties, account codes, transactions, inventory, and rule ownership. |
 | `CODING_STANDARDS.md` | Shared engineering standards for modularity, reuse, validation, transactions, comments, and data types. |
 | `FRONTEND_BEST_PRACTICES.md` | Frontend-specific standards for UI, forms, validation, transaction screens, theming, and accessibility. |
@@ -31,6 +35,10 @@ Schema reference documents should be used when working on their specific modules
 | `INVENTORY_TABLES.md` | Inventory table names and simple descriptions. |
 | `INVENTORY_SCHEMA.md` | Inventory tables, fields, and plain-English field descriptions. |
 | `BANK_DEPOSIT_SCHEMA.md` | Bank account and bank deposit voucher tables with plain-English field descriptions. |
+| `INVENTORY_CURRENT_STATE.md` | What the inventory module does today, known gaps, and what has been fixed. |
+| `INVENTORY_TRACKING_ROADMAP.md` | Planned inventory tracking work. |
+| `DATABASE_QUERY_OPTIMIZATION_PLAN.md` | Query and index optimisation plan. |
+| `design/DESIGN_STANDARDS.md` | Fonts, themes, colour tokens, charts and layout. |
 
 ## Most Important Rule
 
