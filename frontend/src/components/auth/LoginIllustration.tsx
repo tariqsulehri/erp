@@ -1,60 +1,82 @@
 /**
- * Login page artwork: a sales dashboard with a rising chart, a balanced ledger card and a stock card,
- * the three things this ERP keeps in step. Drawn in SVG so it stays sharp; colours come from the
- * login-art-* classes in globals.css, which use theme tokens only.
+ * Login page artwork: general business charts (KPI tiles with up and down trends, a multi-line trend
+ * chart, a mix donut and monthly bars). Drawn in SVG so it stays sharp; colours come from the
+ * login-art-* classes in globals.css, which use theme tokens only. The figures are decorative.
  */
+const CIRCUMFERENCE = 2 * Math.PI * 28;
+
+/** One donut segment: share of the ring and where it starts, both as fractions of a full turn. */
+function DonutSegment({ className, share, start }: { className: string; share: number; start: number }) {
+  return (
+    <circle
+      className={className}
+      cx="282" cy="134" r="28"
+      strokeDasharray={`${share * CIRCUMFERENCE - 2} ${CIRCUMFERENCE}`}
+      strokeDashoffset={-start * CIRCUMFERENCE}
+      transform="rotate(-90 282 134)"
+    />
+  );
+}
+
+function KpiTile({ x, label, change, up, spark }: { x: number; label: string; change: string; up: boolean; spark: string }) {
+  return (
+    <g>
+      <rect className="login-art-card" x={x} y="0" width="104" height="58" rx="10" />
+      <text className="login-art-card-muted" x={x + 10} y="18">{label}</text>
+      <path className={up ? 'login-art-up' : 'login-art-down'} d={up ? `M${x + 10} 40 l5 -7 l5 7 Z` : `M${x + 10} 33 l5 7 l5 -7 Z`} />
+      <text className={`login-art-card-title ${up ? 'login-art-up-text' : 'login-art-down-text'}`} x={x + 24} y="41">{change}</text>
+      <polyline className={up ? 'login-art-spark-up' : 'login-art-spark-down'} points={spark} />
+    </g>
+  );
+}
+
 export function LoginIllustration() {
   return (
-    <svg className="login-art" viewBox="0 0 320 260" role="img" aria-label="Business dashboard with sales chart, balanced ledger and stock">
-      {/* Links from the dashboard to the ledger and stock cards */}
-      <path className="login-art-link" d="M96 180 C 96 196, 80 196, 72 204" />
-      <path className="login-art-link" d="M236 180 C 236 192, 250 192, 256 198" />
+    <svg className="login-art" viewBox="0 0 340 290" role="img" aria-label="Business charts showing rising and falling trends">
+      {/* KPI tiles */}
+      <KpiTile x={0} label="Revenue" change="12%" up spark="62,44 70,40 78,42 86,34 94,30" />
+      <KpiTile x={118} label="Customers" change="8%" up spark="180,42 188,40 196,36 204,37 212,30" />
+      <KpiTile x={236} label="Costs" change="3%" up={false} spark="298,30 306,33 314,32 322,38 330,42" />
 
-      {/* Dashboard window */}
-      <rect className="login-art-glass" x="40" y="24" width="240" height="156" rx="14" />
-      <circle className="login-art-dot" cx="57" cy="40" r="3.5" />
-      <circle className="login-art-dot" cx="69" cy="40" r="3.5" />
-      <circle className="login-art-dot" cx="81" cy="40" r="3.5" />
-      <text className="login-art-label" x="56" y="70">Sales Trend</text>
-      <rect className="login-art-line" x="56" y="80" width="64" height="6" rx="3" />
-      <rect className="login-art-line" x="56" y="94" width="44" height="6" rx="3" />
-      <rect className="login-art-line" x="56" y="108" width="54" height="6" rx="3" />
+      {/* Trend lines */}
+      <rect className="login-art-glass" x="0" y="72" width="226" height="124" rx="12" />
+      <text className="login-art-label" x="12" y="92">Growth Trends</text>
+      <line className="login-art-grid" x1="12" y1="120" x2="214" y2="120" />
+      <line className="login-art-grid" x1="12" y1="146" x2="214" y2="146" />
+      <line className="login-art-axis" x1="12" y1="180" x2="214" y2="180" />
+      <polyline className="login-art-series-white" points="14,168 46,160 78,150 110,154 142,132 174,122 210,104" />
+      <polyline className="login-art-series-green" points="14,174 46,170 78,164 110,158 142,156 174,146 210,136" />
+      <polyline className="login-art-series-orange" points="14,128 46,134 78,130 110,144 142,150 174,158 210,164" />
+      <circle className="login-art-end-white" cx="210" cy="104" r="4" />
+      <circle className="login-art-end-green" cx="210" cy="136" r="4" />
+      <circle className="login-art-end-orange" cx="210" cy="164" r="4" />
 
-      <line className="login-art-axis" x1="136" y1="166" x2="266" y2="166" />
-      <rect className="login-art-bar" x="140" y="136" width="18" height="30" rx="4" />
-      <rect className="login-art-bar" x="164" y="120" width="18" height="46" rx="4" />
-      <rect className="login-art-bar" x="188" y="126" width="18" height="40" rx="4" />
-      <rect className="login-art-bar" x="212" y="102" width="18" height="64" rx="4" />
-      <rect className="login-art-bar-accent" x="236" y="78" width="18" height="88" rx="4" />
-      <polyline className="login-art-trend" points="149,128 173,112 197,118 221,94 245,68" />
-      <path className="login-art-trend-head" d="M245 60 L253 70 L239 71 Z" />
+      {/* Mix donut */}
+      <rect className="login-art-glass" x="236" y="72" width="104" height="124" rx="12" />
+      <text className="login-art-label" x="248" y="92">Sales Mix</text>
+      <circle className="login-art-track" cx="282" cy="134" r="28" />
+      <DonutSegment className="login-art-ring-white" share={0.45} start={0} />
+      <DonutSegment className="login-art-ring-green" share={0.3} start={0.45} />
+      <DonutSegment className="login-art-ring-orange" share={0.25} start={0.75} />
+      <text className="login-art-center" x="282" y="139" textAnchor="middle">45%</text>
+      <rect className="login-art-key-white" x="248" y="176" width="8" height="8" rx="2" />
+      <rect className="login-art-key-green" x="276" y="176" width="8" height="8" rx="2" />
+      <rect className="login-art-key-orange" x="304" y="176" width="8" height="8" rx="2" />
 
-      {/* Ledger card: Debit equals Credit */}
-      <rect className="login-art-card" x="6" y="166" width="136" height="92" rx="12" />
-      <text className="login-art-card-title" x="20" y="192">Ledger</text>
-      <text className="login-art-card-text" x="20" y="212">Debit</text>
-      <text className="login-art-card-text login-art-num" x="124" y="212" textAnchor="end">12,500</text>
-      <text className="login-art-card-text" x="20" y="230">Credit</text>
-      <text className="login-art-card-text login-art-num" x="124" y="230" textAnchor="end">12,500</text>
-      <circle className="login-art-badge" cx="124" cy="186" r="9" />
-      <path className="login-art-check" d="M119.5 186 L122.8 189.2 L128.5 183" />
-      <text className="login-art-card-muted" x="20" y="247">Balanced</text>
-
-      {/* Stock card: stacked boxes */}
-      <rect className="login-art-card" x="196" y="190" width="118" height="64" rx="12" />
-      <text className="login-art-card-title" x="210" y="211">Stock</text>
-      <text className="login-art-card-muted" x="210" y="239">In Stock</text>
-      <rect className="login-art-box" x="268" y="222" width="22" height="20" rx="3" />
-      <rect className="login-art-box" x="292" y="222" width="14" height="20" rx="3" />
-      <rect className="login-art-box-accent" x="276" y="200" width="22" height="20" rx="3" />
-      <line className="login-art-tape" x1="279" y1="232" x2="279" y2="242" />
-      <line className="login-art-tape" x1="287" y1="210" x2="287" y2="220" />
-
-      {/* Posted chip */}
-      <rect className="login-art-chip" x="176" y="4" width="132" height="26" rx="13" />
-      <circle className="login-art-badge" cx="191" cy="17" r="6" />
-      <path className="login-art-check" d="M188 17 L190.2 19.2 L194 15" />
-      <text className="login-art-chip-text" x="203" y="21">Invoice Posted</text>
+      {/* Monthly bars */}
+      <rect className="login-art-glass" x="0" y="208" width="340" height="82" rx="12" />
+      <text className="login-art-label" x="12" y="228">Monthly Performance</text>
+      <line className="login-art-axis" x1="12" y1="278" x2="328" y2="278" />
+      {[[20, 22, 16], [30, 28, 20], [26, 24, 18], [36, 30, 22], [32, 38, 26], [42, 36, 30], [46, 40, 34]].map(([a, b, c], index) => {
+        const x = 20 + index * 44;
+        return (
+          <g key={x}>
+            <rect className="login-art-bar" x={x} y={278 - a} width="9" height={a} rx="2" />
+            <rect className="login-art-bar-green" x={x + 11} y={278 - b} width="9" height={b} rx="2" />
+            <rect className="login-art-bar-yellow" x={x + 22} y={278 - c} width="9" height={c} rx="2" />
+          </g>
+        );
+      })}
     </svg>
   );
 }

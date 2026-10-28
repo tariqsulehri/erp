@@ -1525,26 +1525,33 @@ input[type="number"].input,
 }
 
 /* Login artwork (LoginIllustration): theme tokens only. */
-.login-art { display: block; width: 100%; height: auto; font-family: inherit; }
-.login-art-glass { fill: color-mix(in srgb, var(--color-login-text) 12%, transparent); stroke: color-mix(in srgb, var(--color-login-text) 30%, transparent); }
-.login-art-dot { fill: color-mix(in srgb, var(--color-login-text) 55%, transparent); }
+.login-art { display: block; width: 100%; height: auto; font-family: inherit; overflow: visible; }
+.login-art-glass { fill: color-mix(in srgb, var(--color-login-text) 12%, transparent); stroke: color-mix(in srgb, var(--color-login-text) 26%, transparent); }
 .login-art-label { fill: var(--color-login-muted); font-size: 12px; font-weight: 600; }
-.login-art-line { fill: color-mix(in srgb, var(--color-login-text) 28%, transparent); }
+.login-art-grid { stroke: color-mix(in srgb, var(--color-login-text) 16%, transparent); stroke-width: 1; stroke-dasharray: 3 4; }
 .login-art-axis { stroke: color-mix(in srgb, var(--color-login-text) 35%, transparent); stroke-width: 1.5; }
-.login-art-bar { fill: color-mix(in srgb, var(--color-login-text) 70%, transparent); }
-.login-art-bar-accent, .login-art-box-accent { fill: rgb(var(--brand-accent)); }
-.login-art-trend { fill: none; stroke: rgb(var(--brand-accent)); stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
-.login-art-trend-head { fill: rgb(var(--brand-accent)); }
-.login-art-link { fill: none; stroke: color-mix(in srgb, var(--color-login-text) 45%, transparent); stroke-width: 1.5; stroke-dasharray: 4 4; }
-.login-art-card, .login-art-chip { fill: var(--color-login-text); }
-.login-art-card-title { fill: rgb(var(--erp-blue-deep)); font-size: 13px; font-weight: 700; }
-.login-art-card-text, .login-art-chip-text { fill: rgb(var(--erp-blue-deep)); font-size: 12px; font-weight: 500; }
+.login-art-card { fill: var(--color-login-text); }
+.login-art-card-title { font-size: 15px; font-weight: 700; font-variant-numeric: tabular-nums; }
 .login-art-card-muted { fill: rgb(var(--erp-blue)); font-size: 12px; font-weight: 600; }
-.login-art-num { font-variant-numeric: tabular-nums; font-weight: 700; }
-.login-art-badge { fill: rgb(var(--brand-accent)); }
-.login-art-check { fill: none; stroke: var(--color-login-text); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
-.login-art-box { fill: rgb(var(--erp-blue)); }
-.login-art-tape { stroke: var(--color-login-text); stroke-width: 2; opacity: 0.7; }
+.login-art-up, .login-art-up-text { fill: rgb(var(--erp-success)); }
+.login-art-down, .login-art-down-text { fill: rgb(var(--erp-orange)); }
+.login-art-spark-up, .login-art-spark-down { fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.login-art-spark-up { stroke: rgb(var(--erp-success)); }
+.login-art-spark-down { stroke: rgb(var(--erp-orange)); }
+.login-art-series-white, .login-art-series-green, .login-art-series-orange { fill: none; stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
+.login-art-series-white { stroke: var(--color-login-text); }
+.login-art-series-green { stroke: rgb(var(--erp-success-dark)); }
+.login-art-series-orange { stroke: rgb(var(--erp-orange-80)); }
+.login-art-end-white, .login-art-key-white, .login-art-bar { fill: var(--color-login-text); }
+.login-art-end-green, .login-art-key-green, .login-art-bar-green { fill: rgb(var(--erp-success-dark)); }
+.login-art-end-orange, .login-art-key-orange { fill: rgb(var(--erp-orange-80)); }
+.login-art-bar-yellow { fill: rgb(var(--erp-warning-dark)); }
+.login-art-track { fill: none; stroke: color-mix(in srgb, var(--color-login-text) 18%, transparent); stroke-width: 12; }
+.login-art-ring-white, .login-art-ring-green, .login-art-ring-orange { fill: none; stroke-width: 12; }
+.login-art-ring-white { stroke: var(--color-login-text); }
+.login-art-ring-green { stroke: rgb(var(--erp-success-dark)); }
+.login-art-ring-orange { stroke: rgb(var(--erp-orange-80)); }
+.login-art-center { fill: var(--color-login-text); font-size: 13px; font-weight: 700; }
 
 .login-brand-footer {
   margin-top: 36px;
