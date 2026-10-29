@@ -12,7 +12,7 @@ import { InlineAlert } from '@/components/ui/InlineAlert';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { PaginationBar } from '@/components/ui/PaginationBar';
 import { SearchField } from '@/components/ui/SearchField';
-import { SegmentedControl } from '@/components/ui/SegmentedControl';
+import { SearchableSelect } from '@/components/ui/SearchableSelect';
 import { SidePanel } from '@/components/ui/SidePanel';
 import { TableMessageRow } from '@/components/ui/TableMessageRow';
 
@@ -124,17 +124,25 @@ export default function CitiesPage() {
             <div className="filter-bar-grow">
               <SearchField label="Search Cities" value={search} onChange={value => { setSearch(value); setPage(1); }} placeholder="Search by City Name" />
             </div>
-            <select
-              className="form-input"
-              aria-label="Filter By State Or Province"
-              value={filterStateId}
-              onChange={event => { setFilterStateId(event.target.value); setPage(1); }}
-              style={{ width: 170 }}
-            >
-              <option value="">All States</option>
-              {activeStates.map(state => <option key={state.id} value={state.id}>{state.name}</option>)}
-            </select>
-            <SegmentedControl label="Status Filter" value={status} options={STATUS_OPTIONS} onChange={value => { setStatus(value); setPage(1); }} />
+            <div style={{ width: 170 }}>
+              <SearchableSelect
+                value={filterStateId}
+                options={activeStates.map(state => ({ value: state.id, label: state.name }))}
+                onChange={value => { setFilterStateId(value); setPage(1); }}
+                placeholder="All States"
+                ariaLabel="Filter By State Or Province"
+              />
+            </div>
+            <div style={{ width: 140 }}>
+              <SearchableSelect
+                value={status}
+                options={STATUS_OPTIONS}
+                placeholder="Status"
+                hidePlaceholderOption
+                onChange={value => { setStatus((value || 'All') as StatusFilter); setPage(1); }}
+                ariaLabel="Status Filter"
+              />
+            </div>
           </div>
 
           <div className="table-scroll">

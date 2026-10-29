@@ -19,7 +19,7 @@ export function PostedListPanel({
   pagination: ReactNode;
 }) {
   return (
-    <div className={`split-view${detail ? ' has-side' : ''} ${styles.listBody}`}>
+    <div className={`list-layout ${styles.listBody}`}>
       <section className={`panel ${styles.listPanel}`}>
         {filters}
         <div className="table-scroll">{table}</div>

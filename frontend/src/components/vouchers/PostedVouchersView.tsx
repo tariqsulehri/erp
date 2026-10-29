@@ -440,14 +440,14 @@ export function PostedVouchersView({ initialStatus = 'Draft', initialVoucherId }
         table={(
           <table className="data-table" style={{ tableLayout: 'fixed', minWidth: 900 }}>
             <colgroup>
-              <col style={{ width: 220 }} />
+              <col style={{ width: 200 }} />
               <col style={{ width: 104 }} />
               <col style={{ width: 128 }} />
               <col />
               <col style={{ width: 120 }} />
               <col style={{ width: 120 }} />
-              <col style={{ width: 140 }} />
-              <col style={{ width: 76 }} />
+              <col style={{ width: 145 }} />
+              <col style={{ width: 90 }} />
             </colgroup>
             <thead>
               <tr>
@@ -458,7 +458,7 @@ export function PostedVouchersView({ initialStatus = 'Draft', initialVoucherId }
                 <th className="num">Debit</th>
                 <th className="num">Credit</th>
                 <th>Status</th>
-                <th><span className="sr-only">Actions</span></th>
+                <th className="cell-actions"><span className="sr-only">Actions</span></th>
               </tr>
             </thead>
             <tbody>
@@ -474,9 +474,9 @@ export function PostedVouchersView({ initialStatus = 'Draft', initialVoucherId }
                 const lifecycle = voucherLifecycleLabel(row);
                 return (
                   <tr key={row.id} className={`${postedListRowClass}${selectedId === row.id ? ' is-selected' : ''}`} onClick={() => setSelectedId(row.id)}>
-                    <td className="cell-strong" style={{ whiteSpace: 'nowrap' }}>
-                      <span>{row.voucher_number}</span>
-                      <span className="cell-muted" style={{ fontWeight: 400, marginLeft: 6 }}>· {voucherTypeLabel(row.voucher_type)}</span>
+                    <td className="cell-strong">
+                      <div style={{ fontWeight: 700, color: 'var(--color-heading)', lineHeight: 1.25 }}>{row.voucher_number}</div>
+                      <div className="cell-muted" style={{ fontSize: 'var(--font-size-xs)', fontWeight: 400, marginTop: 2 }}>{voucherTypeLabel(row.voucher_type)}</div>
                     </td>
                     <td>{formatDate(row.voucher_date, generalSettings)}</td>
                     <td className={row.reference ? undefined : 'cell-muted'}>{row.reference || 'Not Set'}</td>
@@ -486,7 +486,7 @@ export function PostedVouchersView({ initialStatus = 'Draft', initialVoucherId }
                     <td><Badge variant={statusTone(lifecycle)}>{lifecycle}</Badge></td>
                     <td className="cell-actions">
                       <span className="row-actions">
-                        <Button variant="ghost" size="sm" icon={<IconEye {...iconProps} />} onClick={event => { event.stopPropagation(); setSelectedId(row.id); }} aria-label={`View Voucher ${row.voucher_number}`} title="View Voucher" />
+                        <Button variant="ghost" size="sm" icon={<IconEye {...iconProps} />} onClick={event => { event.stopPropagation(); setSelectedId(row.id); }} aria-label={`View Voucher ${row.voucher_number}`} title="View Voucher Details" />
                         {editPath && (
                           <Link href={editPath} className="btn-ghost btn-sm btn-icon" onClick={event => event.stopPropagation()} aria-label={`Edit Draft Voucher ${row.voucher_number}`} title="Edit Draft Voucher">
                             <IconPencil {...iconProps} />
@@ -533,19 +533,30 @@ export function PostedVouchersView({ initialStatus = 'Draft', initialVoucherId }
                 />
                 <DetailLinesTable>
                   <colgroup>
-                    <col style={{ width: 40 }} />
+                    <col style={{ width: 44 }} />
+                    <col style={{ width: 140 }} />
                     <col />
-                    <col style={{ width: 96 }} />
-                    <col style={{ width: 96 }} />
+                    <col style={{ width: 120 }} />
+                    <col style={{ width: 120 }} />
                   </colgroup>
                   <thead>
-                    <tr><th className="num">No.</th><th>Account</th><th className="num">Debit</th><th className="num">Credit</th></tr>
+                    <tr>
+                      <th className="num">No.</th>
+                      <th>Account Code</th>
+                      <th>Account Name</th>
+                      <th className="num">Debit</th>
+                      <th className="num">Credit</th>
+                    </tr>
                   </thead>
                   <tbody>
                     {(selectedVoucher.lines ?? []).map((line: any) => (
                       <tr key={line.id}>
                         <td className="num cell-muted">{line.line_no}</td>
-                        <td title={`${line.account_code} - ${line.account_name}`}>{line.account_code} - {line.account_name}</td>
+                        <td><span className="code-chip">{line.account_code}</span></td>
+                        <td className="cell-strong" title={line.account_name}>
+                          {line.account_name}
+                          {line.narration && <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-muted)', fontWeight: 400 }}>{line.narration}</div>}
+                        </td>
                         <td className="num">{Number(line.dr_amount) > 0 ? money(line.dr_amount) : ''}</td>
                         <td className="num">{Number(line.cr_amount) > 0 ? money(line.cr_amount) : ''}</td>
                       </tr>

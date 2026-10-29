@@ -20,6 +20,7 @@ export const errorHandler: ErrorRequestHandler = (error, req, res, _next) => {
       error: {
         code: 'VALIDATION_ERROR',
         message: 'Some details are not correct. Please check the highlighted fields.',
+        requestId: req.requestId,
         details: {
           ...details,
           issues: error.issues.map(issue => ({
@@ -53,6 +54,7 @@ export const errorHandler: ErrorRequestHandler = (error, req, res, _next) => {
       message: statusCode === 500
         ? `Something went wrong. Please try again. If it happens again, give support this Reference: ${req.requestId ?? 'not available'}`
         : databaseError?.message ?? error.message,
+      requestId: req.requestId,
       ...(statusCode === 500 && req.requestId ? { reference: req.requestId } : {}),
     },
   });

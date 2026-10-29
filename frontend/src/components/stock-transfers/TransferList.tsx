@@ -13,19 +13,30 @@ import {
 } from '@/lib/api/stock-transfers';
 import { Button } from '@/components/ui/Button';
 import { InlineAlert } from '@/components/ui/InlineAlert';
-import { SegmentedControl } from '@/components/ui/SegmentedControl';
+import { SearchableSelect, type SelectOption } from '@/components/ui/SearchableSelect';
 import { StatusChip } from '@/components/ui/StatusChip';
 import { TableMessageRow } from '@/components/ui/TableMessageRow';
-import { documentStatusLabel, DraftDocumentActions, ReverseDocumentAction, STOCK_DOCUMENT_STATUS_OPTIONS, type DraftActionMessage } from '@/components/documents';
+import { documentStatusLabel, DraftDocumentActions, ReverseDocumentAction, type DraftActionMessage } from '@/components/documents';
 import { TransferDetailPanel, PlaceCell } from './TransferDetailPanel';
 import { TRANSFER_DIRECTIONS, type TransferDirection } from './transfer-directions';
 
 type DirectionFilter = 'ALL' | TransferDirection;
-type StatusFilter = 'Posted' | 'Draft' | 'Voided';
+type StatusFilter = 'ALL' | 'Posted' | 'Draft' | 'Voided';
 
-const DIRECTION_FILTERS: Array<{ value: DirectionFilter; label: string }> = [
-  { value: 'ALL', label: 'All' },
-  ...TRANSFER_DIRECTIONS.map(option => ({ value: option.value, label: option.label })),
+const DIRECTION_OPTIONS: SelectOption[] = [
+  { value: 'ALL', label: 'All Directions' },
+  ...TRANSFER_DIRECTIONS.map(option => ({
+    value: option.value,
+    label: option.label,
+    searchText: `${option.label} ${option.description}`,
+  })),
+];
+
+const STATUS_FILTER_OPTIONS: SelectOption[] = [
+  { value: 'ALL', label: 'All Statuses' },
+  { value: 'Posted', label: 'Posted' },
+  { value: 'Draft', label: 'Draft' },
+  { value: 'Voided', label: 'Cancelled Or Reversed' },
 ];
 
 /**
@@ -57,20 +68,20 @@ export function TransferList({ incoming = false, settings, empty, onOpenDraft, c
   const listQuery = useStockTransfersList({
     page: 1,
     limit: 100,
-    status: onOpenDraft ? status : 'Posted',
+    status: onOpenDraft ? (status === 'ALL' ? undefined : status) : 'Posted',
     incoming: incoming || undefined,
     direction: direction === 'ALL' ? undefined : direction,
     search: search.trim() || undefined,
   });
   const detailQuery = useStockTransferDetail(selectedId);
   const rows: any[] = listQuery.data?.data ?? [];
-  const filtered = direction !== 'ALL' || search.trim() !== '' || status !== 'Posted';
+  const filtered = direction !== 'ALL' || search.trim() !== '' || (onOpenDraft ? status !== 'Posted' : false);
   const detail = detailQuery.data;
 
   return (
     <>
     {actionMessage && <InlineAlert tone={actionMessage.tone} onDismiss={() => setActionMessage(null)}>{actionMessage.text}</InlineAlert>}
-    <div className={`split-view${selectedId ? ' has-side' : ''}`}>
+    <div className="transfer-list-container" style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
       <section className="list-card" aria-label={incoming ? 'Stock Received' : 'Stock Transfers'}>
         <div className="list-card-toolbar">
           <label className="list-card-search">
@@ -79,15 +90,32 @@ export function TransferList({ incoming = false, settings, empty, onOpenDraft, c
             <input type="search" value={search} placeholder="Search by Transfer No., reference, or note…" onChange={event => setSearch(event.target.value)} />
           </label>
           {onOpenDraft && (
-            <SegmentedControl<StatusFilter>
-              label="Status"
-              value={status}
-              options={STOCK_DOCUMENT_STATUS_OPTIONS as Array<{ value: StatusFilter; label: string }>}
-              onChange={value => { setStatus(value); setSelectedId(null); }}
-            />
+            <div style={{ width: 200, minWidth: 170 }}>
+              <SearchableSelect
+                value={status}
+                options={STATUS_FILTER_OPTIONS}
+                placeholder="Search Status"
+                hidePlaceholderOption
+                onChange={value => {
+                  setStatus((value || 'ALL') as StatusFilter);
+                  setSelectedId(null);
+                }}
+                ariaLabel="Status"
+              />
+            </div>
           )}
-          <div className="direction-filter">
-            <SegmentedControl<DirectionFilter> label="Direction" value={direction} options={DIRECTION_FILTERS} onChange={setDirection} />
+          <div style={{ width: 240, minWidth: 200 }}>
+            <SearchableSelect
+              value={direction}
+              options={DIRECTION_OPTIONS}
+              placeholder="Search Direction"
+              hidePlaceholderOption
+              onChange={value => {
+                setDirection((value || 'ALL') as DirectionFilter);
+                setSelectedId(null);
+              }}
+              ariaLabel="Direction"
+            />
           </div>
         </div>
         <div className="table-scroll">
@@ -120,7 +148,7 @@ export function TransferList({ incoming = false, settings, empty, onOpenDraft, c
                   <td className="num">{formatNumber(row.total_quantity, settings)}</td>
                   <td><StatusChip status={row.status} label={documentStatusLabel(row.status, row.posted_at)} /></td>
                   <td className="cell-actions">
-                    <Button variant="ghost" size="sm" icon={<IconEye size={16} stroke={1.8} />} onClick={event => { event.stopPropagation(); setSelectedId(row.id); }} aria-label={`View Transfer ${row.transfer_number}`} title="View Transfer" />
+                    <Button variant="ghost" size="sm" icon={<IconEye size={16} stroke={1.8} />} onClick={event => { event.stopPropagation(); setSelectedId(row.id); }} aria-label={`View Transfer ${row.transfer_number}`} title="View Stock Transfer Details" />
                   </td>
                 </tr>
               ))}
@@ -133,6 +161,7 @@ export function TransferList({ incoming = false, settings, empty, onOpenDraft, c
           detail={detail}
           loading={detailQuery.isFetching}
           settings={settings}
+          onOpenDraft={detail?.status === 'Draft' && canChangeDrafts && onOpenDraft ? () => onOpenDraft(detail) : undefined}
           onClose={() => setSelectedId(null)}
           actions={detail?.status === 'Posted' && canReverse && onOpenDraft ? (
             <ReverseDocumentAction

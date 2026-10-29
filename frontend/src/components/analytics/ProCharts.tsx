@@ -228,17 +228,36 @@ function MoneyTooltip({ active, payload, title, format, colors }: {
 }
 
 /** Dark value pill above a column, drawn only where the data row carries text in the label key. */
-function pillLabel(theme: ReturnType<typeof useChartTheme>) {
+function pillLabel(theme: ReturnType<typeof useChartTheme>, is3d = false) {
   return function PillLabel(props: any) {
     const text = String(props.value ?? '');
     if (!text) return null;
-    const width = text.length * 7 + 14;
+    const width = text.length * 7 + 16;
     const cx = Number(props.x) + Number(props.width) / 2;
     const top = Number(props.y) - 24;
     return (
       <g>
-        <rect x={cx - width / 2} y={top} width={width} height={19} rx={9.5} fill={theme.heading} />
-        <text x={cx} y={top + 13} textAnchor="middle" fontSize={11} fontWeight={600} fontFamily="var(--font-code)" fill={theme.surface}>{text}</text>
+        <rect
+          x={cx - width / 2}
+          y={top}
+          width={width}
+          height={19}
+          rx={9.5}
+          fill={theme.heading}
+          stroke={is3d ? 'rgb(var(--erp-blue-40) / 0.5)' : undefined}
+          strokeWidth={is3d ? 1 : 0}
+        />
+        <text
+          x={cx}
+          y={top + 13}
+          textAnchor="middle"
+          fontSize={11}
+          fontWeight={600}
+          fontFamily="var(--font-code)"
+          fill={theme.surface}
+        >
+          {text}
+        </text>
       </g>
     );
   };
@@ -253,7 +272,9 @@ export function MonthlyColumnChart({
   format,
   axis,
   tooltipTitle,
-  height = 250,
+  height = 185,
+  variant = '3d',
+  gradient: _gradient,
 }: {
   data: MonthPoint[];
   dataKey: string;
@@ -263,6 +284,8 @@ export function MonthlyColumnChart({
   axis: Format;
   tooltipTitle: (point: MonthPoint) => string;
   height?: number;
+  variant?: 'flat' | '3d';
+  gradient?: string;
 }) {
   const theme = useChartTheme();
   const tick = chartAxisTick(theme);
@@ -270,9 +293,28 @@ export function MonthlyColumnChart({
   const peakIndex = data.reduce((best, point, index) => (Number(point[dataKey]) > Number(data[best]?.[dataKey] ?? -Infinity) ? index : best), 0);
   const labelled = data.map((point, index) => ({ ...point, peakLabel: index === peakIndex && Number(point[dataKey]) > 0 ? axis(Number(point[dataKey])) : '' }));
   const color = theme.series.blue;
+  const is3d = variant === '3d';
   return (
     <ResponsiveContainer width="100%" height={height}>
       <BarChart data={labelled} margin={{ top: 30, right: 8, left: 0, bottom: 0 }} barCategoryGap="24%">
+        {is3d && (
+          <defs>
+            {/* Lightweight 3D cylindrical lighting gradient (hardware-accelerated, zero-lag) */}
+            <linearGradient id="month-3d-cylinder" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" stopColor="rgb(var(--erp-blue-deep))" stopOpacity="0.9" />
+              <stop offset="18%" stopColor="rgb(var(--erp-blue-40))" stopOpacity="1" />
+              <stop offset="45%" stopColor="rgb(var(--erp-blue))" stopOpacity="1" />
+              <stop offset="80%" stopColor="rgb(var(--erp-blue-80))" stopOpacity="1" />
+              <stop offset="100%" stopColor="rgb(var(--erp-blue-deep))" stopOpacity="0.9" />
+            </linearGradient>
+
+            {/* Recessed 3D track slot */}
+            <linearGradient id="month-3d-track" x1="0%" y1="0%" x2="0%" y2="100%">
+              <stop offset="0%" stopColor="rgb(var(--shadow-ink))" stopOpacity="0.10" />
+              <stop offset="100%" stopColor="rgb(var(--shadow-ink))" stopOpacity="0.03" />
+            </linearGradient>
+          </defs>
+        )}
         <CartesianGrid stroke={theme.grid} strokeDasharray="3 4" vertical={false} />
         <XAxis dataKey="label" tick={tick} axisLine={{ stroke: theme.border }} tickLine={false} interval="preserveStartEnd" minTickGap={8} />
         <YAxis tickFormatter={axis} tick={tick} axisLine={false} tickLine={false} width={52} />
@@ -280,9 +322,15 @@ export function MonthlyColumnChart({
         {average !== undefined && average > 0 && (
           <ReferenceLine y={average} stroke={theme.target} strokeDasharray="5 4" strokeWidth={1.5} ifOverflow="extendDomain" />
         )}
-        {/* Flat bar with 4px rounded top on a feather track (standards section 8). */}
-        <Bar dataKey={dataKey} name={seriesName} fill={color} radius={[4, 4, 0, 0]} maxBarSize={30} background={{ fill: theme.track, radius: 4 }}>
-          <LabelList dataKey="peakLabel" content={pillLabel(theme)} />
+        <Bar
+          dataKey={dataKey}
+          name={seriesName}
+          fill={is3d ? 'url(#month-3d-cylinder)' : color}
+          radius={[6, 6, 0, 0]}
+          maxBarSize={38}
+          background={is3d ? { fill: 'url(#month-3d-track)', radius: 6 } : { fill: theme.track, radius: 4 }}
+        >
+          <LabelList dataKey="peakLabel" content={pillLabel(theme, is3d)} />
         </Bar>
       </BarChart>
     </ResponsiveContainer>
@@ -384,24 +432,47 @@ export function BridgeChart({ steps, format, axis, height = 250 }: { steps: Brid
   );
 }
 
+const VOUCHER_3D_GRADIENTS: Record<string, string> = {
+  BPV: 'linear-gradient(90deg, rgb(var(--erp-blue)) 0%, rgb(var(--erp-blue-80)) 50%, rgb(var(--erp-blue-deep)) 100%)',
+  BRV: 'linear-gradient(90deg, rgb(var(--erp-chart-teal)) 0%, rgb(var(--erp-success)) 50%, rgb(var(--erp-chart-teal-dark)) 100%)',
+  CRV: 'linear-gradient(90deg, rgb(var(--erp-orange-80)) 0%, rgb(var(--erp-warning)) 50%, rgb(var(--erp-orange-text)) 100%)',
+  CPV: 'linear-gradient(90deg, rgb(var(--erp-blue-60)) 0%, rgb(var(--erp-blue-80)) 50%, rgb(var(--erp-blue-deep)) 100%)',
+  JV: 'linear-gradient(90deg, rgb(var(--erp-orange)) 0%, rgb(var(--erp-danger)) 60%, rgb(var(--erp-danger-soft-dark)) 100%)',
+};
+
+const PALETTE_3D_BARS = [
+  'linear-gradient(90deg, rgb(var(--erp-blue)) 0%, rgb(var(--erp-blue-80)) 50%, rgb(var(--erp-blue-deep)) 100%)',
+  'linear-gradient(90deg, rgb(var(--erp-chart-teal)) 0%, rgb(var(--erp-success)) 50%, rgb(var(--erp-chart-teal-dark)) 100%)',
+  'linear-gradient(90deg, rgb(var(--erp-orange-80)) 0%, rgb(var(--erp-warning)) 50%, rgb(var(--erp-orange-text)) 100%)',
+  'linear-gradient(90deg, rgb(var(--erp-blue-60)) 0%, rgb(var(--erp-blue-deep)) 100%)',
+  'linear-gradient(90deg, rgb(var(--erp-orange)) 0%, rgb(var(--erp-danger)) 100%)',
+  'linear-gradient(90deg, rgb(var(--erp-blue-40)) 0%, rgb(var(--erp-blue)) 100%)',
+];
+
 /** Ranked horizontal bars with the name, amount, and share of the total. Reads well for 1 to 8 rows. */
 export function RankedBars({
   items,
   total,
   format,
   color,
-  limit = 6,
+  gradient,
+  limit = 5,
   countLabel,
+  variant = '3d',
 }: {
-  items: Array<{ name: string; value: number; count?: number }>;
+  items: Array<{ name: string; value: number; count?: number; gradient?: string; color?: string }>;
   total: number;
   format: Format;
   /** Bar colour; omit for the standard meter fill (accent, or the vivid gradient). */
   color?: string;
+  /** Custom gradient string or CSS token. */
+  gradient?: string;
   limit?: number;
   countLabel?: (count: number) => string;
+  variant?: 'flat' | '3d';
 }) {
   if (items.length === 0) return <div className="chart-empty">No data for the selected filters.</div>;
+  const is3d = variant === '3d';
   const shown = items.slice(0, limit);
   const max = Math.max(...shown.map(item => item.value), 0) || 1;
   const rest = items.slice(limit);
@@ -409,15 +480,25 @@ export function RankedBars({
   return (
     <>
       <ol className="ranked-bars">
-        {shown.map(item => {
+        {shown.map((item, index) => {
           const share = total > 0 ? item.value / total * 100 : 0;
           const tip = `${item.name}: ${format(item.value)} (${share.toFixed(1)}%)${item.count !== undefined && countLabel ? ` · ${countLabel(item.count)}` : ''}`;
+          const itemBg = is3d
+            ? (item.gradient ?? gradient ?? item.color ?? color ?? VOUCHER_3D_GRADIENTS[item.name] ?? PALETTE_3D_BARS[index % PALETTE_3D_BARS.length])
+            : (item.color ?? color ?? 'var(--meter-fill)');
           return (
             <li key={item.name} title={tip}>
               <span className="name">{item.name}</span>
               <span className="value">{format(item.value)}<small>{share.toFixed(1)}%</small></span>
-              <span className="track" aria-hidden>
-                <span className="fill" style={{ display: 'block', width: `${Math.max(item.value / max * 100, 1)}%`, background: color ?? 'var(--meter-fill)' }} />
+              <span className={is3d ? 'track track-3d' : 'track'} aria-hidden>
+                <span
+                  className={is3d ? 'fill fill-3d' : 'fill'}
+                  style={{
+                    display: 'block',
+                    width: `${Math.max(item.value / max * 100, 1)}%`,
+                    background: itemBg,
+                  }}
+                />
               </span>
             </li>
           );
@@ -436,13 +517,16 @@ export function DonutChart({
   centerValue,
   centerLabel,
   format,
+  variant = '3d',
 }: {
   items: Array<{ name: string; value: number; color: string }>;
   centerValue: string;
   centerLabel: string;
   format: Format;
+  variant?: 'flat' | '3d';
 }) {
   const theme = useChartTheme();
+  const is3d = variant === '3d';
   // At most 5 slices (standards section 8): the four largest stay, the rest join "Other".
   const sorted = [...allItems].sort((left, right) => right.value - left.value);
   const items = sorted.length <= 5 ? allItems : [
@@ -461,22 +545,94 @@ export function DonutChart({
       <div className="donut-plot">
         <ResponsiveContainer width="100%" height="100%">
           <PieChart>
+            {is3d && (
+              <defs>
+                {items.map((item, idx) => {
+                  const gradId = `donut3d-slice-${idx}`;
+                  if (item.name === 'Posted') {
+                    return (
+                      <linearGradient key={item.name} id={gradId} x1="0%" y1="0%" x2="100%" y2="100%">
+                        <stop offset="0%" stopColor="rgb(var(--erp-chart-teal))" stopOpacity="1" />
+                        <stop offset="30%" stopColor="rgb(var(--erp-white))" stopOpacity="0.35" />
+                        <stop offset="60%" stopColor="rgb(var(--erp-chart-teal))" stopOpacity="1" />
+                        <stop offset="100%" stopColor="rgb(var(--erp-success))" stopOpacity="0.9" />
+                      </linearGradient>
+                    );
+                  }
+                  if (item.name === 'Draft') {
+                    return (
+                      <linearGradient key={item.name} id={gradId} x1="0%" y1="0%" x2="100%" y2="100%">
+                        <stop offset="0%" stopColor="rgb(var(--erp-orange-80))" stopOpacity="1" />
+                        <stop offset="30%" stopColor="rgb(var(--erp-white))" stopOpacity="0.4" />
+                        <stop offset="65%" stopColor="rgb(var(--erp-orange))" stopOpacity="1" />
+                        <stop offset="100%" stopColor="rgb(var(--erp-orange-text))" stopOpacity="1" />
+                      </linearGradient>
+                    );
+                  }
+                  return (
+                    <linearGradient key={item.name} id={gradId} x1="0%" y1="0%" x2="100%" y2="100%">
+                      <stop offset="0%" stopColor={item.color} stopOpacity="1" />
+                      <stop offset="30%" stopColor="rgb(var(--erp-white))" stopOpacity="0.3" />
+                      <stop offset="70%" stopColor={item.color} stopOpacity="1" />
+                      <stop offset="100%" stopColor="rgb(var(--erp-black))" stopOpacity="0.2" />
+                    </linearGradient>
+                  );
+                })}
+              </defs>
+            )}
             <Tooltip content={tooltip} />
-            <Pie data={items} dataKey="value" nameKey="name" innerRadius="70%" outerRadius="100%" paddingAngle={1} stroke={theme.surface} strokeWidth={2} startAngle={90} endAngle={-270}>
-              {items.map(item => <Cell key={item.name} fill={item.color} />)}
+            <Pie
+              data={items}
+              dataKey="value"
+              nameKey="name"
+              innerRadius="70%"
+              outerRadius="100%"
+              paddingAngle={is3d ? 2 : 1}
+              stroke={theme.surface}
+              strokeWidth={2}
+              startAngle={90}
+              endAngle={-270}
+            >
+              {items.map((item, idx) => (
+                <Cell key={item.name} fill={is3d ? `url(#donut3d-slice-${idx})` : item.color} />
+              ))}
             </Pie>
           </PieChart>
         </ResponsiveContainer>
         <div className="donut-center" aria-hidden>
-          <strong>{centerValue}</strong>
-          <span>{centerLabel}</span>
+          {is3d ? (
+            <div className="donut-center-core">
+              <strong>{centerValue}</strong>
+              <span>{centerLabel}</span>
+            </div>
+          ) : (
+            <>
+              <strong>{centerValue}</strong>
+              <span>{centerLabel}</span>
+            </>
+          )}
         </div>
       </div>
       <table className="donut-legend">
         <tbody>
           {items.map(item => (
             <tr key={item.name}>
-              <td><span className="swatch" style={{ background: item.color }} aria-hidden />{item.name}</td>
+              <td>
+                <span
+                  className={is3d ? 'swatch swatch-3d' : 'swatch'}
+                  style={{
+                    background: is3d
+                      ? item.name === 'Posted'
+                        ? 'linear-gradient(135deg, rgb(var(--erp-chart-teal)) 0%, rgb(var(--erp-success)) 100%)'
+                        : item.name === 'Draft'
+                        ? 'linear-gradient(135deg, rgb(var(--erp-orange-80)) 0%, rgb(var(--erp-orange-text)) 100%)'
+                        : `linear-gradient(135deg, ${item.color} 0%, color-mix(in srgb, ${item.color} 75%, black) 100%)`
+                      : item.color,
+                  }}
+                  aria-hidden
+                />
+                {item.name}
+              </td>
               <td className="num">{format(item.value)}</td>
               <td className="num">{`${(item.value / total * 100).toFixed(0)}%`}</td>
             </tr>

@@ -98,6 +98,34 @@
   --shadow-3d-card:            var(--shadow-card);
   --shadow-3d-card-hover:      var(--shadow-card-hover);
 
+  /* ================================================================
+     3D GRADIENT TILE TOKENS — Single Source of Truth
+     Gradient Intensity Level: Adjust the color-mix % below to increase/decrease gradient depth.
+     - Top-right ambient glow: 14%
+     - Vertical tone wash: 8% top -> 2% mid -> 5% bottom
+     Border & Shadow: Single crisp line with soft ambient depth.
+     ================================================================ */
+  --tile-3d-bg:
+    radial-gradient(ellipse at 88% -15%, color-mix(in srgb, var(--tone) 14%, transparent) 0%, transparent 68%),
+    radial-gradient(circle at 10% 0%, rgb(var(--erp-white) / 0.8) 0%, transparent 45%),
+    linear-gradient(180deg, color-mix(in srgb, var(--tone) 8%, var(--color-surface)) 0%, color-mix(in srgb, var(--tone) 2%, var(--color-surface)) 58%, color-mix(in srgb, var(--tone) 5%, var(--color-surface)) 100%);
+  --tile-3d-border: 1px solid color-mix(in srgb, var(--tone) 26%, var(--color-border));
+  --tile-3d-border-hover: color-mix(in srgb, var(--tone) 48%, var(--color-border));
+  --tile-3d-shadow:
+    0 1px 3px rgb(var(--shadow-ink) / 0.06),
+    0 3px 8px -1px rgb(var(--shadow-ink) / 0.04),
+    inset 0 1px 0 rgb(var(--erp-white) / 0.9);
+  --tile-3d-shadow-hover:
+    0 4px 14px -1px color-mix(in srgb, var(--tone) 20%, rgb(var(--shadow-ink) / 0.1)),
+    0 2px 4px rgb(var(--shadow-ink) / 0.06),
+    inset 0 1px 0 rgb(var(--erp-white) / 0.95);
+  --tile-3d-icon-bg: linear-gradient(135deg, color-mix(in srgb, var(--tone) 18%, var(--color-surface)) 0%, color-mix(in srgb, var(--tone) 8%, var(--color-surface)) 100%);
+  --tile-3d-icon-border: 1px solid color-mix(in srgb, var(--tone) 25%, transparent);
+  --tile-3d-icon-shadow: 0 1px 2px rgb(var(--shadow-ink) / 0.06), inset 0 1px 0 rgb(var(--erp-white) / 0.8);
+  --tile-3d-value-color: color-mix(in srgb, var(--tone) 85%, var(--color-heading));
+  --tile-3d-bar-bg: linear-gradient(180deg, rgb(var(--shadow-ink) / 0.08) 0%, rgb(var(--shadow-ink) / 0.02) 100%);
+  --tile-3d-bar-fill: linear-gradient(90deg, color-mix(in srgb, var(--tone) 75%, var(--color-surface)) 0%, var(--tone) 100%);
+
   /* Motion — state changes only */
   --ease-out:        cubic-bezier(0.22, 1, 0.36, 1);
   --transition:      140ms var(--ease-out);

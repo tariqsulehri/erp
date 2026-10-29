@@ -66,10 +66,12 @@ describe('TransferList', () => {
   it('filters by direction and explains when nothing matches', () => {
     render(<TransferList empty={empty} />);
     expect(lastCall().incoming).toBeUndefined();
-    fireEvent.click(screen.getByRole('button', { name: 'Warehouse → Warehouse' }));
+    fireEvent.click(screen.getByRole('combobox', { name: 'Direction' }));
+    fireEvent.click(screen.getByRole('option', { name: 'Warehouse → Warehouse' }));
     expect(lastCall()).toMatchObject({ direction: 'WAREHOUSE_TO_WAREHOUSE' });
     expect(screen.getByText('No Transfers Match')).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'All' }));
+    fireEvent.click(screen.getByRole('combobox', { name: 'Direction' }));
+    fireEvent.click(screen.getByRole('option', { name: 'All Directions' }));
     expect(lastCall().direction).toBeUndefined();
   });
 
@@ -80,9 +82,11 @@ describe('TransferList', () => {
     expect(screen.getByText(/From Place/).closest('td')).toHaveTextContent('Warehouse');
     expect(screen.getByText(/To Place/).closest('td')).toHaveTextContent('Branch');
     fireEvent.click(screen.getByRole('button', { name: 'View Transfer ST-2026-0001' }));
-    expect(screen.getByRole('complementary', { name: 'Transfer Details' })).toHaveTextContent('P-1 - Paper');
-    fireEvent.click(screen.getByRole('button', { name: 'Close Details' }));
-    expect(screen.queryByRole('complementary', { name: 'Transfer Details' })).not.toBeInTheDocument();
+    const details = screen.getByRole('dialog', { name: 'Stock Transfer Details' });
+    expect(details).toHaveTextContent('P-1');
+    expect(details).toHaveTextContent('Paper');
+    fireEvent.click(screen.getByRole('button', { name: 'Close Stock Transfer Details' }));
+    expect(screen.queryByRole('dialog', { name: 'Stock Transfer Details' })).not.toBeInTheDocument();
   });
 
   it('sends the search text', () => {
@@ -93,7 +97,7 @@ describe('TransferList', () => {
 
   it('shows no Status filter for Stock Received, which lists posted transfers only', () => {
     render(<TransferList incoming empty={empty} />);
-    expect(screen.queryByRole('group', { name: 'Status' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('combobox', { name: 'Status' })).not.toBeInTheDocument();
   });
 
   it('filters by Status and offers Open Draft, Post and Cancel Draft for a selected Draft', () => {
@@ -102,9 +106,11 @@ describe('TransferList', () => {
     listResult = { isLoading: false, error: null, data: { data: [{ ...row('t1', 'ST-2026-0001', 'WAREHOUSE', 'BRANCH'), status: 'Draft' }] } };
     render(<TransferList empty={empty} onOpenDraft={onOpenDraft} canChangeDrafts />);
     expect(lastCall()).toMatchObject({ status: 'Posted' });
-    fireEvent.click(screen.getByRole('button', { name: 'Draft' }));
+    fireEvent.click(screen.getByRole('combobox', { name: 'Status' }));
+    fireEvent.click(screen.getByRole('option', { name: 'Draft' }));
     expect(lastCall()).toMatchObject({ status: 'Draft' });
-    fireEvent.click(screen.getByRole('button', { name: 'Cancelled Or Reversed' }));
+    fireEvent.click(screen.getByRole('combobox', { name: 'Status' }));
+    fireEvent.click(screen.getByRole('option', { name: 'Cancelled Or Reversed' }));
     expect(lastCall()).toMatchObject({ status: 'Voided' });
 
     fireEvent.click(screen.getByRole('button', { name: 'View Transfer ST-2026-0001' }));

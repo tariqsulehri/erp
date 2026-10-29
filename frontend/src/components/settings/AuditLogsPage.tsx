@@ -1,10 +1,10 @@
 'use client';
 
 import { useState } from 'react';
-import { IconHistory, IconX } from '@tabler/icons-react';
 import { useAuditLogs, type AuditLogRow } from '@/lib/api/audit';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
+import { Drawer } from '@/components/ui/Drawer';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { PaginationBar } from '@/components/ui/PaginationBar';
 import { SearchField } from '@/components/ui/SearchField';
@@ -82,7 +82,7 @@ export default function AuditLogsPage() {
         )}
       />
 
-      <div className={`split-view${selectedLog ? ' has-side' : ''}`}>
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
         <section className="panel">
           <div className="filter-bar">
             <div className="filter-bar-grow">
@@ -193,21 +193,13 @@ export default function AuditLogsPage() {
         </section>
 
         {selectedLog && (
-          <aside className="panel side-panel" style={{ width: 380, flexShrink: 0 }}>
-            <div className="panel-header">
-              <h2 className="panel-title" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <IconHistory size={18} stroke={1.8} />
-                Audit Record Details
-              </h2>
-              <Button
-                variant="ghost"
-                size="sm"
-                icon={<IconX size={16} stroke={1.8} />}
-                onClick={() => setSelectedLog(null)}
-                aria-label="Close Audit Details"
-              />
-            </div>
-            <div className="panel-body" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <Drawer
+            open={true}
+            title="Audit Record Details"
+            size="lg"
+            onClose={() => setSelectedLog(null)}
+          >
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
               <div>
                 <span style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-muted)', fontWeight: 600 }}>ACTION & TIME</span>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4 }}>
@@ -257,7 +249,7 @@ export default function AuditLogsPage() {
                       fontSize: 'var(--font-size-xs)',
                       fontFamily: 'monospace',
                       overflowX: 'auto',
-                      maxHeight: 250,
+                      maxHeight: 320,
                       border: '1px solid var(--color-border-subtle)',
                     }}
                   >
@@ -266,7 +258,7 @@ export default function AuditLogsPage() {
                 </div>
               )}
             </div>
-          </aside>
+          </Drawer>
         )}
       </div>
     </main>

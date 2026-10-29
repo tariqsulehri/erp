@@ -40,13 +40,25 @@ import { FieldLabel } from '@/components/ui/FieldLabel';
 import { DateField, NumericField, TextField } from '@/components/ui/FormFields';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
+import { Drawer } from '@/components/ui/Drawer';
 import { InlineAlert } from '@/components/ui/InlineAlert';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { TableMessageRow } from '@/components/ui/TableMessageRow';
 import { SearchableSelect } from '@/components/ui/SearchableSelect';
 import { SegmentedControl } from '@/components/ui/SegmentedControl';
 import { StatusChip } from '@/components/ui/StatusChip';
-import { documentStatusLabel, DraftDocumentActions, ReverseDocumentAction, STOCK_DOCUMENT_STATUS_OPTIONS, type DraftActionMessage } from '@/components/documents';
+import {
+  DetailActions,
+  DetailFields,
+  DetailLinesTable,
+  DetailNote,
+  DetailTotals,
+  documentStatusLabel,
+  DraftDocumentActions,
+  ReverseDocumentAction,
+  STOCK_DOCUMENT_STATUS_OPTIONS,
+  type DraftActionMessage,
+} from '@/components/documents';
 import { adjustmentFormFromDetail } from './adjustment-drafts';
 
 interface AdjustmentLine {
@@ -408,15 +420,22 @@ export default function StockAdjustmentPage({ documentKind = 'Adjustment' }: { d
         />
         {message && <InlineAlert tone={message.kind === 'success' ? 'success' : 'danger'}>{message.text}</InlineAlert>}
         {actionMessage && <InlineAlert tone={actionMessage.tone} onDismiss={() => setActionMessage(null)}>{actionMessage.text}</InlineAlert>}
-        <div className={`split-view${selectedAdjustmentId ? ' has-side' : ''}`}>
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
           <section className="panel">
-            <div className="panel-header">
-              <SegmentedControl<StatusFilter>
-                label="Status"
-                value={statusFilter}
-                options={STOCK_DOCUMENT_STATUS_OPTIONS as Array<{ value: StatusFilter; label: string }>}
-                onChange={value => { setStatusFilter(value); setSelectedAdjustmentId(null); }}
-              />
+            <div className="list-card-toolbar" style={{ padding: '8px 16px', borderBottom: '1px solid var(--color-border-subtle)' }}>
+              <div style={{ width: 220 }}>
+                <SearchableSelect
+                  value={statusFilter}
+                  options={STOCK_DOCUMENT_STATUS_OPTIONS}
+                  placeholder="Search Status"
+                  hidePlaceholderOption
+                  onChange={value => {
+                    setStatusFilter((value || 'Posted') as StatusFilter);
+                    setSelectedAdjustmentId(null);
+                  }}
+                  ariaLabel="Status Filter"
+                />
+              </div>
             </div>
             <div className="table-scroll">
               <table className="data-table" style={{ tableLayout: 'fixed' }}>
@@ -449,7 +468,7 @@ export default function StockAdjustmentPage({ documentKind = 'Adjustment' }: { d
                       <td className="num">{formatNumber(row.total_quantity_out, generalSettings)}</td>
                       <td><StatusChip status={row.status} label={documentStatusLabel(row.status, row.posted_at)} /></td>
                       <td className="cell-actions">
-                        <Button variant="ghost" size="sm" icon={<IconEye size={16} stroke={1.8} />} onClick={event => { event.stopPropagation(); setSelectedAdjustmentId(row.id); }} aria-label={`View Adjustment ${row.adjustment_number}`} title="View Adjustment" />
+                        <Button variant="ghost" size="sm" icon={<IconEye size={16} stroke={1.8} />} onClick={event => { event.stopPropagation(); setSelectedAdjustmentId(row.id); }} aria-label={`View Adjustment ${row.adjustment_number}`} title="View Stock Adjustment Details" />
                       </td>
                     </tr>
                   ))}
@@ -462,6 +481,7 @@ export default function StockAdjustmentPage({ documentKind = 'Adjustment' }: { d
               detail={detailQuery.data}
               loading={detailQuery.isFetching}
               settings={generalSettings}
+              isOpeningStock={isOpeningStock}
               onClose={() => setSelectedAdjustmentId(null)}
               actions={detailQuery.data?.status === 'Posted' && canReverse ? (
                 <ReverseDocumentAction
@@ -662,58 +682,124 @@ function locationOptions(rows: any[], kind: StockHolderKind, holderId: string) {
     .map(location => ({ value: location.id, label: `${location.code} - ${location.name}`, searchText: `${location.code} ${location.name}`, isDefault: location.is_default }));
 }
 
-function DetailPanel({ detail, loading, settings, actions, onClose }: { detail: any; loading: boolean; settings: any; actions?: ReactNode; onClose: () => void }) {
+function DetailPanel({
+  detail,
+  loading,
+  settings,
+  isOpeningStock = false,
+  actions,
+  onClose,
+}: {
+  detail: any;
+  loading: boolean;
+  settings: any;
+  isOpeningStock?: boolean;
+  actions?: ReactNode;
+  onClose: () => void;
+}) {
+  const isOpening = isOpeningStock || detail?.reason === 'Opening Stock' || detail?.adjustment_type === 'Opening';
+  const title = isOpening ? 'Opening Stock Details' : 'Stock Adjustment Details';
+  const totalQuantity = (detail?.lines ?? []).reduce((acc: number, line: any) => acc + (Number(line.quantity) || 0), 0);
+  const totalCost = (detail?.lines ?? []).reduce((acc: number, line: any) => acc + (Number(line.total_cost) || 0), 0);
+
   return (
-    <aside className="panel side-panel" aria-label="Adjustment Detail">
-      <div className="panel-header">
-        <h2 className="panel-title">{detail?.adjustment_number ?? 'Adjustment Detail'}</h2>
-        <span className="row-actions">
-          {detail && <Button variant="ghost" size="sm" icon={<IconPrinter size={16} stroke={1.8} />} onClick={() => window.print()} aria-label="Print Adjustment" title="Print Adjustment" />}
-          <Button variant="ghost" size="sm" icon={<IconX size={16} stroke={1.8} />} onClick={onClose} aria-label="Close Detail" title="Close Detail" />
-        </span>
-      </div>
-      <div className="panel-body">
-        {loading && <p className="form-hint">Loading Adjustment Detail…</p>}
-        {!loading && detail && (
-          <>
-            {actions}
-            <dl className="detail-list">
-              <InfoRow label="Date" value={formatDate(detail.adjustment_date, settings)} />
-              <InfoRow label="Status" value={<StatusChip status={detail.status} label={documentStatusLabel(detail.status, detail.posted_at)} />} />
-              {detail.status === 'Voided' && <InfoRow label={`${documentStatusLabel(detail.status, detail.posted_at)} Reason`} value={detail.void_reason || 'Not Set'} />}
-              {detail.status === 'Voided' && <InfoRow label={`${documentStatusLabel(detail.status, detail.posted_at)} At`} value={detail.voided_at ? formatDate(detail.voided_at, settings) : 'Not Set'} />}
-              <InfoRow label={detail.branch_id ? 'Branch' : 'Warehouse'} value={holderText(detail)} />
-              <InfoRow label="Location" value={detail.location_code ? `${detail.location_code} - ${detail.location_name}` : 'Not Set'} />
-              <InfoRow label="Reason" value={detail.reason || 'Not Set'} />
-            </dl>
-            <table className="data-table" style={{ tableLayout: 'fixed' }}>
-              <thead><tr><th className="num" style={{ width: 40 }}>No.</th><th style={{ width: 92 }}>Type</th><th>Item</th><th className="num" style={{ width: 80 }}>Qty</th><th className="num" style={{ width: 100 }}>Cost</th></tr></thead>
-              <tbody>
-                {(detail.lines ?? []).map((line: any, index: number) => (
-                  <tr key={line.id}>
-                    <td className="num cell-muted">{index + 1}</td>
-                    <td><TypeBadge type={line.adjustment_type} /></td>
-                    <td className="cell-strong">{line.item_code} - {line.item_name}</td>
-                    <td className="num">{formatNumber(line.quantity, settings)}</td>
-                    <td className="num">{formatMoney(line.total_cost, settings)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </>
-        )}
-      </div>
-    </aside>
+    <Drawer
+      open={true}
+      title={title}
+      size="lg"
+      onClose={onClose}
+      headerActions={
+        detail && (
+          <Button
+            variant="ghost"
+            size="sm"
+            icon={<IconPrinter size={16} stroke={1.8} />}
+            onClick={() => window.print()}
+            aria-label={`Print ${title}`}
+            title={`Print ${title}`}
+          />
+        )
+      }
+    >
+      {loading && <p className="form-hint">Loading {title}…</p>}
+      {!loading && detail && (
+        <>
+          <DetailFields
+            items={[
+              [isOpening ? 'Opening Stock No.' : 'Adjustment No.', detail.adjustment_number],
+              ['Date', formatDate(detail.adjustment_date, settings)],
+              ['Type', isOpening ? 'Opening Stock' : 'Stock Adjustment'],
+              ['Status', <StatusChip key="status" status={detail.status} label={documentStatusLabel(detail.status, detail.posted_at)} />],
+              [detail.branch_id ? 'Branch' : 'Warehouse', holderText(detail)],
+              ['Location', detail.location_code ? `${detail.location_code} - ${detail.location_name}` : 'Not Set'],
+              ['Reason', detail.reason || 'Not Set'],
+              ['Posted At', detail.posted_at ? formatDate(detail.posted_at, settings) : 'Not Set'],
+              ...(detail.status === 'Voided'
+                ? [
+                  [`${documentStatusLabel(detail.status, detail.posted_at)} Reason`, detail.void_reason || 'Not Set'] as [string, ReactNode],
+                  [`${documentStatusLabel(detail.status, detail.posted_at)} At`, detail.voided_at ? formatDate(detail.voided_at, settings) : 'Not Set'] as [string, ReactNode],
+                ]
+                : []),
+            ]}
+          />
+
+          <DetailLinesTable>
+            <colgroup>
+              <col style={{ width: 44 }} />
+              <col style={{ width: 100 }} />
+              <col style={{ width: 130 }} />
+              <col />
+              <col style={{ width: 90 }} />
+              <col style={{ width: 110 }} />
+            </colgroup>
+            <thead>
+              <tr>
+                <th className="num">No.</th>
+                <th>Type</th>
+                <th>Item Code</th>
+                <th>Item Description</th>
+                <th className="num">Qty</th>
+                <th className="num">Cost</th>
+              </tr>
+            </thead>
+            <tbody>
+              {(detail.lines ?? []).map((line: any, index: number) => (
+                <tr key={line.id}>
+                  <td className="num cell-muted">{index + 1}</td>
+                  <td><TypeBadge type={line.adjustment_type} /></td>
+                  <td><span className="code-chip">{line.item_code}</span></td>
+                  <td className="cell-strong">{line.item_name}</td>
+                  <td className="num">{formatNumber(line.quantity, settings)}</td>
+                  <td className="num">{formatMoney(line.total_cost, settings)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </DetailLinesTable>
+
+          <DetailTotals
+            items={[
+              ['Total Items', `${(detail.lines ?? []).length} ${(detail.lines ?? []).length === 1 ? 'Item' : 'Items'}`],
+              ['Total Quantity', formatNumber(totalQuantity, settings)],
+              ['Total Cost', formatMoney(totalCost, settings)],
+            ]}
+          />
+
+          <DetailNote>
+            {detail.status === 'Draft' && `This ${isOpening ? 'opening stock' : 'stock adjustment'} is a Draft. Edit it and post it to update stock.`}
+            {detail.status === 'Posted' && (isOpening ? 'This opening stock is already posted. Initial quantities and balances are established.' : 'This stock adjustment is already posted. Stock balances and ledger values are updated.')}
+            {detail.status === 'Voided' && `This ${isOpening ? 'opening stock' : 'stock adjustment'} has been reversed. Original stock and ledger balances were restored.`}
+          </DetailNote>
+
+          {actions && <DetailActions>{actions}</DetailActions>}
+        </>
+      )}
+    </Drawer>
   );
 }
 
 /** "Code - Name" of the Branch or Warehouse a list or detail row belongs to. */
 function holderText(row: any) {
   return row.branch_id ? `${row.branch_code} - ${row.branch_name}` : `${row.warehouse_code} - ${row.warehouse_name}`;
-}
-
-function InfoRow({ label, value }: { label: string; value: ReactNode }) {
-  return <div className="detail-row"><dt>{label}</dt><dd>{value}</dd></div>;
 }
 
 function Total({ label, value }: { label: string; value: string }) {

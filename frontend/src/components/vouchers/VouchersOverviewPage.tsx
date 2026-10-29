@@ -108,6 +108,15 @@ export default function VouchersOverviewPage() {
     ? `${rankedTypes[0].name} carries the most, ${(rankedTypes[0].value / typeTotal * 100).toFixed(1)}% of the posted amount.`
     : undefined;
 
+  const typeVolumeData = vouchers.byType
+    .map(row => ({ name: row.type, value: row.count }))
+    .sort((left, right) => right.value - left.value);
+  const totalVolume = typeVolumeData.reduce((sum, row) => sum + row.value, 0);
+  const topVolumeType = typeVolumeData[0];
+  const volumeHeadline = topVolumeType && totalVolume > 0
+    ? `${topVolumeType.name} accounts for ${totalVolume > 0 ? Math.round(topVolumeType.value / totalVolume * 100) : 0}% of processed voucher activity (${formatCount(topVolumeType.value, settings)} of ${formatCount(totalVolume, settings)} vouchers).`
+    : undefined;
+
   const monthlyPoints = vouchers.monthlyVolume.map(row => ({ monthKey: row.month, label: row.month, total: Number(row.total), count: row.count }));
   const monthlyAverage = monthlyPoints.length > 0 ? monthlyPoints.reduce((sum, row) => sum + row.total, 0) / monthlyPoints.length : 0;
   const peakMonth = monthlyPoints.reduce<(typeof monthlyPoints)[number] | null>((best, row) => (!best || row.total > best.total ? row : best), null);
@@ -119,7 +128,7 @@ export default function VouchersOverviewPage() {
     <div className="page-shell">
       {header}
 
-      <section aria-label="Voucher Totals" style={{ marginBottom: 20 }}>
+      <section aria-label="Voucher Totals">
         <StatGrid>
           <StatTile
             label="All Vouchers" tone="blue" icon={<IconReceipt />}
@@ -146,7 +155,7 @@ export default function VouchersOverviewPage() {
         </StatGrid>
       </section>
 
-      <div className="analytics-row-main">
+      <div className="analytics-grid-2x2">
         <ChartCard
           title="Posted Amount By Month"
           subtitle="Last 6 months; the dashed line is the monthly average"
@@ -162,6 +171,7 @@ export default function VouchersOverviewPage() {
             <EmptyNote>No posted vouchers in the last 6 months.</EmptyNote>
           ) : (
             <MonthlyColumnChart
+              variant="3d"
               data={monthlyPoints}
               dataKey="total"
               seriesName="Posted Amount"
@@ -169,7 +179,7 @@ export default function VouchersOverviewPage() {
               format={value => formatMoney(value, settings)}
               axis={axis}
               tooltipTitle={point => String(point.label)}
-              height={230}
+              height={185}
             />
           )}
         </ChartCard>
@@ -179,6 +189,7 @@ export default function VouchersOverviewPage() {
           subtitle="All vouchers by where they stand"
           headline={statusHeadline}
           help="Posted vouchers are in the ledger. Drafts do not affect balances until they are posted. Voided vouchers are cancelled."
+          metric={{ label: 'Posted Rate', value: `${vouchers.total > 0 ? Math.round(vouchers.posted / vouchers.total * 100) : 0}%` }}
           table={{
             columns: [{ key: 'status', label: 'Status' }, { key: 'count', label: 'Vouchers', numeric: true }, { key: 'share', label: 'Share', numeric: true }],
             rows: statusData.map(row => ({ status: row.name, count: formatCount(row.value, settings), share: `${vouchers.total > 0 ? Math.round(row.value / vouchers.total * 100) : 0}%` })),
@@ -188,6 +199,7 @@ export default function VouchersOverviewPage() {
             <EmptyNote>No vouchers yet.</EmptyNote>
           ) : (
             <DonutChart
+              variant="3d"
               items={statusData.map(row => ({ name: row.name, value: row.value, color: statusColor(theme, row.name) }))}
               centerValue={formatCount(vouchers.total, settings)}
               centerLabel="vouchers"
@@ -195,14 +207,13 @@ export default function VouchersOverviewPage() {
             />
           )}
         </ChartCard>
-      </div>
 
-      <div style={{ marginTop: 20 }}>
         <ChartCard
           title="Posted Amount By Voucher Type"
           subtitle="Amount and share of all posted vouchers"
           headline={typeHeadline}
           help="Posted voucher amounts grouped by voucher type, largest first."
+          metric={{ label: 'Total Posted', value: formatMoney(typeTotal, settings) }}
           table={{
             columns: [{ key: 'type', label: 'Voucher Type' }, { key: 'count', label: 'Vouchers', numeric: true }, { key: 'total', label: 'Posted Amount', numeric: true }],
             rows: rankedTypes.map(row => ({ type: row.name, count: formatCount(row.count, settings), total: formatMoney(row.value, settings) })),
@@ -212,11 +223,44 @@ export default function VouchersOverviewPage() {
             <EmptyNote>No posted vouchers yet.</EmptyNote>
           ) : (
             <RankedBars
+              variant="3d"
               items={rankedTypes}
               total={typeTotal}
               format={value => formatMoney(value, settings)}
-              limit={10}
+              limit={5}
               countLabel={value => `${formatCount(value, settings)} Vouchers`}
+            />
+          )}
+        </ChartCard>
+
+        <ChartCard
+          title="Voucher Volume By Type"
+          subtitle="Transaction volume and operational share by type"
+          headline={volumeHeadline}
+          help="The count and share of transactions processed for each voucher type, read directly from the ledger."
+          metric={{ label: 'Total Vouchers', value: formatCount(totalVolume, settings) }}
+          table={{
+            columns: [{ key: 'type', label: 'Voucher Type' }, { key: 'count', label: 'Vouchers', numeric: true }, { key: 'share', label: 'Share', numeric: true }],
+            rows: typeVolumeData.map(row => ({
+              type: row.name,
+              count: formatCount(row.value, settings),
+              share: `${totalVolume > 0 ? Math.round(row.value / totalVolume * 100) : 0}%`,
+            })),
+          }}
+        >
+          {typeVolumeData.length === 0 ? (
+            <EmptyNote>No vouchers yet.</EmptyNote>
+          ) : (
+            <DonutChart
+              variant="3d"
+              items={typeVolumeData.map((row, index) => ({
+                name: row.name,
+                value: row.value,
+                color: theme.categorical[index % theme.categorical.length],
+              }))}
+              centerValue={formatCount(totalVolume, settings)}
+              centerLabel="vouchers"
+              format={value => formatCount(value, settings)}
             />
           )}
         </ChartCard>

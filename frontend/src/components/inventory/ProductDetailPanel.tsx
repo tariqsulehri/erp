@@ -2,7 +2,7 @@
 
 import { useState, type CSSProperties } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { IconArchive, IconPencil, IconX } from '@tabler/icons-react';
+import { IconArchive, IconPencil } from '@tabler/icons-react';
 import { formatMoney } from '@/lib/app-settings';
 import { productsQueryKey, useArchiveProduct, useProductDetail } from '@/lib/api/products';
 import { useGeneralSettings } from '@/lib/api/settings';
@@ -10,6 +10,7 @@ import { friendlyErrorMessage } from '@/lib/erp-utils';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
+import { Drawer } from '@/components/ui/Drawer';
 import { InlineAlert } from '@/components/ui/InlineAlert';
 import { fmtDate, fmtQty, StatusBadge, StockIndicator, TypeBadge } from './ProductShared';
 
@@ -17,9 +18,9 @@ const figureStyle: CSSProperties = { fontVariantNumeric: 'tabular-nums', fontWei
 const sectionTitleStyle: CSSProperties = { margin: 0 };
 const mutedStyle: CSSProperties = { color: 'var(--color-text-muted)' };
 
-function DetailRow({ label, value, figure = false }: { label: string; value?: string | null; figure?: boolean }) {
+function DetailRow({ label, value, figure = false, full = false }: { label: string; value?: string | null; figure?: boolean; full?: boolean }) {
   return (
-    <div className="detail-row">
+    <div className={`detail-row ${full ? 'detail-row-full' : ''}`}>
       <dt>{label}</dt>
       <dd style={value ? (figure ? figureStyle : undefined) : mutedStyle}>{value || 'Not Set'}</dd>
     </div>
@@ -36,27 +37,18 @@ export function ProductDetailPanel({ id, onClose, onEdit }: {
   const { data: generalSettings } = useGeneralSettings();
   const archiveMut = useArchiveProduct();
 
-  const header = (title: string) => (
-    <div className="panel-header">
-      <h2 className="panel-title" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{title}</h2>
-      <Button variant="ghost" size="sm" icon={<IconX size={16} stroke={1.8} />} onClick={onClose} aria-label="Close Product Detail" title="Close Product Detail" />
-    </div>
-  );
-
   if (isLoading) return (
-    <>
-      {header('Product Detail')}
-      <div className="panel-body"><p className="form-hint" style={{ margin: 0 }} role="status">Loading Product…</p></div>
-    </>
+    <Drawer open={true} title="Product Detail" size="lg" onClose={onClose}>
+      <p className="form-hint" style={{ margin: 0 }} role="status">Loading Product…</p>
+    </Drawer>
   );
   if (loadError) return (
-    <>
-      {header('Product Detail')}
-      <div className="panel-body" style={{ display: 'grid', gap: 8 }}>
+    <Drawer open={true} title="Product Detail" size="lg" onClose={onClose}>
+      <div style={{ display: 'grid', gap: 8 }}>
         <InlineAlert tone="danger">{friendlyErrorMessage(loadError, 'Could not load this Product. Please try again.')}</InlineAlert>
         <div><Button onClick={() => refetch()}>Try Again</Button></div>
       </div>
-    </>
+    </Drawer>
   );
   if (!p) return null;
 
@@ -78,18 +70,41 @@ export function ProductDetailPanel({ id, onClose, onEdit }: {
   }
 
   return (
-    <>
-      {header(p.name)}
-
-      <div className="panel-body">
+    <Drawer
+      open={true}
+      title={p.name}
+      size="lg"
+      onClose={onClose}
+      headerActions={
+        <Button
+          variant="ghost"
+          size="sm"
+          icon={<IconPencil size={16} stroke={1.8} />}
+          onClick={() => onEdit(p.id)}
+          aria-label="Edit Product"
+          title="Edit Product"
+        />
+      }
+      footer={
+        <>
+          {p.status !== 'Discontinued' && (
+            <Button variant="danger" icon={<IconArchive size={16} stroke={1.8} />} onClick={() => setShowArchiveConfirm(true)} loading={archiveMut.isPending}>
+              Archive
+            </Button>
+          )}
+          <Button variant="primary" icon={<IconPencil size={16} stroke={1.8} />} onClick={() => onEdit(p.id)}>Edit Product</Button>
+        </>
+      }
+    >
+      <div>
         {archiveError && <InlineAlert tone="danger" onDismiss={() => setArchiveError('')}>{archiveError}</InlineAlert>}
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginBottom: 12 }}>
           <StatusBadge status={p.status} />
           <TypeBadge type={p.product_type} />
         </div>
 
-        <dl className="detail-list" style={{ margin: 0 }}>
+        <dl className="detail-list" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '8px 16px', margin: 0 }}>
           <DetailRow label="SKU" value={p.sku} />
           <DetailRow label="Brand" value={p.brand ? `${p.brand}${p.model ? ` · ${p.model}` : ''}` : null} />
           <DetailRow label="Category" value={p.category ? `${p.category.code} — ${p.category.name}` : null} />
@@ -109,8 +124,8 @@ export function ProductDetailPanel({ id, onClose, onEdit }: {
           <DetailRow label="Tax" value={`${p.tax_category} · ${p.tax_rate}%`} />
         </dl>
 
-        <h3 className="form-section-title" style={sectionTitleStyle}>Prices</h3>
-        <dl className="detail-list" style={{ margin: 0 }}>
+        <h3 className="form-section-title" style={{ ...sectionTitleStyle, marginTop: 16 }}>Prices</h3>
+        <dl className="detail-list" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '8px 16px', margin: 0 }}>
           <DetailRow label="Cost Price" value={formatMoney(p.cost_price, generalSettings)} figure />
           <DetailRow label="Sale Price" value={formatMoney(p.sale_price, generalSettings)} figure />
           <div className="detail-row">
@@ -121,8 +136,8 @@ export function ProductDetailPanel({ id, onClose, onEdit }: {
           </div>
         </dl>
 
-        <h3 className="form-section-title" style={sectionTitleStyle}>Stock</h3>
-        <dl className="detail-list" style={{ margin: 0 }}>
+        <h3 className="form-section-title" style={{ ...sectionTitleStyle, marginTop: 16 }}>Stock</h3>
+        <dl className="detail-list" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '8px 16px', margin: 0 }}>
           <div className="detail-row">
             <dt>On Hand</dt>
             <dd style={figureStyle}>
@@ -135,12 +150,12 @@ export function ProductDetailPanel({ id, onClose, onEdit }: {
           <DetailRow label="Reorder Quantity" value={p.reorder_qty ? fmtQty(p.reorder_qty, generalSettings) : null} figure />
         </dl>
 
-        <h3 className="form-section-title" style={sectionTitleStyle}>Record</h3>
-        <dl className="detail-list" style={{ margin: 0 }}>
+        <h3 className="form-section-title" style={{ ...sectionTitleStyle, marginTop: 16 }}>Record</h3>
+        <dl className="detail-list" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '8px 16px', margin: 0 }}>
           <DetailRow label="Created" value={fmtDate(p.created_at, generalSettings)} />
           <DetailRow label="Updated" value={fmtDate(p.updated_at, generalSettings)} />
-          {p.description && <DetailRow label="Description" value={p.description} />}
-          {p.notes && <DetailRow label="Notes" value={p.notes} />}
+          {p.description && <DetailRow label="Description" value={p.description} full />}
+          {p.notes && <DetailRow label="Notes" value={p.notes} full />}
           {tags.length > 0 && (
             <div className="detail-row">
               <dt>Tags</dt>
@@ -150,15 +165,6 @@ export function ProductDetailPanel({ id, onClose, onEdit }: {
             </div>
           )}
         </dl>
-      </div>
-
-      <div className="panel-footer">
-        {p.status !== 'Discontinued' && (
-          <Button variant="danger" icon={<IconArchive size={16} stroke={1.8} />} onClick={() => setShowArchiveConfirm(true)} loading={archiveMut.isPending}>
-            Archive
-          </Button>
-        )}
-        <Button variant="primary" icon={<IconPencil size={16} stroke={1.8} />} onClick={() => onEdit(p.id)}>Edit Product</Button>
       </div>
 
       <ConfirmDialog
@@ -171,6 +177,6 @@ export function ProductDetailPanel({ id, onClose, onEdit }: {
         onConfirm={archive}
         onCancel={() => setShowArchiveConfirm(false)}
       />
-    </>
+    </Drawer>
   );
 }

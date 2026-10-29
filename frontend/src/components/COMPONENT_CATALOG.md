@@ -78,6 +78,7 @@ All trap Tab inside, close on Escape (unless saving), and return focus to the op
 |---|---|---|
 | `DataTable` | `ui/DataTable.tsx` | Sortable headers, sticky header, numbers right-aligned in JetBrains Mono, totals row. |
 | `StatTile` / `StatGrid` | `ui/StatTile.tsx` | KPI tile: label, mono value, change, bar, help. |
+| `ProgressBar` | `ui/ProgressBar.tsx` | Standardized 14px horizontal meter/progress bar with 3D gloss rim and semantic gradients. |
 | `SummaryCard` | `ui/SummaryCard.tsx` | Larger summary card at the top of a setup screen. |
 | `Tabs`, `SegmentedControl` | `ui/` | Switch views; filter a list. |
 | `PaginationBar` | `ui/PaginationBar.tsx` | Page through long lists. |

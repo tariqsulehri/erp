@@ -28,7 +28,7 @@ import { StockSummaryTable } from './StockSummaryTable';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { PaginationBar } from '@/components/ui/PaginationBar';
 import { SearchField } from '@/components/ui/SearchField';
-import { SegmentedControl } from '@/components/ui/SegmentedControl';
+import { SearchableSelect } from '@/components/ui/SearchableSelect';
 import { TableMessageRow } from '@/components/ui/TableMessageRow';
 
 type ViewMode = 'list' | 'form';
@@ -400,7 +400,16 @@ export default function WarehouseManagementPage() {
               placeholder="Search by Code, Name, or Address, then press Enter"
             />
           </div>
-          <SegmentedControl label="Status Filter" value={status} options={STATUS_OPTIONS} onChange={value => { setStatus(value); setPage(1); }} />
+          <div style={{ width: 140 }}>
+            <SearchableSelect
+              value={status}
+              options={STATUS_OPTIONS}
+              placeholder="Status"
+              hidePlaceholderOption
+              onChange={value => { setStatus((value || 'All') as StatusFilter); setPage(1); }}
+              ariaLabel="Status Filter"
+            />
+          </div>
           {(search || searchText) && <Button variant="ghost" onClick={clearSearch}>Clear</Button>}
         </div>
 

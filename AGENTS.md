@@ -71,6 +71,32 @@ certificates, `.env` files (other than `*.example`), credentials files, and data
 - If a secret is ever committed or pushed, treat it as leaked: rotate it at once, then remove it.
   Removing it from the file does not remove it from git history.
 
+### No Fabricated Visualization Data
+
+Never populate or fabricate graphs, charts, or summary tiles with static dummy numbers or invented values. All visualization values must derive dynamically from the database and reflect real, authenticated ledger/business data. If data is absent, show "No data", never invented values.
+
+### Functional Invariance During Visual Refactoring
+
+Never touch, alter, or break component business logic, validation rules, event handlers, props contracts, data fetching, state flows, or calculations when working on look and feel, themes, or styling. Visual improvements must remain strictly presentation-only and preserve all underlying component behavior. CSS custom properties and tokens must always serve as the single source of truth for styling.
+
+### No Scroll-Blocking Containers & Screen-Fit Standards
+
+Never clip page content with `overflow: hidden` on outer page wrappers or `.page-shell` without an inner scrollable container. When page content exceeds the viewport height, smooth vertical scrolling (`overflow-y: auto`) must always remain enabled so graphs, tables, and values are never trimmed off or inaccessible at the bottom. Dashboard and overview grids must be designed to fit common laptop viewports (768px–900px) cleanly on a single screen without unnecessary vertical sprawl by keeping padding compact (`8px`–`12px`), tile heights sleek (~64px–72px), and chart plot heights proportional (~180px–190px).
+
+### Overlapping Slide-Over Drawer Standard
+
+Document and transaction detail inspection views (Vouchers, Purchases, Sales, Stock Transfers, Stock Adjustments, Returns, and complex records) must render inside the standardized elevated slide-over `Drawer` overlay (`Drawer.tsx`, default `size="lg"`: `min(900px, 96vw)`) floating above the grid with a backdrop scrim, rather than squeezing the underlying list table into a narrow side-by-side column. The list table must remain 100% wide and intact. Inside the drawer, line item descriptions, SKU codes, prices, and quantities must render in full un-truncated width. All modal dialogs and slide-overs must consume the shared `Modal.tsx` and `Drawer.tsx` components with standard sizes (`sm`, `md`, `lg`, `xl`), accessible focus trapping (`useDialogFocus`), backdrop dismissal, and `Escape` key handling.
+
+**Document Detail Anatomy & Uniform Heading Rule:**
+All current and upcoming document detail views (Invoices, Transfers, Adjustments, Vouchers, Returns) must strictly follow the unified `DocumentDetailPanel` pattern:
+1. **Descriptive Top Heading:** The drawer title must clearly describe the document type (e.g. `Voucher Details`, `Stock Transfer Details`, `Stock Adjustment Details`, `Opening Stock Details`, `Purchase Invoice Details`, `Sales Invoice Details`, `Purchase Return Details`, `Sale Return Details`). Never use only the bare document ID or reference code as the heading.
+2. **Standard Header Actions:** Top-right actions must offer the Edit Draft icon button (when draft and editable), Print icon button, and Close button (`IconX`).
+3. **Structured Metadata Grid (`DetailFields`):** Starts with Document No., Date, Document Type, and Status badge (`StatusChip`), followed by parties, locations, references, posted/cancelled timestamps, and description.
+4. **Clean Line Items Table (`DetailLinesTable`):** Rendered with standard columns (`No.`, `Item Code` / `Account Code`, `Item Description` / `Account Name`, `UOM` / `Debit`, `Quantity` / `Credit`, `Unit Price` / `Rate`, `Amount` / `Total Cost`).
+5. **Right-Aligned Totals (`DetailTotals`):** Totals summary neatly aligned to the right.
+6. **Lifecycle Guidance Note (`DetailNote`):** Explains whether the document is a Draft, Posted, or Reversed/Cancelled.
+7. **Bottom Action Footer (`DetailActions`):** Action buttons (Post, Edit Draft, Reverse, Cancel) must be located at the bottom of the drawer, never placed abruptly as raw top banners under the header.
+
 
 ### Simple Naming
 
@@ -105,6 +131,7 @@ Every module must be scalable, reusable, readable, and easy to maintain.
 ### Frontend
 
 - Frontend forms must validate user input before calling the backend, but backend validation is still required.
+- Filter controls across list toolbars (Status, Direction, Business Type, Warehouse, Category, UOM Type, etc.) must always use dropdowns with search (`SearchableSelect`) rather than segmented button rows (`SegmentedControl`) or plain `<select>` elements.
 - Frontend UI, validation, theme, layout, voucher screen, and user-message rules belong in `documents/FRONTEND_BEST_PRACTICES.md`.
 - Sales, purchases, payments, receipts, vouchers, stock, and future transaction screens must follow the shared transaction module rules in the frontend practices document.
 

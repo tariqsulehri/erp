@@ -4,6 +4,7 @@ FROM node:22-alpine AS builder
 WORKDIR /app
 
 COPY package*.json ./
+# React 19 peer dependency resolution for @testing-library/react (DEP-001)
 RUN npm ci --legacy-peer-deps
 
 COPY . .

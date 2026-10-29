@@ -10,7 +10,7 @@ import { backendInternalUrl } from '@/lib/auth/backend-internal-url';
 export const dynamic = 'force-dynamic';
 
 const FORWARDED_REQUEST_HEADERS = ['accept', 'content-type', 'x-company-id', 'x-request-id'];
-const FORWARDED_RESPONSE_HEADERS = ['content-type', 'content-disposition', 'cache-control'];
+const FORWARDED_RESPONSE_HEADERS = ['content-type', 'content-disposition', 'cache-control', 'x-request-id'];
 
 async function forward(request: NextRequest, { params }: { params: Promise<{ path: string[] }> }) {
   const token = await getToken({ req: request, secret: nextAuthSecret() });

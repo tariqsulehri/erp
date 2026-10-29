@@ -104,6 +104,9 @@ Avoid messages:
 - Border radius should be controlled from shared theme tokens.
 - Buttons may use the shared button radius token. Override individual buttons only for a clear one-off reason.
 - Keep custom CSS aligned with shared theme variables.
+- CSS is the single source of truth for styles, surface gradients, tile tokens, and depth shadows (`design-tokens.css` and `globals.css`). Components must consume these tokens and classes rather than inventing ad-hoc styles.
+- Maintain functional invariance during visual refactoring: never touch, alter, or break component business logic, validation rules, event handlers, props contracts, data fetching, state workflows, or calculations when working on look and feel, themes, or styling. Visual enhancements must remain strictly presentation-only.
+- **Chart Standards**: Horizontal ranked bars (`RankedBars`) use a standard track height of 14px (with pill rounding and 3D specular highlight) for solid visibility and tactile depth. Donut charts (`DonutChart`) use a compact 130px diameter with a 72px central metric core and inline legend (max-width: 480px) to prevent awkward vertical dead space. Charts maintain meaningful, presentable content widths without excessive stretching.
 - Use simple, clear ERP layouts instead of decorative marketing-style screens.
 - Do not hand-draw common icons when a matching Tabler icon exists.
 - Avoid playful theme names, neon accents, and loud palettes for ERP workspaces.
@@ -113,6 +116,7 @@ Avoid messages:
 - Use readable column names.
 - Show status clearly, such as `Active`, `Inactive`, `Blocked`, `Draft`, or `Posted`.
 - Provide search and filters for large lists.
+- **Searchable Dropdown Filter Standard**: Filter controls across list toolbars and table headers (Status, Direction, Business Type, Warehouse, Category, UOM Type, etc.) must always use dropdowns with search (`SearchableSelect`) rather than wide segmented button rows (`SegmentedControl`) or plain `<select>` elements. This prevents horizontal clutter and wrapping, fits neatly on all screen sizes, and provides fast search across choices.
 - Large transaction and master-data lists must use backend pagination.
 - Do not load all records into the browser for large lists.
 - Default page size should normally be 50 records.
@@ -180,6 +184,29 @@ These rules apply to vouchers, sales, purchases, payments, receipts, stock docum
 - Warehouse dropdowns should filter to Warehouses attached to the selected Branch when Branch is selected.
 - Stock Transfer forms should clearly show `From Warehouse`, `From Location`, `To Warehouse`, and `To Location`.
 - Stock Transfer forms must prevent users from posting when source and destination are the same or when line quantity is zero.
+
+## Overlapping Slide-Over Drawers And Modals
+
+- Detail and inspection views for vouchers, transactions, stock transfers, adjustments, and records must use the standard elevated slide-over `Drawer` overlay (`src/components/ui/Drawer.tsx`), floating over the grid with a backdrop scrim (`var(--color-scrim)`).
+- Never squeeze list tables into cramped side-by-side columns (`.split-view.has-side` anti-pattern). The underlying document list table must stay 100% wide and completely readable.
+- Default drawer size for itemized transaction/voucher records is `size="lg"` (`min(900px, 96vw)`).
+- Line item tables inside the drawer must provide generous columns for item codes, full un-truncated descriptions, prices, quantities, and balances.
+- All modal dialogs and slide-overs must consume standard components (`Modal.tsx`, `Drawer.tsx`, `ConfirmDialog.tsx`) with standard size tokens (`sm`, `md`, `lg`, `xl`), accessible focus management (`useDialogFocus`), backdrop click dismiss, and `Escape` key handling.
+- **Document Detail Drawer Anatomy & Type Heading Rule:**
+  All current and upcoming document detail views (Invoices, Transfers, Adjustments, Vouchers, Returns) must strictly follow the unified `DocumentDetailPanel` pattern:
+  1. **Top Heading Describes Type:** The drawer title must clearly describe the document type (e.g. `Voucher Details`, `Stock Transfer Details`, `Stock Adjustment Details`, `Opening Stock Details`, `Purchase Invoice Details`, `Sales Invoice Details`, `Purchase Return Details`, `Sale Return Details`), NEVER just the bare document ID.
+  2. **Top-Right Header Actions:** Edit Draft icon button (when draft & editable), Print icon button, and Close button.
+  3. **Metadata Grid (`DetailFields`):** Starts with Document No., Date, Document Type, and Status badge (`StatusChip`), followed by parties, locations, references, posted/cancelled timestamps, and description.
+  4. **Clean Line Items Table (`DetailLinesTable`):** Rendered with standard columns (`No.`, Code, Description, UOM, Qty, Price, Amount).
+  5. **Right-Aligned Totals (`DetailTotals`):** Totals summary neatly aligned to the right.
+  6. **Lifecycle Guidance Note (`DetailNote`):** Explains whether the document is a Draft, Posted, or Reversed/Cancelled.
+  7. **Bottom Action Footer (`DetailActions`):** Action buttons (Post, Edit Draft, Reverse, Cancel) must be rendered at the bottom of the drawer, never placed as raw top banners under the header.
+
+## Screen-Fit And Scroll Preservation
+
+- Never clip page content with `overflow: hidden` on outer page wrappers or `.page-shell` without an inner scrollable container.
+- If content exceeds the screen height, vertical scrolling (`overflow-y: auto`) must always remain accessible so cards, charts, and metrics are never trimmed off or trapped below the viewport fold.
+- Overview dashboards and analytics screens must be designed to fit common laptop viewports (768px–900px) cleanly on a single screen without unnecessary vertical sprawl by keeping padding compact (`8px`–`12px`), tile heights sleek (~64px–72px), and plot heights proportional (~180px–190px).
 
 ## Accessibility
 

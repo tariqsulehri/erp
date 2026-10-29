@@ -357,3 +357,11 @@ An account opening balance dated on or before Date From is part of the Opening c
 - Stock movement and accounting voucher posting must succeed or fail together when the document affects both stock and accounts.
 - Every posting screen must show a confirmation before final posting.
 - Every accounting line must show or be traceable to Account Code and Account Title.
+
+## Multi-Branch Accounting Evolution (ARC-001)
+
+Operating branches track inventory independently via branch warehouses. For full multi-branch financial accounting (independent branch-level trial balance, P&L, and balance sheets):
+- `voucher_lines` will include an optional `branch_id` foreign key referencing `branches.id`.
+- Business documents (Purchases, Sales, Returns) assign their `branch_id` to the generated voucher lines.
+- Manual Journal Vouchers may specify `branch_id` per line (or inherit header branch), allowing inter-branch transfer entries and branch cost-center reporting.
+- Reports (Trial Balance, P&L, Balance Sheet) will support optional filtering by `branch_id` when set.

@@ -18,6 +18,7 @@ import { useChartTheme, type ChartTheme } from '@/components/analytics/chart-pal
 import { Badge } from '@/components/ui/Badge';
 import { InlineAlert } from '@/components/ui/InlineAlert';
 import { PageHeader } from '@/components/ui/PageHeader';
+import { ProgressBar, type ProgressTone } from '@/components/ui/ProgressBar';
 import { TableMessageRow } from '@/components/ui/TableMessageRow';
 import { LoadingState } from '@/components/ui/LoadingSpinner';
 
@@ -75,18 +76,30 @@ function EmptyNote({ children }: { children: ReactNode }) {
   );
 }
 
-function MeterRow({ label, value, pct, color }: { label: string; value: string; pct: number; color: string }) {
+function MeterRow({
+  label,
+  value,
+  pct,
+  tone = 'blue',
+  color,
+  gradient,
+}: {
+  label: string;
+  value: string;
+  pct: number;
+  tone?: ProgressTone;
+  color?: string;
+  gradient?: string;
+}) {
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4, fontSize: 'var(--font-size-sm)' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6, fontSize: 'var(--font-size-sm)' }}>
         <span>{label}</span>
-        <span style={{ fontVariantNumeric: 'tabular-nums', fontWeight: 500, color: 'var(--color-heading)' }}>
+        <span style={{ fontVariantNumeric: 'tabular-nums', fontWeight: 600, color: 'var(--color-heading)' }}>
           {value} <span style={{ fontWeight: 400, color: 'var(--color-text-muted)', fontSize: 'var(--font-size-xs)' }}>({pct}%)</span>
         </span>
       </div>
-      <div style={{ background: 'var(--color-border-subtle)', borderRadius: 'var(--radius-full)', height: 6, overflow: 'hidden' }}>
-        <div style={{ background: color, width: `${pct}%`, height: '100%', borderRadius: 'var(--radius-full)' }} />
-      </div>
+      <ProgressBar pct={pct} height={14} tone={tone} color={color} gradient={gradient} variant="3d" />
     </div>
   );
 }
@@ -346,6 +359,7 @@ export default function DashboardPage() {
               <EmptyNote>No posted vouchers in the last 6 months.</EmptyNote>
             ) : (
               <MonthlyColumnChart
+                variant="3d"
                 data={monthlyPoints}
                 dataKey="total"
                 seriesName="Posted Amount"
@@ -369,6 +383,7 @@ export default function DashboardPage() {
             }}
           >
             <DonutChart
+              variant="3d"
               items={statusData.map(row => ({ name: row.name, value: row.value, color: statusColor(theme, row.name) }))}
               centerValue={formatCount(vouchers.total, settings)}
               centerLabel="vouchers"
@@ -390,6 +405,7 @@ export default function DashboardPage() {
             }}
           >
             <DonutChart
+              variant="3d"
               items={accountTypeData.map(row => ({ name: row.name, value: row.value, color: accountTypeColor(theme, row.name) }))}
               centerValue={formatCount(accounts.total, settings)}
               centerLabel="accounts"
@@ -408,10 +424,11 @@ export default function DashboardPage() {
             }}
           >
             <RankedBars
+              variant="3d"
               items={rankedTypes}
               total={typeTotal}
               format={value => formatMoney(value, settings)}
-              limit={7}
+              limit={5}
               countLabel={value => `${formatCount(value, settings)} Vouchers`}
             />
           </ChartCard>
@@ -462,9 +479,7 @@ export default function DashboardPage() {
                     <span style={{ fontWeight: 600, color: 'var(--color-heading)' }}>{fiscalYear.name}</span>
                     <span style={{ color: 'var(--color-text-muted)' }}>{fyPct}% Complete</span>
                   </div>
-                  <div style={{ background: 'var(--color-border-subtle)', borderRadius: 'var(--radius-full)', height: 8, overflow: 'hidden' }}>
-                    <div style={{ background: 'var(--color-primary)', height: '100%', width: `${fyPct}%`, borderRadius: 'var(--radius-full)' }} />
-                  </div>
+                  <ProgressBar pct={fyPct} height={14} tone="teal" variant="3d" ariaLabel={`${fiscalYear.name} progress`} />
                 </div>
 
                 <div>
@@ -490,10 +505,10 @@ export default function DashboardPage() {
         {/* Row 5: account and voucher summaries */}
         <div className="layout-cols-3">
           <DashboardPanel title="Account Health" bodyStyle={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <MeterRow label="Total Accounts" value={String(accounts.total)} pct={100} color={theme.series.blue} />
-            <MeterRow label="Active" value={String(accounts.active)} pct={pctOf(accounts.active)} color={theme.series.blue} />
-            <MeterRow label="Inactive" value={String(accounts.inactive)} pct={pctOf(accounts.inactive)} color={theme.series.slate} />
-            <MeterRow label="Posting Accounts" value={String(accounts.posting)} pct={pctOf(accounts.posting)} color={theme.series.blue} />
+            <MeterRow label="Total Accounts" value={String(accounts.total)} pct={100} tone="blue" />
+            <MeterRow label="Active" value={String(accounts.active)} pct={pctOf(accounts.active)} tone="blue" />
+            <MeterRow label="Inactive" value={String(accounts.inactive)} pct={pctOf(accounts.inactive)} tone="slate" />
+            <MeterRow label="Posting Accounts" value={String(accounts.posting)} pct={pctOf(accounts.posting)} tone="teal" />
           </DashboardPanel>
 
           <DashboardPanel title="Voucher Summary">

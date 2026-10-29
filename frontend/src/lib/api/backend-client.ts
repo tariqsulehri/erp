@@ -47,6 +47,7 @@ export class BackendApiError extends Error {
   constructor(
     message: string,
     public readonly statusCode: number,
+    public readonly requestId?: string,
   ) {
     super(message);
     this.name = 'BackendApiError';
@@ -132,12 +133,13 @@ let signingOut = false;
 // A 401 means the sign-in ended (expired, password reset, or account made Inactive): send the user to Sign In once.
 async function throwBackendError(response: Response): Promise<never> {
   const message = await readErrorMessage(response);
+  const requestId = response.headers.get('x-request-id') || undefined;
   if (response.status === 401 && typeof window !== 'undefined' && !signingOut) {
     signingOut = true;
     const { signOut } = await import('next-auth/react');
     await signOut({ callbackUrl: `/login?reason=${encodeURIComponent(message)}` });
   }
-  throw new BackendApiError(message, response.status);
+  throw new BackendApiError(message, response.status, requestId);
 }
 
 function defaultHeaders() {

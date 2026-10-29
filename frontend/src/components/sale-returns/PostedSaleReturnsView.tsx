@@ -6,6 +6,8 @@ import {
   IconChartBar,
   IconEye,
   IconFilePlus,
+  IconPencil,
+  IconPrinter,
   IconRefresh,
 } from '@tabler/icons-react';
 import { formatDate, formatNumber } from '@/lib/app-settings';
@@ -24,6 +26,7 @@ import { TableMessageRow } from '@/components/ui/TableMessageRow';
 import {
   DetailFields,
   DetailLinesTable,
+  DetailNote,
   DetailTotals,
   DocumentDetailPanel,
   DocumentHeader,
@@ -256,14 +259,106 @@ export function PostedSaleReturnsView({
         )}
         detail={selectedId && (
           <DocumentDetailPanel
-            title="Sale Return Detail"
+            title="Sale Return Details"
             loading={detailQuery.isLoading}
-            loadingText="Loading Sale Return Detail…"
-            error={detailQuery.error ? friendlyErrorMessage(detailQuery.error, 'Could not load Sale Return Detail. Please try again.') : undefined}
+            loadingText="Loading Sale Return Details…"
+            error={detailQuery.error ? friendlyErrorMessage(detailQuery.error, 'Could not load Sale Return Details. Please try again.') : undefined}
             onClose={() => setSelectedId(null)}
+            actions={detail && (
+              <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                {detail.status === 'Draft' && canChangeDrafts && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    icon={<IconPencil {...iconProps} />}
+                    onClick={() => onOpenDraft(detail)}
+                    aria-label="Edit Draft Sale Return"
+                    title="Edit Draft Sale Return"
+                  />
+                )}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  icon={<IconPrinter {...iconProps} />}
+                  onClick={() => window.print()}
+                  aria-label="Print Sale Return"
+                  title="Print Sale Return"
+                />
+              </div>
+            )}
           >
             {detail && (
               <>
+                <DetailFields
+                  items={[
+                    ['Return No.', detail.sale_return_number],
+                    ['Date', formatDate(detail.sale_return_date, generalSettings)],
+                    ['Type', 'Sale Return'],
+                    ['Status', documentStatusLabel(detail.status)],
+                    ['Customer', `${detail.customer_code} - ${detail.customer_name}`],
+                    ['Payment Type', detail.payment_type],
+                    ['Customer Return No.', detail.customer_return_number],
+                    ['Reference', detail.reference_number],
+                    ['Voucher No.', detail.accounting_voucher_number],
+                    ['Posted At', detail.posted_at ? formatDate(detail.posted_at, generalSettings) : ''],
+                    ...(detail.status === 'Voided'
+                      ? [
+                        ['Cancelled Reason', detail.void_reason] as [string, string],
+                        ['Cancelled At', detail.voided_at ? formatDate(detail.voided_at, generalSettings) : ''] as [string, string],
+                      ]
+                      : []),
+                  ]}
+                />
+                <DetailLinesTable>
+                  <colgroup>
+                    <col style={{ width: 44 }} />
+                    <col style={{ width: 140 }} />
+                    <col />
+                    <col style={{ width: 75 }} />
+                    <col style={{ width: 85 }} />
+                    <col style={{ width: 105 }} />
+                    <col style={{ width: 110 }} />
+                  </colgroup>
+                  <thead>
+                    <tr>
+                      <th className="num">No.</th>
+                      <th>Item Code</th>
+                      <th>Item Description</th>
+                      <th>UOM</th>
+                      <th className="num">Qty</th>
+                      <th className="num">Unit Price</th>
+                      <th className="num">Amount</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(detail.lines ?? []).map((line: any) => (
+                      <tr key={line.id}>
+                        <td className="num cell-muted">{line.line_number}</td>
+                        <td><span className="code-chip">{line.item_code}</span></td>
+                        <td className="cell-strong" title={line.item_name}>{line.item_name}</td>
+                        <td>{line.uom_name || '—'}</td>
+                        <td className="num">{formatNumber(Number(line.quantity), generalSettings)}</td>
+                        <td className="num">{money(Number(line.unit_price ?? line.sales_price ?? 0))}</td>
+                        <td className="num">{money(Number(line.line_total))}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </DetailLinesTable>
+                <DetailTotals
+                  strongLast
+                  items={[
+                    ['Gross Amount', money(Number(detail.gross_amount))],
+                    ['Discount', money(Number(detail.discount_amount))],
+                    ['Tax', money(Number(detail.tax_amount))],
+                    ['Freight', money(Number(detail.freight_amount))],
+                    ['Net Amount', money(Number(detail.net_amount))],
+                  ]}
+                />
+                <DetailNote>
+                  {detail.status === 'Draft' && 'This sale return is a Draft. Edit it and post it to return stock from the customer.'}
+                  {detail.status === 'Posted' && 'This sale return is already posted.'}
+                  {detail.status === 'Voided' && 'This sale return was cancelled.'}
+                </DetailNote>
                 {detail.status === 'Draft' && canChangeDrafts && (
                   <DraftDocumentActions
                     documentName="Sale Return"
@@ -283,56 +378,6 @@ export function PostedSaleReturnsView({
                     onMessage={setActionMessage}
                   />
                 )}
-                <DetailFields
-                  items={[
-                    ['Return No.', detail.sale_return_number],
-                    ['Status', documentStatusLabel(detail.status)],
-                    ...(detail.status === 'Voided'
-                      ? [
-                        ['Cancelled Reason', detail.void_reason] as [string, string],
-                        ['Cancelled At', detail.voided_at ? formatDate(detail.voided_at, generalSettings) : ''] as [string, string],
-                      ]
-                      : []),
-                    ['Date', formatDate(detail.sale_return_date, generalSettings)],
-                    ['Customer', `${detail.customer_code} - ${detail.customer_name}`],
-                    ['Payment Type', detail.payment_type],
-                    ['Customer Return No.', detail.customer_return_number],
-                    ['Reference', detail.reference_number],
-                    ['Voucher No.', detail.accounting_voucher_number],
-                    ['Posted At', detail.posted_at ? formatDate(detail.posted_at, generalSettings) : ''],
-                  ]}
-                />
-                <DetailLinesTable>
-                  <colgroup>
-                    <col style={{ width: 40 }} />
-                    <col />
-                    <col style={{ width: 72 }} />
-                    <col style={{ width: 104 }} />
-                  </colgroup>
-                  <thead>
-                    <tr><th className="num">No.</th><th>Item</th><th className="num">Qty</th><th className="num">Amount</th></tr>
-                  </thead>
-                  <tbody>
-                    {(detail.lines ?? []).map((line: any) => (
-                      <tr key={line.id}>
-                        <td className="num cell-muted">{line.line_number}</td>
-                        <td title={`${line.item_code} - ${line.item_name}`}>{line.item_code} - {line.item_name}</td>
-                        <td className="num">{formatNumber(Number(line.quantity), generalSettings)}</td>
-                        <td className="num">{money(Number(line.line_total))}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </DetailLinesTable>
-                <DetailTotals
-                  strongLast
-                  items={[
-                    ['Gross Amount', money(Number(detail.gross_amount))],
-                    ['Discount', money(Number(detail.discount_amount))],
-                    ['Tax', money(Number(detail.tax_amount))],
-                    ['Freight', money(Number(detail.freight_amount))],
-                    ['Net Amount', money(Number(detail.net_amount))],
-                  ]}
-                />
               </>
             )}
           </DocumentDetailPanel>

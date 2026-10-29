@@ -6,6 +6,7 @@ import { Drawer } from '@/components/ui/Drawer';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { IconButton } from '@/components/ui/IconButton';
 import { Modal } from '@/components/ui/Modal';
+import { ProgressBar } from '@/components/ui/ProgressBar';
 import { StatusChip, statusTone } from '@/components/ui/StatusChip';
 import { ToastProvider, useToast } from '@/components/ui/Toast';
 import { Toolbar } from '@/components/ui/Toolbar';
@@ -136,6 +137,21 @@ describe('Modal and Drawer', () => {
     expect(screen.getByRole('dialog', { name: 'Transfer' })).toHaveTextContent('Lines');
     fireEvent.keyDown(document, { key: 'Escape' });
     expect(onClose).toHaveBeenCalled();
+  });
+});
+
+describe('ProgressBar', () => {
+  it('renders progress bar with standardized default 14px height and aria attributes', () => {
+    render(<ProgressBar pct={75} tone="blue" ariaLabel="Storage Used" />);
+    const bar = screen.getByRole('progressbar', { name: 'Storage Used' });
+    expect(bar).toHaveAttribute('aria-valuenow', '75');
+    expect(bar).toHaveStyle({ height: '14px' });
+  });
+
+  it('calculates percentage from value and total', () => {
+    render(<ProgressBar value={40} total={200} ariaLabel="Quota" />);
+    const bar = screen.getByRole('progressbar', { name: 'Quota' });
+    expect(bar).toHaveAttribute('aria-valuenow', '20');
   });
 });
 

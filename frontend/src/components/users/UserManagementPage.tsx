@@ -13,7 +13,7 @@ import { InlineAlert } from '@/components/ui/InlineAlert';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { PaginationBar } from '@/components/ui/PaginationBar';
 import { SearchField } from '@/components/ui/SearchField';
-import { SegmentedControl } from '@/components/ui/SegmentedControl';
+import { SearchableSelect } from '@/components/ui/SearchableSelect';
 import { TableMessageRow } from '@/components/ui/TableMessageRow';
 import { UserForm } from './UserForm';
 import { buildUserPayload, EMPTY_USER_FORM, formFromUser, validateUserForm, type UserFormState } from './user-form-helpers';
@@ -166,7 +166,16 @@ function UserManagement({ canAssignAdmin }: { canAssignAdmin: boolean }) {
               placeholder="Search by Name or Email, then press Enter"
             />
           </div>
-          <SegmentedControl label="Status Filter" value={status} options={STATUS_OPTIONS} onChange={value => { setStatus(value); setPage(1); }} />
+          <div style={{ width: 140 }}>
+            <SearchableSelect
+              value={status}
+              options={STATUS_OPTIONS}
+              placeholder="Status"
+              hidePlaceholderOption
+              onChange={value => { setStatus((value || 'All') as StatusFilter); setPage(1); }}
+              ariaLabel="Status Filter"
+            />
+          </div>
           {(search || searchText) && (
             <Button variant="ghost" onClick={() => { setSearchText(''); setSearch(''); setPage(1); }}>Clear</Button>
           )}

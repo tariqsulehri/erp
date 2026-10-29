@@ -27,7 +27,9 @@ export function AppHeader({ groupLabel, pageLabel, user, onOpenMenu }: {
               <span className="breadcrumb-sep" aria-hidden><IconChevronRight size={14} stroke={1.8} /></span>
             </>
           )}
-          <span className="breadcrumb-current" aria-current="page">{pageLabel}</span>
+          {(!groupLabel && pageLabel === 'Dashboard') ? null : (
+            <span className="breadcrumb-current" aria-current="page">{pageLabel}</span>
+          )}
         </nav>
       </div>
       <div className="topbar-right">

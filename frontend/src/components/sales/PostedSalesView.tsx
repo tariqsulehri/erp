@@ -6,6 +6,7 @@ import {
   IconChartBar,
   IconEye,
   IconFilePlus,
+  IconPencil,
   IconPrinter,
   IconRefresh,
 } from '@tabler/icons-react';
@@ -25,6 +26,7 @@ import { TableMessageRow } from '@/components/ui/TableMessageRow';
 import {
   DetailFields,
   DetailLinesTable,
+  DetailNote,
   DetailTotals,
   DocumentDetailPanel,
   DocumentHeader,
@@ -261,69 +263,86 @@ export function PostedSalesView({
         )}
         detail={selectedId && (
           <DocumentDetailPanel
-            title="Sale Detail"
+            title="Sales Invoice Details"
             loading={detailQuery.isLoading}
-            loadingText="Loading Sale Detail…"
-            error={detailQuery.error ? friendlyErrorMessage(detailQuery.error, 'Could not load Sale Detail. Please try again.') : undefined}
+            loadingText="Loading Sales Invoice Details…"
+            error={detailQuery.error ? friendlyErrorMessage(detailQuery.error, 'Could not load Sales Invoice Details. Please try again.') : undefined}
             onClose={() => setSelectedId(null)}
-            actions={detail && <Button variant="ghost" size="sm" icon={<IconPrinter {...iconProps} />} onClick={() => window.print()} aria-label="Print" title="Print" />}
+            actions={detail && (
+              <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                {detail.status === 'Draft' && canChangeDrafts && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    icon={<IconPencil {...iconProps} />}
+                    onClick={() => onOpenDraft(detail)}
+                    aria-label="Edit Draft Sale"
+                    title="Edit Draft Sale"
+                  />
+                )}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  icon={<IconPrinter {...iconProps} />}
+                  onClick={() => window.print()}
+                  aria-label="Print Sales Invoice"
+                  title="Print Sales Invoice"
+                />
+              </div>
+            )}
           >
             {detail && (
               <>
-                {detail.status === 'Draft' && canChangeDrafts && (
-                  <DraftDocumentActions
-                    documentName="Sale Voucher"
-                    documentNumber={detail.sale_number}
-                    postEffect="Stock and the Customer balance are updated."
-                    onOpen={() => onOpenDraft(detail)}
-                    onPost={async () => {
-                      const result = await postDraft.mutateAsync(detail.id);
-                      await invalidateSaleQueries();
-                      return result.sale_number;
-                    }}
-                    onCancel={async reason => {
-                      const result = await cancelDraft.mutateAsync({ id: detail.id, reason });
-                      await invalidateSaleQueries();
-                      return result.sale_number;
-                    }}
-                    onMessage={setActionMessage}
-                  />
-                )}
                 <DetailFields
                   items={[
                     ['Sale No.', detail.sale_number],
-                    ['Status', documentStatusLabel(detail.status)],
-                    ...(detail.status === 'Voided'
-                      ? [
-                        ['Cancelled Reason', detail.void_reason] as [string, string],
-                        ['Cancelled At', detail.voided_at ? formatDate(detail.voided_at, generalSettings) : ''] as [string, string],
-                      ]
-                      : []),
                     ['Date', formatDate(detail.sale_date, generalSettings)],
+                    ['Type', 'Sales Invoice'],
+                    ['Status', documentStatusLabel(detail.status)],
                     ['Customer', `${detail.customer_code} - ${detail.customer_name}`],
                     ['Payment Type', detail.payment_type],
                     ['Reference', detail.customer_reference_number],
                     ['Delivery Note', detail.delivery_note_number],
                     ['Voucher No.', detail.accounting_voucher_number],
                     ['Posted At', detail.posted_at ? formatDate(detail.posted_at, generalSettings) : ''],
+                    ...(detail.status === 'Voided'
+                      ? [
+                        ['Cancelled Reason', detail.void_reason] as [string, string],
+                        ['Cancelled At', detail.voided_at ? formatDate(detail.voided_at, generalSettings) : ''] as [string, string],
+                      ]
+                      : []),
                   ]}
                 />
                 <DetailLinesTable>
                   <colgroup>
-                    <col style={{ width: 40 }} />
+                    <col style={{ width: 44 }} />
+                    <col style={{ width: 140 }} />
                     <col />
-                    <col style={{ width: 72 }} />
-                    <col style={{ width: 104 }} />
+                    <col style={{ width: 75 }} />
+                    <col style={{ width: 85 }} />
+                    <col style={{ width: 105 }} />
+                    <col style={{ width: 110 }} />
                   </colgroup>
                   <thead>
-                    <tr><th className="num">No.</th><th>Item</th><th className="num">Qty</th><th className="num">Amount</th></tr>
+                    <tr>
+                      <th className="num">No.</th>
+                      <th>Item Code</th>
+                      <th>Item Description</th>
+                      <th>UOM</th>
+                      <th className="num">Qty</th>
+                      <th className="num">Unit Price</th>
+                      <th className="num">Amount</th>
+                    </tr>
                   </thead>
                   <tbody>
                     {(detail.lines ?? []).map((line: any) => (
                       <tr key={line.id}>
                         <td className="num cell-muted">{line.line_number}</td>
-                        <td title={`${line.item_code} - ${line.item_name}`}>{line.item_code} - {line.item_name}</td>
+                        <td><span className="code-chip">{line.item_code}</span></td>
+                        <td className="cell-strong" title={line.item_name}>{line.item_name}</td>
+                        <td>{line.uom_name || '—'}</td>
                         <td className="num">{formatNumber(Number(line.quantity), generalSettings)}</td>
+                        <td className="num">{money(Number(line.unit_price ?? line.sales_price ?? 0))}</td>
                         <td className="num">{money(Number(line.line_total))}</td>
                       </tr>
                     ))}
@@ -343,6 +362,30 @@ export function PostedSalesView({
                     ]),
                   ]}
                 />
+                <DetailNote>
+                  {detail.status === 'Draft' && 'This sales invoice is a Draft. Edit it and post it to update stock and customer receivables.'}
+                  {detail.status === 'Posted' && 'This sales invoice is already posted.'}
+                  {detail.status === 'Voided' && 'This sales invoice was cancelled.'}
+                </DetailNote>
+                {detail.status === 'Draft' && canChangeDrafts && (
+                  <DraftDocumentActions
+                    documentName="Sale Voucher"
+                    documentNumber={detail.sale_number}
+                    postEffect="Stock and the Customer balance are updated."
+                    onOpen={() => onOpenDraft(detail)}
+                    onPost={async () => {
+                      const result = await postDraft.mutateAsync(detail.id);
+                      await invalidateSaleQueries();
+                      return result.sale_number;
+                    }}
+                    onCancel={async reason => {
+                      const result = await cancelDraft.mutateAsync({ id: detail.id, reason });
+                      await invalidateSaleQueries();
+                      return result.sale_number;
+                    }}
+                    onMessage={setActionMessage}
+                  />
+                )}
               </>
             )}
           </DocumentDetailPanel>

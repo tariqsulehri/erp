@@ -26,13 +26,24 @@ export function AppSidebar({
 }) {
   return (
     <aside className="sidebar" aria-label="Main Navigation">
-      <Link href="/dashboard" className="sidebar-brand" title="BizTrack">
-        <span className="sidebar-brand-mark" aria-hidden><IconHomeDollar size={19} stroke={1.8} /></span>
-        <span className="sidebar-brand-text">
-          <span className="sidebar-brand-title">BizTrack</span>
-          <span className="sidebar-brand-sub">Financial Module</span>
-        </span>
-      </Link>
+      <div className="sidebar-header">
+        <Link href="/dashboard" className="sidebar-brand" title="BizTrack">
+          <span className="sidebar-brand-mark" aria-hidden><IconHomeDollar size={19} stroke={1.8} /></span>
+          <span className="sidebar-brand-text">
+            <span className="sidebar-brand-title">BizTrack</span>
+            <span className="sidebar-brand-sub">Financial Module</span>
+          </span>
+        </Link>
+        <button
+          type="button"
+          className="sidebar-collapse-toggle sidebar-top-toggle"
+          onClick={onToggleCollapsed}
+          aria-label={collapsed ? 'Expand Sidebar' : 'Collapse Sidebar'}
+          title={collapsed ? 'Expand Sidebar' : 'Collapse Sidebar'}
+        >
+          {collapsed ? <IconLayoutSidebarLeftExpand {...ICON} /> : <IconLayoutSidebarLeftCollapse {...ICON} />}
+        </button>
+      </div>
 
       <nav className="sidebar-nav">
         {sections.map(section => (

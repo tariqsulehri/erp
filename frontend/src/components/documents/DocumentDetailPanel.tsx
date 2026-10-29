@@ -1,19 +1,19 @@
 'use client';
 
 import type { ReactNode } from 'react';
-import { IconX } from '@tabler/icons-react';
-import { Button } from '@/components/ui/Button';
 import { InlineAlert } from '@/components/ui/InlineAlert';
 import { LoadingState } from '@/components/ui/LoadingSpinner';
+import { Drawer, type DrawerSize } from '@/components/ui/Drawer';
 import styles from './documents.module.css';
 
-/** Side panel beside a posted-document list: header with actions and Close, then the detail. */
+/** Overlapping slide-over drawer beside a posted-document list: header with actions and Close, then the detail. */
 export function DocumentDetailPanel({
   title,
   actions,
   loading = false,
   loadingText = 'Loading Details…',
   error,
+  size = 'lg',
   onClose,
   children,
 }: {
@@ -22,43 +22,55 @@ export function DocumentDetailPanel({
   loading?: boolean;
   loadingText?: string;
   error?: string;
+  size?: DrawerSize;
   onClose: () => void;
   children?: ReactNode;
 }) {
   return (
-    <aside className="panel side-panel" aria-label={title}>
-      <div className="panel-header">
-        <h2 className="panel-title">{title}</h2>
-        <span className="row-actions">
-          {actions}
-          <Button variant="ghost" size="sm" icon={<IconX size={16} stroke={1.8} aria-hidden />} onClick={onClose} aria-label="Close Details" title="Close Details" />
-        </span>
-      </div>
-      <div className="panel-body">
-        {loading && <LoadingState message={loadingText} minHeight={140} />}
-        {error && <InlineAlert tone="danger">{error}</InlineAlert>}
-        {!loading && children}
-      </div>
-    </aside>
+    <Drawer
+      open={true}
+      title={title}
+      size={size}
+      onClose={onClose}
+      headerActions={actions}
+    >
+      {loading && <LoadingState message={loadingText} minHeight={140} />}
+      {error && <InlineAlert tone="danger">{error}</InlineAlert>}
+      {!loading && children}
+    </Drawer>
   );
 }
 
-/** Label / value pairs in the detail panel. Missing values show "Not Set". */
-export function DetailFields({ items }: { items: Array<[string, ReactNode]> }) {
+/** Label / value pairs in the detail panel. Renders in 2 parallel columns by default with narrative rows spanning full width. */
+export function DetailFields({
+  items,
+  columns = 2,
+}: {
+  items: Array<[string, ReactNode]>;
+  columns?: 1 | 2;
+}) {
   return (
-    <dl className="detail-list">
-      {items.map(([label, value]) => (
-        <div key={label} className="detail-row">
-          <dt>{label}</dt>
-          <dd>{value === null || value === undefined || value === '' ? <span className="cell-muted">Not Set</span> : value}</dd>
-        </div>
-      ))}
+    <dl className={`detail-list ${columns === 2 ? 'detail-list-2col' : ''}`}>
+      {items.map(([label, value]) => {
+        const isFullWidth =
+          label.toLowerCase().includes('description') ||
+          label.toLowerCase().includes('reason') ||
+          label.toLowerCase().includes('narration') ||
+          label.toLowerCase().includes('notes');
+        return (
+          <div key={label} className={`detail-row ${isFullWidth ? 'detail-row-full' : ''}`}>
+            <dt>{label}</dt>
+            <dd>{value === null || value === undefined || value === '' ? <span className="cell-muted">Not Set</span> : value}</dd>
+          </div>
+        );
+      })}
     </dl>
   );
 }
 
 /** Read-only totals in the detail panel, right-aligned. The last row can be emphasised. */
 export function DetailTotals({ items, strongLast = false }: { items: Array<[string, string]>; strongLast?: boolean }) {
+  if (!items || items.length === 0) return null;
   return (
     <dl className={styles.detailTotals}>
       {items.map(([label, value], index) => (

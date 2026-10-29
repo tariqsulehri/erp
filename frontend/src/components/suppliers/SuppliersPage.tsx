@@ -335,10 +335,25 @@ export default function SuppliersPage() {
           <div className="filter-bar-grow">
             <SearchField label="Search Suppliers" value={searchText} onChange={setSearchText} onSubmit={applySearch} placeholder="Search by Name, Code, or Email, then press Enter" />
           </div>
-          <select className="form-input" aria-label="Filter By Business Type" value={typeFilter} onChange={event => setTypeFilter(event.target.value as '' | BusinessType)} style={{ width: 160 }}>
-            {TYPE_FILTER_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
-          </select>
-          <SegmentedControl label="Status Filter" value={statusFilter} options={PARTY_STATUS_OPTIONS} onChange={setStatusFilter} />
+          <div style={{ width: 180 }}>
+            <SearchableSelect
+              value={typeFilter}
+              options={TYPE_FILTER_OPTIONS.filter(o => o.value !== '')}
+              onChange={value => setTypeFilter(value as '' | BusinessType)}
+              placeholder="All Business Types"
+              ariaLabel="Filter By Business Type"
+            />
+          </div>
+          <div style={{ width: 130 }}>
+            <SearchableSelect
+              value={statusFilter}
+              options={PARTY_STATUS_OPTIONS}
+              onChange={value => setStatusFilter((value || 'Active') as PartyStatusFilter)}
+              placeholder="Status"
+              hidePlaceholderOption
+              ariaLabel="Status Filter"
+            />
+          </div>
           {(search || searchText) && <Button variant="ghost" onClick={() => { setSearchText(''); setSearch(''); }}>Clear</Button>}
           <div className="filter-bar-end">
             <span>{statsData?.active ?? 0} Active of {statsData?.total ?? 0}</span>

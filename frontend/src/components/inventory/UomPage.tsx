@@ -21,7 +21,7 @@ import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { CheckboxField, SelectField, TextField } from '@/components/ui/FormFields';
 import { InlineAlert } from '@/components/ui/InlineAlert';
 import { PageHeader } from '@/components/ui/PageHeader';
-import { SegmentedControl } from '@/components/ui/SegmentedControl';
+import { SearchableSelect } from '@/components/ui/SearchableSelect';
 import { SidePanel } from '@/components/ui/SidePanel';
 import { TableMessageRow } from '@/components/ui/TableMessageRow';
 import { friendlyErrorMessage } from '@/lib/erp-utils';
@@ -131,7 +131,16 @@ export default function UomPage() {
       <div className={`split-view${showForm ? ' has-side' : ''}`}>
         <section className="panel">
           <div className="filter-bar">
-            <SegmentedControl label="Type Filter" value={typeFilter} options={typeOptions} onChange={setTypeFilter} />
+            <div style={{ width: 180 }}>
+              <SearchableSelect
+                value={typeFilter}
+                options={typeOptions}
+                placeholder="Unit Type"
+                hidePlaceholderOption
+                onChange={value => setTypeFilter(value || 'ALL')}
+                ariaLabel="Type Filter"
+              />
+            </div>
             <div className="filter-bar-end">
               <span>
                 {allUoms.length} {allUoms.length === 1 ? 'Unit' : 'Units'} Across {activeTypes.length} {activeTypes.length === 1 ? 'Type' : 'Types'}

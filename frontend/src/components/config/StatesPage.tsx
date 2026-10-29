@@ -12,7 +12,7 @@ import { InlineAlert } from '@/components/ui/InlineAlert';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { PaginationBar } from '@/components/ui/PaginationBar';
 import { SearchField } from '@/components/ui/SearchField';
-import { SegmentedControl } from '@/components/ui/SegmentedControl';
+import { SearchableSelect } from '@/components/ui/SearchableSelect';
 import { SidePanel } from '@/components/ui/SidePanel';
 import { TableMessageRow } from '@/components/ui/TableMessageRow';
 
@@ -115,7 +115,16 @@ export default function StatesPage() {
             <div className="filter-bar-grow">
               <SearchField label="Search States" value={search} onChange={value => { setSearch(value); setPage(1); }} placeholder="Search by State Or Province Name" />
             </div>
-            <SegmentedControl label="Status Filter" value={status} options={STATUS_OPTIONS} onChange={value => { setStatus(value); setPage(1); }} />
+            <div style={{ width: 140 }}>
+              <SearchableSelect
+                value={status}
+                options={STATUS_OPTIONS}
+                placeholder="Status"
+                hidePlaceholderOption
+                onChange={value => { setStatus((value || 'All') as StatusFilter); setPage(1); }}
+                ariaLabel="Status Filter"
+              />
+            </div>
           </div>
 
           <div className="table-scroll">

@@ -56,7 +56,7 @@ export function StatTile({ label, value, suffix, icon, tone = 'blue', help, deta
     <>
       <div className="stat-tile-head">
         {icon && <span className="stat-tile-icon" aria-hidden>{icon}</span>}
-        <span className="stat-tile-label">{label}</span>
+        <span className="stat-tile-label" title={label}>{label}</span>
         {href && <IconChevronRight className="stat-tile-go" size={14} stroke={2} aria-hidden />}
         {help && <span className="stat-tile-help"><HelpButton title={label} size="sm">{help}</HelpButton></span>}
       </div>

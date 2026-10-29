@@ -18,7 +18,7 @@
 
 import { useEffect, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { IconArrowRight, IconBan, IconCheck, IconCopy, IconX } from '@tabler/icons-react';
+import { IconArrowRight, IconBan, IconCheck, IconCopy } from '@tabler/icons-react';
 import {
   accountsQueryKey,
   useAccountDetail,
@@ -31,6 +31,7 @@ import {
 import { useGeneralSettings } from '@/lib/api/settings';
 import { formatDate } from '@/lib/app-settings';
 import { friendlyErrorMessage } from '@/lib/erp-utils';
+import { Drawer } from '@/components/ui/Drawer';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
@@ -423,36 +424,28 @@ export function AccountSlideOver({ account, onClose, onSaved }: AccountSlideOver
   if (!current) return null;
 
   return (
-    <aside className="panel side-panel" aria-label={`Account ${current.code}`}>
-      {/* Header */}
-      <div className="panel-header" style={{ alignItems: 'flex-start', paddingTop: 10, paddingBottom: 10 }}>
-        <div style={{ minWidth: 0 }}>
-          <h2 className="panel-title" style={{ overflowWrap: 'anywhere' }}>{current.name}</h2>
-          <div style={{
-            display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginTop: 4,
-            fontSize: 'var(--font-size-sm)', color: 'var(--color-text-muted)',
-          }}>
-            <span style={{ fontVariantNumeric: 'tabular-nums', color: 'var(--color-text)', fontWeight: 500 }}>{current.code}</span>
-            <span aria-hidden>·</span>
-            <span>{getAccountLevelLabel(current.code)}</span>
-            {current.is_system && <Badge variant="info" title="System Account. It cannot be deactivated.">System</Badge>}
-          </div>
+    <Drawer
+      open={true}
+      title={current.name}
+      size="md"
+      onClose={onClose}
+      headerActions={
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap',
+          fontSize: 'var(--font-size-sm)', color: 'var(--color-text-muted)',
+        }}>
+          <span style={{ fontVariantNumeric: 'tabular-nums', color: 'var(--color-text)', fontWeight: 500 }}>{current.code}</span>
+          <span aria-hidden>·</span>
+          <span>{getAccountLevelLabel(current.code)}</span>
+          {current.is_system && <Badge variant="info" title="System Account. It cannot be deactivated.">System</Badge>}
         </div>
-        <Button
-          variant="ghost"
-          size="sm"
-          icon={<IconX size={16} stroke={1.8} />}
-          onClick={onClose}
-          aria-label="Close Account Panel"
-          title="Close Panel"
-        />
-      </div>
-
+      }
+    >
       <Tabs label="Account Panel Sections" value={tab} onChange={setTab} items={TAB_ITEMS} />
 
       {tab === 'details' && <DetailsTab account={current} onSaved={onSaved} />}
       {tab === 'clone'   && <CloneTab   account={current} onCloned={onSaved} />}
       {tab === 'history' && <HistoryTab accountId={current.id} />}
-    </aside>
+    </Drawer>
   );
 }

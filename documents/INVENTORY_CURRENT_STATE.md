@@ -19,6 +19,17 @@ Snapshot date: 2026-09-30, branch `feature/inventory-professional`. Line numbers
   - Opening Stock is a kind of stock adjustment (`document_kind = 'Opening Stock'`), numbered `OS-YYYY-NNNN`.
   - It is accepted once per item per Branch or Warehouse: only when the item has no stock history there.
   - Posting writes `OPENING_BALANCE` movements and an `OS` voucher: Dr Inventory, Cr the Opening Balance account (Settings → Posting Accounts; default Opening Balance Equity `0302100301`).
+- **UI Standard: Unified DocumentDetailPanel & Overlapping Slide-Over Drawer (2026-10-29):**
+  - Document detail inspection (Transfers, Adjustments, Opening Stock, Invoices, Vouchers) uses the elevated slide-over `Drawer` (`size="lg"` / 900px) with backdrop scrim floating above the intact list table.
+  - All views strictly adhere to the unified `DocumentDetailPanel` standard:
+    1. Descriptive top heading (e.g. `Stock Transfer Details`, `Stock Adjustment Details`, `Opening Stock Details`, `Voucher Details`), never bare ID.
+    2. Header actions (Edit Draft, Print, Close).
+    3. Structured metadata grid (`DetailFields`).
+    4. Clean line items table (`DetailLinesTable`).
+    5. Subtle hairline divider above right-aligned totals (`DetailTotals`).
+    6. Contextual lifecycle guidance note (`DetailNote`).
+    7. Bottom action footer (`DetailActions`).
+  - Searchable dropdown filters (`SearchableSelect`) are universally used across list toolbars (Direction, Status, Warehouse, Category, etc.) replacing segmented buttons or plain selects.
 
 ---
 

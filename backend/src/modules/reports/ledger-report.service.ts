@@ -86,6 +86,7 @@ export class LedgerReportService {
           voucherDate: { gte: dateFrom, lte: dateTo },
         },
       },
+      take: query.limit ?? 10000,
       include: {
         voucher: {
           select: {

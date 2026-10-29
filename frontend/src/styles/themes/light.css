@@ -81,7 +81,7 @@
   --color-sidebar-text-active: rgb(var(--text-1));
   --color-sidebar-border:      rgb(var(--border));
   --color-sidebar-logo-bg:     rgb(var(--accent));
-  --color-sidebar-section:     rgb(var(--text-3));
+  --color-sidebar-section:     color-mix(in srgb, rgb(var(--accent-txt)) 75%, rgb(var(--text-2)));
   --color-sidebar-guide:       rgb(var(--erp-blue-40));
 
   --color-topbar-bg:     rgb(var(--surface));

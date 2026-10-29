@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { currentUserId } from '../http/access-context.js';
 import { assertLoginAllowed, clearFailedLogins, recordFailedLogin } from '../middleware/login-attempt-limit.js';
+import { authRateLimiter } from '../middleware/rate-limiter.js';
 import { changePasswordSchema, loginSchema } from '../modules/auth/auth.schema.js';
 import { AuthService } from '../modules/auth/auth.service.js';
 
@@ -9,7 +10,7 @@ const authService = new AuthService();
 /** Sign-in is the only API route that works without a token. */
 export const publicAuthRouter = Router();
 
-publicAuthRouter.post('/login', async (req, res, next) => {
+publicAuthRouter.post('/login', authRateLimiter, async (req, res, next) => {
   try {
     const input = loginSchema.parse(req.body);
     const ip = req.ip ?? 'unknown';

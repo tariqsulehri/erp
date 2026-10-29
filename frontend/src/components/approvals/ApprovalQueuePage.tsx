@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import { useSession } from 'next-auth/react';
-import { IconEye, IconRefresh, IconThumbDown, IconThumbUp } from '@tabler/icons-react';
+import { IconEye, IconPrinter, IconRefresh, IconThumbDown, IconThumbUp } from '@tabler/icons-react';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
@@ -11,8 +11,9 @@ import { InlineAlert } from '@/components/ui/InlineAlert';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { PaginationBar } from '@/components/ui/PaginationBar';
 import { SearchField } from '@/components/ui/SearchField';
-import { SidePanel } from '@/components/ui/SidePanel';
+import { Drawer } from '@/components/ui/Drawer';
 import { TableMessageRow } from '@/components/ui/TableMessageRow';
+import { DetailTotals } from '@/components/documents';
 import { formatDate, formatMoney } from '@/lib/app-settings';
 import { useGeneralSettings } from '@/lib/api/settings';
 import { useApproveVoucher, useRejectVoucher, useVoucherDetail, useVouchersList } from '@/lib/api/vouchers';
@@ -170,6 +171,8 @@ export function ApprovalQueuePage() {
       ? 'You created or sent this voucher for approval, so another approver must approve or reject it.'
       : null;
   const detailLines = (detail?.lines ?? []) as ApprovalVoucherLine[];
+  const totalDebit = detailLines.reduce((acc, line) => acc + (Number(line.dr_amount) || 0), 0);
+  const totalCredit = detailLines.reduce((acc, line) => acc + (Number(line.cr_amount) || 0), 0);
   const approvalStatus = (detail?.approval_status || 'Pending') as ApprovalStatus;
   const isFiltered = Boolean(search || voucherType);
   const refreshing = listQuery.isFetching && !listQuery.isLoading;
@@ -204,7 +207,7 @@ export function ApprovalQueuePage() {
       {message && <InlineAlert tone={message.kind === 'success' ? 'success' : 'danger'} onDismiss={() => setMessage(null)}>{message.text}</InlineAlert>}
       {listQuery.error && <InlineAlert tone="danger">{friendlyErrorMessage(listQuery.error, 'Could not load Pending Approvals. Please try again.')}</InlineAlert>}
 
-      <div className={`split-view${selectedId ? ' has-side' : ''}`}>
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
         <section className="panel">
           <div className="filter-bar">
             <div className="filter-bar-grow">
@@ -271,7 +274,7 @@ export function ApprovalQueuePage() {
                         icon={<IconEye size={16} stroke={1.8} />}
                         onClick={event => { event.stopPropagation(); setSelectedId(row.id); }}
                         aria-label={`View Voucher ${row.voucher_number}`}
-                        title="View Voucher"
+                        title="View Voucher Details For Approval"
                       />
                     </td>
                   </tr>
@@ -292,10 +295,23 @@ export function ApprovalQueuePage() {
         </section>
 
         {selectedId && (
-          <SidePanel
-            title={detail?.voucher_number ? `Voucher ${detail.voucher_number}` : 'Approval Detail'}
+          <Drawer
+            open={true}
+            title="Voucher Details"
+            size="lg"
             onClose={() => setSelectedId(null)}
-            onSubmit={event => event.preventDefault()}
+            headerActions={
+              detail && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  icon={<IconPrinter size={16} stroke={1.8} />}
+                  onClick={() => window.print()}
+                  aria-label="Print Voucher"
+                  title="Print Voucher"
+                />
+              )
+            }
             footer={(
               <>
                 <Button
@@ -324,7 +340,7 @@ export function ApprovalQueuePage() {
             {detail && approvalBlockedReason && <InlineAlert tone="info">{approvalBlockedReason}</InlineAlert>}
             {detail && (
               <>
-                <dl className="detail-list">
+                <dl className="detail-list" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '8px 16px' }}>
                   {[
                     { label: 'Voucher No.', value: detail.voucher_number },
                     { label: 'Date', value: formatDate(detail.voucher_date, generalSettings) },
@@ -344,20 +360,20 @@ export function ApprovalQueuePage() {
                     <dt>Status</dt>
                     <dd><Badge variant={STATUS_BADGE[detail.status as VoucherStatus] ?? 'neutral'}>{detail.status}</Badge></dd>
                   </div>
-                  <div className="detail-row">
+                  <div className="detail-row detail-row-full">
                     <dt>Description</dt>
                     <dd style={detail.narration ? undefined : { color: 'var(--color-text-muted)' }}>{detail.narration || 'Not Set'}</dd>
                   </div>
                 </dl>
 
                 <div style={{ border: '1px solid var(--color-border-subtle)', borderRadius: 'var(--radius)', overflow: 'auto', flexShrink: 0 }}>
-                  <table className="data-table" style={{ tableLayout: 'fixed' }}>
+                  <table className="data-table" style={{ width: '100%' }}>
                     <thead>
                       <tr>
-                        <th className="num" style={{ width: 40 }}>No.</th>
+                        <th className="num" style={{ width: 44 }}>No.</th>
                         <th>Account</th>
-                        <th className="num" style={{ width: 96 }}>Debit</th>
-                        <th className="num" style={{ width: 96 }}>Credit</th>
+                        <th className="num" style={{ width: 120 }}>Debit</th>
+                        <th className="num" style={{ width: 120 }}>Credit</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -366,8 +382,8 @@ export function ApprovalQueuePage() {
                         <tr key={line.id}>
                           <td className="num cell-muted">{line.line_no}</td>
                           <td className="cell-stack">
-                            <span>{line.account_code}</span>
-                            <span className="cell-sub">{line.account_name}</span>
+                            <span className="code-chip">{line.account_code}</span>
+                            <span className="cell-strong" style={{ marginLeft: 6 }}>{line.account_name}</span>
                           </td>
                           <td className="num">{Number(line.dr_amount) > 0 ? money(line.dr_amount) : ''}</td>
                           <td className="num">{Number(line.cr_amount) > 0 ? money(line.cr_amount) : ''}</td>
@@ -376,6 +392,13 @@ export function ApprovalQueuePage() {
                     </tbody>
                   </table>
                 </div>
+
+                <DetailTotals
+                  items={[
+                    ['Total Debit', money(totalDebit)],
+                    ['Total Credit', money(totalCredit)],
+                  ]}
+                />
 
                 <div>
                   <TextareaField
@@ -390,7 +413,7 @@ export function ApprovalQueuePage() {
                 </div>
               </>
             )}
-          </SidePanel>
+          </Drawer>
         )}
       </div>
       <ConfirmDialog

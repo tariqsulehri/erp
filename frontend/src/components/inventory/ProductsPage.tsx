@@ -49,7 +49,7 @@ export default function ProductsPage() {
         actions={<Button variant="primary" icon={<IconPlus size={16} stroke={1.8} />} onClick={openNew}>New Product</Button>}
       />
 
-      <div className={`split-view${detailOpen ? ' has-side' : ''}`}>
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
         <ProductList
           selectedId={selectedId}
           onSelect={openDetail}
@@ -59,13 +59,11 @@ export default function ProductsPage() {
         />
 
         {detailOpen && selectedId && (
-          <section className="panel side-panel">
-            <ProductDetailPanel
-              id={selectedId}
-              onClose={() => { setSelectedId(null); setMode('list'); }}
-              onEdit={openEdit}
-            />
-          </section>
+          <ProductDetailPanel
+            id={selectedId}
+            onClose={() => { setSelectedId(null); setMode('list'); }}
+            onEdit={openEdit}
+          />
         )}
       </div>
     </main>

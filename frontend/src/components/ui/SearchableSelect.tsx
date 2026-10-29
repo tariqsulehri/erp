@@ -20,6 +20,9 @@ export function SearchableSelect({
   disabled = false,
   selectedLabel,
   ariaLabel,
+  style,
+  className,
+  hidePlaceholderOption = false,
 }: {
   value: string;
   options: SelectOption[];
@@ -31,6 +34,10 @@ export function SearchableSelect({
   selectedLabel?: string;
   /** Accessible name when the field has no wrapping <label> (e.g. label in a separate column). */
   ariaLabel?: string;
+  style?: CSSProperties;
+  className?: string;
+  /** When true, do not render the top placeholder as a selectable clear row. */
+  hidePlaceholderOption?: boolean;
 }) {
   const wrapRef = useRef<HTMLDivElement | null>(null);
   const listRef = useRef<HTMLDivElement | null>(null);
@@ -57,7 +64,10 @@ export function SearchableSelect({
 
   useEffect(() => {
     if (!open) return;
-    listRef.current?.querySelector<HTMLElement>(`[data-index="${activeIndex}"]`)?.scrollIntoView({ block: 'nearest' });
+    const item = listRef.current?.querySelector<HTMLElement>(`[data-index="${activeIndex}"]`);
+    if (item && typeof item.scrollIntoView === 'function') {
+      item.scrollIntoView({ block: 'nearest' });
+    }
   }, [activeIndex, open]);
 
   function close() {
@@ -91,12 +101,19 @@ export function SearchableSelect({
   const optionId = (index: number) => `${listId}-option-${index + 1}`;
 
   return (
-    <div ref={wrapRef} style={{ position: 'relative', width: '100%' }}>
+    <div ref={wrapRef} className={className} style={{ position: 'relative', width: '100%', ...style }}>
       <input
         className="form-input"
         value={visibleValue}
         disabled={disabled}
         placeholder={placeholder}
+        onClick={() => {
+          if (!open && !disabled) {
+            setOpen(true);
+            setQuery('');
+            setActiveIndex(Math.max(-1, options.findIndex(option => option.value === value)));
+          }
+        }}
         onFocus={() => {
           onFocus?.();
           setOpen(true);
@@ -124,19 +141,21 @@ export function SearchableSelect({
       {open && !disabled && (
         <div ref={listRef} id={listId} role="listbox" style={dropdownMenuStyle}>
           {/* Combobox pattern: focus stays in the input and arrow keys move aria-activedescendant, so options take clicks only. */}
-          {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/interactive-supports-focus */}
-          <div
-            id={optionId(-1)}
-            data-index={-1}
-            role="option"
-            aria-selected={value === ''}
-            onMouseDown={event => event.preventDefault()}
-            onMouseEnter={() => setActiveIndex(-1)}
-            onClick={() => choose('')}
-            style={dropdownButton(value === '', activeIndex === -1)}
-          >
-            {placeholder}
-          </div>
+          {!hidePlaceholderOption && placeholder && (
+            // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/interactive-supports-focus
+            <div
+              id={optionId(-1)}
+              data-index={-1}
+              role="option"
+              aria-selected={value === ''}
+              onMouseDown={event => event.preventDefault()}
+              onMouseEnter={() => setActiveIndex(-1)}
+              onClick={() => choose('')}
+              style={dropdownButton(value === '', activeIndex === -1)}
+            >
+              {placeholder}
+            </div>
+          )}
           {filtered.map((option, index) => (
             // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/interactive-supports-focus
             <div

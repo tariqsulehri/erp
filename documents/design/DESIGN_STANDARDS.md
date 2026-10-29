@@ -216,7 +216,9 @@ All chart colours come from `useChartTheme()`, which reads the CSS tokens. Never
 - Grid lines: `--border` (feather), horizontal only, dashed or light.
 - Axis text: `--text-3`, **12px minimum**, numbers in mono.
 - Target / budget line: `--chart-target` (orange-text), dashed.
-- Bars: flat fill, rounded top corners 4px. Track behind meters: feather.
+- Bars: standard height and solid presence. Horizontal ranked bars (`RankedBars`) use a standard track height of 14px (pill rounded with 3D specular rim) to ensure tactile legibility instead of thin hairlines. Column bars use standard widths up to 38px with rounded top corners.
+- Donut charts: compact 130px diameter with 72px central metric core and inline table legend (max-width: 480px) to prevent awkward vertical whitespace and avoid empty gaps.
+- Chart width and ergonomics: graphs maintain meaningful, presentable content widths (capping excessive horizontal stretching on wide screens) to keep titles, marks, and values readable without empty space consumption.
 - Tooltip: plain `surface` background, `border`, `text-1` title, value coloured with its series colour. No gradients/blur.
 - Donut: max 5 slices, label with value + %.
 - Legend: always present when >1 series; text label, not colour alone.
@@ -232,13 +234,26 @@ All chart colours come from `useChartTheme()`, which reads the CSS tokens. Never
 | Aging (AR/AP 0-30, 31-60…) | Stacked bar with level ladder |
 | Single KPI | StatTile: label, mono value, delta chip, optional sparkline |
 
-**Data rules:** never show invented or fallback numbers; missing data shows "No data", not 0. Unassessed/empty ≠ zero. Every chart sits in a `ChartCard` with title (sentence case), unit, period, and a HelpButton explaining what it shows.
+**Data rules (No Fabricated / Static Graph Data):** never show invented or fallback numbers; never fabricate graphs, charts, or KPI tiles with static or dummy values. All visualization figures and data points must come directly from the database and reflect real, authenticated business data. Missing data shows "No data", not 0. Unassessed/empty ≠ zero. Every chart sits in a `ChartCard` with title (sentence case), unit, period, and a HelpButton explaining what it shows.
+
+**Functional Invariance During Visual Refactoring:** never touch, alter, or break component business logic, validation rules, event handlers, props contracts, data fetching, state flows, or calculations when working on look and feel, themes, or styling. Visual improvements must remain strictly presentation-only. CSS custom properties and design tokens in `design-tokens.css` and `globals.css` are the single source of truth for styles, gradients, surfaces, and tiles.
 
 ---
 
 ## 9. ERP layout rules
 
 - **Compact UI:** maximum space for data. No heavy margins, no big fonts, no one-item lines.
+- **Overlapping Slide-Over Drawers (`Drawer.tsx`):** Document and transaction detail views (Vouchers, Purchases, Sales, Stock Transfers, Adjustments) must render inside the standard elevated slide-over `Drawer` overlay (`Drawer.tsx`, default `size="lg"`: `min(900px, 96vw)`), floating above the grid with a backdrop scrim (`var(--color-scrim)`). Never compress the document table into a narrow side-by-side column (`.split-view.has-side` anti-pattern). The underlying list table stays 100% wide. Line items inside the drawer must have ample column widths with zero text truncation.
+- **Document Detail Drawer Anatomy & Type Heading:** All current and upcoming document detail views (Invoices, Transfers, Adjustments, Vouchers, Returns) must follow the standardized `DocumentDetailPanel` pattern:
+  - **Descriptive Heading:** Top drawer title describes document type (`Voucher Details`, `Stock Transfer Details`, `Stock Adjustment Details`, `Opening Stock Details`, `Purchase Invoice Details`, `Sales Invoice Details`, `Purchase Return Details`, `Sale Return Details`), never just a raw reference number.
+  - **Header Actions:** Edit Draft (when editable), Print, and Close.
+  - **Fields Grid:** Starts with Document No., Date, Document Type, and Status badge (`StatusChip`).
+  - **Lines Table:** Standard table (`No.`, Code, Description, UOM, Qty, Price, Amount).
+  - **Totals:** Symmetrically right-aligned totals (`DetailTotals`).
+  - **Status Guidance Note:** `DetailNote` explaining document lifecycle status.
+  - **Action Footer:** Lifecycle actions (`DetailActions`) rendered at the bottom, never as a jarring top banner.
+- **Whole-Screen Overview & Preserving Vertical Scroll:** Overview pages and dashboard grids must be designed to fit common laptop screens (768px–900px) cleanly on a single screen using compact vertical padding (`8px`–`12px`), sleek tile heights (~64px–72px), and calibrated chart heights (`170px`–`190px`). Layout containers and page shells must never clip content with `overflow: hidden` without a scrollable container; `overflow-y: auto` must always remain accessible so cards and graphs are never trimmed off or unreachable at the bottom.
+- **Standard Modal & Drawer Components:** All modal dialogs and slide-overs must consume the shared `Modal.tsx` and `Drawer.tsx` components with unified size tokens (`sm`, `md`, `lg`, `xl`), accessible focus management (`useDialogFocus`), backdrop click dismiss, and `Escape` key handling.
 - **Max two toolbars** per screen (page header + filter bar). Never repeat title, search or count.
 - **Tables:** compact rows (`py-2`), sticky header, numbers right-aligned in mono, currency with thousand separators and fixed decimals, totals row bold. Zebra or grouped-row styling with `surface-2`.
 - **Forms:** label above field (`text-xs font-bold uppercase`), 2–3 columns on desktop, required mark, inline errors in `danger`.

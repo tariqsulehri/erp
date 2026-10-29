@@ -45,19 +45,39 @@ import { Button } from '@/components/ui/Button';
 import { InlineAlert } from '@/components/ui/InlineAlert';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { SearchField } from '@/components/ui/SearchField';
-import { SegmentedControl } from '@/components/ui/SegmentedControl';
+import { SearchableSelect } from '@/components/ui/SearchableSelect';
 import { Tabs } from '@/components/ui/Tabs';
 
 const PAGE_SIZE = 20;
 type ViewMode    = 'table' | 'tree' | 'group';
 type PostingFilter = 'all' | 'posting' | 'header';
 
-const ACCOUNT_TYPES = ['Asset', 'Liability', 'Equity', 'Revenue', 'Expense'];
+const ACCOUNT_TYPE_OPTIONS = [
+  { value: '', label: 'All Types' },
+  { value: 'Asset', label: 'Assets (01)' },
+  { value: 'Liability', label: 'Liabilities (02)' },
+  { value: 'Equity', label: 'Equity (03)' },
+  { value: 'Revenue', label: 'Revenue (04)' },
+  { value: 'Expense', label: 'Expenses (05)' },
+];
 
 const POSTING_OPTIONS: Array<{ value: PostingFilter; label: string }> = [
   { value: 'all',     label: 'All Levels' },
-  { value: 'posting', label: 'Posting Only' },
-  { value: 'header',  label: 'Headers Only' },
+  { value: 'posting', label: 'Posting Accounts Only' },
+  { value: 'header',  label: 'Header Accounts Only' },
+];
+
+const STATUS_OPTIONS = [
+  { value: '', label: 'All Statuses' },
+  { value: 'active', label: 'Active Accounts' },
+  { value: 'inactive', label: 'Inactive Accounts' },
+];
+
+const DEPTH_OPTIONS = [
+  { value: '4', label: 'All Levels (Down to Posting)' },
+  { value: '3', label: 'Up to Sub-Groups (L1–L3)' },
+  { value: '2', label: 'Up to Groups (L1–L2)' },
+  { value: '1', label: 'Main Categories Only (L1)' },
 ];
 
 const VIEW_TABS: Array<{ value: ViewMode; label: string; icon: React.ReactNode }> = [
@@ -123,8 +143,10 @@ export default function AccountsPage() {
   const [page,        setPage]        = useState(1);
   const [searchText,  setSearchText]  = useState('');
   const [search,      setSearch]      = useState('');
-  const [typeFilter,  setTypeFilter]  = useState('');
-  const [postFilter,  setPostFilter]  = useState<PostingFilter>('all');
+  const [typeFilter,   setTypeFilter]   = useState('');
+  const [postFilter,   setPostFilter]   = useState<PostingFilter>('all');
+  const [statusFilter, setStatusFilter] = useState('');
+  const [depthFilter,  setDepthFilter]  = useState('4');
   const [showImport,     setShowImport]     = useState(false);
   const [showBulkImport, setShowBulkImport] = useState(false);
   const [slideOver,   setSlideOver]   = useState<AccountListItem | null>(null);
@@ -145,6 +167,7 @@ export default function AccountsPage() {
       limit: PAGE_SIZE,
       search:     search     || undefined,
       type:       typeFilter || undefined,
+      is_active:  statusFilter === 'active' ? true : statusFilter === 'inactive' ? false : undefined,
       is_posting: postFilter === 'posting' ? true : postFilter === 'header' ? false : undefined,
     },
   );
@@ -155,6 +178,7 @@ export default function AccountsPage() {
       page: 1, limit: 200,
       search:     search     || undefined,
       type:       typeFilter || undefined,
+      is_active:  statusFilter === 'active' ? true : statusFilter === 'inactive' ? false : undefined,
       is_posting: postFilter === 'posting' ? true : postFilter === 'header' ? false : undefined,
     },
     view === 'group',
@@ -199,9 +223,9 @@ export default function AccountsPage() {
 
   /* ── Filter reset ──────────────────────────────────────────────────── */
   const resetFilters = () => {
-    setSearchText(''); setSearch(''); setTypeFilter(''); setPostFilter('all'); setPage(1);
+    setSearchText(''); setSearch(''); setTypeFilter(''); setPostFilter('all'); setStatusFilter(''); setDepthFilter('4'); setPage(1);
   };
-  const hasFilters = search || typeFilter || postFilter !== 'all';
+  const hasFilters = search || typeFilter || postFilter !== 'all' || statusFilter || depthFilter !== '4';
 
   const applySearch = () => {
     setSearch(searchText.trim());
@@ -313,7 +337,7 @@ export default function AccountsPage() {
 
       <Tabs label="Account Views" value={view} onChange={setView} items={VIEW_TABS} />
 
-      <div className={`split-view${slideOver ? ' has-side' : ''}`}>
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
         <section className="panel" role="tabpanel" aria-labelledby={`tab-${view}`}>
           {/* ── Filter Bar ─────────────────────────────────────── */}
           <div className="filter-bar">
@@ -331,22 +355,47 @@ export default function AccountsPage() {
                 <Button onClick={applySearch} loading={isFetching}>Search</Button>
               </>
             )}
-            <select
-              className="form-input"
-              aria-label="Filter By Account Type"
+
+            <SearchableSelect
+              placeholder="All Types"
+              ariaLabel="Filter By Account Type"
               value={typeFilter}
-              onChange={event => { setTypeFilter(event.target.value); setPage(1); }}
-              style={{ width: 150 }}
-            >
-              <option value="">All Types</option>
-              {ACCOUNT_TYPES.map(type => <option key={type} value={type}>{type}</option>)}
-            </select>
-            <SegmentedControl
-              label="Account Level Filter"
+              options={ACCOUNT_TYPE_OPTIONS}
+              onChange={val => { setTypeFilter(val); setPage(1); }}
+              style={{ width: 175 }}
+            />
+
+            <SearchableSelect
+              placeholder="All Levels"
+              ariaLabel="Filter By Account Level"
               value={postFilter}
               options={POSTING_OPTIONS}
-              onChange={value => { setPostFilter(value); setPage(1); }}
+              onChange={val => { setPostFilter(val as PostingFilter); setPage(1); }}
+              style={{ width: 195 }}
             />
+
+            {view === 'tree' && (
+              <SearchableSelect
+                placeholder="Hierarchy Depth"
+                ariaLabel="Filter By Hierarchy Depth"
+                value={depthFilter}
+                options={DEPTH_OPTIONS}
+                onChange={val => setDepthFilter(val)}
+                style={{ width: 230 }}
+              />
+            )}
+
+            {view !== 'tree' && (
+              <SearchableSelect
+                placeholder="All Statuses"
+                ariaLabel="Filter By Account Status"
+                value={statusFilter}
+                options={STATUS_OPTIONS}
+                onChange={val => { setStatusFilter(val); setPage(1); }}
+                style={{ width: 155 }}
+              />
+            )}
+
             {(hasFilters || searchText) && (
               <Button
                 variant="ghost"
@@ -357,6 +406,7 @@ export default function AccountsPage() {
                 Clear
               </Button>
             )}
+
             {view !== 'tree' && (
               <div className="filter-bar-end" style={{ fontVariantNumeric: 'tabular-nums' }}>
                 {isLoading ? 'Loading…' : `${totalText} ${total === 1 ? 'Account' : 'Accounts'}`}
@@ -389,6 +439,7 @@ export default function AccountsPage() {
             <AccountTreeView
               typeFilter={typeFilter}
               postingFilter={postFilter}
+              depthFilter={Number(depthFilter) || 4}
             />
           )}
 

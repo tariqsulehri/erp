@@ -12,7 +12,6 @@ import { InlineAlert } from '@/components/ui/InlineAlert';
 import { PaginationBar } from '@/components/ui/PaginationBar';
 import { SearchField } from '@/components/ui/SearchField';
 import { SearchableSelect } from '@/components/ui/SearchableSelect';
-import { SegmentedControl } from '@/components/ui/SegmentedControl';
 import { TableMessageRow } from '@/components/ui/TableMessageRow';
 import { TableSkeleton } from '@/components/ui/TableSkeleton';
 import {
@@ -27,11 +26,6 @@ import {
 } from './ProductShared';
 
 type SortColumn = 'sku' | 'name' | 'sale_price' | 'qty_on_hand';
-
-const STATUS_FILTER_OPTIONS: Array<{ value: string; label: string }> = [
-  { value: '', label: 'All' },
-  ...STATUS_OPTIONS.map(option => ({ value: option.value, label: option.label })),
-];
 
 const sortButtonStyle: CSSProperties = {
   display: 'inline-flex',
@@ -173,15 +167,33 @@ export function ProductList({ selectedId, onSelect, onNew, onEdit, detailOpen }:
             placeholder="All Brands"
           />
         </div>
-        <select className="form-input" aria-label="Filter By Product Type" value={typeFlt} onChange={event => { setTypeFlt(event.target.value); setPage(1); }} style={{ width: 150 }}>
-          <option value="">All Types</option>
-          {PRODUCT_TYPE_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
-        </select>
-        <select className="form-input" aria-label="Filter By Stock Level" value={stockFlt} onChange={event => { setStockFlt(event.target.value); setPage(1); }} style={{ width: 200 }}>
-          <option value="">All Stock Levels</option>
-          {STOCK_FILTER_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
-        </select>
-        <SegmentedControl label="Status Filter" value={statusFlt} options={STATUS_FILTER_OPTIONS} onChange={value => { setStatusFlt(value); setPage(1); }} />
+        <div style={{ width: 160 }}>
+          <SearchableSelect
+            value={typeFlt}
+            options={PRODUCT_TYPE_OPTIONS}
+            onChange={nextType => { setTypeFlt(nextType); setPage(1); }}
+            placeholder="All Types"
+            ariaLabel="Product Type"
+          />
+        </div>
+        <div style={{ width: 180 }}>
+          <SearchableSelect
+            value={stockFlt}
+            options={STOCK_FILTER_OPTIONS}
+            onChange={nextStock => { setStockFlt(nextStock); setPage(1); }}
+            placeholder="All Stock Levels"
+            ariaLabel="Stock Level"
+          />
+        </div>
+        <div style={{ width: 140 }}>
+          <SearchableSelect
+            value={statusFlt}
+            options={STATUS_OPTIONS}
+            onChange={nextStatus => { setStatusFlt(nextStatus); setPage(1); }}
+            placeholder="All Statuses"
+            ariaLabel="Status Filter"
+          />
+        </div>
         {hasActiveFilters && <Button variant="ghost" onClick={clearFilters}>Clear</Button>}
       </div>
 

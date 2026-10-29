@@ -15,7 +15,6 @@ import { PageHeader } from '@/components/ui/PageHeader';
 import { PaginationBar } from '@/components/ui/PaginationBar';
 import { SearchField } from '@/components/ui/SearchField';
 import { SearchableSelect } from '@/components/ui/SearchableSelect';
-import { SegmentedControl } from '@/components/ui/SegmentedControl';
 import { TableMessageRow } from '@/components/ui/TableMessageRow';
 import { BranchStockView } from './BranchStockView';
 
@@ -267,7 +266,16 @@ export default function BranchManagementPage() {
               placeholder="Search by Code, Name, City, or Manager, then press Enter"
             />
           </div>
-          <SegmentedControl label="Status Filter" value={status} options={STATUS_OPTIONS} onChange={value => { setStatus(value); setPage(1); }} />
+          <div style={{ width: 140 }}>
+            <SearchableSelect
+              value={status}
+              options={STATUS_OPTIONS}
+              placeholder="Status"
+              hidePlaceholderOption
+              onChange={value => { setStatus((value || 'All') as StatusFilter); setPage(1); }}
+              ariaLabel="Status Filter"
+            />
+          </div>
           {(search || searchText) && (
             <Button variant="ghost" onClick={() => { setSearchText(''); setSearch(''); setPage(1); }}>Clear</Button>
           )}

@@ -81,7 +81,8 @@ New frontend modules must follow the same structure established in the Purchase 
 - API calls go through `src/lib/api`.
 - Print preview and print/PDF HTML logic are separated from entry screens.
 - Transaction lists use backend pagination, backend filters, stable sorting, and summary/header rows.
-- Analytics use modular chart components and backend aggregate data.
+- Analytics use modular chart components and backend aggregate data. Never fabricate or hardcode static numbers for charts, graphs, or summary tiles; all visualization values must come from the database.
+- Maintain functional invariance during visual refactoring: never touch or alter component business logic, validation rules, event handlers, props contracts, data fetching, state flows, or calculations when updating look and feel, themes, or styling. CSS custom properties and design tokens must always serve as the single source of truth for styling.
 - No user action should fail silently.
 
 ## Inventory

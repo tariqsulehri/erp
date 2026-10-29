@@ -30,6 +30,16 @@ These standards apply to both frontend and backend code. Layer-specific rules li
 - Use descriptive endpoint, function, field, and table names.
 - Keep response field names understandable by frontend developers and business users.
 
+## Data Integrity And Visualizations
+
+- Never fabricate graphs, charts, or KPI tiles with static values. All visualization figures and data points must come from the database via backend APIs and reflect real aggregate/transaction data.
+
+## Functional Invariance During Visual Refactoring
+
+- Never touch or alter component business logic, validation rules, event handlers, props contracts, data fetching, state flows, or calculations when updating look and feel, themes, or styling.
+- Visual improvements must remain strictly presentation-only and preserve all underlying component behavior.
+- Use CSS custom properties and design tokens as the single source of truth for styling across the application.
+
 ## Validation And Errors
 
 - Validate inputs at API boundaries.
