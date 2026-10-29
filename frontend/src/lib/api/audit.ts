@@ -36,6 +36,48 @@ export interface PaginatedAuditLogsResponse {
   pagination: { total: number; page: number; limit: number; pages: number };
 }
 
+export interface AuditLogStats {
+  metrics: {
+    totalEvents: number;
+    activeUsers: number;
+    criticalActions: number;
+    todayEvents: number;
+    topEntity: string | null;
+  };
+  dailyActivity: Array<{
+    day: string;
+    label: string;
+    count: number;
+  }>;
+  byAction: Array<{
+    action: string;
+    count: number;
+    percentage: number;
+  }>;
+  byEntity: Array<{
+    entity: string;
+    count: number;
+    percentage: number;
+  }>;
+  topUsers: Array<{
+    userName: string;
+    userEmail: string | null;
+    count: number;
+    percentage: number;
+  }>;
+  recentCritical: Array<{
+    id: string;
+    action: string;
+    entityName: string;
+    entityId: string | null;
+    userName: string;
+    userEmail: string | null;
+    description: string | null;
+    createdAt: string;
+    ipAddress: string | null;
+  }>;
+}
+
 function queryString(params: object) {
   const searchParams = new URLSearchParams();
   Object.entries(params as Record<string, unknown>).forEach(([key, value]) => {
@@ -52,5 +94,13 @@ export function useAuditLogs(params: ListAuditLogsParams) {
     queryFn: () => backendGet<PaginatedAuditLogsResponse>(`/audit-logs${queryString(params)}`),
     placeholderData: previous => previous,
     retry: false,
+  });
+}
+
+export function useAuditLogStats() {
+  return useQuery<AuditLogStats>({
+    queryKey: [...auditLogsQueryKey, 'stats'],
+    queryFn: () => backendGet<AuditLogStats>('/audit-logs/stats'),
+    staleTime: 15_000,
   });
 }

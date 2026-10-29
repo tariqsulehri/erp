@@ -2,7 +2,7 @@ import { z } from 'zod';
 
 export const listAuditLogsQuery = z.object({
   page: z.coerce.number().int().min(1).default(1),
-  limit: z.coerce.number().int().min(1).max(200).default(50),
+  limit: z.coerce.number().int().min(1).max(1000).default(50),
   search: z.string().trim().optional(),
   entity_name: z.string().trim().optional(),
   action: z.string().trim().optional(),

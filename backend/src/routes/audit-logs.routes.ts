@@ -6,6 +6,17 @@ import { AuditService } from '../modules/audit/audit.service.js';
 
 export const auditLogsRouter = Router();
 
+auditLogsRouter.get('/stats', async (req, res, next) => {
+  try {
+    const actor = requireUserManager(req);
+    const companyId = resolveCompanyId(req);
+    const service = new AuditService(companyId, actor);
+    res.json(await service.getStats());
+  } catch (error) {
+    next(error);
+  }
+});
+
 auditLogsRouter.get('/', async (req, res, next) => {
   try {
     const actor = requireUserManager(req);
