@@ -23,8 +23,25 @@ import { TableMessageRow } from '@/components/ui/TableMessageRow';
 import { LoadingState } from '@/components/ui/LoadingSpinner';
 
 const VOUCHER_TYPE_LABELS: Record<string, string> = {
-  PV: 'Payment', RV: 'Receipt', JV: 'Journal',
-  CV: 'Contra', DN: 'Debit Note', CN: 'Credit Note',
+  CPV: 'Cash Payment Voucher',
+  CRV: 'Cash Receipt Voucher',
+  BPV: 'Bank Payment Voucher',
+  BRV: 'Bank Receipt Voucher',
+  JV: 'Journal Voucher',
+  CV: 'Contra Voucher',
+  DN: 'Debit Note',
+  CN: 'Credit Note',
+  SI: 'Sales Invoice Voucher',
+  PI: 'Purchase Invoice Voucher',
+  SR: 'Sales Return Voucher',
+  PR: 'Purchase Return Voucher',
+  SA: 'Stock Adjustment Voucher',
+  ST: 'Stock Transfer Voucher',
+  OB: 'Opening Balance Voucher',
+  OS: 'Opening Stock Voucher',
+  PV: 'Payment Voucher',
+  RV: 'Receipt Voucher',
+  CL: 'Year-End Closing Voucher',
 };
 
 type BadgeVariant = 'success' | 'warning' | 'danger' | 'info' | 'neutral';
@@ -503,42 +520,134 @@ export default function DashboardPage() {
         </div>
 
         {/* Row 5: account and voucher summaries */}
-        <div className="layout-cols-3">
+        <div className="layout-cols-2">
           <DashboardPanel title="Account Health" bodyStyle={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             <MeterRow label="Total Accounts" value={String(accounts.total)} pct={100} tone="blue" />
             <MeterRow label="Active" value={String(accounts.active)} pct={pctOf(accounts.active)} tone="blue" />
             <MeterRow label="Inactive" value={String(accounts.inactive)} pct={pctOf(accounts.inactive)} tone="slate" />
             <MeterRow label="Posting Accounts" value={String(accounts.posting)} pct={pctOf(accounts.posting)} tone="teal" />
+            <div style={{ marginTop: 'auto', paddingTop: 12, borderTop: '1px solid var(--color-border-subtle)', fontSize: 'var(--font-size-xs)', color: 'var(--color-text-muted)' }}>
+              Posting accounts accept direct ledger entries. Structural headers organize the Chart of Accounts hierarchy.
+            </div>
           </DashboardPanel>
 
-          <DashboardPanel title="Voucher Summary">
-            <SummaryRow label="Total Vouchers" value={formatCount(vouchers.total, settings)} />
-            <SummaryRow label={<Badge variant="success">Posted</Badge>} value={formatCount(vouchers.posted, settings)} />
-            <SummaryRow label={<Badge variant="warning">Draft</Badge>} value={formatCount(vouchers.draft, settings)} />
-            <SummaryRow label={<Badge variant="danger">Voided</Badge>} value={formatCount(vouchers.voided, settings)} last />
-          </DashboardPanel>
+          <DashboardPanel title="Voucher Summary" bodyStyle={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            {/* Top: Summary KPI Tiles */}
+            <div>
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(105px, 1fr))',
+                gap: 8,
+              }}>
+                <div style={{
+                  padding: '8px 12px',
+                  borderRadius: 'var(--radius-md)',
+                  backgroundColor: 'var(--color-surface-subtle)',
+                  border: '1px solid var(--color-border-subtle)',
+                }}>
+                  <span style={{ display: 'block', fontSize: 'var(--font-size-2xs)', fontWeight: 600, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                    Total
+                  </span>
+                  <span style={{ display: 'block', fontSize: 'var(--font-size-lg)', fontWeight: 700, color: 'var(--color-heading)', fontVariantNumeric: 'tabular-nums', marginTop: 2 }}>
+                    {formatCount(vouchers.total, settings)}
+                  </span>
+                </div>
 
-          <DashboardPanel title="Voucher Type Counts">
-            {vouchers.byType.length === 0 ? (
-              <EmptyNote>No posted vouchers yet.</EmptyNote>
-            ) : vouchers.byType.map((r, index) => (
-              <SummaryRow
-                key={r.type}
-                last={index === vouchers.byType.length - 1}
-                label={(
-                  <>
-                    <Badge variant="neutral">{r.type}</Badge>
-                    <span style={{ color: 'var(--color-text-muted)' }}>{VOUCHER_TYPE_LABELS[r.type] ?? r.type}</span>
-                  </>
-                )}
-                value={(
-                  <>
-                    <div>{r.count}</div>
-                    <div style={{ fontSize: 'var(--font-size-xs)', fontWeight: 400, color: 'var(--color-text-muted)' }}>{axis(Number(r.total))}</div>
-                  </>
-                )}
-              />
-            ))}
+                <div style={{
+                  padding: '8px 12px',
+                  borderRadius: 'var(--radius-md)',
+                  backgroundColor: 'var(--color-surface-subtle)',
+                  border: '1px solid var(--color-border-subtle)',
+                }}>
+                  <div>
+                    <Badge variant="success">Posted</Badge>
+                  </div>
+                  <span style={{ display: 'block', fontSize: 'var(--font-size-lg)', fontWeight: 700, color: 'var(--color-success-text)', fontVariantNumeric: 'tabular-nums', marginTop: 4 }}>
+                    {formatCount(vouchers.posted, settings)}
+                  </span>
+                </div>
+
+                <div style={{
+                  padding: '8px 12px',
+                  borderRadius: 'var(--radius-md)',
+                  backgroundColor: 'var(--color-surface-subtle)',
+                  border: '1px solid var(--color-border-subtle)',
+                }}>
+                  <div>
+                    <Badge variant="warning">Draft</Badge>
+                  </div>
+                  <span style={{ display: 'block', fontSize: 'var(--font-size-lg)', fontWeight: 700, color: 'var(--color-warning-text)', fontVariantNumeric: 'tabular-nums', marginTop: 4 }}>
+                    {formatCount(vouchers.draft, settings)}
+                  </span>
+                </div>
+
+                <div style={{
+                  padding: '8px 12px',
+                  borderRadius: 'var(--radius-md)',
+                  backgroundColor: 'var(--color-surface-subtle)',
+                  border: '1px solid var(--color-border-subtle)',
+                }}>
+                  <div>
+                    <Badge variant="danger">Voided</Badge>
+                  </div>
+                  <span style={{ display: 'block', fontSize: 'var(--font-size-lg)', fontWeight: 700, color: 'var(--color-text-muted)', fontVariantNumeric: 'tabular-nums', marginTop: 4 }}>
+                    {formatCount(vouchers.voided, settings)}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Bottom: Details Breakdown by Voucher Type */}
+            <div>
+              <div style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                paddingTop: 10,
+                paddingBottom: 6,
+                borderTop: '1px solid var(--color-border-subtle)',
+              }}>
+                <span style={{
+                  fontSize: 'var(--font-size-xs)',
+                  fontWeight: 600,
+                  color: 'var(--color-text-muted)',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.04em',
+                }}>
+                  Activity By Voucher Type
+                </span>
+                <span style={{ fontSize: 'var(--font-size-2xs)', color: 'var(--color-text-muted)' }}>
+                  Count (Posted Total)
+                </span>
+              </div>
+
+              {vouchers.byType.length === 0 ? (
+                <EmptyNote>No posted vouchers yet.</EmptyNote>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column' }}>
+                  {vouchers.byType.map((r, index) => (
+                    <SummaryRow
+                      key={r.type}
+                      last={index === vouchers.byType.length - 1}
+                      label={(
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+                          <Badge variant="neutral" style={{ flexShrink: 0 }}>{r.type}</Badge>
+                          <span style={{ fontWeight: 500, color: 'var(--color-heading)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            {VOUCHER_TYPE_LABELS[r.type] ?? r.type}
+                          </span>
+                        </div>
+                      )}
+                      value={(
+                        <span style={{ fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
+                          <span style={{ fontWeight: 600, color: 'var(--color-heading)' }}>{formatCount(r.count, settings)}</span>{' '}
+                          <span style={{ fontSize: 'var(--font-size-xs)', fontWeight: 400, color: 'var(--color-text-muted)' }}>({axis(Number(r.total))})</span>
+                        </span>
+                      )}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
           </DashboardPanel>
         </div>
       </div>
