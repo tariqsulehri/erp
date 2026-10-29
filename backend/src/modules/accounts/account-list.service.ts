@@ -1,5 +1,6 @@
 import { Prisma } from '@prisma/client';
 import { prisma } from '../../db/prisma.js';
+import { logAuditEvent } from '../audit/audit.service.js';
 import { signedOpeningBalance } from './account-balance.js';
 import type { AccountListQuery, CreateAccountInput, UpdateAccountInput } from './account.schema.js';
 
@@ -246,6 +247,14 @@ export class AccountListService {
 
   async create(companyId: string, input: CreateAccountInput) {
     const account = await this.createAccount(companyId, input);
+    void logAuditEvent({
+      companyId,
+      action: 'CREATE',
+      entityName: 'Account',
+      entityId: account.id,
+      description: `Created account ${account.code} (${account.name})`,
+      details: { code: account.code, name: account.name, type: account.account_type },
+    });
     return {
       success: true,
       account,
@@ -426,7 +435,16 @@ export class AccountListService {
       return account;
     });
 
-    return accountToResponse(updated);
+    const response = accountToResponse(updated);
+    void logAuditEvent({
+      companyId,
+      action: 'UPDATE',
+      entityName: 'Account',
+      entityId: updated.id,
+      description: `Updated account ${updated.code} (${updated.name})`,
+      details: { code: updated.code, changes },
+    });
+    return response;
   }
 
   async setActive(companyId: string, id: string, isActive: boolean) {

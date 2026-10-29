@@ -1,5 +1,6 @@
 import { Prisma } from '@prisma/client';
 import { prisma } from '../../db/prisma.js';
+import { logAuditEvent } from '../audit/audit.service.js';
 import { PartyAccountService } from './party-account.service.js';
 import { assertLinkedAccount, nextPartyCode, partyError } from './party-rules.js';
 import type { CustomerInput, PartyListQuery, UpdateCustomerInput } from './party.schema.js';
@@ -171,7 +172,16 @@ export class CustomerService {
           notes: cleanText(input.notes),
         },
       });
-      return customerToResponse(customer);
+      const response = customerToResponse(customer);
+      void logAuditEvent({
+        companyId,
+        action: 'CREATE',
+        entityName: 'Customer',
+        entityId: customer.id,
+        description: `Created customer ${customer.code} (${customer.name})`,
+        details: { code: customer.code, name: customer.name, customer_type: customer.customerType },
+      });
+      return response;
     });
   }
 
@@ -222,7 +232,16 @@ export class CustomerService {
           ...(input.notes !== undefined ? { notes: cleanText(input.notes) } : {}),
         },
       });
-      return customerToResponse(customer);
+      const response = customerToResponse(customer);
+      void logAuditEvent({
+        companyId,
+        action: 'UPDATE',
+        entityName: 'Customer',
+        entityId: customer.id,
+        description: `Updated customer ${customer.code} (${customer.name})`,
+        details: { code: customer.code, name: customer.name },
+      });
+      return response;
     });
   }
 

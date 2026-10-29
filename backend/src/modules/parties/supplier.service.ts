@@ -1,5 +1,6 @@
 import { Prisma } from '@prisma/client';
 import { prisma } from '../../db/prisma.js';
+import { logAuditEvent } from '../audit/audit.service.js';
 import { PartyAccountService } from './party-account.service.js';
 import { assertLinkedAccount, nextPartyCode, partyError } from './party-rules.js';
 import type { PartyListQuery, SupplierInput, UpdateSupplierInput } from './party.schema.js';
@@ -161,7 +162,16 @@ export class SupplierService {
           notes: cleanText(input.notes),
         },
       });
-      return supplierToResponse(supplier);
+      const response = supplierToResponse(supplier);
+      void logAuditEvent({
+        companyId,
+        action: 'CREATE',
+        entityName: 'Supplier',
+        entityId: supplier.id,
+        description: `Created supplier ${supplier.code} (${supplier.name})`,
+        details: { code: supplier.code, name: supplier.name, supplier_type: supplier.supplierType },
+      });
+      return response;
     });
   }
 
@@ -214,7 +224,16 @@ export class SupplierService {
           ...(input.notes !== undefined ? { notes: cleanText(input.notes) } : {}),
         },
       });
-      return supplierToResponse(supplier);
+      const response = supplierToResponse(supplier);
+      void logAuditEvent({
+        companyId,
+        action: 'UPDATE',
+        entityName: 'Supplier',
+        entityId: supplier.id,
+        description: `Updated supplier ${supplier.code} (${supplier.name})`,
+        details: { code: supplier.code, name: supplier.name, supplier_type: supplier.supplierType },
+      });
+      return response;
     });
   }
 

@@ -237,3 +237,4 @@ export function AuditLogListView({
     </section>
   );
 }
+

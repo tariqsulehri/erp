@@ -250,31 +250,48 @@ export class AuditService {
 export async function logAuditEvent(params: {
   companyId: string;
   actor?: AuthUser | null;
+  userId?: string | null;
+  userName?: string | null;
+  userEmail?: string | null;
   action: string;
   entityName: string;
   entityId?: string | null;
   description?: string | null;
   details?: Record<string, any> | null;
   ipAddress?: string | null;
+  createdAt?: Date;
 }) {
   try {
     let validUserId: string | null = null;
-    if (params.actor?.id) {
-      const exists = await prisma.user.findUnique({ where: { id: params.actor.id }, select: { id: true } });
-      if (exists) validUserId = exists.id;
+    let userName = params.actor?.fullName ?? params.userName ?? 'System';
+    let userEmail = params.actor?.email ?? params.userEmail ?? null;
+
+    const lookupId = params.actor?.id ?? params.userId;
+    if (lookupId) {
+      const exists = await prisma.user.findUnique({
+        where: { id: lookupId },
+        select: { id: true, fullName: true, email: true },
+      });
+      if (exists) {
+        validUserId = exists.id;
+        if (!params.actor?.fullName && !params.userName) userName = exists.fullName;
+        if (!params.actor?.email && !params.userEmail) userEmail = exists.email;
+      }
     }
+
     await prisma.systemAuditLog.create({
       data: {
         companyId: params.companyId,
         userId: validUserId,
-        userName: params.actor?.fullName ?? 'System',
-        userEmail: params.actor?.email ?? null,
+        userName,
+        userEmail,
         action: params.action.toUpperCase(),
         entityName: params.entityName,
         entityId: params.entityId ?? null,
         description: params.description ?? null,
         details: params.details ?? undefined,
         ipAddress: params.ipAddress ?? null,
+        createdAt: params.createdAt ?? undefined,
       },
     });
   } catch (error) {

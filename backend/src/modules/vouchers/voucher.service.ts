@@ -1,6 +1,7 @@
 import { Decimal } from 'decimal.js';
 import { Prisma } from '@prisma/client';
 import { prisma } from '../../db/prisma.js';
+import { logAuditEvent } from '../audit/audit.service.js';
 import { PostingDateService } from '../fiscal-years/posting-date.service.js';
 import { balancedVoucherLines, insertPostedVoucher, nextVoucherNumber } from './voucher-posting.js';
 import type {
@@ -426,7 +427,17 @@ export class VoucherService {
         );
       }
 
-      return voucherToResponse(voucher);
+      const response = voucherToResponse(voucher);
+      void logAuditEvent({
+        companyId: this.companyId,
+        userId,
+        action: 'CREATE',
+        entityName: 'Voucher',
+        entityId: voucher.id,
+        description: `Created ${input.voucher_type} voucher ${voucherNumber} in draft`,
+        details: { voucher_type: input.voucher_type, voucher_number: voucherNumber, total_debit: Number(voucher.totalDebit) },
+      });
+      return response;
     });
   }
 
@@ -542,7 +553,17 @@ export class VoucherService {
         include: { lines: true },
       });
 
-      return voucherToResponse(updated);
+      const response = voucherToResponse(updated);
+      void logAuditEvent({
+        companyId: this.companyId,
+        userId,
+        action: 'POST',
+        entityName: 'Voucher',
+        entityId: id,
+        description: `Posted ${voucher.voucherType} voucher ${voucher.voucherNumber} to ledger`,
+        details: { voucher_type: voucher.voucherType, voucher_number: voucher.voucherNumber, total_debit: Number(voucher.totalDebit) },
+      });
+      return response;
     });
   }
 
@@ -566,7 +587,17 @@ export class VoucherService {
       include: { lines: true },
     });
 
-    return voucherToResponse(updated);
+    const response = voucherToResponse(updated);
+    void logAuditEvent({
+      companyId: this.companyId,
+      userId,
+      action: 'VOID',
+      entityName: 'Voucher',
+      entityId: id,
+      description: `Voided draft voucher ${voucher.voucherNumber}. Reason: ${reason}`,
+      details: { voucher_number: voucher.voucherNumber, reason },
+    });
+    return response;
   }
 
   /**
@@ -638,7 +669,17 @@ export class VoucherService {
         where: { id: reversalId, companyId: this.companyId },
         include: { lines: true },
       });
-      return voucherToResponse(reversal);
+      const response = voucherToResponse(reversal);
+      void logAuditEvent({
+        companyId: this.companyId,
+        userId,
+        action: 'REVERSE',
+        entityName: 'Voucher',
+        entityId: id,
+        description: `Reversed voucher ${voucher.voucherNumber} (Reversal Voucher: ${reversal.voucherNumber}). Reason: ${input.reason}`,
+        details: { original_number: voucher.voucherNumber, reversal_number: reversal.voucherNumber, reason: input.reason },
+      });
+      return response;
     });
   }
 
