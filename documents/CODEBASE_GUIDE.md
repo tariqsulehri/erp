@@ -198,8 +198,8 @@ deployment/tests/lib.test.sh                             # when you change files
 
 ## 9. Git And Delivery
 
-- One branch per change; never commit straight to `master`. Commit only after the checks in section 7 pass.
-- Do not push, merge, force-push or deploy unless the owner asks. `master` and `main` are both used.
+- **Branch policy:** `master` is our primary source branch and the baseline for all active development. `main` is strictly reserved as the backup of the last known stable running code; never use `main` for active work. Work on a branch per change; commit only after the checks in section 7 pass.
+- Do not push, merge, force-push or deploy unless the owner asks. Commit only to `master` (or feature branches targeting `master`). `main` is updated only when taking a backup of running code.
 - Never `git commit --no-verify`; the pre-commit hook runs the secret check.
 - **Build and push images:** `deployment/build-and-push.sh` (Docker Desktop must run; images
   `tariqsulehri/erp-be` and `tariqsulehri/erp-fe`, tagged with a date version and `latest`, built for

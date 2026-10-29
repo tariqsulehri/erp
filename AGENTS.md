@@ -11,7 +11,7 @@ database changes and delivery. Then read the rule documents below for the layer 
 
 ## Working Rules For Agents
 
-- **Work on a branch.** One branch per change; never commit straight to `master` or `main`.
+- **Branching Policy:** `master` is our primary source branch for all active work and feature branches. `main` is strictly reserved as a backup of the last known stable running code; never use `main` for active work. Work on a feature branch per change and merge to `master`. Never commit straight to `master` without passing checks.
 - **Prove it before committing.** Run the checks in `documents/CODEBASE_GUIDE.md` section 7 and commit only
   when they all pass. Add or update tests for every behaviour you change. Follow `documents/DEFINITION_OF_DONE.md`.
 - **Ask before anything hard to undo:** pushing, merging, deploying, deleting data, dropping columns or
