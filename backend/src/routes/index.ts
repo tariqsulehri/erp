@@ -26,6 +26,7 @@ import { authRouter } from './auth.routes.js';
 import { usersRouter } from './users.routes.js';
 import { auditLogsRouter } from './audit-logs.routes.js';
 import { rolesRouter } from './roles.routes.js';
+import { executiveAiRouter } from './executive-ai.routes.js';
 
 export const apiRouter = Router();
 
@@ -34,6 +35,7 @@ apiRouter.use('/auth', authRouter);
 apiRouter.use('/users', usersRouter);
 apiRouter.use('/audit-logs', auditLogsRouter);
 apiRouter.use('/roles', rolesRouter);
+apiRouter.use('/executive-ai', executiveAiRouter);
 apiRouter.use('/accounts', accountsRouter);
 apiRouter.use('/bank-accounts', bankAccountsRouter);
 apiRouter.use('/bank-cheques', bankChequesRouter);

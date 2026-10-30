@@ -25,6 +25,7 @@ import {
   IconRuler2,
   IconRulerMeasure,
   IconScale,
+  IconSparkles,
   IconTag,
   IconTruckDelivery,
   IconUserShield,
@@ -84,6 +85,15 @@ export const NAV_SECTIONS: NavSection[] = [
     label: 'Overview',
     entries: [
       leaf({ label: 'Dashboard', href: '/dashboard', icon: IconDashboard, moduleKey: 'core', featureKey: 'dashboard', permissionKey: 'core.dashboard.view' }),
+      leaf({
+        label: 'Executive AI',
+        href: '/executive-ai',
+        icon: IconSparkles,
+        moduleKey: 'core',
+        featureKey: 'executive-ai',
+        permissionKey: 'core.executive_ai.view',
+        userManagersOnly: true,
+      }),
     ],
   },
   {

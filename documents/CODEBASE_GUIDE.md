@@ -156,6 +156,7 @@ approval cannot approve it. Never bypass this by writing to the database.
 ## 6. Frontend Pattern
 
 - `app/(dashboard)/<route>/page.tsx` sets `metadata.title` as `'<Page> — BizTrack'` and renders one component.
+- **Executive AI Copilot:** Accessible via the dedicated Command Center at `/executive-ai` and quick slide-over window (`ExecutiveAiDrawer`) in `AppHeader` for Top Management and Admin, providing live Q&A, liquidity, debtors aging, stockouts, and maker-checker governance intelligence derived 100% from PostgreSQL database tables via `ExecutiveAiService`.
 - A document screen is an orchestrator page (for example `PurchaseVoucherPage.tsx`) that switches between
   Analytics, List and Entry views and composes focused parts, hooks and helpers:
   `*Business.ts` (validation, payload, `*FormFromDetail` to open a Draft), `hooks/`, `components/`.

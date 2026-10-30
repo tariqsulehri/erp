@@ -6,7 +6,8 @@ import { IconBuildingSkyscraper, IconBuildingStore, IconBuildingWarehouse, IconC
 import { THEMES, useTheme } from '@/lib/theme/theme-provider';
 import { Button } from '@/components/ui/Button';
 import type { Session } from 'next-auth';
-import { roleLabel, workplaceLabel } from '@/lib/auth/session-user';
+import { canManageUsers, roleLabel, workplaceLabel } from '@/lib/auth/session-user';
+import { ExecutiveAiDrawer } from '@/components/executive-ai/ExecutiveAiDrawer';
 
 type HeaderUser = Session['user'];
 
@@ -16,6 +17,8 @@ export function AppHeader({ groupLabel, pageLabel, user, onOpenMenu }: {
   user: HeaderUser;
   onOpenMenu: () => void;
 }) {
+  const [aiDrawerOpen, setAiDrawerOpen] = useState(false);
+
   return (
     <header className="topbar">
       <div className="topbar-left">
@@ -33,6 +36,20 @@ export function AppHeader({ groupLabel, pageLabel, user, onOpenMenu }: {
         </nav>
       </div>
       <div className="topbar-right">
+        {canManageUsers(user.role) && (
+          <>
+            <Button
+              variant="secondary"
+              size="sm"
+              icon={<IconSparkles size={15} style={{ color: 'var(--color-primary)' }} />}
+              onClick={() => setAiDrawerOpen(true)}
+              title="Open Executive AI Copilot"
+            >
+              Executive AI
+            </Button>
+            <ExecutiveAiDrawer open={aiDrawerOpen} onClose={() => setAiDrawerOpen(false)} />
+          </>
+        )}
         <WorkplaceChip user={user} />
         <UserMenu user={user} />
       </div>
