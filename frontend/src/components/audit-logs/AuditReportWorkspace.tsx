@@ -32,11 +32,13 @@ import { useGeneralSettings } from '@/lib/api/settings';
 import { formatDate, formatCount } from '@/lib/app-settings';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
-import { DateField } from '@/components/ui/FormFields';
+import { FieldLabel } from '@/components/ui/FieldLabel';
+import { DateField, TextField } from '@/components/ui/FormFields';
 import { PaginationBar } from '@/components/ui/PaginationBar';
 import { SearchableSelect, type SelectOption } from '@/components/ui/SearchableSelect';
 import { TableMessageRow } from '@/components/ui/TableMessageRow';
 import { Tabs } from '@/components/ui/Tabs';
+import { reportFilterGridStyle } from '@/components/reports/LedgerReportStyles';
 import { ReportActions } from '@/components/reports/ReportActions';
 import type { ReportDocument, ReportRow } from '@/components/reports/report-output';
 import { actionBadgeVariant, actionThemeColor, formatAuditDate } from './audit-helpers';
@@ -550,28 +552,17 @@ export function AuditReportWorkspace({
       {/* Main Report Table Container (Matching Attached Screenshot Format) */}
       <section className="panel panel-fill">
         {/* Header Bar matching screenshot: "Title 9 Records" + Refresh button */}
-        <div
-          style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            padding: '12px 16px',
-            borderBottom: '1px solid var(--color-border-subtle)',
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-            <h2 style={{ margin: 0, fontSize: 'var(--font-size-sm)', fontWeight: 700, color: 'var(--color-heading)' }}>
-              {angleConstraints.title}
-            </h2>
+        <div className="panel-header">
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, minWidth: 0 }}>
+            <h2 className="panel-title">{angleConstraints.title}</h2>
             <span style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-muted)' }}>
               {formatCount(total, settings)} {total === 1 ? 'Record' : 'Records'}
             </span>
           </div>
 
           <Button
-            variant="secondary"
             size="sm"
-            icon={<IconRefresh size={14} />}
+            icon={<IconRefresh size={16} stroke={1.8} />}
             onClick={handleRefresh}
             title="Refresh Report Data"
           >
@@ -580,107 +571,67 @@ export function AuditReportWorkspace({
         </div>
 
         {/* Standardized Horizontal Filter Bar Grid (Identical to Sample) */}
-        <div className="filter-bar" style={{ padding: '12px 16px', borderBottom: '1px solid var(--color-border-subtle)' }}>
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
-              gap: 10,
-              alignItems: 'end',
-            }}
-          >
-            {/* Search */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-              <label style={{ fontSize: 'var(--font-size-2xs)', fontWeight: 600, color: 'var(--color-text-muted)' }}>
-                Search
-              </label>
-              <input
-                type="search"
-                value={search}
-                onChange={e => { setSearch(e.target.value); setPage(1); }}
-                placeholder="Document Number, Party, Or Reference"
-                className="text-input"
-                style={{ height: 32, fontSize: 'var(--font-size-xs)' }}
-              />
-            </div>
+        <div className="filter-bar">
+          <div className="filter-grid" style={reportFilterGridStyle}>
+            <TextField
+              label="Search"
+              value={search}
+              placeholder="Document Number, Party, Or Reference"
+              onChange={val => { setSearch(val); setPage(1); }}
+            />
 
-            {/* Operator / User Dropdown */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-              <label style={{ fontSize: 'var(--font-size-2xs)', fontWeight: 600, color: 'var(--color-text-muted)' }}>
-                Operator / User
-              </label>
+            <FieldLabel label="Operator / User">
               <SearchableSelect
                 value={operatorId}
                 options={distinctOperators}
                 placeholder="All Operators"
                 onChange={val => { setOperatorId(val); setPage(1); }}
-                style={{ height: 32, fontSize: 'var(--font-size-xs)' }}
               />
-            </div>
+            </FieldLabel>
 
-            {/* Action Dropdown */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-              <label style={{ fontSize: 'var(--font-size-2xs)', fontWeight: 600, color: 'var(--color-text-muted)' }}>
-                Event Action
-              </label>
+            <FieldLabel label="Event Action">
               <SearchableSelect
                 value={actionFilter}
                 options={ACTION_OPTIONS}
                 placeholder="All Actions"
                 onChange={val => { setActionFilter(val); setPage(1); }}
-                style={{ height: 32, fontSize: 'var(--font-size-xs)' }}
               />
-            </div>
+            </FieldLabel>
 
-            {/* Module / Entity Dropdown */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-              <label style={{ fontSize: 'var(--font-size-2xs)', fontWeight: 600, color: 'var(--color-text-muted)' }}>
-                Target Module
-              </label>
+            <FieldLabel label="Target Module">
               <SearchableSelect
                 value={entityFilter}
                 options={MODULE_OPTIONS}
                 placeholder="All Modules"
                 onChange={val => { setEntityFilter(val); setPage(1); }}
-                style={{ height: 32, fontSize: 'var(--font-size-xs)' }}
               />
-            </div>
+            </FieldLabel>
 
-            {/* Four-Eyes Filter Dropdown */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-              <label style={{ fontSize: 'var(--font-size-2xs)', fontWeight: 600, color: 'var(--color-text-muted)' }}>
-                Four-Eyes Status
-              </label>
+            <FieldLabel label="Four-Eyes Status">
               <SearchableSelect
                 value={fourEyesFilter}
                 options={FOUR_EYES_OPTIONS}
                 placeholder="All Operations"
                 onChange={val => { setFourEyesFilter(val as 'all' | 'verified' | 'single'); setPage(1); }}
-                style={{ height: 32, fontSize: 'var(--font-size-xs)' }}
               />
-            </div>
+            </FieldLabel>
 
-            {/* Date From */}
             <DateField
               label="Date From"
               value={dateFrom}
               onChange={val => { setDateFrom(val); setPage(1); }}
             />
 
-            {/* Date To */}
             <DateField
               label="Date To"
               value={dateTo}
               onChange={val => { setDateTo(val); setPage(1); }}
             />
 
-            {/* Actions: Print and Export (using ReportActions) */}
-            <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-              <ReportActions
-                buildReport={buildReport}
-                disabled={logsQuery.isLoading || rows.length === 0}
-              />
-            </div>
+            <ReportActions
+              buildReport={buildReport}
+              disabled={logsQuery.isLoading || rows.length === 0}
+            />
           </div>
         </div>
 
