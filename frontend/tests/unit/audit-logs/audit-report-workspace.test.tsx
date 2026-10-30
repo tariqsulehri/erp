@@ -50,6 +50,8 @@ const mockStats: AuditLogStats = {
     fourEyesVerifiedCount: 38,
     singleOperatorCount: 2,
     dualControlRate: 95,
+    pendingApprovals: 0,
+    totalEvaluated: 40,
   },
 };
 
