@@ -21,6 +21,7 @@ import { backendGet } from '@/lib/api/backend-client';
 import { AuditAnalyticsView } from './AuditAnalyticsView';
 import { AuditLogDetailDrawer } from './AuditLogDetailDrawer';
 import { AuditLogListView } from './AuditLogListView';
+import { AuditTileDrilldownDrawer, type TileDrilldownConfig } from './AuditTileDrilldownDrawer';
 import { exportAuditLogsToCsv } from './audit-helpers';
 
 type AuditViewTab = 'dashboard' | 'explorer';
@@ -28,6 +29,7 @@ type AuditViewTab = 'dashboard' | 'explorer';
 export default function AuditLogsPage() {
   const [activeTab, setActiveTab] = useState<AuditViewTab>('dashboard');
   const [selectedLog, setSelectedLog] = useState<AuditLogRow | null>(null);
+  const [drilldownConfig, setDrilldownConfig] = useState<TileDrilldownConfig | null>(null);
 
   // Filter state for explorer
   const [search, setSearch] = useState('');
@@ -65,7 +67,13 @@ export default function AuditLogsPage() {
     setPage(1);
   };
 
-  const handleSwitchToExplorer = (filters?: { action?: string; entity?: string; user?: string }) => {
+  const handleSwitchToExplorer = (filters?: {
+    action?: string;
+    entity?: string;
+    user?: string;
+    category?: string;
+    fourEyes?: 'all' | 'verified' | 'single';
+  }) => {
     if (filters?.action) setAction(filters.action);
     if (filters?.entity) setEntityName(filters.entity);
     if (filters?.user) setSearch(filters.user);
@@ -211,6 +219,7 @@ export default function AuditLogsPage() {
                 settings={settings}
                 onInspect={log => setSelectedLog(log)}
                 onSwitchToExplorer={handleSwitchToExplorer}
+                onTileClick={config => setDrilldownConfig(config)}
               />
             ) : null}
           </>
@@ -250,6 +259,14 @@ export default function AuditLogsPage() {
         onClose={() => setSelectedLog(null)}
         onFilterUser={userName => handleSwitchToExplorer({ user: userName })}
         onFilterEntity={entity => handleSwitchToExplorer({ entity })}
+      />
+
+      {/* Interactive KPI & Category Tile Drilldown Drawer */}
+      <AuditTileDrilldownDrawer
+        config={drilldownConfig}
+        onClose={() => setDrilldownConfig(null)}
+        onInspectLog={log => setSelectedLog(log)}
+        onOpenInExplorer={handleSwitchToExplorer}
       />
     </main>
   );

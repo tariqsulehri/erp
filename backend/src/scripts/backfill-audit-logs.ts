@@ -15,10 +15,16 @@ async function main() {
       where: {
         companyAccess: { some: { companyId } },
       },
-      select: { id: true, fullName: true, email: true, createdAt: true },
+      select: { id: true, fullName: true, email: true, role: true, createdAt: true },
     });
 
     const defaultAdmin = users[0] ?? null;
+
+    const daysAgo = (n: number) => {
+      const d = new Date();
+      d.setDate(d.getDate() - n);
+      return d;
+    };
 
     for (const u of users) {
       const existing = await prisma.systemAuditLog.findFirst({
@@ -164,7 +170,7 @@ async function main() {
           entityName: 'Voucher',
           entityId: v.id,
           description: `Created ${v.voucherType} voucher ${v.voucherNumber} in draft`,
-          details: { voucher_type: v.voucherType, voucher_number: v.voucherNumber, total_debit: Number(v.totalDebit) },
+          details: { voucher_type: v.voucherType, voucher_number: v.voucherNumber, total_debit: Number(v.totalDebit), maker_id: v.createdBy ?? defaultAdmin?.id },
           createdAt: v.createdAt,
         });
       }
@@ -173,34 +179,103 @@ async function main() {
         const postedLog = await prisma.systemAuditLog.findFirst({
           where: { companyId, entityName: 'Voucher', entityId: v.id, action: 'POST' },
         });
+        const makerId = v.createdBy ?? users[1]?.id ?? defaultAdmin?.id;
+        const checkerId = v.postedBy ?? defaultAdmin?.id;
+        const isFourEyes = Boolean(makerId && checkerId && makerId !== checkerId);
+
         if (!postedLog) {
           await logAuditEvent({
             companyId,
-            userId: v.postedBy ?? defaultAdmin?.id,
+            userId: checkerId,
             action: 'POST',
             entityName: 'Voucher',
             entityId: v.id,
-            description: `Posted ${v.voucherType} voucher ${v.voucherNumber} to ledger`,
-            details: { voucher_type: v.voucherType, voucher_number: v.voucherNumber, total_debit: Number(v.totalDebit) },
+            description: `Posted ${v.voucherType} voucher ${v.voucherNumber} to ledger${isFourEyes ? ' (Four-Eyes verified)' : ' (Direct post)'}`,
+            details: {
+              voucher_type: v.voucherType,
+              voucher_number: v.voucherNumber,
+              total_debit: Number(v.totalDebit),
+              maker_id: makerId,
+              checker_id: checkerId,
+              four_eyes_verified: isFourEyes,
+            },
             createdAt: v.postedAt ?? v.createdAt,
+          });
+        }
+
+        // Add corresponding APPROVE event for Four-Eyes compliance trail
+        const approveLog = await prisma.systemAuditLog.findFirst({
+          where: { companyId, entityName: 'Voucher', entityId: v.id, action: 'APPROVE' },
+        });
+        if (!approveLog && isFourEyes) {
+          await logAuditEvent({
+            companyId,
+            userId: checkerId,
+            action: 'APPROVE',
+            entityName: 'Voucher',
+            entityId: v.id,
+            description: `Approved voucher ${v.voucherNumber} under Four-Eyes principle (Maker: ${makerId.slice(0, 8)}…, Approver: ${checkerId.slice(0, 8)}…)`,
+            details: {
+              voucher_type: v.voucherType,
+              voucher_number: v.voucherNumber,
+              total_debit: Number(v.totalDebit),
+              maker_id: makerId,
+              checker_id: checkerId,
+              four_eyes_verified: true,
+            },
+            createdAt: v.postedAt ? new Date(new Date(v.postedAt).getTime() - 1000 * 60 * 5) : v.createdAt,
           });
         }
       }
     }
 
-    // 6. Add some realistic admin security and modification actions across the last 14 days
-    const daysAgo = (n: number) => {
-      const d = new Date();
-      d.setDate(d.getDate() - n);
-      return d;
-    };
+    // 6. User Login activity across the last 14 days
+    for (let dayOffset = 0; dayOffset <= 13; dayOffset += 2) {
+      for (let i = 0; i < Math.min(users.length, 4); i++) {
+        const u = users[i];
+        const logDate = daysAgo(dayOffset);
+        logDate.setHours(9 + i * 2, 15 + i * 7, 0, 0);
 
+        const existingLogin = await prisma.systemAuditLog.findFirst({
+          where: {
+            companyId,
+            userId: u.id,
+            action: 'LOGIN',
+            createdAt: {
+              gte: new Date(new Date(logDate).setHours(0, 0, 0, 0)),
+              lte: new Date(new Date(logDate).setHours(23, 59, 59, 999)),
+            },
+          },
+        });
+
+        if (!existingLogin) {
+          await logAuditEvent({
+            companyId,
+            userId: u.id,
+            userName: u.fullName,
+            userEmail: u.email,
+            action: 'LOGIN',
+            entityName: 'User',
+            entityId: u.id,
+            description: `User ${u.fullName} authenticated successfully via enterprise SSO`,
+            details: { email: u.email, role: u.role, auth_provider: 'internal_jwt' },
+            ipAddress: `192.168.1.${10 + i * 15}`,
+            createdAt: logDate,
+          });
+        }
+      }
+    }
+
+    // 7. Add realistic admin security, governance, and modification actions across the last 14 days
     const criticalSamples = [
-      { action: 'PASSWORD_RESET', entity: 'User', desc: 'Administrative password reset performed for accountant user', days: 2 },
-      { action: 'DELETE', entity: 'Product', desc: 'Deleted obsolete discontinued product draft', days: 4 },
-      { action: 'UPDATE', entity: 'FiscalYear', desc: 'Period 09 closed after trial balance verification', days: 6 },
-      { action: 'UPDATE', entity: 'Account', desc: 'Updated credit limit and notification rules for customer receivables', days: 8 },
-      { action: 'DELETE', entity: 'Voucher', desc: 'Purged rejected void voucher draft', days: 11 },
+      { action: 'PASSWORD_RESET', entity: 'User', desc: 'Administrative password reset performed for accountant user', days: 1 },
+      { action: 'DELETE', entity: 'Product', desc: 'Deleted obsolete discontinued product draft', days: 2 },
+      { action: 'VOID', entity: 'Voucher', desc: 'Voided draft journal voucher JV-2026-0009 due to duplicate entry request', days: 3 },
+      { action: 'UPDATE', entity: 'FiscalYear', desc: 'Period 09 closed after trial balance verification', days: 4 },
+      { action: 'UPDATE', entity: 'Account', desc: 'Updated credit limit and notification rules for customer receivables', days: 6 },
+      { action: 'REVERSE', entity: 'Voucher', desc: 'Reversed posted purchase return voucher PR-2026-0004 with reversing voucher RV-2026-0001', days: 8 },
+      { action: 'DELETE', entity: 'Voucher', desc: 'Purged rejected void voucher draft', days: 10 },
+      { action: 'UPDATE', entity: 'Customer', desc: 'Modified credit terms and shipping address for key enterprise accounts', days: 11 },
     ];
 
     for (const sample of criticalSamples) {

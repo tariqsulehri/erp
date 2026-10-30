@@ -6,6 +6,8 @@ export const listAuditLogsQuery = z.object({
   search: z.string().trim().optional(),
   entity_name: z.string().trim().optional(),
   action: z.string().trim().optional(),
+  category: z.string().trim().optional(),
+  four_eyes: z.enum(['all', 'verified', 'single']).optional(),
   user_id: z.string().uuid().optional(),
   from_date: z.string().trim().optional(),
   to_date: z.string().trim().optional(),

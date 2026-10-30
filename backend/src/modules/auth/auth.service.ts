@@ -6,6 +6,7 @@ import type { AccessLevel, AuthUser, CompanyAccess } from './access-rules.js';
 import { hasAllBranchAccess, isUserRole } from './access-rules.js';
 import type { ChangePasswordInput, LoginInput } from './auth.schema.js';
 import { hashPassword, verifyPassword } from './password.js';
+import { logAuditEvent } from '../audit/audit.service.js';
 
 interface CachedAuthUser {
   user: AuthUser;
@@ -98,6 +99,21 @@ export class AuthService {
     }
 
     await prisma.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } });
+
+    const primaryCompanyId = user.companyAccess[0]?.companyId;
+    if (primaryCompanyId) {
+      void logAuditEvent({
+        companyId: primaryCompanyId,
+        userId: user.id,
+        userName: user.fullName,
+        userEmail: user.email,
+        action: 'LOGIN',
+        entityName: 'User',
+        entityId: user.id,
+        description: `User ${user.fullName} signed in to workspace`,
+        details: { email: user.email, role: user.role },
+      });
+    }
 
     const payload: TokenPayload = { sub: user.id, pwd: user.passwordChangedAt?.getTime() ?? null };
     const token = jwt.sign(payload, env.JWT_SECRET, { expiresIn: env.JWT_EXPIRES_IN as jwt.SignOptions['expiresIn'] });

@@ -15,6 +15,39 @@ export class AuditService {
     if (query.action) {
       where.action = { equals: query.action, mode: 'insensitive' };
     }
+    if (query.category) {
+      const cat = query.category.toLowerCase();
+      if (cat === 'approvals') {
+        where.action = { in: ['POST', 'APPROVE', 'REQUEST_APPROVAL'] };
+      } else if (cat === 'updates') {
+        where.action = { in: ['UPDATE', 'EDIT'] };
+      } else if (cat === 'deletions') {
+        where.action = { in: ['DELETE', 'VOID', 'REVERSE', 'CANCEL'] };
+      } else if (cat === 'creations') {
+        where.action = { in: ['CREATE'] };
+      } else if (cat === 'logins') {
+        where.action = { in: ['LOGIN', 'LOGOUT', 'PASSWORD_RESET', 'AUTH', 'FAILED_LOGIN'] };
+      } else if (cat === 'four_eyes') {
+        where.action = { in: ['APPROVE', 'POST', 'REJECT', 'REQUEST_APPROVAL'] };
+      }
+    }
+    if (query.four_eyes === 'verified') {
+      where.OR = [
+        { action: 'APPROVE' },
+        {
+          details: {
+            path: ['four_eyes_verified'],
+            equals: true,
+          },
+        },
+      ];
+    } else if (query.four_eyes === 'single') {
+      where.action = 'POST';
+      where.details = {
+        path: ['four_eyes_verified'],
+        equals: false,
+      };
+    }
     if (query.user_id) {
       where.userId = query.user_id;
     }
@@ -30,12 +63,18 @@ export class AuditService {
       }
     }
     if (query.search) {
-      where.OR = [
+      const searchConditions: Prisma.SystemAuditLogWhereInput[] = [
         { userName: { contains: query.search, mode: 'insensitive' } },
         { userEmail: { contains: query.search, mode: 'insensitive' } },
         { entityId: { contains: query.search, mode: 'insensitive' } },
         { description: { contains: query.search, mode: 'insensitive' } },
       ];
+      if (where.OR) {
+        where.AND = [{ OR: where.OR }, { OR: searchConditions }];
+        delete where.OR;
+      } else {
+        where.OR = searchConditions;
+      }
     }
 
     const [total, rows] = await Promise.all([
@@ -49,20 +88,29 @@ export class AuditService {
     ]);
 
     return {
-      data: rows.map(r => ({
-        id: r.id,
-        company_id: r.companyId,
-        user_id: r.userId,
-        user_name: r.userName,
-        user_email: r.userEmail,
-        action: r.action,
-        entity_name: r.entityName,
-        entity_id: r.entityId,
-        description: r.description,
-        details: r.details,
-        ip_address: r.ipAddress,
-        created_at: r.createdAt.toISOString(),
-      })),
+      data: rows.map(r => {
+        const details = (r.details as Record<string, any>) ?? null;
+        const isFourEyes = details?.four_eyes_verified === true || r.action === 'APPROVE';
+        const isSingleOp = r.action === 'POST' && details?.four_eyes_verified === false;
+        return {
+          id: r.id,
+          company_id: r.companyId,
+          user_id: r.userId,
+          user_name: r.userName,
+          user_email: r.userEmail,
+          action: r.action,
+          entity_name: r.entityName,
+          entity_id: r.entityId,
+          description: r.description,
+          details,
+          ip_address: r.ipAddress,
+          created_at: r.createdAt.toISOString(),
+          four_eyes_verified: isFourEyes,
+          single_operator: isSingleOp,
+          maker_id: details?.maker_id ?? null,
+          checker_id: details?.checker_id ?? null,
+        };
+      }),
       pagination: {
         total,
         page: query.page,
@@ -89,13 +137,24 @@ export class AuditService {
     });
   }
 
-  async getStats() {
+  async getStats(filterQuery?: { from_date?: string; to_date?: string }) {
     const startOfToday = new Date();
     startOfToday.setHours(0, 0, 0, 0);
 
     const fourteenDaysAgo = new Date();
     fourteenDaysAgo.setDate(fourteenDaysAgo.getDate() - 13);
     fourteenDaysAgo.setHours(0, 0, 0, 0);
+
+    const baseWhere: Prisma.SystemAuditLogWhereInput = { companyId: this.companyId };
+    if (filterQuery?.from_date || filterQuery?.to_date) {
+      baseWhere.createdAt = {};
+      if (filterQuery.from_date) baseWhere.createdAt.gte = new Date(filterQuery.from_date);
+      if (filterQuery.to_date) {
+        const to = new Date(filterQuery.to_date);
+        to.setHours(23, 59, 59, 999);
+        baseWhere.createdAt.lte = to;
+      }
+    }
 
     const [
       totalEvents,
@@ -105,22 +164,26 @@ export class AuditService {
       todayEvents,
       criticalActions,
       recentCriticalRaw,
+      recentActivitiesRaw,
       dailyRows,
+      fourEyesVerifiedCount,
+      singleOperatorCount,
+      pendingVouchersCount,
     ] = await Promise.all([
-      prisma.systemAuditLog.count({ where: { companyId: this.companyId } }),
+      prisma.systemAuditLog.count({ where: baseWhere }),
       prisma.systemAuditLog.groupBy({
         by: ['action'],
-        where: { companyId: this.companyId },
+        where: baseWhere,
         _count: { _all: true },
       }),
       prisma.systemAuditLog.groupBy({
         by: ['entityName'],
-        where: { companyId: this.companyId },
+        where: baseWhere,
         _count: { _all: true },
       }),
       prisma.systemAuditLog.groupBy({
         by: ['userName', 'userEmail'],
-        where: { companyId: this.companyId },
+        where: baseWhere,
         _count: { _all: true },
       }),
       prisma.systemAuditLog.count({
@@ -131,25 +194,47 @@ export class AuditService {
       }),
       prisma.systemAuditLog.count({
         where: {
-          companyId: this.companyId,
+          ...baseWhere,
           action: { in: ['DELETE', 'PASSWORD_RESET', 'VOID', 'REVERSE', 'CANCEL'] },
         },
       }),
       prisma.systemAuditLog.findMany({
         where: {
-          companyId: this.companyId,
+          ...baseWhere,
           action: { in: ['DELETE', 'PASSWORD_RESET', 'VOID', 'REVERSE', 'CANCEL'] },
         },
         orderBy: { createdAt: 'desc' },
-        take: 6,
+        take: 10,
         select: {
           id: true,
+          companyId: true,
+          userId: true,
           action: true,
           entityName: true,
           entityId: true,
           userName: true,
           userEmail: true,
           description: true,
+          details: true,
+          createdAt: true,
+          ipAddress: true,
+        },
+      }),
+      prisma.systemAuditLog.findMany({
+        where: baseWhere,
+        orderBy: { createdAt: 'desc' },
+        take: 20,
+        select: {
+          id: true,
+          companyId: true,
+          userId: true,
+          action: true,
+          entityName: true,
+          entityId: true,
+          userName: true,
+          userEmail: true,
+          description: true,
+          details: true,
           createdAt: true,
           ipAddress: true,
         },
@@ -165,6 +250,36 @@ export class AuditService {
         GROUP BY TO_CHAR(created_at, 'YYYY-MM-DD'), TO_CHAR(created_at, 'Mon DD')
         ORDER BY TO_CHAR(created_at, 'YYYY-MM-DD') ASC
       `,
+      prisma.systemAuditLog.count({
+        where: {
+          ...baseWhere,
+          OR: [
+            { action: 'APPROVE' },
+            {
+              details: {
+                path: ['four_eyes_verified'],
+                equals: true,
+              },
+            },
+          ],
+        },
+      }),
+      prisma.systemAuditLog.count({
+        where: {
+          ...baseWhere,
+          action: 'POST',
+          details: {
+            path: ['four_eyes_verified'],
+            equals: false,
+          },
+        },
+      }),
+      prisma.voucher.count({
+        where: {
+          companyId: this.companyId,
+          approvalStatus: 'Pending',
+        },
+      }),
     ]);
 
     // Build complete 14-day timeline map
@@ -195,6 +310,20 @@ export class AuditService {
       }))
       .sort((a, b) => b.count - a.count);
 
+    const actionCountMap = new Map<string, number>();
+    for (const item of byActionRaw) {
+      actionCountMap.set(item.action.toUpperCase(), item._count._all);
+    }
+
+    const approvalsCount = (actionCountMap.get('POST') ?? 0) + (actionCountMap.get('APPROVE') ?? 0) + (actionCountMap.get('REQUEST_APPROVAL') ?? 0);
+    const updatesCount = (actionCountMap.get('UPDATE') ?? 0) + (actionCountMap.get('EDIT') ?? 0);
+    const deletionsCount = (actionCountMap.get('DELETE') ?? 0) + (actionCountMap.get('VOID') ?? 0) + (actionCountMap.get('REVERSE') ?? 0) + (actionCountMap.get('CANCEL') ?? 0);
+    const creationsCount = actionCountMap.get('CREATE') ?? 0;
+    const loginsCount = (actionCountMap.get('LOGIN') ?? 0) + (actionCountMap.get('LOGOUT') ?? 0) + (actionCountMap.get('PASSWORD_RESET') ?? 0) + (actionCountMap.get('AUTH') ?? 0) + (actionCountMap.get('FAILED_LOGIN') ?? 0);
+
+    const totalEvaluated = fourEyesVerifiedCount + singleOperatorCount;
+    const dualControlRate = totalEvaluated > 0 ? Math.round((fourEyesVerifiedCount / totalEvaluated) * 100) : 100;
+
     const byEntity = byEntityRaw
       .map(item => ({
         entity: item.entityName,
@@ -219,6 +348,30 @@ export class AuditService {
       where: { companyId: this.companyId, userId: { not: null } },
     });
 
+    const formatRow = (r: typeof recentActivitiesRaw[0]) => {
+      const details = (r.details as Record<string, any>) ?? null;
+      const isFourEyes = details?.four_eyes_verified === true || r.action === 'APPROVE';
+      const isSingleOp = r.action === 'POST' && details?.four_eyes_verified === false;
+      return {
+        id: r.id,
+        company_id: (r as any).companyId ?? this.companyId,
+        user_id: (r as any).userId ?? null,
+        user_name: r.userName,
+        user_email: r.userEmail,
+        action: r.action,
+        entity_name: r.entityName,
+        entity_id: r.entityId,
+        description: r.description,
+        details,
+        ip_address: r.ipAddress,
+        created_at: r.createdAt.toISOString(),
+        four_eyes_verified: isFourEyes,
+        single_operator: isSingleOp,
+        maker_id: details?.maker_id ?? null,
+        checker_id: details?.checker_id ?? null,
+      };
+    };
+
     return {
       metrics: {
         totalEvents,
@@ -227,21 +380,28 @@ export class AuditService {
         todayEvents,
         topEntity: byEntity[0]?.entity ?? null,
       },
+      fourEyesMetrics: {
+        dualControlRate,
+        fourEyesVerifiedCount,
+        singleOperatorCount,
+        pendingApprovals: pendingVouchersCount,
+        totalEvaluated,
+      },
+      categoryCounts: {
+        all: totalEvents,
+        approvals: approvalsCount,
+        updates: updatesCount,
+        deletions: deletionsCount,
+        creations: creationsCount,
+        logins: loginsCount,
+        fourEyes: fourEyesVerifiedCount,
+      },
       dailyActivity: Array.from(dailyMap.values()),
       byAction,
       byEntity,
       topUsers,
-      recentCritical: recentCriticalRaw.map(r => ({
-        id: r.id,
-        action: r.action,
-        entityName: r.entityName,
-        entityId: r.entityId,
-        userName: r.userName,
-        userEmail: r.userEmail,
-        description: r.description,
-        createdAt: r.createdAt.toISOString(),
-        ipAddress: r.ipAddress,
-      })),
+      recentCritical: recentCriticalRaw.map(formatRow),
+      recentActivities: recentActivitiesRaw.map(formatRow),
     };
   }
 }

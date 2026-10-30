@@ -1,5 +1,6 @@
 import '@testing-library/jest-dom';
 import { render, screen, fireEvent } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import {
   actionBadgeVariant,
   formatAuditDate,
@@ -7,6 +8,13 @@ import {
 import { AuditLogDetailDrawer } from '@/components/audit-logs/AuditLogDetailDrawer';
 import { AuditAnalyticsView } from '@/components/audit-logs/AuditAnalyticsView';
 import type { AuditLogRow, AuditLogStats } from '@/lib/api/audit';
+
+function renderWithQuery(ui: React.ReactElement) {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  return render(<QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>);
+}
 
 const mockLog: AuditLogRow = {
   id: 'a0000000-0000-0000-0000-000000000001',
@@ -51,14 +59,17 @@ const mockStats: AuditLogStats = {
   recentCritical: [
     {
       id: 'crit-1',
+      company_id: 'c1',
+      user_id: 'u1',
       action: 'DELETE',
-      entityName: 'Product',
-      entityId: 'PROD-1029',
-      userName: 'Tariq Sulehri',
-      userEmail: 'tariq@example.com',
+      entity_name: 'Product',
+      entity_id: 'PROD-1029',
+      user_name: 'Tariq Sulehri',
+      user_email: 'tariq@example.com',
       description: 'Deleted obsolete test SKU',
-      createdAt: '2026-10-29T14:00:00.000Z',
-      ipAddress: '192.168.1.10',
+      details: null,
+      created_at: '2026-10-29T14:00:00.000Z',
+      ip_address: '192.168.1.10',
     },
   ],
 };
@@ -121,7 +132,7 @@ describe('AuditLogDetailDrawer', () => {
 
 describe('AuditAnalyticsView', () => {
   it('renders all executive KPI metrics and active operators', () => {
-    render(
+    renderWithQuery(
       <AuditAnalyticsView
         stats={mockStats}
         onInspect={jest.fn()}
@@ -135,7 +146,7 @@ describe('AuditAnalyticsView', () => {
     expect(screen.getByText('Active Operators')).toBeInTheDocument();
     expect(screen.getByText('5')).toBeInTheDocument();
     expect(screen.getByText('Sensitive Actions')).toBeInTheDocument();
-    expect(screen.getByText('3')).toBeInTheDocument();
+    expect(screen.getAllByText('3').length).toBeGreaterThan(0);
     expect(screen.getByText('24-Hour Velocity')).toBeInTheDocument();
     expect(screen.getAllByText('12').length).toBeGreaterThan(0);
     expect(screen.getByText('Primary Target Entity')).toBeInTheDocument();
@@ -143,11 +154,14 @@ describe('AuditAnalyticsView', () => {
     // Check operator leaderboard
     expect(screen.getByText('Most Active Operators')).toBeInTheDocument();
     expect(screen.getByText('Sara Admin')).toBeInTheDocument();
+
+    // Check Four-Eyes Principle section
+    expect(screen.getByText('Four-Eyes Principle Governance Intelligence')).toBeInTheDocument();
   });
 
   it('renders critical security event and allows inspection', () => {
     const onInspect = jest.fn();
-    render(
+    renderWithQuery(
       <AuditAnalyticsView
         stats={mockStats}
         onInspect={onInspect}
@@ -158,8 +172,27 @@ describe('AuditAnalyticsView', () => {
     expect(screen.getByText('Recent Security & Sensitive Operations')).toBeInTheDocument();
     expect(screen.getByText('Deleted obsolete test SKU')).toBeInTheDocument();
 
-    const inspectBtn = screen.getByLabelText('Inspect Log');
-    fireEvent.click(inspectBtn);
+    const inspectBtns = screen.getAllByLabelText('Inspect Log');
+    fireEvent.click(inspectBtns[0]);
     expect(onInspect).toHaveBeenCalled();
+  });
+
+  it('triggers onTileClick callback when clicking an interactive KPI tile', () => {
+    const onTileClick = jest.fn();
+    renderWithQuery(
+      <AuditAnalyticsView
+        stats={mockStats}
+        onInspect={jest.fn()}
+        onSwitchToExplorer={jest.fn()}
+        onTileClick={onTileClick}
+      />
+    );
+
+    const tile = screen.getByText('Sensitive Actions');
+    fireEvent.click(tile);
+    expect(onTileClick).toHaveBeenCalledWith(expect.objectContaining({
+      tileId: 'sensitive-actions',
+      category: 'deletions',
+    }));
   });
 });

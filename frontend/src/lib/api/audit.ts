@@ -18,6 +18,10 @@ export interface AuditLogRow {
   details: Record<string, any> | null;
   ip_address: string | null;
   created_at: string;
+  four_eyes_verified?: boolean;
+  single_operator?: boolean;
+  maker_id?: string | null;
+  checker_id?: string | null;
 }
 
 export interface ListAuditLogsParams {
@@ -26,6 +30,8 @@ export interface ListAuditLogsParams {
   search?: string;
   entity_name?: string;
   action?: string;
+  category?: string;
+  four_eyes?: 'all' | 'verified' | 'single';
   user_id?: string;
   from_date?: string;
   to_date?: string;
@@ -43,6 +49,22 @@ export interface AuditLogStats {
     criticalActions: number;
     todayEvents: number;
     topEntity: string | null;
+  };
+  fourEyesMetrics?: {
+    dualControlRate: number;
+    fourEyesVerifiedCount: number;
+    singleOperatorCount: number;
+    pendingApprovals: number;
+    totalEvaluated: number;
+  };
+  categoryCounts?: {
+    all: number;
+    approvals: number;
+    updates: number;
+    deletions: number;
+    creations: number;
+    logins: number;
+    fourEyes: number;
   };
   dailyActivity: Array<{
     day: string;
@@ -65,17 +87,8 @@ export interface AuditLogStats {
     count: number;
     percentage: number;
   }>;
-  recentCritical: Array<{
-    id: string;
-    action: string;
-    entityName: string;
-    entityId: string | null;
-    userName: string;
-    userEmail: string | null;
-    description: string | null;
-    createdAt: string;
-    ipAddress: string | null;
-  }>;
+  recentCritical: AuditLogRow[];
+  recentActivities?: AuditLogRow[];
 }
 
 function queryString(params: object) {
@@ -97,10 +110,10 @@ export function useAuditLogs(params: ListAuditLogsParams) {
   });
 }
 
-export function useAuditLogStats() {
+export function useAuditLogStats(params?: { from_date?: string; to_date?: string }) {
   return useQuery<AuditLogStats>({
-    queryKey: [...auditLogsQueryKey, 'stats'],
-    queryFn: () => backendGet<AuditLogStats>('/audit-logs/stats'),
+    queryKey: [...auditLogsQueryKey, 'stats', params],
+    queryFn: () => backendGet<AuditLogStats>(`/audit-logs/stats${queryString(params ?? {})}`),
     staleTime: 15_000,
   });
 }

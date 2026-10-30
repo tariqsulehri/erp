@@ -28,13 +28,17 @@ export interface StatTileProps {
   /** Makes the whole tile a link to the report behind the figure. */
   href?: string;
   linkLabel?: string;
+  /** Click handler to trigger drilldowns or modals. */
+  onClick?: () => void;
+  /** Highlights the tile as actively selected. */
+  isActive?: boolean;
 }
 
 /**
  * Compact summary tile used on every dashboard and analytics screen.
  * Layout: icon + label (+ help) / figure + suffix / optional bar / one or two detail lines.
  */
-export function StatTile({ label, value, suffix, icon, tone = 'blue', help, detail, progress, parts, change, href, linkLabel }: StatTileProps) {
+export function StatTile({ label, value, suffix, icon, tone = 'blue', help, detail, progress, parts, change, href, linkLabel, onClick, isActive }: StatTileProps) {
   const partsTotal = parts?.reduce((sum, part) => sum + Math.max(part.value, 0), 0) ?? 0;
   const bar = progress !== undefined
     ? (
@@ -52,13 +56,22 @@ export function StatTile({ label, value, suffix, icon, tone = 'blue', help, deta
       )
       : null;
 
+  const isClickable = Boolean(href || onClick);
+
   const body = (
     <>
       <div className="stat-tile-head">
         {icon && <span className="stat-tile-icon" aria-hidden>{icon}</span>}
         <span className="stat-tile-label" title={label}>{label}</span>
-        {href && <IconChevronRight className="stat-tile-go" size={14} stroke={2} aria-hidden />}
-        {help && <span className="stat-tile-help"><HelpButton title={label} size="sm">{help}</HelpButton></span>}
+        {isClickable && <IconChevronRight className="stat-tile-go" size={14} stroke={2} aria-hidden />}
+        {help && (
+          <span
+            className="stat-tile-help"
+            onClick={e => e.stopPropagation()}
+          >
+            <HelpButton title={label} size="sm">{help}</HelpButton>
+          </span>
+        )}
       </div>
       <div className="stat-tile-figure">
         <span className="stat-tile-value">{value}</span>
@@ -80,16 +93,47 @@ export function StatTile({ label, value, suffix, icon, tone = 'blue', help, deta
     </>
   );
 
-  const className = `stat-tile tone-${tone}${href ? ' stat-tile-link' : ''}`;
+  const activeStyle = isActive
+    ? {
+      borderColor: 'var(--color-primary)',
+      boxShadow: '0 0 0 2px var(--color-primary-subtle)',
+    }
+    : undefined;
+
+  const className = `stat-tile tone-${tone}${isClickable ? ' stat-tile-link' : ''}${isActive ? ' stat-tile-active' : ''}`;
   if (href) {
     return (
-      <Link href={href} className={className} title={linkLabel ?? 'View Report'}>
+      <Link href={href} className={className} style={activeStyle} title={linkLabel ?? 'View Report'}>
         {body}
         <span className="sr-only">{linkLabel ?? 'View Report'}</span>
       </Link>
     );
   }
-  return <div className={className}>{body}</div>;
+  if (onClick) {
+    return (
+      <div
+        role="button"
+        tabIndex={0}
+        className={className}
+        onClick={onClick}
+        onKeyDown={e => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            onClick();
+          }
+        }}
+        title={linkLabel ?? `View ${label} details`}
+        style={{
+          cursor: 'pointer',
+          outline: 'none',
+          ...activeStyle,
+        }}
+      >
+        {body}
+      </div>
+    );
+  }
+  return <div className={className} style={activeStyle}>{body}</div>;
 }
 
 /** Grid for StatTiles: as many 220px+ columns as fit (five on a wide screen). */

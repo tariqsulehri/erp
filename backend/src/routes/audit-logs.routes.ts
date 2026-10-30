@@ -11,7 +11,11 @@ auditLogsRouter.get('/stats', async (req, res, next) => {
     const actor = requireUserManager(req);
     const companyId = resolveCompanyId(req);
     const service = new AuditService(companyId, actor);
-    res.json(await service.getStats());
+    const filterQuery = {
+      from_date: typeof req.query.from_date === 'string' ? req.query.from_date : undefined,
+      to_date: typeof req.query.to_date === 'string' ? req.query.to_date : undefined,
+    };
+    res.json(await service.getStats(filterQuery));
   } catch (error) {
     next(error);
   }

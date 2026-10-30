@@ -511,7 +511,21 @@ export class VoucherService {
         );
       }
 
-      return voucherToResponse(updated);
+      const response = voucherToResponse(updated);
+      void logAuditEvent({
+        companyId: this.companyId,
+        userId,
+        action: 'UPDATE',
+        entityName: 'Voucher',
+        entityId: id,
+        description: `Updated draft ${updated.voucherType} voucher ${updated.voucherNumber}`,
+        details: {
+          voucher_type: updated.voucherType,
+          voucher_number: updated.voucherNumber,
+          total_debit: Number(updated.totalDebit),
+        },
+      });
+      return response;
     });
   }
 
@@ -554,14 +568,22 @@ export class VoucherService {
       });
 
       const response = voucherToResponse(updated);
+      const isFourEyes = Boolean(voucher.createdBy && userId && voucher.createdBy !== userId);
       void logAuditEvent({
         companyId: this.companyId,
         userId,
         action: 'POST',
         entityName: 'Voucher',
         entityId: id,
-        description: `Posted ${voucher.voucherType} voucher ${voucher.voucherNumber} to ledger`,
-        details: { voucher_type: voucher.voucherType, voucher_number: voucher.voucherNumber, total_debit: Number(voucher.totalDebit) },
+        description: `Posted ${voucher.voucherType} voucher ${voucher.voucherNumber} to ledger${isFourEyes ? ' (Four-Eyes dual control verified)' : ' (Direct single-operator post)'}`,
+        details: {
+          voucher_type: voucher.voucherType,
+          voucher_number: voucher.voucherNumber,
+          total_debit: Number(voucher.totalDebit),
+          maker_id: voucher.createdBy,
+          checker_id: userId,
+          four_eyes_verified: isFourEyes,
+        },
       });
       return response;
     });
@@ -724,7 +746,23 @@ export class VoucherService {
         include: { lines: true },
       });
 
-      return voucherToResponse(updated);
+      const response = voucherToResponse(updated);
+      void logAuditEvent({
+        companyId: this.companyId,
+        userId,
+        action: 'REQUEST_APPROVAL',
+        entityName: 'Voucher',
+        entityId: id,
+        description: `Requested Four-Eyes approval for ${voucher.voucherType} voucher ${voucher.voucherNumber}`,
+        details: {
+          voucher_type: voucher.voucherType,
+          voucher_number: voucher.voucherNumber,
+          total_debit: Number(voucher.totalDebit),
+          maker_id: userId,
+          note: input.note,
+        },
+      });
+      return response;
     });
   }
 
@@ -767,7 +805,25 @@ export class VoucherService {
         include: { lines: true },
       });
 
-      return voucherToResponse(updated);
+      const response = voucherToResponse(updated);
+      void logAuditEvent({
+        companyId: this.companyId,
+        userId,
+        action: 'APPROVE',
+        entityName: 'Voucher',
+        entityId: id,
+        description: `Approved voucher ${voucher.voucherNumber} (Four-Eyes Principle verified: Maker ${voucher.createdBy ?? 'N/A'}, Approver ${userId})`,
+        details: {
+          voucher_type: voucher.voucherType,
+          voucher_number: voucher.voucherNumber,
+          total_debit: Number(voucher.totalDebit),
+          maker_id: voucher.createdBy,
+          checker_id: userId,
+          four_eyes_verified: true,
+          note: input.note,
+        },
+      });
+      return response;
     });
   }
 
@@ -797,7 +853,24 @@ export class VoucherService {
         include: { lines: true },
       });
 
-      return voucherToResponse(updated);
+      const response = voucherToResponse(updated);
+      void logAuditEvent({
+        companyId: this.companyId,
+        userId,
+        action: 'REJECT',
+        entityName: 'Voucher',
+        entityId: id,
+        description: `Rejected voucher ${voucher.voucherNumber}. Reason: ${input.reason}`,
+        details: {
+          voucher_type: voucher.voucherType,
+          voucher_number: voucher.voucherNumber,
+          total_debit: Number(voucher.totalDebit),
+          maker_id: voucher.createdBy,
+          checker_id: userId,
+          reason: input.reason,
+        },
+      });
+      return response;
     });
   }
 
