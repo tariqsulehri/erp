@@ -96,9 +96,9 @@ describe('AuditReportWorkspace', () => {
     expect(screen.getByText('Audit Trail Summary Report')).toBeInTheDocument();
     expect(screen.getByText('434 Records')).toBeInTheDocument();
     expect(screen.getByText('Executive Visual Overview · Audit Trail Summary Report')).toBeInTheDocument();
-    expect(screen.getByText('Activity Velocity (14-Day Timeline)')).toBeInTheDocument();
-    expect(screen.getByText('Action Type Distribution (Pie)')).toBeInTheDocument();
-    expect(screen.getByText('Governance & Risk Radar')).toBeInTheDocument();
+    expect(screen.getByText('Daily Activity (Last 14 Days)')).toBeInTheDocument();
+    expect(screen.getByText('Activity By Action Type')).toBeInTheDocument();
+    expect(screen.getByText('Four-Eyes Dual Control')).toBeInTheDocument();
   });
 
   it('renders sub-tabs for multi-angle reporting when hideSubTabs is false', () => {
@@ -123,7 +123,7 @@ describe('AuditReportWorkspace', () => {
     const toggleBtn = screen.getByText('Hide Overview Panel');
     fireEvent.click(toggleBtn);
 
-    expect(screen.queryByText('Activity Velocity (14-Day Timeline)')).not.toBeInTheDocument();
+    expect(screen.queryByText('Daily Activity (Last 14 Days)')).not.toBeInTheDocument();
     expect(screen.getByText('Show Overview Panel')).toBeInTheDocument();
   });
 
@@ -133,7 +133,7 @@ describe('AuditReportWorkspace', () => {
 
     expect(screen.getByText('LOG-a0000000')).toBeInTheDocument();
     expect(screen.getByText('Sara Admin')).toBeInTheDocument();
-    expect(screen.getByText('4-Eyes Verified')).toBeInTheDocument();
+    expect(screen.getAllByText('4-Eyes Verified').length).toBeGreaterThan(0);
     expect(screen.getByText('CPV-2026-001')).toBeInTheDocument();
 
     const row = screen.getByText('Sara Admin').closest('tr');

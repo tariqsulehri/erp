@@ -10,26 +10,10 @@ import {
   IconShieldCheck,
   IconUserCheck,
 } from '@tabler/icons-react';
-import {
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip as RechartsTooltip,
-  ResponsiveContainer,
-  RadarChart,
-  PolarGrid,
-  PolarAngleAxis,
-  PolarRadiusAxis,
-  Radar,
-  PieChart,
-  Pie,
-  Cell,
-} from 'recharts';
 import { useAuditLogs, useAuditLogStats, type AuditLogRow } from '@/lib/api/audit';
 import { useGeneralSettings } from '@/lib/api/settings';
 import { formatDate, formatCount } from '@/lib/app-settings';
+import { ChartCard, DonutChart, MonthlyColumnChart } from '@/components/analytics/ProCharts';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { FieldLabel } from '@/components/ui/FieldLabel';
@@ -256,15 +240,23 @@ export function AuditReportWorkspace({
     };
   };
 
-  // Shaped Data for Pro-Level Overview Panel Graphs
-  const lineData = useMemo(() => {
+  // Shaped Data for Pro-Level Overview Panel Graphs (Strictly flat Calm Ledger standard)
+  const monthlyPoints = useMemo(() => {
     return (stats?.dailyActivity ?? []).map(d => ({
+      monthKey: d.day,
+      month: d.day,
       label: d.label,
-      events: d.count,
+      count: d.count,
     }));
   }, [stats?.dailyActivity]);
 
-  const pieData = useMemo(() => {
+  const avgDaily = useMemo(() => {
+    const activity = stats?.dailyActivity ?? [];
+    if (activity.length === 0) return 0;
+    return Math.round(activity.reduce((sum, d) => sum + d.count, 0) / activity.length);
+  }, [stats?.dailyActivity]);
+
+  const donutActionItems = useMemo(() => {
     return (stats?.byAction ?? []).slice(0, 5).map(a => ({
       name: a.action,
       value: a.count,
@@ -272,21 +264,24 @@ export function AuditReportWorkspace({
     }));
   }, [stats?.byAction, theme]);
 
-  const radarData = useMemo(() => {
-    const totalEvents = stats?.metrics.totalEvents ?? 1;
-    const dualRate = stats?.fourEyesMetrics?.dualControlRate ?? 95;
-    const activeUsers = stats?.metrics.activeUsers ?? 1;
-    const critical = stats?.metrics.criticalActions ?? 0;
+  const topAction = stats?.byAction?.[0];
 
-    return [
-      { subject: 'Four-Eyes Dual Control', value: dualRate, fullMark: 100 },
-      { subject: 'Operator Diversity', value: Math.min(100, Math.round((activeUsers / 6) * 100)), fullMark: 100 },
-      { subject: 'Audit Integrity', value: 100, fullMark: 100 },
-      { subject: 'Auth Health', value: Math.max(75, 100 - (critical * 2)), fullMark: 100 },
-      { subject: 'Sensitivity Containment', value: Math.max(60, Math.round(((totalEvents - critical) / totalEvents) * 100)), fullMark: 100 },
-      { subject: 'Ledger Balancing', value: 98, fullMark: 100 },
+  const verifiedCount = stats?.fourEyesMetrics?.fourEyesVerifiedCount ?? 0;
+  const singleOperatorCount = stats?.fourEyesMetrics?.singleOperatorCount ?? 0;
+  const pendingApprovals = stats?.fourEyesMetrics?.pendingApprovals ?? 0;
+  const totalEvaluated = stats?.fourEyesMetrics?.totalEvaluated ?? ((verifiedCount + singleOperatorCount) || 1);
+  const dualRate = stats?.fourEyesMetrics?.dualControlRate ?? (totalEvaluated > 0 ? Math.round((verifiedCount / totalEvaluated) * 100) : 100);
+
+  const fourEyesItems = useMemo(() => {
+    const items = [
+      { name: '4-Eyes Verified', value: verifiedCount, color: theme.series.teal },
+      { name: 'Single-Operator', value: singleOperatorCount, color: theme.series.amber },
     ];
-  }, [stats]);
+    if (pendingApprovals > 0) {
+      items.push({ name: 'Pending Review', value: pendingApprovals, color: theme.series.slate });
+    }
+    return items;
+  }, [verifiedCount, singleOperatorCount, pendingApprovals, theme]);
 
   const distinctOperators: SelectOption[] = useMemo(() => {
     const ops: SelectOption[] = [{ value: '', label: 'All Operators' }];
@@ -317,7 +312,7 @@ export function AuditReportWorkspace({
         />
       )}
 
-      {/* Pro Level Overview Panel with Graphs: Pie, Line, and Radar */}
+      {/* Pro Level Overview Panel with Standard Flat Calm Ledger Charts */}
       <section
         style={{
           borderRadius: 'var(--radius-lg)',
@@ -351,7 +346,7 @@ export function AuditReportWorkspace({
                 Executive Visual Overview · {angleConstraints.title}
               </h3>
               <p style={{ margin: 0, fontSize: 'var(--font-size-2xs)', color: 'var(--color-text-muted)' }}>
-                Multidimensional telemetry analysis featuring velocity trends, action composition, and 6-axis governance radar.
+                Enterprise telemetry analysis featuring activity velocity, action lifecycle share, and four-eyes segregation.
               </p>
             </div>
           </div>
@@ -379,172 +374,113 @@ export function AuditReportWorkspace({
         </div>
 
         {showOverviewPanel && (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 14, paddingTop: 6 }}>
-            {/* 1. Line / Velocity Trend Chart */}
-            <div
-              style={{
-                borderRadius: 'var(--radius-md)',
-                border: '1px solid var(--color-border-subtle)',
-                backgroundColor: 'var(--color-surface-subtle)',
-                padding: '12px 14px',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: 8,
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(310px, 1fr))', gap: 14, paddingTop: 4 }}>
+            {/* 1. Velocity Timeline Column Chart (Flat) */}
+            <ChartCard
+              title="Daily Activity (Last 14 Days)"
+              subtitle="Audit volume frequency; dashed line indicates daily average"
+              headline={`${formatCount(total, settings)} total events recorded across the enterprise`}
+              metric={{ label: 'Daily Average', value: `${formatCount(avgDaily, settings)} events/day` }}
+              help="Histogram of all user and system modifications recorded over the last two weeks."
+              table={{
+                columns: [
+                  { key: 'day', label: 'Date' },
+                  { key: 'count', label: 'Events Recorded', numeric: true },
+                ],
+                rows: (stats?.dailyActivity ?? []).map(d => ({
+                  day: d.label,
+                  count: formatCount(d.count, settings),
+                })),
               }}
             >
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontSize: 'var(--font-size-xs)', fontWeight: 700, color: 'var(--color-heading)' }}>
-                  Activity Velocity (14-Day Timeline)
-                </span>
-                <span style={{ fontSize: 'var(--font-size-2xs)', color: 'var(--color-text-muted)' }}>
-                  Volume Frequency
-                </span>
-              </div>
-              <div style={{ height: 180, width: '100%' }}>
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={lineData} margin={{ top: 8, right: 12, left: -20, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border-subtle)" />
-                    <XAxis dataKey="label" tick={{ fill: 'var(--color-text-secondary)', fontSize: 10 }} />
-                    <YAxis tick={{ fill: 'var(--color-text-secondary)', fontSize: 10 }} />
-                    <RechartsTooltip
-                      contentStyle={{
-                        backgroundColor: 'var(--color-surface)',
-                        borderColor: 'var(--color-border-subtle)',
-                        borderRadius: 'var(--radius-sm)',
-                        fontSize: 'var(--font-size-xs)',
-                      }}
-                    />
-                    <Line
-                      type="monotone"
-                      dataKey="events"
-                      name="Events"
-                      stroke="var(--color-primary)"
-                      strokeWidth={2.5}
-                      dot={{ r: 3, fill: 'var(--color-primary)' }}
-                      activeDot={{ r: 5 }}
-                    />
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
-
-            {/* 2. Pie / Donut Chart */}
-            <div
-              style={{
-                borderRadius: 'var(--radius-md)',
-                border: '1px solid var(--color-border-subtle)',
-                backgroundColor: 'var(--color-surface-subtle)',
-                padding: '12px 14px',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: 8,
-              }}
-            >
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontSize: 'var(--font-size-xs)', fontWeight: 700, color: 'var(--color-heading)' }}>
-                  Action Type Distribution (Pie)
-                </span>
-                <span style={{ fontSize: 'var(--font-size-2xs)', color: 'var(--color-text-muted)' }}>
-                  Top Mutators
-                </span>
-              </div>
-              <div style={{ height: 180, width: '100%', display: 'flex', alignItems: 'center' }}>
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={pieData}
-                      cx="50%"
-                      cy="50%"
-                      innerRadius={45}
-                      outerRadius={70}
-                      paddingAngle={3}
-                      dataKey="value"
-                    >
-                      {pieData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={entry.color} />
-                      ))}
-                    </Pie>
-                    <RechartsTooltip
-                      contentStyle={{
-                        backgroundColor: 'var(--color-surface)',
-                        borderColor: 'var(--color-border-subtle)',
-                        borderRadius: 'var(--radius-sm)',
-                        fontSize: 'var(--font-size-xs)',
-                      }}
-                    />
-                  </PieChart>
-                </ResponsiveContainer>
-                {/* Mini Legend */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 90, fontSize: 'var(--font-size-2xs)' }}>
-                  {pieData.map(p => (
-                    <div key={p.name} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                      <span style={{ width: 8, height: 8, borderRadius: 2, backgroundColor: p.color, flexShrink: 0 }} />
-                      <span style={{ color: 'var(--color-heading)', fontWeight: 600 }}>{p.name}:</span>
-                      <span style={{ color: 'var(--color-text-muted)' }}>{p.value}</span>
-                    </div>
-                  ))}
+              {monthlyPoints.length === 0 || total === 0 ? (
+                <div className="empty-state" style={{ padding: '32px 16px' }}>
+                  <div className="empty-desc">No events recorded during this 14-day window.</div>
                 </div>
-              </div>
-            </div>
+              ) : (
+                <MonthlyColumnChart
+                  variant="flat"
+                  data={monthlyPoints}
+                  dataKey="count"
+                  seriesName="Events"
+                  average={avgDaily}
+                  format={val => `${formatCount(val, settings)} events`}
+                  axis={val => formatCount(val, settings)}
+                  tooltipTitle={point => String(point.label)}
+                  height={185}
+                />
+              )}
+            </ChartCard>
 
-            {/* 3. Multi-Axis Governance Radar Chart */}
-            <div
-              style={{
-                borderRadius: 'var(--radius-md)',
-                border: '1px solid var(--color-border-subtle)',
-                backgroundColor: 'var(--color-surface-subtle)',
-                padding: '12px 14px',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: 8,
+            {/* 2. Action Type Distribution (Flat Donut Chart) */}
+            <ChartCard
+              title="Activity By Action Type"
+              subtitle="Proportion of operations across standard lifecycle actions"
+              headline={topAction ? `${topAction.action} represents ${topAction.percentage}% of all operations` : 'No action data available'}
+              metric={{ label: 'Primary Action', value: topAction?.action ?? '—' }}
+              help="Distribution of actions categorized by Create, Update, Delete, Post, Approve, and Reset."
+              table={{
+                columns: [
+                  { key: 'action', label: 'Action Type' },
+                  { key: 'count', label: 'Count', numeric: true },
+                  { key: 'share', label: 'Share', numeric: true },
+                ],
+                rows: (stats?.byAction ?? []).map(a => ({
+                  action: a.action,
+                  count: formatCount(a.count, settings),
+                  share: `${a.percentage}%`,
+                })),
               }}
             >
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontSize: 'var(--font-size-xs)', fontWeight: 700, color: 'var(--color-heading)' }}>
-                  Governance &amp; Risk Radar
-                </span>
-                <span
-                  style={{
-                    fontSize: 'var(--font-size-2xs)',
-                    fontWeight: 700,
-                    color: 'var(--color-primary)',
-                  }}
-                >
-                  Index {stats?.fourEyesMetrics?.dualControlRate ?? 95}%
-                </span>
-              </div>
-              <div style={{ height: 180, width: '100%' }}>
-                <ResponsiveContainer width="100%" height="100%">
-                  <RadarChart cx="50%" cy="50%" outerRadius="70%" data={radarData}>
-                    <PolarGrid stroke="var(--color-border-subtle)" strokeDasharray="2 2" />
-                    <PolarAngleAxis
-                      dataKey="subject"
-                      tick={{ fill: 'var(--color-text-secondary)', fontSize: 9, fontWeight: 500 }}
-                    />
-                    <PolarRadiusAxis
-                      angle={30}
-                      domain={[0, 100]}
-                      tick={{ fill: 'var(--color-text-muted)', fontSize: 8 }}
-                    />
-                    <Radar
-                      name="Governance Score"
-                      dataKey="value"
-                      stroke="var(--color-primary)"
-                      fill="var(--color-primary)"
-                      fillOpacity={0.3}
-                    />
-                    <RechartsTooltip
-                      contentStyle={{
-                        backgroundColor: 'var(--color-surface)',
-                        borderColor: 'var(--color-border-subtle)',
-                        borderRadius: 'var(--radius-sm)',
-                        fontSize: 'var(--font-size-xs)',
-                      }}
-                    />
-                  </RadarChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
+              {donutActionItems.length === 0 || total === 0 ? (
+                <div className="empty-state" style={{ padding: '32px 16px' }}>
+                  <div className="empty-desc">No operations recorded yet.</div>
+                </div>
+              ) : (
+                <DonutChart
+                  variant="flat"
+                  items={donutActionItems}
+                  centerValue={formatCount(total, settings)}
+                  centerLabel="events"
+                  format={val => formatCount(val, settings)}
+                />
+              )}
+            </ChartCard>
+
+            {/* 3. Four-Eyes Governance & Dual Control (Flat Donut Chart - Matching Attached Sample!) */}
+            <ChartCard
+              title="Four-Eyes Dual Control"
+              subtitle="Maker-checker segregation across transactions"
+              headline={`${verifiedCount} of ${totalEvaluated} operations posted under dual control.`}
+              metric={{ label: 'Dual-Control Rate', value: `${dualRate}%` }}
+              help="Four-eyes dual control ensures critical ledger entries and mutations are posted or approved by an independent operator."
+              table={{
+                columns: [
+                  { key: 'status', label: 'Verification Type' },
+                  { key: 'count', label: 'Operations', numeric: true },
+                  { key: 'share', label: 'Compliance Share', numeric: true },
+                ],
+                rows: fourEyesItems.map(item => ({
+                  status: item.name,
+                  count: formatCount(item.value, settings),
+                  share: totalEvaluated > 0 ? `${Math.round((item.value / totalEvaluated) * 100)}%` : '0%',
+                })),
+              }}
+            >
+              {fourEyesItems.length === 0 || totalEvaluated === 0 ? (
+                <div className="empty-state" style={{ padding: '32px 16px' }}>
+                  <div className="empty-desc">No dual-control operations evaluated yet.</div>
+                </div>
+              ) : (
+                <DonutChart
+                  variant="flat"
+                  items={fourEyesItems}
+                  centerValue={`${dualRate}%`}
+                  centerLabel="compliance"
+                  format={val => formatCount(val, settings)}
+                />
+              )}
+            </ChartCard>
           </div>
         )}
       </section>
