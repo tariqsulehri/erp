@@ -16,6 +16,7 @@ import {
   IconRefresh,
   IconReportMoney,
   IconScale,
+  IconShieldCheck,
   IconShoppingCart,
   IconTruckDelivery,
 } from '@tabler/icons-react';
@@ -46,14 +47,15 @@ import { DayBookReportPage } from './DayBookReportPage';
 import { SalesTaxReportPage } from './SalesTaxReportPage';
 import { StockLedgerReportPage } from './StockLedgerReportPage';
 import { StockValuationReportPage } from './StockValuationReportPage';
-import { hasPermission } from '@/lib/auth/session-user';
+import { AuditReportWorkspace } from '@/components/audit-logs/AuditReportWorkspace';
+import { canManageUsers, hasPermission } from '@/lib/auth/session-user';
 import { amountStyle, embeddedReportStyle, reportFilterGridStyle } from './LedgerReportStyles';
 import { useReportDateRange } from './LedgerReportHelpers';
 import { ReportActions } from './ReportActions';
 import type { ReportDocument } from './report-output';
 import type { DocumentListTotals } from '@/lib/api/document-totals';
 
-type ReportGroupKey = 'purchase' | 'sales' | 'inventory' | 'accounts' | 'parties' | 'tax';
+type ReportGroupKey = 'purchase' | 'sales' | 'inventory' | 'accounts' | 'parties' | 'tax' | 'audit';
 export type ReportKey =
   | 'purchase-summary'
   | 'purchase-return-summary'
@@ -73,7 +75,12 @@ export type ReportKey =
   | 'supplier-ledger'
   | 'receivables-aging'
   | 'payables-aging'
-  | 'sales-tax';
+  | 'sales-tax'
+  | 'audit-trail-summary'
+  | 'audit-four-eyes'
+  | 'audit-auth-activity'
+  | 'audit-sensitive-ops'
+  | 'audit-module-mutations';
 
 interface ReportDefinition {
   key: ReportKey;
@@ -88,6 +95,8 @@ interface ReportGroup {
   reports: ReportDefinition[];
   /** Ledger-based groups need the financial reports permission (the backend checks it too). */
   financial?: boolean;
+  /** Audit telemetry needs the user manager permission (admin / top_management). */
+  audit?: boolean;
 }
 
 interface FilterState {
@@ -182,6 +191,19 @@ const reportGroups: ReportGroup[] = [
       { key: 'sales-tax', title: 'Sales Tax Report', Icon: IconReceiptTax },
     ],
   },
+  {
+    key: 'audit',
+    title: 'Audit & Governance',
+    Icon: IconShieldCheck,
+    audit: true,
+    reports: [
+      { key: 'audit-trail-summary', title: 'Audit Trail Summary', Icon: IconFileAnalytics },
+      { key: 'audit-four-eyes', title: 'Four-Eyes & Dual-Control', Icon: IconShieldCheck },
+      { key: 'audit-auth-activity', title: 'User Activity & Auth', Icon: IconUsers },
+      { key: 'audit-sensitive-ops', title: 'Sensitive Operations', Icon: IconFileAnalytics },
+      { key: 'audit-module-mutations', title: 'Module Mutations', Icon: IconPackage },
+    ],
+  },
 ];
 
 const defaultReportByGroup: Record<ReportGroupKey, ReportKey> = {
@@ -191,6 +213,7 @@ const defaultReportByGroup: Record<ReportGroupKey, ReportKey> = {
   accounts: 'ledger',
   parties: 'customer-ledger',
   tax: 'sales-tax',
+  audit: 'audit-trail-summary',
 };
 
 /** Opens a report directly, e.g. /reports?report=ledger&account=<id>&from=2026-07-01&to=2026-10-26. */
@@ -220,7 +243,16 @@ const defaultFilters = (): FilterState => ({
 export function ReportsWorkspace({ link }: { link?: ReportLink }) {
   const { data: session } = useSession();
   const canSeeFinancial = hasPermission(session?.user.role, 'reports.financial');
-  const visibleGroups = useMemo(() => reportGroups.filter(group => !group.financial || canSeeFinancial), [canSeeFinancial]);
+  const canSeeAudit = canManageUsers(session?.user.role);
+  const visibleGroups = useMemo(
+    () =>
+      reportGroups.filter(group => {
+        if (group.financial && !canSeeFinancial) return false;
+        if (group.audit && !canSeeAudit) return false;
+        return true;
+      }),
+    [canSeeFinancial, canSeeAudit],
+  );
   const linkedGroup = groupOfReport(link?.report, visibleGroups);
   const [activeGroupKey, setActiveGroupKey] = useState<ReportGroupKey>(linkedGroup?.key ?? 'purchase');
   const [activeReportKey, setActiveReportKey] = useState<ReportKey>((linkedGroup ? link?.report : 'purchase-summary') as ReportKey);
@@ -303,6 +335,11 @@ function renderReport(reportKey: ReportKey, link?: ReportLink) {
     case 'receivables-aging': return <AgingReportPage embedded kind="receivables" />;
     case 'payables-aging': return <AgingReportPage embedded kind="payables" />;
     case 'sales-tax': return <SalesTaxReportPage embedded />;
+    case 'audit-trail-summary': return <AuditReportWorkspace initialAngle="trail-summary" hideSubTabs />;
+    case 'audit-four-eyes': return <AuditReportWorkspace initialAngle="four-eyes" hideSubTabs />;
+    case 'audit-auth-activity': return <AuditReportWorkspace initialAngle="auth-activity" hideSubTabs />;
+    case 'audit-sensitive-ops': return <AuditReportWorkspace initialAngle="sensitive-ops" hideSubTabs />;
+    case 'audit-module-mutations': return <AuditReportWorkspace initialAngle="module-mutations" hideSubTabs />;
     default: return <LedgerReportPage key={ledgerKey} {...ledgerProps} />;
   }
 }

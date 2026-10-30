@@ -4,6 +4,7 @@ import { useState } from 'react';
 import {
   IconChartBar,
   IconDownload,
+  IconFileAnalytics,
   IconList,
   IconRefresh,
 } from '@tabler/icons-react';
@@ -21,10 +22,11 @@ import { backendGet } from '@/lib/api/backend-client';
 import { AuditAnalyticsView } from './AuditAnalyticsView';
 import { AuditLogDetailDrawer } from './AuditLogDetailDrawer';
 import { AuditLogListView } from './AuditLogListView';
+import { AuditReportWorkspace } from './AuditReportWorkspace';
 import { AuditTileDrilldownDrawer, type TileDrilldownConfig } from './AuditTileDrilldownDrawer';
 import { exportAuditLogsToCsv } from './audit-helpers';
 
-type AuditViewTab = 'dashboard' | 'explorer';
+type AuditViewTab = 'dashboard' | 'explorer' | 'reports';
 
 export default function AuditLogsPage() {
   const [activeTab, setActiveTab] = useState<AuditViewTab>('dashboard');
@@ -176,6 +178,29 @@ export default function AuditLogsPage() {
                 <IconList size={15} />
                 <span>Log Explorer</span>
               </button>
+
+              <button
+                type="button"
+                onClick={() => setActiveTab('reports')}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  padding: '5px 12px',
+                  borderRadius: 'var(--radius-sm)',
+                  fontSize: 'var(--font-size-xs)',
+                  fontWeight: activeTab === 'reports' ? 600 : 500,
+                  border: 'none',
+                  cursor: 'pointer',
+                  backgroundColor: activeTab === 'reports' ? 'var(--color-surface)' : 'transparent',
+                  color: activeTab === 'reports' ? 'var(--color-heading)' : 'var(--color-text-muted)',
+                  boxShadow: activeTab === 'reports' ? 'var(--shadow-xs)' : 'none',
+                  transition: 'all var(--transition-fast)',
+                }}
+              >
+                <IconFileAnalytics size={15} />
+                <span>Audit Reports</span>
+              </button>
             </div>
 
             <Button
@@ -250,6 +275,10 @@ export default function AuditLogsPage() {
             onSelectLog={log => setSelectedLog(log)}
             onRefetch={() => void logsQuery.refetch()}
           />
+        )}
+
+        {activeTab === 'reports' && (
+          <AuditReportWorkspace onInspectLog={log => setSelectedLog(log)} />
         )}
       </div>
 

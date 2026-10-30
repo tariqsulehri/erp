@@ -132,4 +132,34 @@ export const reportHelp: Record<string, ReactNode> = {
       <p>Net Tax Payable is Output Tax minus Input Tax. Returns are shown as negative amounts.</p>
     </>
   ),
+  'audit-trail-summary': (
+    <>
+      <p>This report provides an immutable chronological audit trail of all enterprise ledger, document, and master-data operations.</p>
+      <p>Filter by Operator, Event Action, Target Module, Four-Eyes verification status, and date range. Use Print or Export to produce an official audit report.</p>
+    </>
+  ),
+  'audit-four-eyes': (
+    <>
+      <p>This report highlights maker-checker separation of duties and dual-control approvals across financial vouchers and sensitive mutations.</p>
+      <p>Verify that posting operators differ from draft creators and inspect approver identities.</p>
+    </>
+  ),
+  'audit-auth-activity': (
+    <>
+      <p>This report tracks operator authentication telemetry, logins, session creations, and credential activities across branches.</p>
+      <p>Monitor security events and client IP address origins.</p>
+    </>
+  ),
+  'audit-sensitive-ops': (
+    <>
+      <p>This report captures high-impact security operations including deletions, voids, cancellations, reversals, and password resets.</p>
+      <p>All sensitive events record the originating actor and target document details.</p>
+    </>
+  ),
+  'audit-module-mutations': (
+    <>
+      <p>This report tracks mutations across key business modules (Vouchers, Accounts, Products, Customers, Suppliers).</p>
+      <p>Analyze target entity volatility and master-data adjustments.</p>
+    </>
+  ),
 };
